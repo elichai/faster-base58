@@ -1,0 +1,22 @@
+[package]
+name = "base58-bench"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+malachite-nz = "0.14.0"
+
+[dev-dependencies]
+basexx = "0.2.0"
+bs58 = "0.5.1"
+criterion = "0.8.2"
+rand_xoshiro = "0.8.1"
+
+[[bench]]
+name = "decode"
+harness = false
+
+# Unit tests compare against quadratic bs58 at benchmark sizes, so optimize debug
+# builds. Overflow checks and debug assertions stay on.
+[profile.dev]
+opt-level = 3
