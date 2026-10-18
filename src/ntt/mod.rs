@@ -27,6 +27,11 @@ const THRESHOLD: usize = 128;
 /// many limbs. They need one forward transform fewer than other products.
 const PREPARED_THRESHOLD: usize = 96;
 
+/// [`THRESHOLD`] and [`PREPARED_THRESHOLD`] when Karatsuba has the AVX-512 IFMA leaf.
+/// Guesses until the Zen 5 sweep.
+const IFMA_THRESHOLD: usize = 1536;
+const IFMA_PREPARED_THRESHOLD: usize = 512;
+
 /// Like [`crate::decode`], but multiplies with NTTs. Builds twiddle tables for each call.
 pub fn decode_ntt(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     dc::decode_with(input, output, &mut Ntt::new(false, Kernels::best()))
@@ -35,6 +40,20 @@ pub fn decode_ntt(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 /// [`decode_ntt`], with twiddle tables from a process-wide cache.
 pub fn decode_ntt_cached(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     dc::decode_with(input, output, &mut Ntt::new(true, Kernels::best()))
+}
+
+/// [`decode_ntt`], or with `cached` [`decode_ntt_cached`], with `threshold` and
+/// `prepared` in place of [`THRESHOLD`] and [`PREPARED_THRESHOLD`].
+pub fn decode_ntt_with(
+    input: &str,
+    output: &mut [u8],
+    cached: bool,
+    threshold: usize,
+    prepared: usize,
+) -> Result<usize, Error> {
+    let ntt = Ntt::new(cached, Kernels::best());
+    let mut ntt = Ntt { threshold, prepared_threshold: prepared, ..ntt };
+    dc::decode_with(input, output, &mut ntt)
 }
 
 /// [`decode_ntt_cached`] with the portable kernels, compared with hand-written SIMD.
@@ -51,6 +70,9 @@ struct Ntt {
     kernels: Kernels,
     /// Largest tables to use: longer products are split. [`MAX_LOG`] except in tests.
     max_log: u32,
+    /// [`THRESHOLD`] and [`PREPARED_THRESHOLD`], or their IFMA values.
+    threshold: usize,
+    prepared_threshold: usize,
     owned: Option<Tables>,
     shared: Option<&'static Tables>,
     /// Forward transforms of the prepared powers, by index.
@@ -58,9 +80,15 @@ struct Ntt {
 }
 
 impl Ntt {
+    /// With the thresholds for this CPU.
     fn new(cached: bool, kernels: Kernels) -> Self {
+        let (threshold, prepared_threshold) = match mul::ifma_threshold() {
+            0 => (THRESHOLD, PREPARED_THRESHOLD),
+            _ => (IFMA_THRESHOLD, IFMA_PREPARED_THRESHOLD),
+        };
         let (owned, shared, powers) = (None, None, Vec::new());
-        Ntt { cached, kernels, max_log: MAX_LOG, owned, shared, powers }
+        let max_log = MAX_LOG;
+        Ntt { cached, kernels, max_log, threshold, prepared_threshold, owned, shared, powers }
     }
 
     fn tables(&self) -> &Tables {
@@ -68,10 +96,10 @@ impl Ntt {
     }
 
     /// `b`'s forward transforms for products of up to `len >= b.len()` limbs. `None` if
-    /// `b` is below [`PREPARED_THRESHOLD`] or the tables are too short.
+    /// `b` is below `prepared_threshold` or the tables are too short.
     fn prepare_operand(&self, b: &[u64], len: usize) -> Option<Prepared> {
         let (t, log) = (self.tables(), log_len(len));
-        if b.len() < PREPARED_THRESHOLD || log > t.log {
+        if b.len() < self.prepared_threshold || log > t.log {
             return None;
         }
         let n = 1 << log;
@@ -127,7 +155,7 @@ impl Multiplier for Ntt {
     }
 
     fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
-        mul_with(out, a, b, scratch, self.tables(), &self.kernels, THRESHOLD);
+        mul_with(out, a, b, scratch, self.tables(), &self.kernels, self.threshold);
     }
 
     fn prepare_power(&mut self, i: usize, b: &[u64], len: usize) {
@@ -144,7 +172,7 @@ impl Multiplier for Ntt {
             // tables. A square never gets here: `a` is not a power.
             Some(Some(f))
                 if f.is(b)
-                    && a.len() >= PREPARED_THRESHOLD
+                    && a.len() >= self.prepared_threshold
                     && log_len(a.len() + b.len()) <= f.log =>
             {
                 transform(out, a, b, s, self.tables(), &self.kernels, Some(f))
@@ -547,6 +575,13 @@ mod tests {
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
+    /// An [`Ntt`] with per-call tables and the thresholds for CPUs without the IFMA leaf,
+    /// which the shapes in the tests below are chosen around.
+    fn scalar_ntt(kernels: Kernels) -> Ntt {
+        let (threshold, prepared_threshold) = (THRESHOLD, PREPARED_THRESHOLD);
+        Ntt { threshold, prepared_threshold, ..Ntt::new(false, kernels) }
+    }
+
     /// [`mul_with`] against Karatsuba, with exactly `scratch_len` garbage-filled scratch.
     fn check(a: &[u64], b: &[u64], t: &Tables, k: &Kernels, threshold: usize) {
         let mut want = vec![0; a.len() + b.len()];
@@ -650,7 +685,7 @@ mod tests {
     #[test]
     fn decode_through_split() {
         let s = random_string(&mut Xoshiro256PlusPlus::seed_from_u64(38), 100_001);
-        let mut ntt = Ntt { max_log: 10, ..Ntt::new(false, Kernels::best()) };
+        let mut ntt = Ntt { max_log: 10, ..scalar_ntt(Kernels::best()) };
         let mut out = vec![0; s.len()];
         let n = dc::decode_with(&s, &mut out, &mut ntt).unwrap();
         assert!(Ok(out[..n].to_vec()) == decode_vec(crate::decode, &s));
@@ -748,7 +783,7 @@ mod tests {
             ..Kernels::portable()
         };
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(41);
-        let mut ntt = Ntt::new(false, counting);
+        let mut ntt = scalar_ntt(counting);
         ntt.prepare(4000);
         let shapes = [(1031, 858, 1889, 1), (600, 500, 4000, 2), (800, 900, 2000, 3)];
         for (i, (na, nb, len, pieces)) in shapes.into_iter().enumerate() {
@@ -786,7 +821,7 @@ mod tests {
             (1500, 858, 1716),
         ];
         for kernels in [Kernels::portable(), Kernels::best()] {
-            let mut ntt = Ntt::new(false, kernels);
+            let mut ntt = scalar_ntt(kernels);
             ntt.prepare(4000);
             let mut i = 0;
             for (na, nb, len) in shapes {
@@ -823,14 +858,21 @@ mod tests {
     }
 
     /// Large inputs, where bs58 is too slow to be the reference; `decode` (Karatsuba)
-    /// is checked against bs58 and `decode_batched`.
+    /// is checked against bs58 and `decode_batched`. The thresholds of CPUs with and
+    /// without the IFMA leaf are both checked on every CPU.
     #[test]
     fn decoders_match_karatsuba() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(33);
-        let decoders: [(&str, Decode); 3] = [
+        let decoders: [(&str, Decode); 5] = [
             ("ntt", decode_ntt),
             ("ntt-cached", decode_ntt_cached),
             ("ntt-portable", decode_ntt_portable),
+            ("scalar thresholds", |s, o| {
+                decode_ntt_with(s, o, true, THRESHOLD, PREPARED_THRESHOLD)
+            }),
+            ("IFMA thresholds", |s, o| {
+                decode_ntt_with(s, o, true, IFMA_THRESHOLD, IFMA_PREPARED_THRESHOLD)
+            }),
         ];
         let t = DC_THRESHOLD * CHUNK;
         for len in [t + 1, 2 * t + 1, 10_000, 40_960, 100_001, 1_000_000] {
