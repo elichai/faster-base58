@@ -515,7 +515,8 @@ leaf size read at run time in a copy of the crate, found:
 - 128: 0.5% slower at 32 KiB, 128 KiB and 1 MiB, where it halves a unit of 140, and 2.8%
   faster at 36 KiB, where it halves a unit of 158.
 
-The SIMD leaf work changes the cost of leaves, so the leaf size is better tuned after it.
+Measured again with the matrix leaf on aarch64: 256 stays (see
+[`decode_matrix`](#decode_matrix-a-matrix-of-powers)).
 
 ## `decode_malachite`: malachite-nz multiplication
 
@@ -653,11 +654,12 @@ assertions and overflow checks):
 - **Every decoder against `decode_batched` at 300k characters.** It shares only the
   chunk parsing with the others. Inputs: random, maximum-carry `zzz…`, leading `'1'`s,
   and an inner run of 100k `'1'`s that makes whole subtrees zero.
-- **`decode` against `decode_batched`** (`src/dc.rs`) up to 100k characters, including
-  the maximum-carry string `zzz…`. Short buffers and invalid characters fail before any
-  multiplier call, and the early length check accepts the shortest value of each
-  length into an exact buffer. A checking multiplier sees every power prepared in
-  order, and every product with a power within the bound it was prepared for.
+- **`decode` against `decode_batched`** (`src/dc.rs`) with each leaf, up to 164k
+  characters, including the maximum-carry string `zzz…` and a first leaf of 2 chunks.
+  Short buffers and invalid characters fail before any multiplier call, and the early
+  length check accepts the shortest value of each length into an exact buffer. A
+  checking multiplier sees every power prepared in order, and every product with a
+  power within the bound it was prepared for.
 - **Karatsuba and the two-row schoolbook against a one-row reference**
   (`src/mul.rs`) for operand lengths around the thresholds, with random and all-ones
   limbs.
@@ -767,9 +769,31 @@ For one-off decodes of up to 4 KiB, `decode_matrix` is slower than `decode_batch
 other benchmarks were running. Against the current `decode_batched`, `decode_matrix`
 was 0.94–0.97× at 330–384 B and 1.07× at 416 B.
 
-`src/matrix/` also has `leaf`, with the contract of `dc`'s leaf code. In the design
-probe, before the two-halves chunk parse, it was 1.4–1.7× faster than that leaf at
-70–256 chunks with the table in cache. `dc` does not use it yet.
+**Matrix leaves in `dc`.** On aarch64 `decode_ntt_cached` and `decode_ntt_portable`
+convert their leaves with `matrix::leaf` instead of the chunk parse and Horner loop. Its
+table is built on first use and kept, like their twiddle tables. `decode`,
+`decode_toom3`, `decode_malachite` and `decode_ntt` keep the Horner loop and no state
+between calls. Other targets use the Horner loop everywhere: x86_64 is not measured yet.
+An A/B with both leaves in one binary, in interleaved rounds (Apple M5 Pro on AC power,
+matrix time / Horner time):
+
+| decoded bytes | ntt-cached, warm | ntt-cached, first decode in a process |
+|--------------:|-----------------:|--------------------------------------:|
+| 4 KiB         | 0.87             | 2.37                                  |
+| 32 KiB        | 0.95             | 1.10                                  |
+| 48 KiB        | 0.93             | 1.18                                  |
+| 128 KiB       | 0.95             | 0.98                                  |
+| 1 MiB         | 0.96             | 0.97                                  |
+
+The first decode in a process builds the table: 50–85 µs more at 4–32 KiB, whose leaves
+have 140 chunks (154 KiB class), and 145–190 µs at 48 KiB, whose leaves have 210 (601 KiB
+class). The other `dc` decoders were faster warm too (0.87–0.99 up to 128 KiB). Without
+a cache they would build the table in every call, at about that first-decode cost (an
+estimate: it also includes a new process's cold caches), so the leaf would only pay from
+about 128 KiB. `LEAF` and `DC_THRESHOLD` were measured again with this leaf and stay.
+`LEAF = 512` was slower for the NTT decoders at 4 and 48 KiB. From 400 to 560 chunks,
+`dc` with matrix leaves beat `decode_batched` by up to 7%, but `decode_matrix` was 1.5×
+faster than both.
 
 On x86_64 the panel kernel uses AVX2 or SSE4.1 (`pmuludq` and `paddq`), chosen at run
 time, and parsing is plain Rust. Both kernels pass the tests under

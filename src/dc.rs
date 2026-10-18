@@ -3,7 +3,7 @@
 
 use crate::batched::decode_batched;
 use crate::common::{BASE, CHUNK, all_valid, chunks, invalid, split_zeros};
-use crate::{Error, mul};
+use crate::{Error, matrix, mul};
 
 /// Inputs with more chunks than this use divide-and-conquer. Below it,
 /// [`decode_batched`] is faster.
@@ -62,11 +62,41 @@ impl Multiplier for Karatsuba {
     }
 }
 
+/// How [`dc`] converts its leaves.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Leaf {
+    /// Chunk parse and [`mul_add_chunks`].
+    Horner,
+    /// [`matrix::leaf`]. Faster with its table in cache, but the table is built on first
+    /// use and kept for the life of the process, so only decoders that cache anyway use it.
+    Matrix,
+}
+
+impl Leaf {
+    /// [`Leaf::Matrix`] where it was measured faster: NEON. x86_64 is not measured yet.
+    pub(crate) const BEST: Leaf =
+        if cfg!(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon")) {
+            Leaf::Matrix
+        } else {
+            Leaf::Horner
+        };
+}
+
 /// [`decode`], multiplying with `m`.
 pub(crate) fn decode_with(
     input: &str,
     output: &mut [u8],
     m: &mut impl Multiplier,
+) -> Result<usize, Error> {
+    decode_with_leaf(input, output, m, Leaf::Horner)
+}
+
+/// [`decode_with`], with leaves converted by `leaf`.
+pub(crate) fn decode_with_leaf(
+    input: &str,
+    output: &mut [u8],
+    m: &mut impl Multiplier,
+    leaf: Leaf,
 ) -> Result<usize, Error> {
     let (zeros, digits) = split_zeros(input.as_bytes());
     let n = digits.len().div_ceil(CHUNK);
@@ -93,7 +123,7 @@ pub(crate) fn decode_with(
     let (limbs, rest) = buf.split_at_mut(n);
     let (table, scratch) = rest.split_at_mut(table_len);
     let powers = powers(unit, levels, table, scratch, m);
-    let len = dc(limbs, digits, &powers[..levels], scratch, m);
+    let len = dc(limbs, digits, &powers[..levels], scratch, m, leaf);
     write_bytes(zeros, &limbs[..len], output)
 }
 
@@ -267,9 +297,13 @@ fn dc(
     powers: &[Power<'_>],
     scratch: &mut [u64],
     m: &mut impl Multiplier,
+    leaf: Leaf,
 ) -> usize {
     let n = out.len();
     if n <= LEAF {
+        if leaf == Leaf::Matrix {
+            return matrix::leaf(out, digits).expect("`decode_with` validates the digits");
+        }
         let mut parsed = [0u64; LEAF];
         for (p, chunk) in parsed.iter_mut().zip(chunks(digits)) {
             *p = chunk.expect("`decode_with` validates the digits");
@@ -283,11 +317,11 @@ fn dc(
     let (hi, lo) = digits.split_at(digits.len() - p.exp * CHUNK);
     // `t` holds `hi`, then `lo`. `BASE^p.exp < 2^(64 * p.exp)`, so `end <= n`.
     let (t, scratch) = scratch.split_at_mut(p.exp);
-    let hn = dc(&mut t[..n - p.exp], hi, powers, scratch, m);
+    let hn = dc(&mut t[..n - p.exp], hi, powers, scratch, m, leaf);
     let end = p.shift + p.limbs.len() + hn;
     out[..p.shift].fill(0);
     m.mul_power(&mut out[p.shift..end], &t[..hn], i, p.limbs, scratch);
-    let ln = dc(t, lo, powers, scratch, m);
+    let ln = dc(t, lo, powers, scratch, m, leaf);
     // lo < BASE^p.exp, so it fits below `end` and the sum does not overflow.
     let carry = mul::add_assign(&mut out[..end], &t[..ln]);
     debug_assert!(!carry);
@@ -302,22 +336,32 @@ fn trimmed_len(limbs: &[u64]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{decode_vec, random_string};
+    use crate::tests::{Decode, decode_vec, random_string};
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::SeedableRng;
+
+    /// [`decode`] with each leaf.
+    const LEAVES: [(&str, Decode); 2] = [
+        ("horner", |s, out| decode_with_leaf(s, out, &mut Karatsuba, Leaf::Horner)),
+        ("matrix", |s, out| decode_with_leaf(s, out, &mut Karatsuba, Leaf::Matrix)),
+    ];
 
     /// Large inputs, where bs58 is too slow to serve as the reference.
     #[test]
     fn matches_batched() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(3);
         let t = DC_THRESHOLD * CHUNK;
-        for len in [t + 1, 2 * t + 1, 10_000, 40_960, 100_001] {
+        // 163_850 digits are 16385 chunks, whose first leaf has 2 chunks.
+        for len in [t + 1, 2 * t + 1, 10_000, 40_960, 100_001, 163_850] {
             // 58^len - 1 maximises carries.
             let max = "z".repeat(len);
             let min = format!("2{}", "1".repeat(len - 1));
             let zeros = format!("111{max}");
             for s in [random_string(&mut rng, len), max, min, zeros] {
-                assert_eq!(decode_vec(decode, &s), decode_vec(decode_batched, &s), "len {len}");
+                let want = decode_vec(decode_batched, &s);
+                for (name, f) in LEAVES {
+                    assert_eq!(decode_vec(f, &s), want, "{name}, len {len}");
+                }
             }
         }
     }

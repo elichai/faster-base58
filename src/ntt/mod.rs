@@ -16,7 +16,7 @@ mod tables;
 
 use std::ptr;
 
-use crate::dc::{self, Multiplier};
+use crate::dc::{self, Leaf, Multiplier};
 use crate::{Error, mul};
 use tables::{MAX_LOG, PRIMES, Prime, Tables, Twiddles};
 
@@ -32,16 +32,18 @@ pub fn decode_ntt(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     dc::decode_with(input, output, &mut Ntt::new(false, Kernels::best()))
 }
 
-/// [`decode_ntt`], with twiddle tables from a process-wide cache.
+/// [`decode_ntt`], with twiddle tables from a process-wide cache. On aarch64 its leaves
+/// use the matrix kernel, whose table is cached in the same way.
 pub fn decode_ntt_cached(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with(input, output, &mut Ntt::new(true, Kernels::best()))
+    dc::decode_with_leaf(input, output, &mut Ntt::new(true, Kernels::best()), Leaf::BEST)
 }
 
 /// [`decode_ntt_cached`] with the portable kernels, compared with hand-written SIMD.
 /// On aarch64 LLVM vectorizes the portable kernels with NEON itself, so this measures
-/// hand-written against compiler-generated NEON, not SIMD against scalar code.
+/// hand-written against compiler-generated NEON, not SIMD against scalar code. The leaves
+/// are those of [`decode_ntt_cached`].
 pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with(input, output, &mut Ntt::new(true, Kernels::portable()))
+    dc::decode_with_leaf(input, output, &mut Ntt::new(true, Kernels::portable()), Leaf::BEST)
 }
 
 /// The [`Multiplier`] of the NTT decoders.

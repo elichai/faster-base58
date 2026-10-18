@@ -64,8 +64,9 @@ pub fn decode_matrix_portable(input: &str, output: &mut [u8]) -> Result<usize, E
 /// length, or `None` on an invalid character. Requires `digits.len() <= 5632` and
 /// `out.len() >= digits.len().div_ceil(10)`. `out` may hold anything on entry.
 ///
-/// The contract of `dc`'s leaf. The owner of `dc.rs` decides whether to use it.
-#[cfg_attr(not(test), expect(dead_code, reason = "for dc.rs; its owner wires it in"))]
+/// `dc`'s leaf in the cached NTT decoders on aarch64. Not inlined: its stack frame holds
+/// [`Scratch`], which every level of `dc`'s recursion would otherwise carry.
+#[inline(never)]
 pub(crate) fn leaf(out: &mut [u64], digits: &[u8]) -> Option<usize> {
     let mut scratch = Scratch::new();
     let limbs = convert(&BEST, digits, &mut scratch)?;
