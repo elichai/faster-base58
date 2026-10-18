@@ -22,6 +22,8 @@ mod dc;
 mod malachite;
 mod matrix;
 mod mul;
+#[cfg(any(target_arch = "x86_64", test))]
+mod mul_ifma;
 mod ntt;
 #[cfg(test)]
 mod tests;
@@ -33,6 +35,16 @@ pub use malachite::decode_malachite;
 pub use matrix::{decode_matrix, decode_matrix_portable};
 pub use ntt::{decode_ntt, decode_ntt_cached, decode_ntt_portable};
 pub use toom3::decode_toom3;
+
+/// Hooks for benchmarks and A/B harnesses; not part of the API.
+#[doc(hidden)]
+pub mod bench {
+    #[cfg(target_arch = "x86_64")]
+    pub use crate::mul::set_ifma_threshold;
+    pub use crate::mul::{ifma_threshold, mul_with, scratch_len};
+    #[cfg(target_arch = "x86_64")]
+    pub use crate::mul_ifma::{mul as ifma_mul, scratch_len as ifma_scratch_len};
+}
 
 /// A decoding error. When the input has an invalid character and the output buffer is
 /// also too small for it, which of the two is reported is unspecified.
