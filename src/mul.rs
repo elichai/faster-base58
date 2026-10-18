@@ -16,7 +16,7 @@ const _: () = assert!(8 <= IFMA_MIN && IFMA_MIN <= KARATSUBA_THRESHOLD);
 
 /// Tuned on whole decodes on Zen 5.
 #[cfg(target_arch = "x86_64")]
-static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(192);
+static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(384);
 
 /// The IFMA leaf threshold [`mul`] uses: 0 (none) without AVX-512 IFMA.
 pub fn ifma_threshold() -> usize {
