@@ -9,12 +9,14 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 const KARATSUBA_THRESHOLD: usize = 32;
 
 /// With AVX-512 IFMA, a shorter operand of at least this many limbs, and below
-/// [`ifma_threshold`], uses the IFMA schoolbook (`mul_ifma.rs`).
-const IFMA_MIN: usize = 16;
+/// [`ifma_threshold`], uses the IFMA schoolbook (`mul_ifma.rs`). On Zen 5 the IFMA leaf
+/// is 0.74x scalar schoolbook at 8 limbs, 1.09x at 10 and 1.47x at 12.
+const IFMA_MIN: usize = 12;
 const _: () = assert!(8 <= IFMA_MIN && IFMA_MIN <= KARATSUBA_THRESHOLD);
 
+/// Tuned on whole decodes on Zen 5.
 #[cfg(target_arch = "x86_64")]
-static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(72);
+static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(192);
 
 /// The IFMA leaf threshold [`mul`] uses: 0 (none) without AVX-512 IFMA.
 pub fn ifma_threshold() -> usize {
