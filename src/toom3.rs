@@ -8,13 +8,31 @@ use crate::Error;
 /// Operands shorter than this use [`mul::mul`]. Tuned on whole decodes on an M5 Pro.
 const THRESHOLD: usize = 128;
 
+/// [`THRESHOLD`] when [`mul::mul`] has the AVX-512 IFMA leaf. Tuned on whole decodes on
+/// Zen 5.
+const IFMA_THRESHOLD: usize = 1536;
+
+/// Smallest threshold for which `tests::scratch_fits` holds.
+const MIN_THRESHOLD: usize = 32;
+const _: () = assert!(THRESHOLD >= MIN_THRESHOLD && IFMA_THRESHOLD >= MIN_THRESHOLD);
+
 /// Like [`crate::decode`], but uses Toom-3 for large products.
 pub fn decode_toom3(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with(input, output, &mut Toom3)
+    let ifma = mul::ifma_threshold() != 0;
+    decode_toom3_with(input, output, if ifma { IFMA_THRESHOLD } else { THRESHOLD })
 }
 
-/// [`mul()`] as a [`Multiplier`].
-struct Toom3;
+/// [`decode_toom3`] with Toom-3 for operands of at least `threshold` limbs. Panics if
+/// `threshold` is below 32.
+pub fn decode_toom3_with(input: &str, output: &mut [u8], threshold: usize) -> Result<usize, Error> {
+    assert!(threshold >= MIN_THRESHOLD, "Toom-3 threshold below {MIN_THRESHOLD}");
+    dc::decode_with(input, output, &mut Toom3 { threshold })
+}
+
+/// [`mul_with`] as a [`Multiplier`].
+struct Toom3 {
+    threshold: usize,
+}
 
 impl Multiplier for Toom3 {
     fn scratch_len(&self, n: usize) -> usize {
@@ -22,21 +40,17 @@ impl Multiplier for Toom3 {
     }
 
     fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
-        mul(out, a, b, scratch);
+        mul_with(out, a, b, scratch, self.threshold);
     }
 }
 
-/// `out = a * b`, with the same contract as [`mul::mul`], including the scratch bound.
+/// `out = a * b`, with the same contract as [`mul::mul`], including the scratch bound,
+/// using Toom-3 for operands of at least `threshold >= MIN_THRESHOLD` limbs.
 ///
 /// A Toom-3 step on `n` limbs uses `6k + 6` scratch limbs for `k = ceil(n / 3)`, then
 /// recurses on at most `k + 1` limbs. Cutting `b` into blocks of `a.len() < n` limbs uses
 /// `2 * a.len()`, then recurses on `a.len()`. Both fit in `mul::scratch_len` by induction;
 /// `tests::scratch_fits` checks this.
-pub fn mul(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
-    mul_with(out, a, b, scratch, THRESHOLD);
-}
-
-/// [`mul()`], using Toom-3 for operands of at least `threshold` limbs.
 fn mul_with(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64], threshold: usize) {
     debug_assert_eq!(out.len(), a.len() + b.len());
     let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
@@ -189,12 +203,9 @@ fn shl1(x: &mut [u64]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{decode_vec, random_string};
+    use crate::tests::{Decode, decode_vec, random_string};
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
-
-    /// Smallest threshold for which [`scratch_fits`] holds.
-    const MIN_THRESHOLD: usize = 32;
 
     #[test]
     fn scratch_fits() {
@@ -286,14 +297,22 @@ mod tests {
         }
     }
 
-    /// Inputs past the sizes `tests.rs` checks against bs58, where Toom-3 recurses.
+    /// Inputs past the sizes `tests.rs` checks against bs58, where Toom-3 recurses, with
+    /// the thresholds for CPUs with and without the IFMA leaf.
     #[test]
     fn decode_matches_karatsuba() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(6);
+        let decoders: [Decode; 2] = [
+            |s, o| decode_toom3_with(s, o, THRESHOLD),
+            |s, o| decode_toom3_with(s, o, IFMA_THRESHOLD),
+        ];
         for len in [100_001, 300_000] {
             // 58^len - 1 maximises carries.
             for s in [random_string(&mut rng, len), "z".repeat(len)] {
-                assert_eq!(decode_vec(decode_toom3, &s), decode_vec(crate::decode, &s), "{len}");
+                let want = decode_vec(crate::decode, &s);
+                for f in decoders {
+                    assert_eq!(decode_vec(f, &s), want, "{len}");
+                }
             }
         }
     }
