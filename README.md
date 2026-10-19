@@ -1098,10 +1098,15 @@ encode_matrix_tune`; the minimum of two runs, each the minimum of 31 interleaved
 - The cliff moves to 8 KiB and shrinks from 3.7× (27.4 to 101 µs at 4097 bytes) to 2.3×
   (112 to 255 µs at 8193).
 - Above the cap `encode_ntt_cached` replaces `encode`: 1.3–1.7× faster than `encode`
-  from 8 to 16 KiB, and the fastest of this crate's encoders from 32 KiB
-  ([Encoding results](#encoding-results)). From 8 to 16 KiB `dc-malachite` is up to 7%
-  faster or 1% slower than it. malachite's own conversion is 1.1–1.3× faster than both
-  from 8 to 16 KiB, but it is not this crate's code, and from 32 KiB `ntt-cached` leads.
+  from 8 to 16 KiB, and ahead of this crate's other encoders from 48 KiB
+  ([Encoding results](#encoding-results)). malachite's own conversion is 1.1–1.3×
+  faster than it from 8 to 16 KiB, but it is not this crate's code.
+- **The fallback depends on code placement.** Built with loops aligned to 64 bytes
+  (`-C llvm-args=-align-loops=64`, two runs, back to back with this build),
+  `ntt-cached` took about 10% longer from 8 to 32 KiB (279 µs at 8193 B, a 2.5× cliff),
+  while `dc-malachite` moved by at most 1.5%. So from 8 to 32 KiB `dc-malachite` is
+  2–17% faster than `ntt-cached` in that build, and between 5% slower and 7% faster in
+  this one.
 - A sixth class (16 KiB) would take 44 MiB, beyond the L2. Even at L2 speed it would
   beat malachite at 16 KiB by at most 1.2× (4 × 112 against 555 µs). Not tried.
 - The price: 11 MiB more memory, a 6 ms first call at 4–8 KiB (see **Cold caches**), and
@@ -1112,8 +1117,10 @@ panels took 7–8% longer at 1 KiB and 12% at 1875 B, at all of 32 stack depths 
 padded in 16-byte steps; four builds back to back). The new frame put both arrays at
 `sp + 8`, so the column sums, loaded and stored in 16-byte vectors, were 8 bytes off a
 16-byte boundary. `Scratch` is now `#[repr(C, align(64))]`, which gives the old times
-back (within 1%). The offset within a 64-byte line made no difference. `decode_matrix`'s
-`Scratch` is not aligned either: it gets whatever its frame gives.
+back (within 1%). The offset within a 64-byte line made no difference. With loops
+aligned to 64 bytes in both builds, which rules out code placement, the misaligned
+scratch still cost 7% at 1 KiB, 10% at 1875 B, nothing at 4 KiB and 2–3% at 8 KiB.
+`decode_matrix`'s `Scratch` is not aligned either: it gets whatever its frame gives.
 
 Tried and not kept (interleaved A/B in one binary, AC power, another session building):
 
@@ -1132,6 +1139,9 @@ Possible next steps:
   split at the top wins if its division and reciprocal take less than about 56 µs (not
   measured). Up to 32 KiB, malachite's own conversion as the fallback would make the
   cliff 1.75×.
+- **The fallback above 8 KiB**: `encode_malachite` up to about 32 KiB and
+  `encode_ntt_cached` above would not depend on code placement there (see **The cap**).
+  Decide in one binary with loops aligned.
 - **x86_64**: the AVX2 and SSE4.1 panel kernels pass the encode tests under Rosetta
   (`ROSETTA_ADVERTISE_AVX=1 cargo test --release --target x86_64-apple-darwin`); there
   are no x86 timings, and the characters are scalar there.
