@@ -818,6 +818,8 @@ writes nothing past the result. `max_encoded_len(n)` bounds the length for `n` b
 - `encode`: divide and conquer with Karatsuba; `encode_toom3`, `encode_ntt`,
   `encode_ntt_cached` and `encode_malachite` use the other multipliers. All run
   `encode_batched` up to `DC_THRESHOLD` input bytes.
+- `encode_matrix`, `encode_matrix_portable`: a matrix of powers with the decoder's SIMD
+  multiply-adds, up to 4 KiB; see [below](#encode_matrix-a-matrix-of-powers).
 
 Encoding is the harder direction. Decoding only multiplies: `x·58^10 + c` keeps the
 multiply off the carry chain, and its divide-and-conquer does one product per node.
@@ -948,7 +950,127 @@ Tried and not kept:
 - **Scaled remainder tree** (Bouvier–Zimmermann): one reciprocal for the whole number,
   then one product per node (a middle product, which a cyclic NTT gives) instead of two,
   and no reciprocal per level. Needs a proved error bound and an exact fix-up.
-- **A matrix encoder** (Firedancer's, any length): SIMD multiply-adds for 0.4–4 KiB and
-  as leaves. The decoder's panel kernels fit: `u32` words times a table below `58^4` have
-  the decoder's product bound.
+- **Matrix leaves** for the divide-and-conquer encoders: see
+  [`encode_matrix`](#encode_matrix-a-matrix-of-powers).
 - **Four passes per sweep** in `encode_batched`'s kernel.
+
+### `encode_matrix`: a matrix of powers
+
+Firedancer's encode, for any length up to 4096 bytes. It mirrors `decode_matrix`:
+
+- Split the bytes into `u32` words `w_i`, least significant first: the value is
+  `Σ w_i · 2^(32i)`.
+- A table holds `2^(32i)` in base 58^4. Output column `j` (four characters) is the column
+  sum `Σ w_i · T[i][j]`, kept in `u64`. The decoder's panel kernels compute it (NEON
+  `umlal`; AVX2 or SSE4.1 on x86_64): `u32` words times entries below 58^4 have the
+  decoder's product bound, `(2^32 - 1)(58^4 - 1)`.
+- `2^(32i)` is not a multiple of 58, so every row starts at column 0. The decoder's rows
+  start further up, so for the same byte count the encoder's table, and its work, is
+  about 1.2× the decoder's.
+
+Carries:
+
+- **A pass every 47 panels** (376 rows) moves each column's multiples of 58^4 into the
+  next column: `c_j ← c_j mod 58^4 + ⌊c_(j-1) / 58^4⌋`. Each carry depends only on its own
+  column, so the pass is not a carry chain. Afterwards a column is at most
+  `58^4 - 1 + 2^40.57`, and 376 more products leave it 2^57.25 below 2^64; 384 could
+  overflow. `const` asserts in `encode/matrix/table.rs` check both. On all-0xFF input at
+  4 KiB, which maximizes every column at once, the largest sum is 2^63.08.
+- **The final pass** does that step and an exact carry in one loop. After the step, the
+  quotient by 58^4 is below 2^18, so the remainder plus the incoming carry is below
+  `2 · 58^4`: one compare finishes the division, and only that compare and an increment
+  are on the carry chain.
+- Every column is a non-negative part of the value, so columns at or above its length
+  stay zero. The final pass stops at `⌈max_encoded_len / 4⌉ + 1` columns, not at the last
+  panel's padded width, which matters only for small inputs.
+
+Characters: four per column. On aarch64 a NEON kernel converts four columns per step:
+`c div 3364` and `x div 58` by fixed-point multiplies (`sqdmulh`; both constants were
+checked over all inputs), one `tbl` into the alphabet and one `tbl` to put the columns
+top first. Elsewhere a scalar loop uses a table of the 3364 character pairs.
+
+The table is built on first use and kept, in four size classes: 47 KiB (512 bytes),
+181 KiB (1 KiB), 712 KiB (2 KiB) and 2.8 MiB (4 KiB). A smaller input uses a larger
+class's table if one is built already. Below `MATRIX_MIN = 22` bytes (after leading
+zeros) `encode_matrix` calls `encode_batched`, and above 4096 it calls `encode`.
+`encode_matrix_portable` is the same algorithm with plain-Rust kernels.
+
+Apple M5 Pro on AC power, criterion medians from one run (`cargo bench --bench encode --
+--warm-up-time 1 --measurement-time 3`, same inputs as above; no other heavy process at
+the start):
+
+| bytes | batched | matrix       | matrix-portable | malachite | five8       | speedup |
+|------:|--------:|-------------:|----------------:|----------:|------------:|--------:|
+| 31    | 35.1 ns | **28.7 ns**  | 35.1 ns         | 136 ns    |             | 1.22×   |
+| 32    | 36.5 ns | 30.8 ns      | 36.8 ns         | 132 ns    | **29.9 ns** | 1.19×   |
+| 64    | 86.6 ns | **51.2 ns**  | 68.3 ns         | 229 ns    | 74.3 ns     | 1.69×   |
+| 128   | 207 ns  | **113 ns**   | 153 ns          | 485 ns    |             | 1.83×   |
+| 256   | 619 ns  | **254 ns**   | 408 ns          | 1.46 µs   |             | 2.43×   |
+| 512   | 2.10 µs | **615 ns**   | 1.27 µs         | 3.60 µs   |             | 3.41×   |
+| 1024  | 7.48 µs | **1.96 µs**  | 4.54 µs         | 9.74 µs   |             | 3.82×   |
+| 1875  | 23.5 µs | **5.88 µs**  | 14.4 µs         | 23.4 µs   |             | 3.99×   |
+| 4096  | 106 µs  | **28.8 µs**  | 65.1 µs         | 73.1 µs   |             | 3.67×   |
+
+(speedup: `encode_matrix` against `encode_batched`.)
+
+- `encode_matrix` is the fastest general encoder here from 22 bytes to 4 KiB: 1.2× faster
+  than `encode_batched` at 31–32 B, 1.7–2.4× at 64–256 B and 3.4–4.0× from 512 B. At
+  4 KiB it is 2.5× faster than malachite's own conversion, which led there before.
+- `five8`'s fixed-size code is 3% faster at 32 bytes; at 64 bytes `encode_matrix` is
+  1.45× faster than it.
+- Unlike decoding, the plain-Rust kernels already beat the quadratic loop (1.3–1.65×
+  from 64 B): `encode_batched` divides by 58^10 in each limb step, where the matrix only
+  multiplies and adds. NEON adds another 1.6–2.5× from 256 B.
+- Above 4 KiB `encode_matrix` calls `encode`, which takes 107 µs at 4 KiB (table
+  above): 3.7× the matrix's time at the cap.
+
+Where the time goes (temporary timers, not in the repo): the panels, with parsing and
+setup, take about 95% at 4 KiB, 83% at 1 KiB and 55% at 256 B. Most of the rest is the
+final carry pass (1.05 µs, 0.27 µs and 80 ns); the characters take 0.28 µs, 70 ns and
+18 ns.
+
+**Cold caches.** Single calls after touching every line of 64 MiB
+(`cargo bench --bench encode_matrix_tune -- cold`; medians of three runs, each the
+median of 31 calls; the timer ticks every 41.7 ns):
+
+| bytes | batched | matrix  | speedup |
+|------:|--------:|--------:|--------:|
+| 64    | 0.21 µs | 0.29 µs | 0.72×   |
+| 256   | 0.67 µs | 0.58 µs | 1.14×   |
+| 512   | 2.13 µs | 1.54 µs | 1.38×   |
+| 1024  | 7.38 µs | 3.67 µs | 2.01×   |
+| 1875  | 23.0 µs | 10.2 µs | 2.25×   |
+| 4096  | 102 µs  | 43.9 µs | 2.32×   |
+
+Cold, a call at 4 KiB takes about 15 µs longer, but the matrix still wins from about
+256 B: `encode_batched` is slow enough that loading the table pays. (`decode_matrix`
+lost cold at every size.) For one-off encodes below about 256 B, `encode_batched` is
+faster. The first call in a class also builds the table: about 45 µs, 0.16 ms, 0.43 ms
+and 1.5 ms for the four classes (`-- first`, medians of three runs).
+
+**Threshold.** `benches/encode_matrix_tune.rs` runs the matrix path at every size
+against `encode_batched` (the minimum of 31 interleaved rounds; two runs). Below 22 bytes
+the matrix ties or loses (0.67–1.01×). From 22 to 32 bytes it wins by 16–27%, as
+`encode_batched` needs a fourth 7-byte step there. At 33–35 bytes it loses 3–6%: the
+second panel costs about 10 ns. It wins at every size measured from 36 bytes.
+
+Tried and not kept (interleaved A/B in one binary, AC power, another session building):
+
+- **A NEON kernel for two panels at once** (16 rows per accumulator load and store): 2–3%
+  slower end to end from 256 B to 4 KiB, although a loop of panels alone ran 6–23%
+  faster with it.
+- **Two accumulator chains per block** (rows 0–3 and 4–7, added at the end): 9% less
+  panel time at 256 B, none at 1 KiB and 2% at 4 KiB. The kernel is limited by
+  throughput, not by the latency of its `umlal` chains.
+
+Possible next steps:
+
+- **Matrix leaves** in the divide-and-conquer encoders, as `decode_ntt_cached` does:
+  leaves are 3–19% of their time (see [Tuning](#tuning)).
+- **The cliff at 4 KiB.** A fifth size class (8 KiB, about 11 MiB of table) or `dc`
+  with matrix leaves would smooth it.
+- **x86_64**: the AVX2 and SSE4.1 panel kernels pass the encode tests under Rosetta
+  (`ROSETTA_ADVERTISE_AVX=1 cargo test --release --target x86_64-apple-darwin`); there
+  are no x86 timings, and the characters are scalar there.
+- **SME** on M4 and later: outer products into the ZA tiles could raise the
+  multiply-add throughput that bounds the panels.

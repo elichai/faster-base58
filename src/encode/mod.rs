@@ -4,14 +4,18 @@
 //!   input bytes, in place in the output.
 //! - [`encode`] (`dc.rs`): divide and conquer by powers of 58^10, each division Barrett's
 //!   with a Newton reciprocal, over any `Multiplier`.
+//! - [`encode_matrix`] (`matrix.rs`): a matrix of powers with the decoder's SIMD
+//!   multiply-adds, up to 4 KiB.
 
 mod batched;
 mod dc;
+mod matrix;
 #[cfg(test)]
 mod tests;
 
 pub use batched::encode_batched;
 pub use dc::{encode, encode_karatsuba_with};
+pub use matrix::{encode_matrix, encode_matrix_portable, encode_matrix_with};
 pub(crate) use dc::{encode_tuned, encode_with};
 
 use crate::common::{ALPHABET, BASE};
