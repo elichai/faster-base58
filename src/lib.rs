@@ -19,6 +19,7 @@
 mod batched;
 mod common;
 mod dc;
+mod encode;
 mod malachite;
 mod matrix;
 mod mul;
@@ -31,10 +32,11 @@ mod toom3;
 
 pub use batched::decode_batched;
 pub use dc::decode;
-pub use malachite::decode_malachite;
+pub use encode::{encode, encode_batched, max_encoded_len};
+pub use malachite::{decode_malachite, encode_malachite};
 pub use matrix::{decode_matrix, decode_matrix_portable};
-pub use ntt::{decode_ntt, decode_ntt_cached, decode_ntt_portable};
-pub use toom3::decode_toom3;
+pub use ntt::{decode_ntt, decode_ntt_cached, decode_ntt_portable, encode_ntt, encode_ntt_cached};
+pub use toom3::{decode_toom3, encode_toom3};
 
 /// Hooks for benchmarks and A/B harnesses; not part of the API.
 #[doc(hidden)]
@@ -56,3 +58,7 @@ pub enum Error {
     InvalidCharacter { index: usize },
     BufferTooSmall,
 }
+
+/// An encoding error: the output buffer cannot hold the result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BufferTooSmall;

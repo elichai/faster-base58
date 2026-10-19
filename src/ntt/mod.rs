@@ -17,7 +17,7 @@ mod tables;
 use std::ptr;
 
 use crate::dc::{self, Leaf, Multiplier};
-use crate::{Error, mul};
+use crate::{BufferTooSmall, Error, encode, mul};
 use tables::{MAX_LOG, PRIMES, Prime, Tables, Twiddles};
 
 /// Products whose shorter operand has fewer limbs than this use Karatsuba.
@@ -66,6 +66,16 @@ pub fn decode_ntt_with(
 /// are those of [`decode_ntt_cached`].
 pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     dc::decode_with_leaf(input, output, &mut Ntt::new(true, Kernels::portable()), Leaf::BEST)
+}
+
+/// Like [`crate::encode`], but multiplies with NTTs. Builds twiddle tables for each call.
+pub fn encode_ntt(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    encode::encode_with(input, output, &mut Ntt::new(false, Kernels::best()))
+}
+
+/// [`encode_ntt`], with twiddle tables from the process-wide cache.
+pub fn encode_ntt_cached(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    encode::encode_with(input, output, &mut Ntt::new(true, Kernels::best()))
 }
 
 /// The [`Multiplier`] of the NTT decoders.

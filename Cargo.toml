@@ -10,10 +10,16 @@ malachite-nz = "0.14.0"
 basexx = "0.2.0"
 bs58 = "0.5.1"
 criterion = "0.8.2"
+five8 = "1.0.0"
+malachite-base = "0.14.0"
 rand_xoshiro = "0.8.1"
 
 [[bench]]
 name = "decode"
+harness = false
+
+[[bench]]
+name = "encode"
 harness = false
 
 # Unit tests compare against quadratic bs58 at benchmark sizes, so optimize debug

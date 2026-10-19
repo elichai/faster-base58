@@ -10,12 +10,17 @@ use std::{mem, ptr};
 
 use malachite_nz::natural::Natural;
 
-use crate::Error;
 use crate::dc::{self, Multiplier};
+use crate::{BufferTooSmall, Error, encode};
 
 /// Like [`crate::decode`], but multiplies with malachite-nz.
 pub fn decode_malachite(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     dc::decode_with(input, output, &mut Malachite::default())
+}
+
+/// Like [`crate::encode`], but multiplies with malachite-nz.
+pub fn encode_malachite(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    encode::encode_with(input, output, &mut Malachite::default())
 }
 
 /// The [`Multiplier`] of [`decode_malachite`].

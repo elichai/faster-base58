@@ -10,7 +10,7 @@ use crate::{Error, matrix, mul};
 pub(crate) const DC_THRESHOLD: usize = 512;
 
 /// Leaves have at most this many chunks.
-const LEAF: usize = 256;
+pub(crate) const LEAF: usize = 256;
 const _: () = assert!(LEAF <= DC_THRESHOLD);
 
 /// Like [`decode_batched`], but subquadratic for large inputs.
@@ -122,7 +122,7 @@ pub(crate) fn decode_with_leaf(
     let mut buf = vec![0; n + table_len + dc_scratch_len(m, e)];
     let (limbs, rest) = buf.split_at_mut(n);
     let (table, scratch) = rest.split_at_mut(table_len);
-    let powers = powers(unit, levels, table, scratch, m);
+    let powers = powers(unit, levels, table, scratch, m, true);
     let len = dc(limbs, digits, &powers[..levels], scratch, m, leaf);
     write_bytes(zeros, &limbs[..len], output)
 }
@@ -199,10 +199,10 @@ pub(crate) fn write_bytes(zeros: usize, limbs: &[u64], output: &mut [u8]) -> Res
 /// `BASE^exp`, stored as `limbs` shifted left by `shift` limbs.
 /// `58 = 2 * 29`, so large powers end in zero limbs; dropping them shortens products.
 #[derive(Clone, Copy, Default)]
-struct Power<'a> {
-    exp: usize,
-    limbs: &'a [u64],
-    shift: usize,
+pub(crate) struct Power<'a> {
+    pub(crate) exp: usize,
+    pub(crate) limbs: &'a [u64],
+    pub(crate) shift: usize,
 }
 
 impl<'a> Power<'a> {
@@ -214,13 +214,13 @@ impl<'a> Power<'a> {
 }
 
 /// More than [`split_unit`] can return for any `usize`.
-const MAX_LEVELS: usize = usize::BITS as usize;
+pub(crate) const MAX_LEVELS: usize = usize::BITS as usize;
 
 /// The smallest `levels` with `unit = ceil(n / 2^levels) <= LEAF`, and that `unit`.
 ///
 /// [`dc`] splits at `unit * 2^i` chunks for `i < levels`, so the top split is at about
 /// `n / 2` and every level is balanced.
-fn split_unit(n: usize) -> (usize, usize) {
+pub(crate) fn split_unit(n: usize) -> (usize, usize) {
     let (mut unit, mut levels) = (n, 0);
     while unit > LEAF {
         unit = unit.div_ceil(2);
@@ -233,7 +233,7 @@ fn split_unit(n: usize) -> (usize, usize) {
 ///
 /// Slot 0 holds `BASE^unit`, at most `unit` limbs; slot `i` holds the square of power
 /// `i - 1`, so twice its [`stored`] length.
-fn table_len(unit: usize, levels: usize) -> usize {
+pub(crate) fn table_len(unit: usize, levels: usize) -> usize {
     (1..levels).map(|i| 2 * stored(unit << (i - 1))).sum::<usize>() + unit
 }
 
@@ -251,13 +251,15 @@ fn product_len(e: usize, stored: usize) -> usize {
 }
 
 /// `BASE^(unit * 2^i)` for `i < levels`, stored in `table`, which needs
-/// [`table_len`] limbs.
-fn powers<'a>(
+/// [`table_len`] limbs. With `prepare`, hands each power but the last to
+/// [`Multiplier::prepare_power`] for [`dc`]'s products.
+pub(crate) fn powers<'a>(
     unit: usize,
     levels: usize,
     mut table: &'a mut [u64],
     scratch: &mut [u64],
     m: &mut impl Multiplier,
+    prepare: bool,
 ) -> [Power<'a>; MAX_LEVELS] {
     let mut powers = [Power::default(); MAX_LEVELS];
     let p;
@@ -267,7 +269,9 @@ fn powers<'a>(
     powers[0] = Power::new(unit, &p[..len], 0);
     for i in 1..levels {
         let last = powers[i - 1];
-        m.prepare_power(i - 1, last.limbs, product_len(last.exp, last.limbs.len()));
+        if prepare {
+            m.prepare_power(i - 1, last.limbs, product_len(last.exp, last.limbs.len()));
+        }
         let sq;
         (sq, table) = table.split_at_mut(2 * last.limbs.len());
         m.mul(sq, last.limbs, last.limbs, scratch);
@@ -329,7 +333,7 @@ fn dc(
 }
 
 /// Length of `limbs` without its high zero limbs.
-fn trimmed_len(limbs: &[u64]) -> usize {
+pub(crate) fn trimmed_len(limbs: &[u64]) -> usize {
     limbs.iter().rposition(|&l| l != 0).map_or(0, |i| i + 1)
 }
 

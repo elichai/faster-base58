@@ -3,7 +3,7 @@
 
 use crate::dc::{self, Multiplier};
 use crate::mul::{self, add_assign, sub_assign};
-use crate::Error;
+use crate::{BufferTooSmall, Error, encode};
 
 /// Operands shorter than this use [`mul::mul`]. Tuned on whole decodes on an M5 Pro.
 const THRESHOLD: usize = 128;
@@ -27,6 +27,12 @@ pub fn decode_toom3(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 pub fn decode_toom3_with(input: &str, output: &mut [u8], threshold: usize) -> Result<usize, Error> {
     assert!(threshold >= MIN_THRESHOLD, "Toom-3 threshold below {MIN_THRESHOLD}");
     dc::decode_with(input, output, &mut Toom3 { threshold })
+}
+
+/// Like [`crate::encode`], but uses Toom-3 for large products.
+pub fn encode_toom3(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    let threshold = if mul::ifma_threshold() != 0 { IFMA_THRESHOLD } else { THRESHOLD };
+    encode::encode_with(input, output, &mut Toom3 { threshold })
 }
 
 /// [`mul_with`] as a [`Multiplier`].
