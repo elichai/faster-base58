@@ -861,49 +861,58 @@ table (balanced splits `unit·2^i`, powers stored without their low zero limbs),
   port of GMP's `mpn_get_str` (GMP itself recomputes it per division).
 - **Prepared operands.** Every power but the top one divides at least two nodes, so
   `pn` and `inv` go to `Multiplier::prepare_power`: the NTT keeps their transforms.
+- **A wrapped `q·pn`.** The remainder `A - q·pn` is below `7·pn < β^(dn+1)`, so only
+  its residue modulo `β^L - 1` for some `L >= dn + 2` is needed. `Multiplier::wrap_len`
+  says whether a multiplier has such a product cheaper than the full one: the NTT, when
+  a cyclic transform of `2L` points (`L` the next power of two) is shorter than the
+  pieces of the full product. Its stored transform of `pn` serves as is: the first `2L`
+  values are those of `pn mod (x^(2L) - 1)`. A cyclic coefficient sums at most
+  `2L <= 2^23` products of 32-bit coefficients, below `2^87`, so Garner's CRT still
+  recovers it; the carry out of the top limb wraps to the bottom.
 - **Leaves** convert with `encode_batched`'s kernel on stack buffers.
-- So each node costs two products (`A1 · inv` and `q · pn`) against `decode`'s one,
-  plus a reciprocal per level.
+- So each node costs two products (`A1 · inv` and `q · pn`, maybe wrapped) against
+  `decode`'s one, plus a reciprocal per level.
 
 ### Encoding results
 
 Apple M5 Pro, AC power, `cargo bench --bench encode -- --warm-up-time 1
---measurement-time 3` (criterion medians from one run; random input with a non-zero
-first byte). `malachite` is malachite-nz's own conversion (`Natural::to_digits_desc`,
-a port of GMP's `mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32
-and 64 bytes only (scalar on aarch64). The divide-and-conquer encoders run
-`encode_batched` up to their threshold, so they are timed from 4 KiB.
+--measurement-time 3` (criterion medians from one run, with the wrapped `q·pn`; a backup
+process used one core). Random input with a non-zero first byte. `malachite` is
+malachite-nz's own conversion (`Natural::to_digits_desc`, a port of GMP's
+`mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32 and 64 bytes
+only (scalar on aarch64). The divide-and-conquer encoders run `encode_batched` up to
+their threshold, so they are timed from 4 KiB.
 
-| bytes   | bs58      | basexx    | malachite | five8       | batched       | dc        | dc-toom3  | ntt       | ntt-cached    | dc-malachite |
-|--------:|----------:|----------:|----------:|------------:|--------------:|----------:|----------:|----------:|--------------:|-------------:|
-| 31      | 899 ns    | 137 ns    | 132 ns    |             | **40.5 ns**   |           |           |           |               |              |
-| 32      | 1.00 µs   | 144 ns    | 133 ns    | **30.9 ns** | 36.2 ns       |           |           |           |               |              |
-| 64      | 3.28 µs   | 302 ns    | 252 ns    | **73.8 ns** | 89.7 ns       |           |           |           |               |              |
-| 128     | 13.7 µs   | 919 ns    | 492 ns    |             | **211 ns**    |           |           |           |               |              |
-| 256     | 58.0 µs   | 3.11 µs   | 1.54 µs   |             | **631 ns**    |           |           |           |               |              |
-| 512     | 241 µs    | 8.08 µs   | 3.73 µs   |             | **2.14 µs**   |           |           |           |               |              |
-| 1024    | 963 µs    | 21.7 µs   | 10.1 µs   |             | **7.59 µs**   |           |           |           |               |              |
-| 1875    | 3.28 ms   | 55.9 µs   | 24.1 µs   |             | **23.9 µs**   |           |           |           |               |              |
-| 4096    | 15.4 ms   | 175 µs    | **74.4 µs** |           | 107 µs        | 107 µs    | 107 µs    | 109 µs    | 107 µs        | 92.7 µs      |
-| 32768   | 984 ms    | 4.32 ms   | 1.48 ms   |             | 6.53 ms       | 3.35 ms   | 3.07 ms   | 1.51 ms   | **1.46 ms**   | 1.48 ms      |
-| 36864   |           |           | 1.78 ms   |             |               | 4.05 ms   | 3.69 ms   | 1.76 ms   | **1.73 ms**   | 1.76 ms      |
-| 49152   |           |           | 2.69 ms   |             |               | 6.55 ms   | 5.93 ms   | 2.51 ms   | **2.42 ms**   | 2.59 ms      |
-| 131072  |           |           | 9.14 ms   |             |               | 32.1 ms   | 26.4 ms   | 7.72 ms   | **7.47 ms**   | 8.28 ms      |
-| 147456  |           |           | 10.7 ms   |             |               | 38.2 ms   | 31.7 ms   | 8.96 ms   | **8.71 ms**   | 9.71 ms      |
-| 1048576 |           |           | 107 ms    |             |               | 883 ms    | 596 ms    | 83.9 ms   | **82.3 ms**   | 93.8 ms      |
+| bytes   | bs58      | basexx    | malachite   | five8       | batched       | dc        | dc-toom3  | ntt       | ntt-cached    | dc-malachite |
+|--------:|----------:|----------:|------------:|------------:|--------------:|----------:|----------:|----------:|--------------:|-------------:|
+| 31      | 927 ns    | 144 ns    | 141 ns      |             | **35.0 ns**   |           |           |           |               |              |
+| 32      | 937 ns    | 146 ns    | 130 ns      | **29.9 ns** | 35.1 ns       |           |           |           |               |              |
+| 64      | 3.06 µs   | 303 ns    | 229 ns      | **71.5 ns** | 86.2 ns       |           |           |           |               |              |
+| 128     | 13.5 µs   | 905 ns    | 488 ns      |             | **210 ns**    |           |           |           |               |              |
+| 256     | 56.5 µs   | 3.10 µs   | 1.47 µs     |             | **617 ns**    |           |           |           |               |              |
+| 512     | 231 µs    | 7.88 µs   | 3.59 µs     |             | **2.08 µs**   |           |           |           |               |              |
+| 1024    | 936 µs    | 21.6 µs   | 9.61 µs     |             | **7.45 µs**   |           |           |           |               |              |
+| 1875    | 3.16 ms   | 54.5 µs   | **23.2 µs** |             | 23.4 µs       |           |           |           |               |              |
+| 4096    | 15.1 ms   | 170 µs    | **73.4 µs** |             | 105 µs        | 105 µs    | 105 µs    | 105 µs    | 105 µs        | 91.0 µs      |
+| 32768   | 969 ms    | 4.21 ms   | 1.44 ms     |             | 6.39 ms       | 3.29 ms   | 3.00 ms   | 1.37 ms   | **1.33 ms**   | 1.44 ms      |
+| 36864   |           |           | 1.75 ms     |             |               | 3.96 ms   | 3.60 ms   | 1.58 ms   | **1.54 ms**   | 1.68 ms      |
+| 49152   |           |           | 2.54 ms     |             |               | 6.30 ms   | 5.69 ms   | 2.28 ms   | **2.24 ms**   | 2.46 ms      |
+| 131072  |           |           | 8.67 ms     |             |               | 30.9 ms   | 25.2 ms   | 6.81 ms   | **6.70 ms**   | 7.90 ms      |
+| 147456  |           |           | 10.2 ms     |             |               | 36.8 ms   | 30.3 ms   | 7.84 ms   | **7.63 ms**   | 9.21 ms      |
+| 1048576 |           |           | 103 ms      |             |               | 851 ms    | 568 ms    | 73.3 ms   | **72.4 ms**   | 90.9 ms      |
 
 (`basexx-b`, a quadratic byte loop, is within 20% of `bs58` and left out.)
 
-- `encode_batched` is 22× (31 B) to 151× (32 KiB) faster than `bs58`, and the fastest
-  general encoder up to about 1.9 KiB. `five8`'s fixed-size code is 15–18% faster at 32
-  and 64 bytes.
-- At 4 KiB malachite's own conversion leads (74.4 against 92.7 µs). It uses the same
+- `encode_batched` is 26× (31 B) to 152× (32 KiB) faster than `bs58`, and the fastest
+  general encoder up to about 1.9 KiB, where malachite ties it. `five8`'s fixed-size code
+  is 15–17% faster at 32 and 64 bytes.
+- At 4 KiB malachite's own conversion leads (73.4 against 91.0 µs). It uses the same
   scheme, with its multiplication called on limb slices; ours goes through `Natural` and
   allocates per product (see `decode_malachite`). Sizes between 4 and 32 KiB were not
   timed against it.
-- From 32 KiB `ntt-cached` leads: tied with malachite at 32 KiB, then 10% faster at
-  48 KiB, 18–19% at 128–144 KiB and 23% at 1 MiB.
-- Karatsuba (`dc`) is 2.3× slower than the NTT at 32 KiB and 10.7× at 1 MiB, about the
+- From 32 KiB `ntt-cached` leads: 8% faster than malachite at 32 KiB, 12% at 48 KiB,
+  23–25% at 128–144 KiB and 30% at 1 MiB.
+- Karatsuba (`dc`) is 2.5× slower than the NTT at 32 KiB and 11.8× at 1 MiB, about the
   same gap as between `decode` and `decode_ntt_cached`.
 
 ### Tuning
@@ -928,7 +937,28 @@ call of each configuration), M5 Pro on AC power.
   | 1 MiB   | 20–23%      | 66–72%    | 3–5%   | 3%          |
 
   The top division, and its reciprocal, serve one node but cost about as much as a whole
-  level below.
+  level below. (Measured before the wrapped `q·pn`.)
+- **Wrapped products.** `encode_ntt_cached` with the plain products, with a wrapped
+  `q·pn`, and with also a wrapped `a·x_h` in each Newton step (`t = β^(n+h) - a·x_h`
+  lies in `(-2 β^n, 2 β^n]`, so its residue modulo `β^L - 1` for `L >= n + 2` gives it
+  with its sign). One binary with a temporary switch, 21 interleaved rounds (minimum
+  times; the ratios are medians of the per-round ratios). No other benchmark ran; a
+  backup process used one core:
+
+  | input   | plain    | wrapped `q·pn` | ratio | also `a·x_h` | ratio |
+  |--------:|---------:|---------------:|------:|-------------:|------:|
+  | 8 KiB   | 269 µs   | 254 µs         | 0.945 | 255 µs       | 0.945 |
+  | 16 KiB  | 644 µs   | 603 µs         | 0.937 | 603 µs       | 0.936 |
+  | 32 KiB  | 1.46 ms  | 1.35 ms        | 0.925 | 1.35 ms      | 0.924 |
+  | 48 KiB  | 2.39 ms  | 2.27 ms        | 0.949 | 2.21 ms      | 0.922 |
+  | 128 KiB | 7.39 ms  | 6.72 ms        | 0.908 | 6.71 ms      | 0.908 |
+  | 144 KiB | 8.64 ms  | 7.73 ms        | 0.896 | 7.74 ms      | 0.895 |
+  | 1 MiB   | 81.5 ms  | 72.6 ms        | 0.891 | 72.6 ms      | 0.890 |
+
+  An earlier run, with another benchmark on the machine, gave the same ratios within
+  0.01. The wrapped `q·pn` is kept. The wrapped `a·x_h` gained 3% at 48 KiB and nothing
+  elsewhere: at the reciprocals' lengths, the next power of two is rarely shorter than
+  the pieces of the full product. It is not kept.
 
 Tried and not kept:
 
@@ -942,9 +972,11 @@ Tried and not kept:
 
 ### Possible next steps
 
-- **Wrapped products in the NTT.** `q·pn` only needs its low `dn + 1` limbs, and Newton's
-  `a·x_h` has a known top: both fit a cyclic product modulo `β^L - 1` with `L` about half
-  the full length.
+- **Wrapped products of other lengths.** `L` is a power of two, so a `q·pn` just above
+  one (and every Newton `a·x_h`) gains little. Residues modulo `β^a - 1` and `β^b + 1`
+  (the negacyclic transforms the plans already use) put together by an integer CRT would
+  allow lengths like `3·2^k`. GMP's `mpn_mulmod_bnm1` splits `β^(2n) - 1` into
+  `(β^n - 1)(β^n + 1)` in a similar way. Not tried.
 - **Scaled remainder tree** (Bouvier–Zimmermann): one reciprocal for the whole number,
   then one product per node (a middle product, which a cyclic NTT gives) instead of two,
   and no reciprocal per level. Needs a proved error bound and an exact fix-up.
