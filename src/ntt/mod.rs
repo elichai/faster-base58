@@ -28,9 +28,10 @@ const THRESHOLD: usize = 128;
 const PREPARED_THRESHOLD: usize = 96;
 
 /// [`THRESHOLD`] and [`PREPARED_THRESHOLD`] when Karatsuba has the AVX-512 IFMA leaf.
-/// Guesses until the Zen 5 sweep.
-const IFMA_THRESHOLD: usize = 1536;
-const IFMA_PREPARED_THRESHOLD: usize = 512;
+/// Tuned on whole decodes on Zen 5, where Karatsuba wins on prepared products of 1936
+/// limbs and transforms win from 3430.
+const IFMA_THRESHOLD: usize = 3072;
+const IFMA_PREPARED_THRESHOLD: usize = 2048;
 
 /// Like [`crate::decode`], but multiplies with NTTs. Builds twiddle tables for each call.
 pub fn decode_ntt(input: &str, output: &mut [u8]) -> Result<usize, Error> {

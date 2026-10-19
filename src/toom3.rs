@@ -8,8 +8,8 @@ use crate::Error;
 /// Operands shorter than this use [`mul::mul`]. Tuned on whole decodes on an M5 Pro.
 const THRESHOLD: usize = 128;
 
-/// [`THRESHOLD`] when [`mul::mul`] has the AVX-512 IFMA leaf. A guess until the Zen 5
-/// sweep.
+/// [`THRESHOLD`] when [`mul::mul`] has the AVX-512 IFMA leaf. Tuned on whole decodes on
+/// Zen 5.
 const IFMA_THRESHOLD: usize = 1536;
 
 /// Smallest threshold for which `tests::scratch_fits` holds.
