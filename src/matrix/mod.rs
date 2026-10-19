@@ -23,10 +23,13 @@ mod x86;
 /// Tuned by measurement; README.md has the numbers.
 const MATRIX_MIN: usize = 576;
 
+/// A panel kernel: see `portable::panel`.
+pub(crate) type Panel = fn(&mut [u64], &[u32], &[u32; 8]);
+
 /// One backend's kernels. See `portable.rs` for their contracts.
 struct Kernels {
     parse: fn(&[u8], &mut [u32]) -> bool,
-    panel: fn(&mut [u64], &[u32], &[u32; 8]),
+    panel: Panel,
 }
 
 const PORTABLE: Kernels = Kernels { parse: portable::parse, panel: portable::panel };
@@ -40,6 +43,10 @@ const BEST: Kernels = Kernels { parse: portable::parse, panel: x86::panel };
     target_arch = "x86_64"
 )))]
 const BEST: Kernels = PORTABLE;
+
+/// The panel kernels, for the matrix encoder (`encode/matrix.rs`).
+pub(crate) const PANEL: Panel = BEST.panel;
+pub(crate) const PANEL_PORTABLE: Panel = PORTABLE.panel;
 
 /// Like [`decode_batched`], but faster from about 0.4 KiB to 4 KiB when the table of
 /// powers is in cache. Fewer than `MATRIX_MIN` digits use [`decode_batched`]; more than
@@ -118,7 +125,7 @@ impl Scratch {
 
 /// The first `len` elements of `buf`, set to zero. Zeroing all of [`Scratch`] would cost
 /// about 300 cycles per call.
-fn zeroed<T: Copy + Default>(buf: &mut [MaybeUninit<T>], len: usize) -> &mut [T] {
+pub(crate) fn zeroed<T: Copy + Default>(buf: &mut [MaybeUninit<T>], len: usize) -> &mut [T] {
     let buf = &mut buf[..len];
     buf.fill(MaybeUninit::new(T::default()));
     // SAFETY: every element was just written, and `MaybeUninit<T>` has `T`'s layout.

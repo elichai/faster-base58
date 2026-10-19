@@ -24,6 +24,8 @@ const ENCODERS: &[(&str, Encode)] = &[
     ("ntt", encode_ntt),
     ("ntt-cached", encode_ntt_cached),
     ("dc-malachite", encode_malachite),
+    ("matrix", crate::encode_matrix),
+    ("matrix-portable", crate::encode_matrix_portable),
 ];
 
 /// Encodes into an ample buffer and checks nothing past the result was written.

@@ -1,9 +1,11 @@
 //! Base58 (Bitcoin alphabet) decoding and encoding on 64-bit limbs. See README.md for the
 //! design.
 //!
-//! The encoders are in `encode/`: [`encode_batched`] (quadratic, in place) and [`encode`]
-//! (divide and conquer with Barrett division); the backend modules below also hold
-//! [`encode_toom3`], [`encode_ntt`], [`encode_ntt_cached`] and [`encode_malachite`].
+//! The encoders are in `encode/`: [`encode_batched`] (quadratic, in place), [`encode`]
+//! (divide and conquer with Barrett division) and [`encode_matrix`],
+//! [`encode_matrix_portable`] (a matrix of powers, up to 4 KiB); the backend modules below
+//! also hold [`encode_toom3`], [`encode_ntt`], [`encode_ntt_cached`] and
+//! [`encode_malachite`].
 //!
 //! Each decoding algorithm has its own module:
 //! - [`decode_batched`] (`batched.rs`): quadratic, one limb update per ten characters
@@ -37,7 +39,7 @@ mod toom3;
 
 pub use batched::decode_batched;
 pub use dc::decode;
-pub use encode::{encode, encode_batched, max_encoded_len};
+pub use encode::{encode, encode_batched, encode_matrix, encode_matrix_portable, max_encoded_len};
 pub use malachite::{decode_malachite, encode_malachite};
 pub use matrix::{decode_matrix, decode_matrix_portable};
 pub use ntt::{decode_ntt, decode_ntt_cached, decode_ntt_portable, encode_ntt, encode_ntt_cached};
@@ -52,6 +54,7 @@ pub mod bench {
     #[cfg(target_arch = "x86_64")]
     pub use crate::mul_ifma::{mul as ifma_mul, scratch_len as ifma_scratch_len};
     pub use crate::encode::encode_karatsuba_with;
+    pub use crate::encode::encode_matrix_with;
     pub use crate::malachite::encode_malachite_with;
     pub use crate::ntt::{decode_ntt_with, encode_ntt_with};
     pub use crate::toom3::decode_toom3_with;
