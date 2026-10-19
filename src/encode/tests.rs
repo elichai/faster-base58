@@ -60,8 +60,9 @@ fn check(data: &[u8]) {
 #[test]
 fn matches_bs58() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(20);
-    let t = DC_THRESHOLD;
-    for len in (0..=300).chain(t - 15..=t + 15).chain([1024, 4096, 8192]) {
+    let thresholds = [DC_THRESHOLD, crate::ntt::ENCODE_THRESHOLD, crate::malachite::ENCODE_THRESHOLD];
+    let around = thresholds.into_iter().flat_map(|t| t - 8..=t + 8);
+    for len in (0..=300).chain(around).chain([1024, 4096, 8192]) {
         let random = random_bytes(&mut rng, len);
         let mut leading_zeros = random.clone();
         leading_zeros[..len.min(3)].fill(0);

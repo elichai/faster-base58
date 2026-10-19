@@ -18,9 +18,26 @@ pub fn decode_malachite(input: &str, output: &mut [u8]) -> Result<usize, Error> 
     dc::decode_with(input, output, &mut Malachite::default())
 }
 
+/// The encoder's divide-and-conquer threshold in bytes and leaf size in chunks, tuned on an
+/// M5 Pro against `encode_batched` in one binary.
+pub(crate) const ENCODE_THRESHOLD: usize = 3072;
+const ENCODE_LEAF: usize = 96;
+
 /// Like [`crate::encode`], but multiplies with malachite-nz.
 pub fn encode_malachite(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    encode::encode_with(input, output, &mut Malachite::default())
+    let m = &mut Malachite::default();
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF)
+}
+
+/// [`encode_malachite`] with divide and conquer above `threshold` bytes and leaves of at
+/// most `leaf` chunks.
+pub fn encode_malachite_with(
+    input: &[u8],
+    output: &mut [u8],
+    threshold: usize,
+    leaf: usize,
+) -> Result<usize, BufferTooSmall> {
+    encode::encode_tuned(input, output, &mut Malachite::default(), threshold, leaf)
 }
 
 /// The [`Multiplier`] of [`decode_malachite`].

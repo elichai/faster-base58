@@ -11,8 +11,8 @@ mod dc;
 mod tests;
 
 pub use batched::encode_batched;
-pub use dc::encode;
-pub(crate) use dc::encode_with;
+pub use dc::{encode, encode_karatsuba_with};
+pub(crate) use dc::{encode_tuned, encode_with};
 
 use crate::common::{ALPHABET, BASE};
 

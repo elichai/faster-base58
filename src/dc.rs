@@ -221,8 +221,13 @@ pub(crate) const MAX_LEVELS: usize = usize::BITS as usize;
 /// [`dc`] splits at `unit * 2^i` chunks for `i < levels`, so the top split is at about
 /// `n / 2` and every level is balanced.
 pub(crate) fn split_unit(n: usize) -> (usize, usize) {
+    split_unit_leaf(n, LEAF)
+}
+
+/// [`split_unit`] with leaves of at most `leaf` chunks.
+pub(crate) fn split_unit_leaf(n: usize, leaf: usize) -> (usize, usize) {
     let (mut unit, mut levels) = (n, 0);
-    while unit > LEAF {
+    while unit > leaf {
         unit = unit.div_ceil(2);
         levels += 1;
     }

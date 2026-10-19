@@ -22,6 +22,10 @@ harness = false
 name = "encode"
 harness = false
 
+[[bench]]
+name = "encode_tune"
+harness = false
+
 # Unit tests compare against quadratic bs58 at benchmark sizes, so optimize debug
 # builds. Overflow checks and debug assertions stay on.
 [profile.dev]

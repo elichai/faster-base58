@@ -12,12 +12,17 @@ use std::cmp::Ordering;
 use super::batched::Limbs;
 use super::{bits, min_digits, split_zeros, ten_digits};
 use crate::common::CHUNK;
-use crate::dc::{Karatsuba, LEAF, Multiplier, Power, powers, split_unit, table_len, trimmed_len};
+use crate::dc::{
+    Karatsuba, LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len,
+};
 use crate::mul::{add_assign, sub_assign};
 use crate::{BufferTooSmall, encode_batched};
 
-/// Inputs of more than this many bytes use divide and conquer.
-pub(crate) const DC_THRESHOLD: usize = 3730;
+/// Inputs of more than this many bytes use divide and conquer, with leaves of at most
+/// [`DC_LEAF`] chunks, when multiplying with Karatsuba or Toom-3. Tuned on an M5 Pro
+/// against [`encode_batched`], in one binary; the NTT and malachite have their own.
+pub(crate) const DC_THRESHOLD: usize = 5120;
+pub(crate) const DC_LEAF: usize = 96;
 
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;
@@ -27,14 +32,37 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
     encode_with(input, output, &mut Karatsuba)
 }
 
+/// [`encode`] with `threshold` and `leaf` in place of [`DC_THRESHOLD`] and [`DC_LEAF`].
+pub fn encode_karatsuba_with(
+    input: &[u8],
+    output: &mut [u8],
+    threshold: usize,
+    leaf: usize,
+) -> Result<usize, BufferTooSmall> {
+    encode_tuned(input, output, &mut Karatsuba, threshold, leaf)
+}
+
 /// [`encode`], multiplying with `m`.
 pub(crate) fn encode_with(
     input: &[u8],
     output: &mut [u8],
     m: &mut impl Multiplier,
 ) -> Result<usize, BufferTooSmall> {
+    encode_tuned(input, output, m, DC_THRESHOLD, DC_LEAF)
+}
+
+/// [`encode_with`] with divide and conquer above `threshold` bytes and leaves of at most
+/// `leaf <= LEAF` chunks.
+pub(crate) fn encode_tuned(
+    input: &[u8],
+    output: &mut [u8],
+    m: &mut impl Multiplier,
+    threshold: usize,
+    leaf: usize,
+) -> Result<usize, BufferTooSmall> {
+    assert!((1..=LEAF).contains(&leaf), "leaf of {leaf} chunks");
     let (zeros, x) = split_zeros(input);
-    if x.len() <= DC_THRESHOLD {
+    if x.len() <= threshold {
         return encode_batched(input, output);
     }
     let min = min_digits(bits(x));
@@ -44,7 +72,7 @@ pub(crate) fn encode_with(
     }
     // `x < 58^(min + 2) <= BASE^n`.
     let n = (min + 2).div_ceil(CHUNK);
-    let (unit, levels) = split_unit(n);
+    let (unit, levels) = split_unit_leaf(n, leaf);
     if levels == 0 {
         return encode_batched(input, output);
     }
@@ -67,7 +95,7 @@ pub(crate) fn encode_with(
     }
     let mut scratch = vec![0; node_scratch_len(&divs, m)];
     let mut out = Out { buf: out, pos: 0 };
-    node(&x, n, false, &divs, &mut out, &mut scratch, m)?;
+    node(&x, n, false, &Tree { divs: &divs, leaf }, &mut out, &mut scratch, m)?;
     ones.fill(b'1');
     Ok(zeros + out.pos)
 }
@@ -179,18 +207,24 @@ impl Out<'_> {
     }
 }
 
+/// What every [`node`] of one encode shares: the divisors by level, and the largest leaf.
+struct Tree<'a> {
+    divs: &'a [Divisor],
+    leaf: usize,
+}
+
 /// Writes the digits of `x < BASE^n`: exactly `10 n` of them if `pad`, else without
 /// leading zeros. Needs [`node_scratch_len`] limbs of `s`.
 fn node(
     x: &[u64],
     n: usize,
     pad: bool,
-    divs: &[Divisor],
+    t: &Tree<'_>,
     out: &mut Out<'_>,
     s: &mut [u64],
     m: &mut impl Multiplier,
 ) -> Result<(), BufferTooSmall> {
-    if n <= LEAF {
+    if n <= t.leaf {
         return leaf(x, n, pad, out);
     }
     if x.is_empty() {
@@ -199,19 +233,19 @@ fn node(
         }
         return Ok(());
     }
-    // `divs[0].exp <= LEAF`, so `i` exists, and the next power is at least `n`, so
+    // `divs[0].exp <= leaf < n`, so `i` exists, and the next power is at least `n`, so
     // `x < BASE^(2 exp)`.
-    let i = divs.partition_point(|d| d.exp < n) - 1;
-    let d = &divs[i];
+    let i = t.divs.partition_point(|d| d.exp < n) - 1;
+    let d = &t.divs[i];
     let qn = d.qn();
     let (hi, s) = s.split_at_mut(qn + 1);
     let (lo, s) = s.split_at_mut(qn);
     let (hn, ln) = divide(x, d, i, hi, lo, s, m);
     if !pad && hn == 0 {
-        return node(&lo[..ln], d.exp, false, divs, out, s, m);
+        return node(&lo[..ln], d.exp, false, t, out, s, m);
     }
-    node(&hi[..hn], n - d.exp, pad, divs, out, s, m)?;
-    node(&lo[..ln], d.exp, true, divs, out, s, m)
+    node(&hi[..hn], n - d.exp, pad, t, out, s, m)?;
+    node(&lo[..ln], d.exp, true, t, out, s, m)
 }
 
 /// Scratch limbs [`node`] needs for any node, by induction on the levels: a node at level
@@ -450,7 +484,7 @@ mod tests {
     fn divide_splits() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(31);
         let m = &mut Karatsuba;
-        let (unit, levels) = split_unit(20_000);
+        let (unit, levels) = split_unit_leaf(20_000, LEAF);
         let mut table = vec![0; table_len(unit, levels)];
         let e = unit << (levels - 1);
         let mut s = vec![0; m.scratch_len(e) + recip_scratch_len(full(e) + 1, m)];
