@@ -47,6 +47,34 @@ pub(crate) trait Multiplier {
     fn mul_power(&mut self, out: &mut [u64], a: &[u64], _i: usize, b: &[u64], s: &mut [u64]) {
         self.mul(out, a, b, s);
     }
+
+    /// A length `L >= n` for which [`Multiplier::mul_wrapped`] is cheaper than a product of
+    /// `full` limbs, if there is one. By default there is none.
+    fn wrap_len(&self, _n: usize, _full: usize) -> Option<usize> {
+        None
+    }
+
+    /// Scratch limbs [`Multiplier::mul_wrapped`] needs for `L` limbs when no operand is
+    /// longer than `n`.
+    fn wrapped_scratch_len(&self, _l: usize, n: usize) -> usize {
+        2 * n + self.scratch_len(n)
+    }
+
+    /// `out = a * b mod (β^L - 1)` for `L = out.len() > 0`, as some value in
+    /// `[0, β^L - 1]` (both ends stand for zero). Needs `scratch.len() >=
+    /// wrapped_scratch_len(L, max(a.len(), b.len()))`. By default, the full product
+    /// folded.
+    fn mul_wrapped(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
+        let (p, s) = scratch.split_at_mut(a.len() + b.len());
+        self.mul(p, a, b, s);
+        mul::fold_wrapped(out, p);
+    }
+
+    /// [`Multiplier::mul_wrapped`] where `b` is power `i` of the table, as in
+    /// [`Multiplier::mul_power`].
+    fn mul_power_wrapped(&mut self, out: &mut [u64], a: &[u64], _i: usize, b: &[u64], s: &mut [u64]) {
+        self.mul_wrapped(out, a, b, s);
+    }
 }
 
 /// [`mul::mul`] as a [`Multiplier`].

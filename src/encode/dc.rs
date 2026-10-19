@@ -15,7 +15,7 @@ use crate::common::CHUNK;
 use crate::dc::{
     Karatsuba, LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len,
 };
-use crate::mul::{add_assign, sub_assign};
+use crate::mul::{add_assign, fold_wrapped, sub_assign};
 use crate::{BufferTooSmall, encode_batched};
 
 /// Inputs of more than this many bytes use divide and conquer, with leaves of at most
@@ -165,20 +165,38 @@ fn divide(
         let q = &p[qn..];
         hi[..q.len()].copy_from_slice(q);
         let ql = trimmed_len(hi);
-        if ql > 0 {
-            let (qp, s) = s.split_at_mut(ql + dn);
-            m.mul_power(qp, &hi[..ql], 2 * i, &d.pn, s);
-            let borrow = sub_assign(a, qp);
-            debug_assert!(!borrow, "the quotient estimate is too large");
+        // The remainder `A - q pn` is below `7 pn < β^(dn + 1)`, so it is also its own
+        // residue modulo `β^L - 1` for `L >= dn + 2`. Same arguments as in
+        // `divide_scratch_len`.
+        match m.wrap_len(dn + 2, qn + dn) {
+            Some(l) if ql > 0 => {
+                let (w, s) = s.split_at_mut(l);
+                let (r, s) = s.split_at_mut(l);
+                m.mul_power_wrapped(w, &hi[..ql], 2 * i, &d.pn, s);
+                fold_wrapped(r, a);
+                sub_wrapped(r, w);
+                canonical(r);
+                let (keep, rest) = r.split_at(l.min(a.len()));
+                debug_assert!(rest.iter().all(|&v| v == 0), "the remainder is too large");
+                a.fill(0);
+                a[..keep.len()].copy_from_slice(keep);
+            }
+            None if ql > 0 => {
+                let (qp, s) = s.split_at_mut(ql + dn);
+                m.mul_power(qp, &hi[..ql], 2 * i, &d.pn, s);
+                let borrow = sub_assign(a, qp);
+                debug_assert!(!borrow, "the quotient estimate is too large");
+            }
+            _ => {}
         }
     }
     let mut fixes = 0;
     while ge(a, &d.pn) {
+        fixes += 1;
+        debug_assert!(fixes <= 6, "more than 6 corrections");
         sub_assign(a, &d.pn);
         add_assign(hi, &[1]);
-        fixes += 1;
     }
-    debug_assert!(fixes <= 6, "{fixes} corrections");
     // lo = (A >> bits) β^shift + x mod β^shift. The remainder is below `pn`.
     let low = &x[..sh.min(x.len())];
     lo[..low.len()].copy_from_slice(low);
@@ -190,7 +208,26 @@ fn divide(
 /// Scratch limbs [`divide`] needs.
 fn divide_scratch_len(d: &Divisor, m: &impl Multiplier) -> usize {
     let (dn, qn) = (d.pn.len(), d.qn());
-    (dn + qn) + (2 * qn + 1) + (qn + dn) + m.scratch_len(qn + 1)
+    let full = (qn + dn) + m.scratch_len(qn + 1);
+    let wrapped = m.wrap_len(dn + 2, qn + dn).map_or(0, |l| 2 * l + m.wrapped_scratch_len(l, qn));
+    (dn + qn) + (2 * qn + 1) + full.max(wrapped)
+}
+
+/// `a = (a - b) mod (β^L - 1)`, for `a` and `b` of `L` limbs in `[0, β^L - 1]`.
+fn sub_wrapped(a: &mut [u64], b: &[u64]) {
+    // On a borrow the difference wrapped by `β^L`, one more than the modulus; it is at
+    // least one, so taking that one back does not borrow again.
+    if sub_assign(a, b) {
+        let borrow = sub_assign(a, &[1]);
+        debug_assert!(!borrow);
+    }
+}
+
+/// Replaces `β^L - 1`, the other representative of zero modulo `β^L - 1`, by zero.
+fn canonical(a: &mut [u64]) {
+    if a.iter().all(|&v| v == u64::MAX) {
+        a.fill(0);
+    }
 }
 
 /// Where the digits go: `buf[pos..]`.
@@ -319,15 +356,21 @@ fn reciprocal(x: &mut [u64], a: &[u64], s: &mut [u64], m: &mut impl Multiplier) 
     let (xh, s) = s.split_at_mut(h + 1);
     reciprocal(xh, &a[l..], s, m);
     // t = a x_h. Padded divisors end in zero limbs; skip them.
+    // t = a x_h, in (β^(n+h) - 2 β^n, β^(n+h) + 2 β^n). Padded divisors end in zero
+    // limbs; skip them.
     let (t, s) = s.split_at_mut(n + h + 1);
     let z = a.iter().take_while(|&&v| v == 0).count();
     t[..z].fill(0);
     m.mul(&mut t[z..], &a[z..], xh, s);
+    // Each step takes `a >= β^n / 2` off: at most four.
+    let mut steps = 0;
     while t[n + h] != 0 {
+        steps += 1;
+        debug_assert!(steps <= 4, "a x_h was not below β^(n+h) + 2 β^n");
         sub_assign(xh, &[1]);
         sub_assign(t, a);
     }
-    // t = β^(n+h) - a x_h, which is below 3 β^n, so `tm = t / β^l` has at most h + 1 limbs.
+    // t = β^(n+h) - a x_h, in (0, 2 β^n], so `tm = t / β^l` has at most h + 1 limbs.
     negate(&mut t[..n + h]);
     let tm = &t[l..n + h];
     let tm = &tm[..trimmed_len(tm)];
@@ -440,6 +483,7 @@ fn negate(t: &mut [u64]) {
 mod tests {
     use super::*;
     use crate::mul;
+    use crate::ntt::{Kernels, Ntt};
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
@@ -449,13 +493,46 @@ mod tests {
         out
     }
 
-    /// `a x < β^(2n) <= a (x + 2)` for random and extreme divisors, around the base case.
+    /// Karatsuba, with every product that may wrap wrapped modulo `β^(n + extra) - 1` by
+    /// the default `mul_wrapped` (the full product, folded): lengths that are not powers
+    /// of two, down to the least the callers allow.
+    struct Wrap(usize);
+
+    impl Multiplier for Wrap {
+        fn scratch_len(&self, n: usize) -> usize {
+            mul::scratch_len(n)
+        }
+
+        fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
+            mul::mul(out, a, b, scratch);
+        }
+
+        fn wrap_len(&self, n: usize, _full: usize) -> Option<usize> {
+            Some(n + self.0)
+        }
+    }
+
+    /// The NTT with tables for products of up to `len` limbs. It wraps the products
+    /// where a power-of-two cyclic transform is shorter.
+    fn ntt(len: usize) -> Ntt {
+        let mut m = Ntt::new(false, Kernels::best());
+        m.prepare(len);
+        m
+    }
+
+    /// `a x < β^(2n) <= a (x + 2)` for random and extreme divisors, around the base case,
+    /// with Karatsuba and the NTT.
     #[test]
     fn reciprocal_bounds() {
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(30);
         let mut lens: Vec<usize> = (1..=70).collect();
         lens.extend([127, 128, 129, 255, 256, 500, 1000, 2049]);
-        for n in lens {
+        check_reciprocals(&lens, &mut Karatsuba);
+        check_reciprocals(&lens, &mut ntt(8192));
+    }
+
+    fn check_reciprocals(lens: &[usize], m: &mut impl Multiplier) {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(30);
+        for &n in lens {
             let mut random: Vec<u64> = (0..n).map(|_| rng.next_u64()).collect();
             random[n - 1] |= 1 << 63;
             let mut min = vec![0; n];
@@ -464,8 +541,8 @@ mod tests {
             padded[..n / 3].fill(0);
             for a in [random, min, vec![u64::MAX; n], padded] {
                 let mut x = vec![0xA5; n + 1];
-                let mut s = vec![0x5A; recip_scratch_len(n, &Karatsuba)];
-                reciprocal(&mut x, &a, &mut s, &mut Karatsuba);
+                let mut s = vec![0x5A; recip_scratch_len(n, m)];
+                reciprocal(&mut x, &a, &mut s, m);
                 let ax = product(&a, &x);
                 // β^(2n) is a one at limb 2n.
                 assert!(ax[2 * n..].iter().all(|&v| v == 0), "{n}: a x >= β^(2n)");
@@ -479,11 +556,17 @@ mod tests {
     }
 
     /// `x = hi P + lo` with `lo < P`, for every level of a real table and random,
-    /// all-ones and short `x`.
+    /// all-ones and short `x`, with plain and wrapped products.
     #[test]
     fn divide_splits() {
+        check_divisions(&mut Karatsuba);
+        check_divisions(&mut Wrap(0));
+        check_divisions(&mut Wrap(3));
+        check_divisions(&mut ntt(1 << 15));
+    }
+
+    fn check_divisions(m: &mut impl Multiplier) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(31);
-        let m = &mut Karatsuba;
         let (unit, levels) = split_unit_leaf(20_000, LEAF);
         let mut table = vec![0; table_len(unit, levels)];
         let e = unit << (levels - 1);
@@ -499,7 +582,7 @@ mod tests {
             let mut max = product(&power, &power);
             sub_assign(&mut max, &[1]);
             let max = max[..trimmed_len(&max)].to_vec();
-            for x in [random, max, vec![7], vec![], p.limbs.to_vec()] {
+            for x in [random, max, vec![7], vec![], p.limbs.to_vec(), power.clone()] {
                 let (mut hi, mut lo) = (vec![0; d.qn() + 1], vec![0; d.qn()]);
                 let mut ds = vec![0; divide_scratch_len(&d, m)];
                 let (hn, ln) = divide(&x, &d, i, &mut hi, &mut lo, &mut ds, m);
@@ -509,6 +592,26 @@ mod tests {
                 add_assign(&mut back, &lo[..ln]);
                 let bl = trimmed_len(&back);
                 assert!(back[..bl] == x[..trimmed_len(&x)], "level {i}: hi P + lo != x");
+            }
+        }
+    }
+
+    /// Whole encodes with every product that may wrap wrapped, against Karatsuba.
+    #[test]
+    fn wrapped_encodes() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(33);
+        for len in [6000, 40_000, 150_001] {
+            let mut data = vec![0u8; len];
+            rng.fill_bytes(&mut data);
+            for data in [data, vec![0xFF; len]] {
+                let mut want = vec![0; crate::max_encoded_len(len)];
+                let n = encode(&data, &mut want).unwrap();
+                for extra in [0, 1, 9] {
+                    let mut got = vec![0; want.len()];
+                    let m = &mut Wrap(extra);
+                    assert_eq!(encode_tuned(&data, &mut got, m, 0, 32), Ok(n), "{len}, {extra}");
+                    assert!(got[..n] == want[..n], "{len} bytes, L = n + {extra}");
+                }
             }
         }
     }

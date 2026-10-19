@@ -172,6 +172,19 @@ pub fn add_assign(a: &mut [u64], b: &[u64]) -> bool {
     carry
 }
 
+/// `out = x mod (β^L - 1)` for `L = out.len() > 0`, as some value in `[0, β^L - 1]`.
+pub fn fold_wrapped(out: &mut [u64], x: &[u64]) {
+    out.fill(0);
+    for c in x.chunks(out.len()) {
+        // `β^L ≡ 1`. Both terms are below `β^L`, so after the wrap the sum is at most
+        // `β^L - 2` and adding one does not carry again.
+        if add_assign(out, c) {
+            let carry = add_assign(out, &[1]);
+            debug_assert!(!carry);
+        }
+    }
+}
+
 /// `a -= b`, borrowing through the rest of `a`. Returns the borrow out of `a`.
 pub fn sub_assign(a: &mut [u64], b: &[u64]) -> bool {
     let (lo, hi) = a.split_at_mut(b.len());

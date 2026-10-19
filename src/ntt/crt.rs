@@ -47,6 +47,25 @@ const fn inv(a: u64, q: u64) -> u32 {
 /// the kernels' Garner output, all in `[0, q)`, and at least `2 * out.len()` long; the
 /// sum must fit in `out`.
 pub(crate) fn carry(out: &mut [u64], r: [&[i32]; 3]) {
+    let c = carry_out(out, r);
+    debug_assert_eq!(c, 0, "product does not fit");
+}
+
+/// [`carry`] of `2 L` coefficients modulo `β^L - 1`, for `L = out.len()`: the carry out of
+/// the top limb wraps to the bottom. Writes some value in `[0, β^L - 1]`.
+pub(crate) fn carry_wrapped(out: &mut [u64], r: [&[i32]; 3]) {
+    let c = carry_out(out, r);
+    // `c β^L ≡ c`. A carry out of that addition wraps once more, onto a value that is now
+    // at most `β^L - 2`, so it stops there.
+    let c = u64::try_from(c).expect("the carry is below 2^57");
+    if crate::mul::add_assign(out, &[c]) {
+        let carry = crate::mul::add_assign(out, &[1]);
+        debug_assert!(!carry);
+    }
+}
+
+/// [`carry`], returning the carry out of the top limb.
+fn carry_out(out: &mut [u64], r: [&[i32]; 3]) -> u128 {
     let [p1, p2, _] = PRIMES;
     let q1 = p1.q as u128;
     let q12 = q1 * p2.q as u128;
@@ -59,12 +78,12 @@ pub(crate) fn carry(out: &mut [u64], r: [&[i32]; 3]) {
     let [r1, v2, v3] = r.map(|x| x[..n].as_chunks::<2>().0);
     let mut c = 0u128;
     for (((o, x), y), z) in out.iter_mut().zip(r1).zip(v2).zip(v3) {
-        // Coefficients are below 2^86, so `c` stays below 2^119.
+        // Coefficients are below 2^87 (2^86 for full products), so `c` stays below 2^120.
         c += coef(x[0], y[0], z[0]) + (coef(x[1], y[1], z[1]) << 32);
         *o = c as u64;
         c >>= 64;
     }
-    debug_assert_eq!(c, 0, "product does not fit");
+    c
 }
 
 #[cfg(test)]

@@ -98,7 +98,7 @@ pub fn encode_ntt_with(
 }
 
 /// The [`Multiplier`] of the NTT decoders.
-struct Ntt {
+pub(crate) struct Ntt {
     /// Take tables from [`Tables::cached`] rather than building them.
     cached: bool,
     kernels: Kernels,
@@ -115,7 +115,7 @@ struct Ntt {
 
 impl Ntt {
     /// With the thresholds for this CPU.
-    fn new(cached: bool, kernels: Kernels) -> Self {
+    pub(crate) fn new(cached: bool, kernels: Kernels) -> Self {
         let (threshold, prepared_threshold) = match mul::ifma_threshold() {
             0 => (THRESHOLD, PREPARED_THRESHOLD),
             _ => (IFMA_THRESHOLD, IFMA_PREPARED_THRESHOLD),
@@ -214,6 +214,86 @@ impl Multiplier for Ntt {
             _ => self.mul(out, a, b, s),
         }
     }
+
+    /// The power of two `L >= n` when its `2 L`-point cyclic transform, which the tables
+    /// must serve, is shorter than the pieces of a full product, and the operands are long
+    /// enough for transforms at all.
+    fn wrap_len(&self, n: usize, full: usize) -> Option<usize> {
+        let l = n.next_power_of_two().max(4);
+        let fits = log_len(l) <= self.tables().log;
+        (n >= self.threshold && fits && 2 * l < Plan::new(full).width()).then_some(l)
+    }
+
+    fn wrapped_scratch_len(&self, l: usize, _n: usize) -> usize {
+        // Folded operands, then four arrays of `2 L` `i32`s.
+        2 * l + 4 * l
+    }
+
+    fn mul_wrapped(&mut self, out: &mut [u64], a: &[u64], b: &[u64], s: &mut [u64]) {
+        wrapped(out, a, b, s, self.tables(), &self.kernels, None);
+    }
+
+    fn mul_power_wrapped(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
+        let f = match self.powers.get(i) {
+            Some(Some(f)) if f.is(b) && log_len(out.len()) <= f.log => Some(f),
+            _ => None,
+        };
+        wrapped(out, a, b, s, self.tables(), &self.kernels, f);
+    }
+}
+
+/// `out = a * b mod (β^L - 1)` for `L = out.len()`, a power of two whose `2 L` points `t`
+/// serves, as some value in `[0, β^L - 1]`: one cyclic transform per prime, of the
+/// operands folded modulo `β^L - 1`. A prepared `b`'s transforms come from `fb`: their
+/// first `2 L` values are those of `b mod (x^(2 L) - 1)` (see [`Prepared`]).
+///
+/// Each coefficient of the cyclic product sums at most `2 L <= 2^23` products of 32-bit
+/// coefficients, so it is below `2^87 < q1 q2 q3`, and Garner's CRT recovers it.
+fn wrapped(
+    out: &mut [u64],
+    a: &[u64],
+    b: &[u64],
+    scratch: &mut [u64],
+    t: &Tables,
+    k: &Kernels,
+    fb: Option<&Prepared>,
+) {
+    let l = out.len();
+    let n = 2 * l;
+    debug_assert!(l.is_power_of_two() && n >= 8 && n.trailing_zeros() <= t.log);
+    let (fa, scratch) = scratch.split_at_mut(l);
+    let (fold_b, scratch) = scratch.split_at_mut(l);
+    let a = if a.len() > l {
+        mul::fold_wrapped(fa, a);
+        &*fa
+    } else {
+        a
+    };
+    let b = if fb.is_none() && b.len() > l {
+        mul::fold_wrapped(fold_b, b);
+        &*fold_b
+    } else {
+        b
+    };
+    let (r1, rest) = as_i32(scratch).split_at_mut(n);
+    let (r2, rest) = rest.split_at_mut(n);
+    let (r3, rest) = rest.split_at_mut(n);
+    let tmp = &mut rest[..n];
+    let rs = [&mut *r1, &mut *r2, &mut *r3];
+    for (j, ((r, p), tw)) in rs.into_iter().zip(PRIMES).zip(&t.tw).enumerate() {
+        (k.load)(r, a, p);
+        (k.forward)(r, p, tw);
+        if let Some(f) = fb {
+            (k.pointwise)(r, &f.prime(j)[..n], p);
+        } else {
+            (k.load)(tmp, b, p);
+            (k.forward)(tmp, p, tw);
+            (k.pointwise)(r, tmp, p);
+        }
+        (k.inverse)(r, p, tw);
+    }
+    (k.garner)([&mut *r1, &mut *r2, &mut *r3]);
+    crt::carry_wrapped(out, [r1, r2, r3]);
 }
 
 /// The type of [`Kernels::load_twist`].
@@ -872,6 +952,58 @@ mod tests {
             let mut want = vec![0; a.len() + c.len()];
             mul::mul(&mut want, &a, &c, &mut vec![0; mul::scratch_len(a.len())]);
             assert!(got == want, "operand other than the prepared power");
+        }
+    }
+
+    /// `mul_wrapped` and `mul_power_wrapped` against the full product folded modulo
+    /// `β^L - 1`: operands shorter than, as long as and longer than `L` (folded first), a
+    /// prepared `b` whose stored transform is longer than `2 L` points, both kernel sets.
+    #[test]
+    fn wrapped_matches_folded_product() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+        // (L, a, b)
+        let shapes = [
+            (4, 1, 1),
+            (4, 9, 3),
+            (8, 8, 8),
+            (64, 63, 2),
+            (256, 300, 200),
+            (512, 1100, 512),
+            (2048, 2500, 1100),
+            (2048, 1, 2048),
+        ];
+        // Some value in [0, β^L - 1]: both ends stand for zero.
+        let canon = |mut v: Vec<u64>| {
+            if v.iter().all(|&x| x == u64::MAX) {
+                v.fill(0);
+            }
+            v
+        };
+        for kernels in [Kernels::portable(), Kernels::best()] {
+            let mut ntt = scalar_ntt(kernels);
+            ntt.prepare(8192);
+            let mut i = 0;
+            for (l, na, nb) in shapes {
+                for (a, b) in operands(&mut rng, na, nb) {
+                    let mut full = vec![0; na + nb];
+                    mul::mul(&mut full, &a, &b, &mut vec![0; mul::scratch_len(na.max(nb))]);
+                    let mut want = vec![0; l];
+                    mul::fold_wrapped(&mut want, &full);
+                    let want = canon(want);
+                    let len = ntt.wrapped_scratch_len(l, na.max(nb));
+                    let mut got = vec![0xA5A5_A5A5_A5A5_A5A5; l];
+                    ntt.mul_wrapped(&mut got, &a, &b, &mut vec![0x5A5A_5A5A_5A5A_5A5A; len]);
+                    assert!(canon(got) == want, "{l}: {na} x {nb}");
+                    // An 8192-point stored transform: its prefix serves 2 L points.
+                    ntt.prepare_power(i, &b, 4096);
+                    assert_eq!(ntt.powers[i].is_some(), nb >= ntt.prepared_threshold);
+                    let mut got = vec![0xA5A5_A5A5_A5A5_A5A5; l];
+                    let s = &mut vec![0x5A5A_5A5A_5A5A_5A5A; len];
+                    ntt.mul_power_wrapped(&mut got, &a, i, &b, s);
+                    assert!(canon(got) == want, "{l}: {na} x {nb}, prepared");
+                    i += 1;
+                }
+            }
         }
     }
 
