@@ -864,3 +864,91 @@ table (balanced splits `unit·2^i`, powers stored without their low zero limbs),
 - **Leaves** convert with `encode_batched`'s kernel on stack buffers.
 - So each node costs two products (`A1 · inv` and `q · pn`) against `decode`'s one,
   plus a reciprocal per level.
+
+### Encoding results
+
+Apple M5 Pro, AC power, `cargo bench --bench encode -- --warm-up-time 1
+--measurement-time 3` (criterion medians from one run; random input with a non-zero
+first byte). `malachite` is malachite-nz's own conversion (`Natural::to_digits_desc`,
+a port of GMP's `mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32
+and 64 bytes only (scalar on aarch64). The divide-and-conquer encoders run
+`encode_batched` up to their threshold, so they are timed from 4 KiB.
+
+| bytes   | bs58      | basexx    | malachite | five8       | batched       | dc        | dc-toom3  | ntt       | ntt-cached    | dc-malachite |
+|--------:|----------:|----------:|----------:|------------:|--------------:|----------:|----------:|----------:|--------------:|-------------:|
+| 31      | 899 ns    | 137 ns    | 132 ns    |             | **40.5 ns**   |           |           |           |               |              |
+| 32      | 1.00 µs   | 144 ns    | 133 ns    | **30.9 ns** | 36.2 ns       |           |           |           |               |              |
+| 64      | 3.28 µs   | 302 ns    | 252 ns    | **73.8 ns** | 89.7 ns       |           |           |           |               |              |
+| 128     | 13.7 µs   | 919 ns    | 492 ns    |             | **211 ns**    |           |           |           |               |              |
+| 256     | 58.0 µs   | 3.11 µs   | 1.54 µs   |             | **631 ns**    |           |           |           |               |              |
+| 512     | 241 µs    | 8.08 µs   | 3.73 µs   |             | **2.14 µs**   |           |           |           |               |              |
+| 1024    | 963 µs    | 21.7 µs   | 10.1 µs   |             | **7.59 µs**   |           |           |           |               |              |
+| 1875    | 3.28 ms   | 55.9 µs   | 24.1 µs   |             | **23.9 µs**   |           |           |           |               |              |
+| 4096    | 15.4 ms   | 175 µs    | **74.4 µs** |           | 107 µs        | 107 µs    | 107 µs    | 109 µs    | 107 µs        | 92.7 µs      |
+| 32768   | 984 ms    | 4.32 ms   | 1.48 ms   |             | 6.53 ms       | 3.35 ms   | 3.07 ms   | 1.51 ms   | **1.46 ms**   | 1.48 ms      |
+| 36864   |           |           | 1.78 ms   |             |               | 4.05 ms   | 3.69 ms   | 1.76 ms   | **1.73 ms**   | 1.76 ms      |
+| 49152   |           |           | 2.69 ms   |             |               | 6.55 ms   | 5.93 ms   | 2.51 ms   | **2.42 ms**   | 2.59 ms      |
+| 131072  |           |           | 9.14 ms   |             |               | 32.1 ms   | 26.4 ms   | 7.72 ms   | **7.47 ms**   | 8.28 ms      |
+| 147456  |           |           | 10.7 ms   |             |               | 38.2 ms   | 31.7 ms   | 8.96 ms   | **8.71 ms**   | 9.71 ms      |
+| 1048576 |           |           | 107 ms    |             |               | 883 ms    | 596 ms    | 83.9 ms   | **82.3 ms**   | 93.8 ms      |
+
+(`basexx-b`, a quadratic byte loop, is within 20% of `bs58` and left out.)
+
+- `encode_batched` is 22× (31 B) to 151× (32 KiB) faster than `bs58`, and the fastest
+  general encoder up to about 1.9 KiB. `five8`'s fixed-size code is 15–18% faster at 32
+  and 64 bytes.
+- At 4 KiB malachite's own conversion leads (74.4 against 92.7 µs). It uses the same
+  scheme, with its multiplication called on limb slices; ours goes through `Natural` and
+  allocates per product (see `decode_malachite`). Sizes between 4 and 32 KiB were not
+  timed against it.
+- From 32 KiB `ntt-cached` leads: tied with malachite at 32 KiB, then 10% faster at
+  48 KiB, 18–19% at 128–144 KiB and 23% at 1 MiB.
+- Karatsuba (`dc`) is 2.3× slower than the NTT at 32 KiB and 10.7× at 1 MiB, about the
+  same gap as between `decode` and `decode_ntt_cached`.
+
+### Tuning
+
+All in one binary (`benches/encode_tune.rs`: interleaved rounds, the minimum time per
+call of each configuration), M5 Pro on AC power.
+
+- **Threshold.** Divide and conquer beats `encode_batched` from about 3 KiB with
+  malachite's multiplication (57.4 against 58.6 µs at 3 KiB), 4 KiB with the NTT (a tie;
+  117.6 against 130.6 µs at 4.5 KiB) and 5 KiB with Karatsuba (a tie; 207.9 against
+  224.2 µs at 6 KiB). So each backend has its own `ENCODE_THRESHOLD`.
+- **Leaf size** matters little: within about 5% from 32 to 256 chunks. 96 is best with
+  Karatsuba and malachite; with the NTT, 32 is up to 4% faster from 8 KiB up and 1–2%
+  slower at 4–6 KiB, so the NTT uses 32.
+- **Where the time goes** (temporary timers, not in the repo; `ntt-cached` and
+  `dc-malachite`):
+
+  | input   | reciprocals | divisions | leaves | power table |
+  |--------:|------------:|----------:|-------:|------------:|
+  | 4 KiB   | 27%         | 47%       | 19%    | 4%          |
+  | 32 KiB  | 27–28%      | 58–59%    | 5–9%   | 3%          |
+  | 1 MiB   | 20–23%      | 66–72%    | 3–5%   | 3%          |
+
+  The top division, and its reciprocal, serve one node but cost about as much as a whole
+  level below.
+
+Tried and not kept:
+
+- **A sign test in `reduce`** (`(t - BASE) as i64 < 0` instead of `overflowing_sub`):
+  23–30% slower.
+- **Schoolbook division for small powers** (Knuth's Algorithm D with a Möller–Granlund
+  3-by-2 quotient digit, no reciprocal), as malachite does below 50 limbs, with
+  `dc-malachite`: below 256 limbs it was 6% faster at 3 KiB, within 1% at 4 KiB and 2–5%
+  slower from 8 KiB; smaller cutoffs were within 2% everywhere. The reciprocals that
+  matter belong to the large powers.
+
+### Possible next steps
+
+- **Wrapped products in the NTT.** `q·pn` only needs its low `dn + 1` limbs, and Newton's
+  `a·x_h` has a known top: both fit a cyclic product modulo `β^L - 1` with `L` about half
+  the full length.
+- **Scaled remainder tree** (Bouvier–Zimmermann): one reciprocal for the whole number,
+  then one product per node (a middle product, which a cyclic NTT gives) instead of two,
+  and no reciprocal per level. Needs a proved error bound and an exact fix-up.
+- **A matrix encoder** (Firedancer's, any length): SIMD multiply-adds for 0.4–4 KiB and
+  as leaves. The decoder's panel kernels fit: `u32` words times a table below `58^4` have
+  the decoder's product bound.
+- **Four passes per sweep** in `encode_batched`'s kernel.

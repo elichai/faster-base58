@@ -1,6 +1,11 @@
-//! Base58 (Bitcoin alphabet) decoding on 64-bit limbs. See README.md for the design.
+//! Base58 (Bitcoin alphabet) decoding and encoding on 64-bit limbs. See README.md for the
+//! design.
 //!
-//! Each algorithm has its own module:
+//! The encoders are in `encode/`: [`encode_batched`] (quadratic, in place) and [`encode`]
+//! (divide and conquer with Barrett division); the backend modules below also hold
+//! [`encode_toom3`], [`encode_ntt`], [`encode_ntt_cached`] and [`encode_malachite`].
+//!
+//! Each decoding algorithm has its own module:
 //! - [`decode_batched`] (`batched.rs`): quadratic, one limb update per ten characters
 //!   and eight output bytes.
 //! - [`decode`] (`dc.rs`): divide-and-conquer radix conversion for large inputs, with
