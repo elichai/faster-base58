@@ -878,44 +878,53 @@ table (balanced splits `unit·2^i`, powers stored without their low zero limbs),
 ### Encoding results
 
 Apple M5 Pro, AC power, `cargo bench --bench encode -- --warm-up-time 1
---measurement-time 3` (criterion medians from one run, with the wrapped `q·pn`; a backup
-process used one core). Random input with a non-zero first byte. `malachite` is
-malachite-nz's own conversion (`Natural::to_digits_desc`, a port of GMP's
+--measurement-time 3`: criterion medians from one run of every encoder, with the wrapped
+`q·pn` and `encode_matrix` (merge `a80b4fb`). A watcher saw no build or other benchmark
+during the run; a backup process used one core. Random input with a non-zero first byte.
+`malachite` is malachite-nz's own conversion (`Natural::to_digits_desc`, a port of GMP's
 `mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32 and 64 bytes
 only (scalar on aarch64). The divide-and-conquer encoders run `encode_batched` up to
-their threshold, so they are timed from 4 KiB.
+their threshold, so they are timed from 4 KiB; `encode_matrix` serves up to 4 KiB.
 
-| bytes   | bs58      | basexx    | malachite   | five8       | batched       | dc        | dc-toom3  | ntt       | ntt-cached    | dc-malachite |
-|--------:|----------:|----------:|------------:|------------:|--------------:|----------:|----------:|----------:|--------------:|-------------:|
-| 31      | 927 ns    | 144 ns    | 141 ns      |             | **35.0 ns**   |           |           |           |               |              |
-| 32      | 937 ns    | 146 ns    | 130 ns      | **29.9 ns** | 35.1 ns       |           |           |           |               |              |
-| 64      | 3.06 µs   | 303 ns    | 229 ns      | **71.5 ns** | 86.2 ns       |           |           |           |               |              |
-| 128     | 13.5 µs   | 905 ns    | 488 ns      |             | **210 ns**    |           |           |           |               |              |
-| 256     | 56.5 µs   | 3.10 µs   | 1.47 µs     |             | **617 ns**    |           |           |           |               |              |
-| 512     | 231 µs    | 7.88 µs   | 3.59 µs     |             | **2.08 µs**   |           |           |           |               |              |
-| 1024    | 936 µs    | 21.6 µs   | 9.61 µs     |             | **7.45 µs**   |           |           |           |               |              |
-| 1875    | 3.16 ms   | 54.5 µs   | **23.2 µs** |             | 23.4 µs       |           |           |           |               |              |
-| 4096    | 15.1 ms   | 170 µs    | **73.4 µs** |             | 105 µs        | 105 µs    | 105 µs    | 105 µs    | 105 µs        | 91.0 µs      |
-| 32768   | 969 ms    | 4.21 ms   | 1.44 ms     |             | 6.39 ms       | 3.29 ms   | 3.00 ms   | 1.37 ms   | **1.33 ms**   | 1.44 ms      |
-| 36864   |           |           | 1.75 ms     |             |               | 3.96 ms   | 3.60 ms   | 1.58 ms   | **1.54 ms**   | 1.68 ms      |
-| 49152   |           |           | 2.54 ms     |             |               | 6.30 ms   | 5.69 ms   | 2.28 ms   | **2.24 ms**   | 2.46 ms      |
-| 131072  |           |           | 8.67 ms     |             |               | 30.9 ms   | 25.2 ms   | 6.81 ms   | **6.70 ms**   | 7.90 ms      |
-| 147456  |           |           | 10.2 ms     |             |               | 36.8 ms   | 30.3 ms   | 7.84 ms   | **7.63 ms**   | 9.21 ms      |
-| 1048576 |           |           | 103 ms      |             |               | 851 ms    | 568 ms    | 73.3 ms   | **72.4 ms**   | 90.9 ms      |
+| bytes   | bs58    | basexx  | malachite | five8       | batched | matrix       | matrix-portable | dc      | dc-toom3 | ntt     | ntt-cached  | dc-malachite |
+|--------:|--------:|--------:|----------:|------------:|--------:|-------------:|----------------:|--------:|---------:|--------:|------------:|-------------:|
+| 31      | 888 ns  | 146 ns  | 140 ns    |             | 35.0 ns | **28.8 ns**  | 35.6 ns         |         |          |         |             |              |
+| 32      | 933 ns  | 152 ns  | 138 ns    | **30.8 ns** | 36.8 ns | 31.0 ns      | 36.8 ns         |         |          |         |             |              |
+| 64      | 3.28 µs | 312 ns  | 247 ns    | 75.8 ns     | 90.0 ns | **52.0 ns**  | 70.2 ns         |         |          |         |             |              |
+| 128     | 14.4 µs | 965 ns  | 518 ns    |             | 215 ns  | **115 ns**   | 155 ns          |         |          |         |             |              |
+| 256     | 60.4 µs | 3.25 µs | 1.58 µs   |             | 645 ns  | **262 ns**   | 419 ns          |         |          |         |             |              |
+| 512     | 247 µs  | 8.24 µs | 3.86 µs   |             | 2.19 µs | **625 ns**   | 1.29 µs         |         |          |         |             |              |
+| 1024    | 976 µs  | 22.2 µs | 10.2 µs   |             | 7.70 µs | **1.97 µs**  | 4.58 µs         |         |          |         |             |              |
+| 1875    | 3.18 ms | 56.5 µs | 23.9 µs   |             | 23.9 µs | **5.91 µs**  | 14.6 µs         |         |          |         |             |              |
+| 4096    | 15.3 ms | 177 µs  | 74.3 µs   |             | 107 µs  | **28.9 µs**  | 66.0 µs         | 107 µs  | 107 µs   | 107 µs  | 107 µs      | 92.6 µs      |
+| 32768   | 976 ms  | 4.35 ms | 1.48 ms   |             | 6.65 ms |              |                 | 3.34 ms | 3.07 ms  | 1.51 ms | **1.45 ms** | 1.48 ms      |
+| 36864   |         |         | 1.78 ms   |             |         |              |                 | 4.04 ms | 3.65 ms  | 1.70 ms | **1.67 ms** | 1.70 ms      |
+| 49152   |         |         | 2.57 ms   |             |         |              |                 | 6.41 ms | 5.75 ms  | 2.45 ms | **2.41 ms** | 2.50 ms      |
+| 131072  |         |         | 8.86 ms   |             |         |              |                 | 31.3 ms | 25.9 ms  | 7.42 ms | **7.26 ms** | 8.11 ms      |
+| 147456  |         |         | 10.5 ms   |             |         |              |                 | 37.9 ms | 31.3 ms  | 8.56 ms | **8.35 ms** | 9.53 ms      |
+| 1048576 |         |         | 107 ms    |             |         |              |                 | 868 ms  | 588 ms   | 79.5 ms | **77.8 ms** | 95.8 ms      |
 
 (`basexx-b`, a quadratic byte loop, is within 20% of `bs58` and left out.)
 
-- `encode_batched` is 26× (31 B) to 152× (32 KiB) faster than `bs58`, and the fastest
-  general encoder up to about 1.9 KiB, where malachite ties it. `five8`'s fixed-size code
-  is 15–17% faster at 32 and 64 bytes.
-- At 4 KiB malachite's own conversion leads (73.4 against 91.0 µs). It uses the same
-  scheme, with its multiplication called on limb slices; ours goes through `Natural` and
-  allocates per product (see `decode_malachite`). Sizes between 4 and 32 KiB were not
-  timed against it.
-- From 32 KiB `ntt-cached` leads: 8% faster than malachite at 32 KiB, 12% at 48 KiB,
-  23–25% at 128–144 KiB and 30% at 1 MiB.
-- Karatsuba (`dc`) is 2.5× slower than the NTT at 32 KiB and 11.8× at 1 MiB, about the
+- `encode_matrix` is the fastest general encoder from 31 B to 4 KiB: 1.2× faster than
+  `encode_batched` at 31 B, 1.7–2.5× at 64–256 B and 3.5–4.0× from 512 B, and 2.6× faster
+  than malachite's own conversion at 4 KiB (28.9 against 74.3 µs). `five8`'s fixed-size
+  code ties it at 32 bytes (30.8 against 31.0 ns); at 64 bytes the matrix is 1.46× faster.
+- `encode_batched` is 25× (31 B) to 147× (32 KiB) faster than `bs58`.
+- Above 4 KiB `encode_matrix` calls `encode` (Karatsuba), which runs `encode_batched` up to
+  5 KiB: 107 µs at 4 KiB, 3.7× the matrix. Sizes between 4 and 32 KiB were not timed.
+- From 32 KiB `ntt-cached` leads: 2% faster than malachite at 32 KiB, 6% at 36–48 KiB,
+  18–20% at 128–144 KiB and 27% at 1 MiB.
+- Karatsuba (`dc`) is 2.3× slower than the NTT at 32 KiB and 11× at 1 MiB, about the
   same gap as between `decode` and `decode_ntt_cached`.
+
+**Code placement.** The same NTT code ran 6.6–7.5% faster in the binary before this
+merge than after it (back-to-back criterion runs at 32 KiB, 128 KiB and 1 MiB; malachite
+and `dc-malachite`, as controls, within ±1%). With every loop aligned to 64 bytes
+(`-C llvm-args=-align-loops=64`) both builds took the same time, at the slower level:
+1.51 against 1.48 ms at 32 KiB and 77.6 against 77.4 ms at 1 MiB (128 KiB was noisy:
+7.26 against 7.71 ms, with the second's interval 7.51–7.92). So `ntt-cached`'s numbers
+depend on where its loops land by up to about 7%. The merge changed no NTT code.
 
 ### Tuning
 
