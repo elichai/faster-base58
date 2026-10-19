@@ -819,7 +819,7 @@ writes nothing past the result. `max_encoded_len(n)` bounds the length for `n` b
   `encode_ntt_cached` and `encode_malachite` use the other multipliers. All run
   `encode_batched` up to `DC_THRESHOLD` input bytes.
 - `encode_matrix`, `encode_matrix_portable`: a matrix of powers with the decoder's SIMD
-  multiply-adds, up to 4 KiB; see [below](#encode_matrix-a-matrix-of-powers).
+  multiply-adds, up to 8 KiB; see [below](#encode_matrix-a-matrix-of-powers).
 
 Encoding is the harder direction. Decoding only multiplies: `x·58^10 + c` keeps the
 multiply off the carry chain, and its divide-and-conquer does one product per node.
@@ -894,15 +894,16 @@ and 64 bytes only (scalar on aarch64). The divide-and-conquer encoders run
 | 147456  |           |           | 10.7 ms   |             |               | 38.2 ms   | 31.7 ms   | 8.96 ms   | **8.71 ms**   | 9.71 ms      |
 | 1048576 |           |           | 107 ms    |             |               | 883 ms    | 596 ms    | 83.9 ms   | **82.3 ms**   | 93.8 ms      |
 
-(`basexx-b`, a quadratic byte loop, is within 20% of `bs58` and left out.)
+(`basexx-b`, a quadratic byte loop, is within 20% of `bs58` and left out. The bench now
+also has 6 and 8 KiB, added later: see [`encode_matrix`](#encode_matrix-a-matrix-of-powers).)
 
 - `encode_batched` is 22× (31 B) to 151× (32 KiB) faster than `bs58`, and the fastest
   general encoder up to about 1.9 KiB. `five8`'s fixed-size code is 15–18% faster at 32
   and 64 bytes.
 - At 4 KiB malachite's own conversion leads (74.4 against 92.7 µs). It uses the same
   scheme, with its multiplication called on limb slices; ours goes through `Natural` and
-  allocates per product (see `decode_malachite`). Sizes between 4 and 32 KiB were not
-  timed against it.
+  allocates per product (see `decode_malachite`). From 4 to 16 KiB it leads the
+  divide-and-conquer encoders too (**The cap**, under `encode_matrix`).
 - From 32 KiB `ntt-cached` leads: tied with malachite at 32 KiB, then 10% faster at
   48 KiB, 18–19% at 128–144 KiB and 23% at 1 MiB.
 - Karatsuba (`dc`) is 2.3× slower than the NTT at 32 KiB and 10.7× at 1 MiB, about the
@@ -956,7 +957,7 @@ Tried and not kept:
 
 ### `encode_matrix`: a matrix of powers
 
-Firedancer's encode, for any length up to 4096 bytes. It mirrors `decode_matrix`:
+Firedancer's encode, for any length up to 8192 bytes. It mirrors `decode_matrix`:
 
 - Split the bytes into `u32` words `w_i`, least significant first: the value is
   `Σ w_i · 2^(32i)`.
@@ -975,7 +976,7 @@ Carries:
   column, so the pass is not a carry chain. Afterwards a column is at most
   `58^4 - 1 + 2^40.57`, and 376 more products leave it 2^57.25 below 2^64; 384 could
   overflow. `const` asserts in `encode/matrix/table.rs` check both. On all-0xFF input at
-  4 KiB, which maximizes every column at once, the largest sum is 2^63.08.
+  8 KiB, which maximizes every column at once, the largest sum is 2^63.15.
 - **The final pass** does that step and an exact carry in one loop. After the step, the
   quotient by 58^4 is below 2^18, so the remainder plus the incoming carry is below
   `2 · 58^4`: one compare finishes the division, and only that compare and an increment
@@ -989,40 +990,44 @@ Characters: four per column. On aarch64 a NEON kernel converts four columns per 
 checked over all inputs), one `tbl` into the alphabet and one `tbl` to put the columns
 top first. Elsewhere a scalar loop uses a table of the 3364 character pairs.
 
-The table is built on first use and kept, in four size classes: 47 KiB (512 bytes),
-181 KiB (1 KiB), 712 KiB (2 KiB) and 2.8 MiB (4 KiB). A smaller input uses a larger
-class's table if one is built already. Below `MATRIX_MIN = 22` bytes (after leading
-zeros) `encode_matrix` calls `encode_batched`, and above 4096 it calls `encode`.
-`encode_matrix_portable` is the same algorithm with plain-Rust kernels.
+The table is built on first use and kept, in five size classes: 47 KiB (512 bytes),
+181 KiB (1 KiB), 712 KiB (2 KiB), 2.8 MiB (4 KiB) and 11 MiB (8 KiB). A smaller class is
+a prefix of a larger one, so an input uses the largest class already built, and only one
+table needs to stay in cache. Below `MATRIX_MIN = 22` bytes (after leading zeros)
+`encode_matrix` calls `encode_batched`, and above 8192 it calls `encode_ntt_cached` (see
+**The cap** below). `encode_matrix_portable` is the same algorithm with plain-Rust
+kernels. Up to 8 KiB a call takes about 30 KiB of stack and allocates nothing.
 
 Apple M5 Pro on AC power, criterion medians from one run (`cargo bench --bench encode --
---warm-up-time 1 --measurement-time 3`, same inputs as above; no other heavy process at
-the start):
+--warm-up-time 1 --measurement-time 3 'encode/(batched|matrix|matrix-portable|malachite|five8)/'`,
+same inputs as above, up to 8 KiB; other applications ran, a load average of about 4.5):
 
-| bytes | batched | matrix       | matrix-portable | malachite | five8       | speedup |
-|------:|--------:|-------------:|----------------:|----------:|------------:|--------:|
-| 31    | 35.1 ns | **28.7 ns**  | 35.1 ns         | 136 ns    |             | 1.22×   |
-| 32    | 36.5 ns | 30.8 ns      | 36.8 ns         | 132 ns    | **29.9 ns** | 1.19×   |
-| 64    | 86.6 ns | **51.2 ns**  | 68.3 ns         | 229 ns    | 74.3 ns     | 1.69×   |
-| 128   | 207 ns  | **113 ns**   | 153 ns          | 485 ns    |             | 1.83×   |
-| 256   | 619 ns  | **254 ns**   | 408 ns          | 1.46 µs   |             | 2.43×   |
-| 512   | 2.10 µs | **615 ns**   | 1.27 µs         | 3.60 µs   |             | 3.41×   |
-| 1024  | 7.48 µs | **1.96 µs**  | 4.54 µs         | 9.74 µs   |             | 3.82×   |
-| 1875  | 23.5 µs | **5.88 µs**  | 14.4 µs         | 23.4 µs   |             | 3.99×   |
-| 4096  | 106 µs  | **28.8 µs**  | 65.1 µs         | 73.1 µs   |             | 3.67×   |
+| bytes | batched | matrix       | matrix-portable | malachite | five8   | speedup |
+|------:|--------:|-------------:|----------------:|----------:|--------:|--------:|
+| 31    | 34.7 ns | **29.4 ns**  | 35.5 ns         | 138 ns    |         | 1.18×   |
+| 32    | 36.4 ns | **30.2 ns**  | 36.8 ns         | 134 ns    | 31.1 ns | 1.21×   |
+| 64    | 86.4 ns | **51.0 ns**  | 69.4 ns         | 231 ns    | 83.4 ns | 1.69×   |
+| 128   | 211 ns  | **112 ns**   | 154 ns          | 487 ns    |         | 1.89×   |
+| 256   | 622 ns  | **248 ns**   | 414 ns          | 1.48 µs   |         | 2.51×   |
+| 512   | 2.10 µs | **604 ns**   | 1.28 µs         | 3.60 µs   |         | 3.48×   |
+| 1024  | 7.48 µs | **1.98 µs**  | 4.59 µs         | 9.86 µs   |         | 3.77×   |
+| 1875  | 24.1 µs | **5.96 µs**  | 14.4 µs         | 23.7 µs   |         | 4.04×   |
+| 4096  | 107 µs  | **29.1 µs**  | 65.9 µs         | 74.7 µs   |         | 3.68×   |
+| 6144  | 237 µs  | **65.2 µs**  | 148 µs          | 144 µs    |         | 3.64×   |
+| 8192  | 421 µs  | **119 µs**   | 262 µs          | 207 µs    |         | 3.55×   |
 
 (speedup: `encode_matrix` against `encode_batched`.)
 
-- `encode_matrix` is the fastest general encoder here from 22 bytes to 4 KiB: 1.2× faster
-  than `encode_batched` at 31–32 B, 1.7–2.4× at 64–256 B and 3.4–4.0× from 512 B. At
-  4 KiB it is 2.5× faster than malachite's own conversion, which led there before.
-- `five8`'s fixed-size code is 3% faster at 32 bytes; at 64 bytes `encode_matrix` is
-  1.45× faster than it.
-- Unlike decoding, the plain-Rust kernels already beat the quadratic loop (1.3–1.65×
+- `encode_matrix` is the fastest general encoder here from 22 bytes to 8 KiB: 1.2× faster
+  than `encode_batched` at 31–32 B, 1.7–2.5× at 64–256 B and 3.5–4.0× from 512 B. It is
+  2.6× faster than malachite's own conversion at 4 KiB, 2.2× at 6 KiB and 1.7× at
+  8 KiB.
+- At 32 bytes `encode_matrix` and `five8`'s fixed-size code tie (3% apart; 29.9 against
+  30.4 ns in a second run); at 64 bytes `encode_matrix` is 1.6× faster.
+- Unlike decoding, the plain-Rust kernels already beat the quadratic loop (1.25–1.67×
   from 64 B): `encode_batched` divides by 58^10 in each limb step, where the matrix only
-  multiplies and adds. NEON adds another 1.6–2.5× from 256 B.
-- Above 4 KiB `encode_matrix` calls `encode`, which takes 107 µs at 4 KiB (table
-  above): 3.7× the matrix's time at the cap.
+  multiplies and adds. NEON adds another 1.7–2.4× from 256 B.
+- Above 8 KiB `encode_matrix` calls `encode_ntt_cached`: see **The cap** below.
 
 Where the time goes (temporary timers, not in the repo): the panels, with parsing and
 setup, take about 95% at 4 KiB, 83% at 1 KiB and 55% at 256 B. Most of the rest is the
@@ -1030,29 +1035,85 @@ final carry pass (1.05 µs, 0.27 µs and 80 ns); the characters take 0.28 µs, 7
 18 ns.
 
 **Cold caches.** Single calls after touching every line of 64 MiB
-(`cargo bench --bench encode_matrix_tune -- cold`; medians of three runs, each the
-median of 31 calls; the timer ticks every 41.7 ns):
+(`SIZES=64,256,512,1024,1875,4096,6144,8192 cargo bench --bench encode_matrix_tune --
+cold`; medians of three runs, six up to 512 B, each the median of 31 calls; the timer
+ticks every 41.7 ns; µs):
 
-| bytes | batched | matrix  | speedup |
-|------:|--------:|--------:|--------:|
-| 64    | 0.21 µs | 0.29 µs | 0.72×   |
-| 256   | 0.67 µs | 0.58 µs | 1.14×   |
-| 512   | 2.13 µs | 1.54 µs | 1.38×   |
-| 1024  | 7.38 µs | 3.67 µs | 2.01×   |
-| 1875  | 23.0 µs | 10.2 µs | 2.25×   |
-| 4096  | 102 µs  | 43.9 µs | 2.32×   |
+| bytes | batched | dc   | ntt-cached | malachite | matrix   | speedup |
+|------:|--------:|-----:|-----------:|----------:|---------:|--------:|
+| 64    | **0.33** |      |            |           | 0.42     | 0.80×   |
+| 256   | **0.88** |      |            |           | 0.98     | 0.89×   |
+| 512   | 2.36    |      |            |           | **1.73** | 1.36×   |
+| 1024  | 7.58    |      |            |           | **4.13** | 1.84×   |
+| 1875  | 23.8    |      |            |           | **10.8** | 2.20×   |
+| 4096  | 104     | 103  | 104        | 101       | **46.2** | 2.18×   |
+| 6144  | 226     | 230  | 198        | 164       | **101**  | 1.63×   |
+| 8192  | 401     | 363  | 284        | 239       | **176**  | 1.36×   |
 
-Cold, a call at 4 KiB takes about 15 µs longer, but the matrix still wins from about
-256 B: `encode_batched` is slow enough that loading the table pays. (`decode_matrix`
-lost cold at every size.) For one-off encodes below about 256 B, `encode_batched` is
-faster. The first call in a class also builds the table: about 45 µs, 0.16 ms, 0.43 ms
-and 1.5 ms for the four classes (`-- first`, medians of three runs).
+(speedup: `encode_matrix` against the fastest other column.)
+
+Cold, a call at 4 KiB takes about 18 µs longer and one at 8 KiB about 60 µs longer, as
+the table (2.8 and 11 MiB) comes from memory. The matrix still wins from about 512 B,
+1.4× ahead of malachite at 8 KiB and 2.1× ahead of `encode`, which `encode_matrix`
+called there before: `encode_batched` and the divide-and-conquer encoders are slow
+enough that loading the table pays. (`decode_matrix` lost cold at every size.) For
+one-off encodes of 256 B or less, `encode_batched` ties or wins; single calls that
+short vary by up to ±50% between runs (0.72–1.19× at 256 B). The first call in a class
+also builds the table: about 48 µs, 0.13 ms, 0.40 ms, 1.7 ms and 6.1 ms for the five
+classes (`-- first`, medians of three runs). So against `encode`, a process gains at
+4–8 KiB only after about 30 (8 KiB) to 65 (4.5 KiB) warm calls.
 
 **Threshold.** `benches/encode_matrix_tune.rs` runs the matrix path at every size
 against `encode_batched` (the minimum of 31 interleaved rounds; two runs). Below 22 bytes
 the matrix ties or loses (0.67–1.01×). From 22 to 32 bytes it wins by 16–27%, as
 `encode_batched` needs a fourth 7-byte step there. At 33–35 bytes it loses 3–6%: the
 second panel costs about 10 ns. It wins at every size measured from 36 bytes.
+
+**The cap.** Each class doubles the bytes and quadruples the table and the work. With
+four classes (4 KiB), `encode_matrix` called `encode` above the cap. Each build in one
+binary, the two builds run back to back (`SIZES=4096,4097,… cargo bench --bench
+encode_matrix_tune`; the minimum of two runs, each the minimum of 31 interleaved rounds;
+µs). `4 KiB cap` is the previous build; the other columns are this build. `dc` and
+`ntt-cached` run `encode_batched` up to 5120 and 4096 bytes.
+
+| bytes | dc   | ntt-cached | dc-malachite | malachite | 4 KiB cap | 8 KiB cap | speedup |
+|------:|-----:|-----------:|-------------:|----------:|----------:|----------:|--------:|
+| 4096  | 102  | 102        | 88.4         | 70.9      | **27.4**  | 27.6      | 0.99×   |
+| 4097  | 102  | 101        | 88.3         | 71.1      | 101       | **28.0**  | 3.62×   |
+| 4608  | 128  | 120        | 105          | 87.7      | 128       | **35.4**  | 3.61×   |
+| 5120  | 157  | 137        | 127          | 100       | 157       | **43.9**  | 3.58×   |
+| 6144  | 207  | 176        | 165          | 132       | 207       | **63.2**  | 3.28×   |
+| 7168  | 272  | 208        | 199          | 166       | 269       | **85.8**  | 3.14×   |
+| 8192  | 334  | 255        | 239          | 196       | 334       | **112**   | 2.97×   |
+| 8193  | 335  | 255        | 237          | **196**   | 334       | 255       | 1.31×   |
+| 8704  | 370  | 272        | 261          | **220**   | 366       | 274       | 1.34×   |
+| 12288 | 653  | 426        | 429          | **369**   | 649       | 426       | 1.52×   |
+| 16384 | 1042 | 612        | 600          | **555**   | 1039      | 618       | 1.68×   |
+
+(speedup: the 8 KiB cap against the 4 KiB cap.)
+
+- The 8 KiB class, 11 MiB, fits the 16 MiB L2 of the performance cores: from 4 to 8 KiB
+  the time grows 4.07×, as the work does (4×). The matrix stays the fastest: 2.5×
+  faster than malachite's own conversion at 4.5 KiB, 2.1× at 6 KiB, 1.75× at 8 KiB.
+- The cliff moves to 8 KiB and shrinks from 3.7× (27.4 to 101 µs at 4097 bytes) to 2.3×
+  (112 to 255 µs at 8193).
+- Above the cap `encode_ntt_cached` replaces `encode`: 1.3–1.7× faster than `encode`
+  from 8 to 16 KiB, and the fastest of this crate's encoders from 32 KiB
+  ([Encoding results](#encoding-results)). From 8 to 16 KiB `dc-malachite` is up to 7%
+  faster or 1% slower than it. malachite's own conversion is 1.1–1.3× faster than both
+  from 8 to 16 KiB, but it is not this crate's code, and from 32 KiB `ntt-cached` leads.
+- A sixth class (16 KiB) would take 44 MiB, beyond the L2. Even at L2 speed it would
+  beat malachite at 16 KiB by at most 1.2× (4 × 112 against 555 µs). Not tried.
+- The price: 11 MiB more memory, a 6 ms first call at 4–8 KiB (see **Cold caches**), and
+  about 30 KiB of stack in place of 15.
+
+**Stack alignment.** With the fifth class the scratch on the stack doubled, and the
+panels took 7–8% longer at 1 KiB and 12% at 1875 B, at all of 32 stack depths (a caller
+padded in 16-byte steps; four builds back to back). The new frame put both arrays at
+`sp + 8`, so the column sums, loaded and stored in 16-byte vectors, were 8 bytes off a
+16-byte boundary. `Scratch` is now `#[repr(C, align(64))]`, which gives the old times
+back (within 1%). The offset within a 64-byte line made no difference. `decode_matrix`'s
+`Scratch` is not aligned either: it gets whatever its frame gives.
 
 Tried and not kept (interleaved A/B in one binary, AC power, another session building):
 
@@ -1066,9 +1127,11 @@ Tried and not kept (interleaved A/B in one binary, AC power, another session bui
 Possible next steps:
 
 - **Matrix leaves** in the divide-and-conquer encoders, as `decode_ntt_cached` does:
-  leaves are 3–19% of their time (see [Tuning](#tuning)).
-- **The cliff at 4 KiB.** A fifth size class (8 KiB, about 11 MiB of table) or `dc`
-  with matrix leaves would smooth it.
+  leaves are 3–19% of their time (see [Tuning](#tuning)), and they would close the cliff
+  at 8 KiB (2.3×). Two 4 KiB leaves take 56 µs against 112 µs for one 8 KiB matrix, so a
+  split at the top wins if its division and reciprocal take less than about 56 µs (not
+  measured). Up to 32 KiB, malachite's own conversion as the fallback would make the
+  cliff 1.75×.
 - **x86_64**: the AVX2 and SSE4.1 panel kernels pass the encode tests under Rosetta
   (`ROSETTA_ADVERTISE_AVX=1 cargo test --release --target x86_64-apple-darwin`); there
   are no x86 timings, and the characters are scalar there.

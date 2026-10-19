@@ -3,7 +3,7 @@
 //!
 //! The encoders are in `encode/`: [`encode_batched`] (quadratic, in place), [`encode`]
 //! (divide and conquer with Barrett division) and [`encode_matrix`],
-//! [`encode_matrix_portable`] (a matrix of powers, up to 4 KiB); the backend modules below
+//! [`encode_matrix_portable`] (a matrix of powers, up to 8 KiB); the backend modules below
 //! also hold [`encode_toom3`], [`encode_ntt`], [`encode_ntt_cached`] and
 //! [`encode_malachite`].
 //!

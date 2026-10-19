@@ -5,7 +5,7 @@
 //! - [`encode`] (`dc.rs`): divide and conquer by powers of 58^10, each division Barrett's
 //!   with a Newton reciprocal, over any `Multiplier`.
 //! - [`encode_matrix`] (`matrix.rs`): a matrix of powers with the decoder's SIMD
-//!   multiply-adds, up to 4 KiB.
+//!   multiply-adds, up to 8 KiB.
 
 mod batched;
 mod dc;
