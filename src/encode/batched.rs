@@ -8,8 +8,8 @@ use crate::common::BASE;
 const STEP: usize = 7;
 const _: () = assert!(1 << (8 * STEP) < BASE);
 
-/// `floor(2^115 / BASE)`, for [`split`].
-const RECIP: u64 = ((1u128 << 115) / BASE as u128) as u64;
+/// `floor(2^120 / BASE)`, for [`split`]. Below 2^62.
+const RECIP: u64 = ((1u128 << 120) / BASE as u128) as u64;
 
 /// Encodes `input` into `output` and returns the number of bytes written.
 ///
@@ -60,18 +60,20 @@ fn write(buf: &mut [u8], anchor: usize, len: usize, top: u64) -> Result<usize, B
 /// the carry chain of a pass.
 #[inline(always)]
 pub(super) fn split(y: u64) -> (u64, u64) {
-    // `y << 5 < 2^64`, and `RECIP` is below `2^115 / BASE` by less than one, so this is the
+    // `RECIP` is below `2^120 / BASE` by less than one, and `y < 2^64`, so this is the
     // quotient or one less.
-    let q = (((y << 5) as u128 * RECIP as u128) >> 64) as u64;
+    let q = ((y as u128 * RECIP as u128) >> 64) as u64;
     // The remainder for `q` is below `2 BASE < 2^64`, so wrapping arithmetic gives it.
     let r = (y << 56).wrapping_sub(q.wrapping_mul(BASE));
-    if r >= BASE { (q + 1, r - BASE) } else { (q, r) }
+    let (d, borrow) = r.overflowing_sub(BASE);
+    if borrow { (q, r) } else { (q + 1, d) }
 }
 
 /// `(t % BASE, t / BASE)` for `t < 2 BASE`.
 #[inline(always)]
 fn reduce(t: u64) -> (u64, u64) {
-    if t >= BASE { (t - BASE, 1) } else { (t, 0) }
+    let (d, borrow) = t.overflowing_sub(BASE);
+    if borrow { (t, 0) } else { (d, 1) }
 }
 
 /// A value in base `BASE`: limb `i` (least significant first) in

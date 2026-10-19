@@ -1,6 +1,7 @@
 # base58-bench
 
-Benchmarks base58 (Bitcoin alphabet) decoders, plus faster decoders in `src/`:
+Benchmarks base58 (Bitcoin alphabet) decoders and encoders, plus faster ones in `src/`.
+Encoders are described in [Encoding](#encoding). The decoders:
 
 - `decode_batched`: quadratic, but 14–17× (31–32 B) to 146× (32 KiB) faster than
   `bs58`. No allocation.
@@ -38,12 +39,18 @@ Each algorithm has its own file, so separate work does not touch the same code:
 | `src/malachite.rs`  | `decode_malachite`: `dc.rs` with malachite-nz multiplication    |
 | `src/matrix/`       | `decode_matrix*`: a matrix of powers (tables, portable/NEON/x86 kernels) |
 | `src/tests.rs`      | every decoder against `bs58`                                    |
+| `src/encode/`       | encoders: `batched.rs`, `dc.rs` (divide and conquer), `tests.rs` |
 | `benches/decode.rs` | criterion benchmark of all decoders                             |
+| `benches/encode.rs` | criterion benchmark of all encoders                             |
 
 To add a decoder:
 1. Put it in a new module and re-export it from `lib.rs`.
 2. Add one line to `DECODERS` in `src/tests.rs`.
 3. Add one line to `DECODERS` in `benches/decode.rs`.
+
+Encoders work the same way, with `ENCODERS` in `src/encode/tests.rs` and
+`benches/encode.rs`. A backend file (`toom3.rs`, `ntt/`, `malachite.rs`) holds both its
+`decode_*` and its `encode_*`.
 
 Tests specific to an algorithm live in its own module.
 
@@ -799,3 +806,61 @@ On x86_64 the panel kernel uses AVX2 or SSE4.1 (`pmuludq` and `paddq`), chosen a
 time, and parsing is plain Rust. Both kernels pass the tests under
 Rosetta on Apple Silicon, AVX2 with `ROSETTA_ADVERTISE_AVX=1`; there are no x86
 performance numbers.
+
+## Encoding
+
+`encode*(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall>` write the
+Bitcoin-alphabet string and return its length. Every encoder returns the same bytes as
+`bs58`, accepts an exactly sized buffer, fails with `BufferTooSmall` one byte short, and
+writes nothing past the result. `max_encoded_len(n)` bounds the length for `n` bytes.
+
+- `encode_batched`: quadratic, in place in `output`, no allocation.
+- `encode`: divide and conquer with Karatsuba; `encode_toom3`, `encode_ntt`,
+  `encode_ntt_cached` and `encode_malachite` use the other multipliers. All run
+  `encode_batched` up to `DC_THRESHOLD` input bytes.
+
+Encoding is the harder direction. Decoding only multiplies: `x·58^10 + c` keeps the
+multiply off the carry chain, and its divide-and-conquer does one product per node.
+Encoding divides by powers of 58, so both the quadratic kernel and the tree cost more.
+
+### `encode_batched`: one division by 58^10 split off the carry chain
+
+The value is kept in base `BASE = 58^10` (limbs below 2^58.6, ten characters each).
+Each pass takes 7 input bytes, `c < 2^56`, and computes `y ← y·2^56 + c` over the
+limbs: per limb `t = y·2^56 + carry`, new limb `t mod BASE`, carry `t div BASE`.
+
+- **The carry is below 2^56.** `t < BASE·2^56`, so the quotient is too. That is why
+  passes take 56 bits, not 64.
+- **The division is split.** `(q, r) = divmod(y·2^56, BASE)` depends only on the old
+  limb, so it runs off the chain: `q = umulh(y, floor(2^120 / BASE))` is exact or one
+  less, and the remainder is fixed with one compare. Then `r + carry < 2·BASE`, so one
+  compare finishes the division on the chain, and the carry out is `q` or `q + 1`.
+- **Two passes per sweep**, the second one limb behind, as in `decode_batched`.
+- **In place.** A limb takes 8 bytes and becomes 10 characters. The limbs sit
+  right-aligned below `min_digits`, a lower bound on the digit count that is at most two
+  below it (`floor(log58(2)·2^64)` in fixed point), and the top limb stays in a register.
+  The text is written top limb first. The text of limb `i` lands at or above the bytes of
+  limb `i`, so it only overwrites limbs already read. So the result never needs more
+  room than its own length, and nothing past it is written.
+
+### `encode`: divide and conquer with Barrett division
+
+The tree is `decode`'s, run the other way: `x = hi·58^(10e) + lo`, with the same power
+table (balanced splits `unit·2^i`, powers stored without their low zero limbs), and
+`lo` written as exactly `10e` characters, zero digits included.
+
+- **Division by a power `P`.** `58^k = 2^k·29^k`, so the low `shift` zero limbs of `P`
+  only pass `x`'s low limbs through to the remainder. The rest is shifted to set the top
+  bit (`pn`) and divided with Barrett's method: the quotient estimate is the high part
+  of `floor(A/β^dn)·inv`, at most 6 below the quotient; the remainder takes one product
+  with `pn` and up to 6 subtractions. `x < P^2` bounds every length.
+- **Reciprocals once per power.** `inv = floor(β^(2qn) / (pn·β^shift))`, or up to two
+  less, comes from Newton's method (Brent–Zimmermann, Algorithm 3.5): the reciprocal of
+  the top half, then one Newton step; schoolbook division (Knuth's Algorithm D) below
+  17 limbs. Each power's reciprocal serves every division by it, as in malachite's
+  port of GMP's `mpn_get_str` (GMP itself recomputes it per division).
+- **Prepared operands.** Every power but the top one divides at least two nodes, so
+  `pn` and `inv` go to `Multiplier::prepare_power`: the NTT keeps their transforms.
+- **Leaves** convert with `encode_batched`'s kernel on stack buffers.
+- So each node costs two products (`A1 · inv` and `q · pn`) against `decode`'s one,
+  plus a reciprocal per level.
