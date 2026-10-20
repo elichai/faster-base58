@@ -3,17 +3,18 @@
 //! The threshold is 0, so every input of more than one leaf uses divide and conquer.
 //!
 //! `cargo bench --bench encode_tune [-- name...]` runs only the named backends.
-//! `LEAVES` and `SIZES` (comma-separated) replace the default lists.
+//! `LEAVES` and `SIZES` (comma-separated) replace the default lists; `KINDS` picks leaf
+//! conversions (`horner`, `matrix`; default both).
 
 use std::hint::black_box;
 use std::time::Instant;
 
-use base58_bench::bench::{encode_karatsuba_with, encode_malachite_with, encode_ntt_with};
+use base58_bench::bench::{Leaves, encode_karatsuba_with, encode_malachite_with, encode_ntt_with};
 use base58_bench::{BufferTooSmall, encode_batched, max_encoded_len};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
-type Tuned = fn(&[u8], &mut [u8], usize, usize) -> Result<usize, BufferTooSmall>;
+type Tuned = fn(&[u8], &mut [u8], usize, usize, Leaves) -> Result<usize, BufferTooSmall>;
 
 const BACKENDS: [(&str, Tuned); 3] = [
     ("ntt-cached", encode_ntt_with),
@@ -33,6 +34,15 @@ fn list(var: &str, default: &[usize]) -> Vec<usize> {
 
 fn main() {
     let (leaves, sizes) = (list("LEAVES", &LEAVES), list("SIZES", &SIZES));
+    let kinds_var = std::env::var("KINDS").unwrap_or_else(|_| "horner,matrix".into());
+    let kinds: Vec<Leaves> = kinds_var
+        .split(',')
+        .map(|k| match k {
+            "horner" => Leaves::Horner,
+            "matrix" => Leaves::Matrix,
+            _ => panic!("unknown leaf kind {k}"),
+        })
+        .collect();
     let names: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
     let backends: Vec<_> =
         BACKENDS.iter().filter(|(n, _)| names.is_empty() || names.iter().any(|a| a == n)).collect();
@@ -40,7 +50,11 @@ fn main() {
         vec![("batched".into(), Box::new(|d, o| encode_batched(d, o).unwrap()))];
     for &&(name, f) in &backends {
         for &leaf in &leaves {
-            configs.push((format!("{name}/{leaf}"), Box::new(move |d, o| f(d, o, 0, leaf).unwrap())));
+            for &kind in &kinds {
+                let run = move |d: &[u8], o: &mut [u8]| f(d, o, 0, leaf, kind).unwrap();
+                let tag = if kind == Leaves::Matrix { "m" } else { "h" };
+                configs.push((format!("{name}/{leaf}{tag}"), Box::new(run)));
+            }
         }
     }
     println!("| bytes | {} |", configs.iter().map(|c| c.0.as_str()).collect::<Vec<_>>().join(" | "));

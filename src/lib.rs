@@ -56,7 +56,7 @@ pub mod bench {
     pub use crate::mul::{ifma_threshold, mul_with, scratch_len};
     #[cfg(target_arch = "x86_64")]
     pub use crate::mul_ifma::{mul as ifma_mul, scratch_len as ifma_scratch_len};
-    pub use crate::encode::encode_karatsuba_with;
+    pub use crate::encode::{Leaves, encode_karatsuba_with};
     pub use crate::encode::encode_matrix_with;
     pub use crate::malachite::encode_malachite_with;
     pub use crate::ntt::{decode_ntt_with, encode_ntt_with};

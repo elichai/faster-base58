@@ -17,6 +17,7 @@ mod tables;
 use std::ptr;
 
 use crate::dc::{self, Leaf, Multiplier};
+use crate::encode::Leaves;
 use crate::{BufferTooSmall, Error, encode, mul};
 use tables::{MAX_LOG, PRIMES, Prime, Tables, Twiddles};
 
@@ -77,31 +78,33 @@ const ENCODE_LEAF: usize = 32;
 /// Like [`crate::encode`], but multiplies with NTTs. Builds twiddle tables for each call.
 pub fn encode_ntt(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(false, Kernels::best());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF)
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::Horner)
 }
 
 /// [`encode_ntt`], with twiddle tables from the process-wide cache.
 pub fn encode_ntt_cached(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(true, Kernels::best());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF)
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::BEST)
 }
 
 /// [`encode_ntt_cached`] with the portable kernels, as [`decode_ntt_portable`] is for
 /// decoding: on aarch64 this compares hand-written with compiler-generated NEON.
 pub fn encode_ntt_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(true, Kernels::portable());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF)
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::BEST)
 }
 
 /// [`encode_ntt_cached`] with divide and conquer above `threshold` bytes and leaves of at
-/// most `leaf` chunks.
+/// most `leaf` chunks, converted by `leaves`.
 pub fn encode_ntt_with(
     input: &[u8],
     output: &mut [u8],
     threshold: usize,
     leaf: usize,
+    leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    encode::encode_tuned(input, output, &mut Ntt::new(true, Kernels::best()), threshold, leaf)
+    let m = &mut Ntt::new(true, Kernels::best());
+    encode::encode_tuned(input, output, m, threshold, leaf, leaves)
 }
 
 /// The [`Multiplier`] of the NTT decoders.

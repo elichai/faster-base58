@@ -11,6 +11,7 @@ use std::{mem, ptr};
 use malachite_nz::natural::Natural;
 
 use crate::dc::{self, Multiplier};
+use crate::encode::Leaves;
 use crate::{BufferTooSmall, Error, encode};
 
 /// Like [`crate::decode`], but multiplies with malachite-nz.
@@ -26,18 +27,19 @@ const ENCODE_LEAF: usize = 96;
 /// Like [`crate::encode`], but multiplies with malachite-nz.
 pub fn encode_malachite(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Malachite::default();
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF)
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::Horner)
 }
 
 /// [`encode_malachite`] with divide and conquer above `threshold` bytes and leaves of at
-/// most `leaf` chunks.
+/// most `leaf` chunks, converted by `leaves`.
 pub fn encode_malachite_with(
     input: &[u8],
     output: &mut [u8],
     threshold: usize,
     leaf: usize,
+    leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    encode::encode_tuned(input, output, &mut Malachite::default(), threshold, leaf)
+    encode::encode_tuned(input, output, &mut Malachite::default(), threshold, leaf, leaves)
 }
 
 /// The [`Multiplier`] of [`decode_malachite`].

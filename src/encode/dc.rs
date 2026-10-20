@@ -10,7 +10,7 @@
 use std::cmp::Ordering;
 
 use super::batched::Limbs;
-use super::{bits, min_digits, split_zeros, ten_digits};
+use super::{bits, matrix, min_digits, split_zeros, ten_digits};
 use crate::common::CHUNK;
 use crate::dc::{
     Karatsuba, LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len,
@@ -32,14 +32,16 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
     encode_with(input, output, &mut Karatsuba)
 }
 
-/// [`encode`] with `threshold` and `leaf` in place of [`DC_THRESHOLD`] and [`DC_LEAF`].
+/// [`encode`] with `threshold` and `leaf` in place of [`DC_THRESHOLD`] and [`DC_LEAF`],
+/// and leaves converted by `leaves`.
 pub fn encode_karatsuba_with(
     input: &[u8],
     output: &mut [u8],
     threshold: usize,
     leaf: usize,
+    leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    encode_tuned(input, output, &mut Karatsuba, threshold, leaf)
+    encode_tuned(input, output, &mut Karatsuba, threshold, leaf, leaves)
 }
 
 /// [`encode`], multiplying with `m`.
@@ -48,17 +50,40 @@ pub(crate) fn encode_with(
     output: &mut [u8],
     m: &mut impl Multiplier,
 ) -> Result<usize, BufferTooSmall> {
-    encode_tuned(input, output, m, DC_THRESHOLD, DC_LEAF)
+    encode_tuned(input, output, m, DC_THRESHOLD, DC_LEAF, Leaves::Horner)
 }
 
-/// [`encode_with`] with divide and conquer above `threshold` bytes and leaves of at most
-/// `leaf <= LEAF` chunks.
+/// How the divide-and-conquer encoders convert their leaves.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Leaves {
+    /// [`encode_batched`]'s kernel.
+    Horner,
+    /// `encode_matrix`'s conversion. Faster with its table in cache, but the table is
+    /// built on first use and kept for the life of the process, so only encoders that
+    /// cache anyway use it.
+    Matrix,
+}
+
+impl Leaves {
+    /// [`Leaves::Matrix`] where `encode_matrix` has its NEON kernels, else
+    /// [`Leaves::Horner`]. Provisional on x86_64, where it is not measured yet.
+    pub(crate) const BEST: Leaves =
+        if cfg!(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon")) {
+            Leaves::Matrix
+        } else {
+            Leaves::Horner
+        };
+}
+
+/// [`encode_with`] with divide and conquer above `threshold` bytes, leaves of at most
+/// `leaf <= LEAF` chunks, converted by `leaves`.
 pub(crate) fn encode_tuned(
     input: &[u8],
     output: &mut [u8],
     m: &mut impl Multiplier,
     threshold: usize,
     leaf: usize,
+    leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
     assert!((1..=LEAF).contains(&leaf), "leaf of {leaf} chunks");
     let (zeros, x) = split_zeros(input);
@@ -95,7 +120,7 @@ pub(crate) fn encode_tuned(
     }
     let mut scratch = vec![0; node_scratch_len(&divs, m)];
     let mut out = Out { buf: out, pos: 0 };
-    node(&x, n, false, &Tree { divs: &divs, leaf }, &mut out, &mut scratch, m)?;
+    node(&x, n, false, &Tree { divs: &divs, leaf, leaves }, &mut out, &mut scratch, m)?;
     ones.fill(b'1');
     Ok(zeros + out.pos)
 }
@@ -248,6 +273,7 @@ impl Out<'_> {
 struct Tree<'a> {
     divs: &'a [Divisor],
     leaf: usize,
+    leaves: Leaves,
 }
 
 /// Writes the digits of `x < BASE^n`: exactly `10 n` of them if `pad`, else without
@@ -262,7 +288,10 @@ fn node(
     m: &mut impl Multiplier,
 ) -> Result<(), BufferTooSmall> {
     if n <= t.leaf {
-        return leaf(x, n, pad, out);
+        return match t.leaves {
+            Leaves::Horner => leaf(x, n, pad, out),
+            Leaves::Matrix => leaf_matrix(x, n, pad, out),
+        };
     }
     if x.is_empty() {
         if pad {
@@ -291,17 +320,55 @@ fn node_scratch_len(divs: &[Divisor], m: &impl Multiplier) -> usize {
     divs.iter().fold(0, |below, d| 2 * d.qn() + 1 + divide_scratch_len(d, m).max(below))
 }
 
-/// [`node`] for `n <= LEAF`, with [`Limbs`] on the stack.
-fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
+/// The big-endian bytes of `x < BASE^n`, `n <= LEAF`, without leading zeros, in `buf`.
+fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8; 8 * LEAF]) -> &'a [u8] {
     // `x < BASE^n < 2^(64 n)`, so it has at most `n` limbs.
-    let mut bytes = [0u8; 8 * LEAF];
-    let bytes = &mut bytes[..8 * x.len()];
+    let bytes = &mut buf[..8 * x.len()];
     for (b, l) in bytes.rchunks_exact_mut(8).zip(x) {
         b.copy_from_slice(&l.to_be_bytes());
     }
+    split_zeros(bytes).1
+}
+
+/// [`node`] for `n <= LEAF` by `encode_matrix`'s conversion. Not inlined: its frame holds
+/// the matrix's scratch, about 30 KiB.
+#[inline(never)]
+fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
+    let mut bytes = [0u8; 8 * LEAF];
+    let mut scratch = matrix::Scratch::new();
+    let cols = matrix::columns(be_bytes(x, &mut bytes), &mut scratch);
+    let Some((&top, rest)) = cols.split_last() else {
+        if pad {
+            out.take(10 * n)?.fill(b'1');
+        }
+        return Ok(());
+    };
+    let top = matrix::four_digits(top);
+    // Characters the top column gives: without its leading zero digits, or with `pad` as
+    // many as make `10 n` in all. `x < 58^(10 n)`, so the other columns hold fewer than
+    // `10 n` characters, and any top digits past `10 n` are zero.
+    let lead = match pad {
+        true => 10 * n - 4 * rest.len(),
+        false => 4 - top.iter().take_while(|&&c| c == b'1').count(),
+    };
+    let (head, body) = out.take(lead + 4 * rest.len())?.split_at_mut(lead);
+    if lead <= 4 {
+        debug_assert!(top[..4 - lead].iter().all(|&c| c == b'1'), "x >= BASE^n");
+        head.copy_from_slice(&top[4 - lead..]);
+    } else {
+        head[..lead - 4].fill(b'1');
+        head[lead - 4..].copy_from_slice(&top);
+    }
+    matrix::column_digits(rest, body.as_chunks_mut::<4>().0);
+    Ok(())
+}
+
+/// [`node`] for `n <= LEAF`, with [`Limbs`] on the stack.
+fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
+    let mut bytes = [0u8; 8 * LEAF];
     let mut slots = [[0u8; 8]; LEAF];
     let mut limbs = Limbs { slots: &mut slots, len: 0, top: 0 };
-    limbs.feed(split_zeros(bytes).1);
+    limbs.feed(be_bytes(x, &mut bytes));
     let Limbs { slots, len, top } = limbs;
     let stored = &slots[slots.len() - len..];
     let top_digits = ten_digits(top);
@@ -609,8 +676,36 @@ mod tests {
                 for extra in [0, 1, 9] {
                     let mut got = vec![0; want.len()];
                     let m = &mut Wrap(extra);
-                    assert_eq!(encode_tuned(&data, &mut got, m, 0, 32), Ok(n), "{len}, {extra}");
+                    assert_eq!(encode_tuned(&data, &mut got, m, 0, 32, Leaves::Horner), Ok(n), "{len}, {extra}");
                     assert!(got[..n] == want[..n], "{len} bytes, L = n + {extra}");
+                }
+            }
+        }
+    }
+
+    /// Whole encodes with Horner and matrix leaves of 1 to `LEAF` chunks against
+    /// `encode_batched`: padded leaves whose top column holds fewer than four of their
+    /// digits, or all of them with '1's before, unpadded top leaves, and zero leaves. Both
+    /// buffers start as 0xAA, so this also checks that nothing is written past the result.
+    #[test]
+    fn leaf_kinds_and_sizes() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(34);
+        for len in [5000, 30_001, 120_000] {
+            let mut random = vec![0u8; len];
+            rng.fill_bytes(&mut random);
+            let mut runs = random.clone();
+            runs[len / 5..len / 2].fill(0);
+            for data in [random, vec![0xFF; len], runs, [vec![0; 2], vec![0xFF; len]].concat()] {
+                let mut want = vec![0xAA; crate::max_encoded_len(data.len())];
+                let n = encode_batched(&data, &mut want);
+                for (leaf, kind) in [1, 2, 3, 7, 32, 96, 255, LEAF]
+                    .into_iter()
+                    .flat_map(|l| [(l, Leaves::Horner), (l, Leaves::Matrix)])
+                {
+                    let mut got = vec![0xAA; want.len()];
+                    let r = encode_tuned(&data, &mut got, &mut Karatsuba, 0, leaf, kind);
+                    assert_eq!(r, n, "{len} bytes, leaf {leaf}, {kind:?}");
+                    assert!(got == want, "{len} bytes, leaf {leaf}, {kind:?}");
                 }
             }
         }

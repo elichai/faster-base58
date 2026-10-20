@@ -102,19 +102,31 @@ fn encode_large(
 /// with `cols` 8 bytes off a 16-byte boundary the panels took 7-12% longer at 1-2 KiB
 /// (M5 Pro).
 #[repr(C, align(64))]
-struct Scratch {
+pub(super) struct Scratch {
     words: [MaybeUninit<u32>; MAX_WORDS],
     cols: [MaybeUninit<u64>; MAX_COLS],
 }
 const _: () = assert!(std::mem::offset_of!(Scratch, cols) % 64 == 0);
 
 impl Scratch {
-    fn new() -> Scratch {
+    pub(super) fn new() -> Scratch {
         Scratch {
             words: [MaybeUninit::uninit(); MAX_WORDS],
             cols: [MaybeUninit::uninit(); MAX_COLS],
         }
     }
+}
+
+/// [`convert`] with the fastest kernels: the divide-and-conquer encoders' matrix leaves.
+pub(super) fn columns<'a>(x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
+    // A leaf has at most `LEAF` chunks, so at most `8 LEAF` bytes.
+    const _: () = assert!(8 * crate::dc::LEAF <= MAX_BYTES);
+    convert(&BEST, x, scratch)
+}
+
+/// [`digits`] with the fastest kernel: `out[i] = four_digits(cols[cols.len() - 1 - i])`.
+pub(super) fn column_digits(cols: &[u64], out: &mut [[u8; 4]]) {
+    (BEST.digits)(cols, out);
 }
 
 /// The value of the big-endian `x` in base 58^4, least significant column first and
@@ -224,7 +236,7 @@ fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
 
 /// The four characters of a column below 58^4, most significant first.
 #[inline(always)]
-fn four_digits(c: u64) -> [u8; 4] {
+pub(super) fn four_digits(c: u64) -> [u8; 4] {
     let c = c as u32;
     let [a, b] = CHAR_PAIRS[(c / 3364) as usize];
     let [d, e] = CHAR_PAIRS[(c % 3364) as usize];
