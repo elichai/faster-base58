@@ -16,7 +16,7 @@ pub(super) const ROWS: usize = 8;
 pub(super) const PANEL_BYTES: usize = WORD * ROWS;
 
 /// Size classes: class `k` holds `512 << k` bytes.
-const CLASSES: usize = 4;
+const CLASSES: usize = 5;
 const fn class_bytes(k: usize) -> usize {
     512 << k
 }
@@ -116,13 +116,14 @@ fn mul_word(x: &mut Vec<u32>) {
 
 pub(super) static TABLES: [OnceLock<Table>; CLASSES] = [const { OnceLock::new() }; CLASSES];
 
-/// A table that holds `bytes` bytes. A smaller class is a prefix of a larger one, so any
-/// larger class already built serves; otherwise the smallest class that holds `bytes` is
-/// built and kept. Requires `bytes <= MAX_BYTES`.
+/// A table that holds `bytes` bytes. A smaller class is a prefix of a larger one, so the
+/// largest class already built serves, which keeps one table in cache; otherwise the
+/// smallest class that holds `bytes` is built and kept. Requires `bytes <= MAX_BYTES`.
 pub(super) fn get(bytes: usize) -> &'static Table {
     let k = (0..CLASSES).find(|&k| bytes <= class_bytes(k)).expect("too many bytes");
     TABLES[k..]
         .iter()
+        .rev()
         .find_map(OnceLock::get)
         .unwrap_or_else(|| TABLES[k].get_or_init(|| Table::new(class_bytes(k) / PANEL_BYTES)))
 }
@@ -199,7 +200,7 @@ mod tests {
     /// Whatever class [`get`] returns holds the bytes, within [`MAX_COLS`].
     #[test]
     fn get_holds_the_bytes() {
-        for bytes in [1, 512, 513, 1024, 2000, 2048, 2049, MAX_BYTES] {
+        for bytes in [1, 512, 513, 1024, 2000, 2048, 2049, 4096, 4097, MAX_BYTES] {
             let (t, panels) = (get(bytes), bytes.div_ceil(PANEL_BYTES));
             assert!(t.panels.len() >= panels, "{bytes} bytes");
             assert!(t.cols(panels) <= MAX_COLS, "{bytes} bytes");

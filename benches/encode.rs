@@ -24,8 +24,8 @@ const ENCODERS: &[(&str, EncodeFn, fn(usize) -> bool)] = &[
     ("ntt-cached", |d, out| base58_bench::encode_ntt_cached(d, out).unwrap(), dc),
     ("ntt-portable", |d, out| base58_bench::encode_ntt_portable(d, out).unwrap(), dc),
     ("dc-malachite", |d, out| base58_bench::encode_malachite(d, out).unwrap(), dc),
-    ("matrix", |d, out| base58_bench::encode_matrix(d, out).unwrap(), |size| size <= 4096),
-    ("matrix-portable", |d, out| base58_bench::encode_matrix_portable(d, out).unwrap(), |size| size <= 4096),
+    ("matrix", |d, out| base58_bench::encode_matrix(d, out).unwrap(), |size| size <= 8192),
+    ("matrix-portable", |d, out| base58_bench::encode_matrix_portable(d, out).unwrap(), |size| size <= 8192),
 ];
 
 /// The divide-and-conquer encoders run `encode_batched` below about 3.7 KiB.
@@ -77,7 +77,7 @@ fn malachite(d: &[u8], out: &mut [u8]) -> usize {
 }
 
 /// Input sizes in bytes.
-const SIZES: [usize; 15] = [
+const SIZES: [usize; 17] = [
     31,
     32,
     64,
@@ -87,6 +87,8 @@ const SIZES: [usize; 15] = [
     1024,
     1875,
     4096,
+    6144,
+    8192,
     32 * 1024,
     36 * 1024,
     48 * 1024,

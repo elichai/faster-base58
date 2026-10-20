@@ -5,9 +5,9 @@
 
 use std::mem::MaybeUninit;
 
-use super::{encode, encode_batched, max_encoded_len, split_zeros};
-use crate::BufferTooSmall;
+use super::{encode_batched, max_encoded_len, split_zeros};
 use crate::common::ALPHABET;
+use crate::{BufferTooSmall, encode_ntt_cached};
 use crate::matrix::{PANEL, PANEL_PORTABLE, Panel, zeroed};
 use table::{CARRY_EVERY, COL_BASE, MAX_BYTES, MAX_COLS, MAX_WORDS, PANEL_BYTES, ROWS, WORD};
 
@@ -32,15 +32,16 @@ const BEST: Kernels = Kernels { panel: PANEL, digits: neon::digits };
 #[cfg(not(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon")))]
 const BEST: Kernels = Kernels { panel: PANEL, digits };
 
-/// Like [`encode_batched`], but faster from 22 bytes to 4 KiB when the table of powers is
-/// in cache. Fewer than `MATRIX_MIN` bytes use [`encode_batched`]; more than 4096 use
-/// [`encode`].
+/// Like [`encode_batched`], but faster from 22 bytes to 8 KiB when the table of powers is
+/// in cache. Fewer than `MATRIX_MIN` bytes use [`encode_batched`]; more than 8192 use
+/// [`encode_ntt_cached`].
 ///
 /// The speedup was measured with NEON (aarch64). x86_64 uses the decoder's AVX2 or SSE4.1
 /// kernels, not measured. Other targets run the plain-Rust kernels.
 ///
-/// No allocation per call. Each size class of the table is built once, on first use, and
-/// kept: 47 KiB, 181 KiB, 712 KiB or 2.8 MiB.
+/// No allocation per call up to 8 KiB, and about 30 KiB of stack. Each size class of the
+/// table is built once, on first use, and kept: 47 KiB, 181 KiB, 712 KiB, 2.8 MiB or
+/// 11 MiB.
 pub fn encode_matrix(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     encode_with(&BEST, input, output, MATRIX_MIN)
 }
@@ -76,7 +77,7 @@ fn encode_with(
 }
 
 /// [`encode_with`] for inputs of at least `min` bytes. Not inlined: its stack frame holds
-/// [`Scratch`], about 15 KiB, which small inputs should not set up.
+/// [`Scratch`], about 30 KiB, which small inputs should not set up.
 #[inline(never)]
 fn encode_large(
     k: &Kernels,
@@ -89,17 +90,23 @@ fn encode_large(
         return encode_batched(input, output);
     }
     if x.len() > MAX_BYTES {
-        return encode(input, output);
+        return encode_ntt_cached(input, output);
     }
     let mut scratch = Scratch::new();
     write(k, zeros, convert(k, x, &mut scratch), output)
 }
 
-/// Stack space for one conversion, about 15 KiB. Only the part an input needs is written.
+/// Stack space for one conversion, about 30 KiB. Only the part an input needs is written.
+///
+/// Aligned, with `words` first so that `cols` is aligned too. Otherwise the frame decides:
+/// with `cols` 8 bytes off a 16-byte boundary the panels took 7-12% longer at 1-2 KiB
+/// (M5 Pro).
+#[repr(C, align(64))]
 struct Scratch {
     words: [MaybeUninit<u32>; MAX_WORDS],
     cols: [MaybeUninit<u64>; MAX_COLS],
 }
+const _: () = assert!(std::mem::offset_of!(Scratch, cols) % 64 == 0);
 
 impl Scratch {
     fn new() -> Scratch {
@@ -287,7 +294,8 @@ mod tests {
     /// Also a single top bit, and inner runs of zero bytes, which give zero columns.
     #[test]
     fn patterns() {
-        let edges = [1, 31, 32, 33, 512, 1024, 1504, 1505, 2048, 3008, 3009, MAX_BYTES];
+        // Class edges, and every 47 panels (1504 bytes) a carry pass.
+        let edges = [1, 31, 32, 33, 512, 1024, 1504, 2048, 3008, 4096, 4512, 6016, 7520, MAX_BYTES];
         let around =
             edges.iter().flat_map(|&e| e.saturating_sub(4).max(1)..=(e + 4).min(MAX_BYTES));
         for n in around.chain([MATRIX_MIN]) {
@@ -306,7 +314,7 @@ mod tests {
     #[test]
     fn best_matches_portable() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(31);
-        for n in [1, 33, 512, 1000, 1505, 2048, MAX_BYTES] {
+        for n in [1, 33, 512, 1000, 1505, 2048, 4097, MAX_BYTES] {
             for data in [random_bytes(&mut rng, n), vec![0xFF; n]] {
                 let (mut a, mut b) = (Scratch::new(), Scratch::new());
                 let want = convert(&PORTABLE, &data, &mut b).to_vec();
@@ -407,7 +415,8 @@ mod tests {
     /// Several threads encode in every size class at once.
     #[test]
     fn threads() {
-        let inputs: Vec<Vec<u8>> = [500, 1000, 2000, 4000].iter().map(|&n| vec![0xFF; n]).collect();
+        let inputs: Vec<Vec<u8>> =
+            [500, 1000, 2000, 4000, 8000].iter().map(|&n| vec![0xFF; n]).collect();
         let want: Vec<_> = inputs.iter().map(|d| encode_vec(encode_batched, d)).collect();
         std::thread::scope(|scope| {
             for _ in 0..8 {
