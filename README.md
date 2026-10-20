@@ -820,7 +820,8 @@ writes nothing past the result. `max_encoded_len(n)` bounds the length for `n` b
   `encode_ntt_portable` the NTT with the plain-Rust kernels (as `decode_ntt_portable`).
   All run `encode_batched` up to their threshold.
 - `encode_matrix`, `encode_matrix_portable`: a matrix of powers with the decoder's SIMD
-  multiply-adds, up to 8 KiB; see [below](#encode_matrix-a-matrix-of-powers).
+  multiply-adds, up to 8 KiB; see [below](#encode_matrix-a-matrix-of-powers). Exactly 32
+  or 64 bytes take fixed-size code ([Fixed sizes](#fixed-sizes-32-and-64-bytes)).
 
 Encoding is the harder direction. Decoding only multiplies: `x·58^10 + c` keeps the
 multiply off the carry chain, and its divide-and-conquer does one product per node.
@@ -886,7 +887,9 @@ build or other benchmark during the run. Random input with a non-zero first byte
 `mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32 and 64 bytes only
 (scalar on aarch64); `basexx` is num-bigint's conversion. The divide-and-conquer encoders
 run `encode_batched` up to their threshold, so they are timed from 4 KiB; `encode_matrix`
-converts up to 8 KiB itself and calls `encode_ntt_cached` above.
+converts up to 8 KiB itself and calls `encode_ntt_cached` above. The 32 and 64 byte rows
+are from a later run, with `encode_matrix`'s fixed-size path, of every encoder at those
+sizes ([Fixed sizes](#fixed-sizes-32-and-64-bytes)).
 
 Against the other crates (`× bs58`: our fastest against `bs58`; `× best other`: against
 the fastest other crate at that size):
@@ -894,8 +897,8 @@ the fastest other crate at that size):
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
 | 31 | 864 ns | 147 ns |  | 140 ns | **32 ns** matrix | 27× | 4.38× |
-| 32 | 882 ns | 151 ns | 30.4 ns | 139 ns | **31.5 ns** matrix | 28× | 0.96× |
-| 64 | 3.15 µs | 310 ns | 73.1 ns | 238 ns | **55.3 ns** matrix | 57× | 1.32× |
+| 32 | 960 ns | 150 ns | 31.1 ns | 135 ns | **12.7 ns** matrix | 75× | 2.44× |
+| 64 | 3.1 µs | 308 ns | 74.8 ns | 241 ns | **28.8 ns** matrix | 108× | 2.60× |
 | 128 | 13.8 µs | 946 ns |  | 530 ns | **116 ns** matrix | 119× | 4.56× |
 | 256 | 56.9 µs | 3.27 µs |  | 1.5 µs | **231 ns** matrix | 246× | 6.51× |
 | 512 | 235 µs | 8.08 µs |  | 3.69 µs | **585 ns** matrix | 402× | 6.31× |
@@ -919,8 +922,8 @@ Every encoder:
 | bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 31 | 864 ns | 147 ns | 838 ns | 140 ns | 36 ns | **32 ns** | 38.7 ns | | | | | | | |
-| 32 | 882 ns | 151 ns | 860 ns | 139 ns | 37.9 ns | 31.5 ns | 40.9 ns | **30.4 ns** | | | | | | |
-| 64 | 3.15 µs | 310 ns | 2.85 µs | 238 ns | 88.1 ns | **55.3 ns** | 74.6 ns | 73.1 ns | | | | | | |
+| 32 | 960 ns | 150 ns | 869 ns | 135 ns | 40 ns | **12.7 ns** | 19 ns | 31.1 ns | | | | | | |
+| 64 | 3.1 µs | 308 ns | 3.07 µs | 241 ns | 88.6 ns | **28.8 ns** | 76.4 ns | 74.8 ns | | | | | | |
 | 128 | 13.8 µs | 946 ns | 11.7 µs | 530 ns | 211 ns | **116 ns** | 159 ns | | | | | | | |
 | 256 | 56.9 µs | 3.27 µs | 47.5 µs | 1.5 µs | 634 ns | **231 ns** | 418 ns | | | | | | | |
 | 512 | 235 µs | 8.08 µs | 194 µs | 3.69 µs | 2.13 µs | **585 ns** | 1.28 µs | | | | | | | |
@@ -939,8 +942,9 @@ Every encoder:
 | 147456 | | | | 10.6 ms | | | | | 38.3 ms | 31.2 ms | 8.16 ms | **6.88 ms** | 11.5 ms | 9.7 ms |
 | 1048576 | | | | 108 ms | | | | | 874 ms | 587 ms | 74.2 ms | **67.6 ms** | 110 ms | 94.1 ms |
 
-- `encode_matrix` is the fastest general encoder from 31 B to 8 KiB, 1.3–6.5× faster than
-  the fastest other crate. Only `five8`'s fixed-size code is faster, by 4% at 32 bytes.
+- `encode_matrix` is the fastest encoder from 31 B to 8 KiB, 1.7–6.5× faster than the
+  fastest other crate. With its fixed-size path it is 2.4× faster than `five8`'s
+  fixed-size code at 32 bytes and 2.6× at 64.
 - From 12 KiB `encode_ntt_cached` (768-chunk matrix leaves) leads: 1.13× faster than
   malachite's own conversion at 12 KiB, 1.28× at 32 KiB, 1.46–1.53× at 128–144 KiB and
   1.59× at 1 MiB.
@@ -1278,7 +1282,8 @@ same inputs as above, up to 8 KiB; other applications ran, a load average of abo
   2.6× faster than malachite's own conversion at 4 KiB, 2.2× at 6 KiB and 1.7× at
   8 KiB.
 - At 32 bytes `encode_matrix` and `five8`'s fixed-size code tie (3% apart; 29.9 against
-  30.4 ns in a second run); at 64 bytes `encode_matrix` is 1.6× faster.
+  30.4 ns in a second run); at 64 bytes `encode_matrix` is 1.6× faster. (Before the
+  fixed-size path: see [Fixed sizes](#fixed-sizes-32-and-64-bytes).)
 - Unlike decoding, the plain-Rust kernels already beat the quadratic loop (1.25–1.67×
   from 64 B): `encode_batched` divides by 58^10 in each limb step, where the matrix only
   multiplies and adds. NEON adds another 1.7–2.4× from 256 B.
@@ -1469,3 +1474,82 @@ matrix leaves and the thresholds:
 - `MATRIX_MIN = 22` holds: the matrix lost at 8 and 12 bytes (0.74–0.84×), was within
   6% at 16, 20 and 28, and won at 24 and 32 (1.10× and 1.21×). The differences are a few
   nanoseconds.
+
+### Fixed sizes: 32 and 64 bytes
+
+`encode_matrix` sends exactly 32 or 64 bytes (keys, hashes, signatures) to fixed-size
+code (`encode/matrix/fixed.rs`): the same matrix, fixed at compile time. Firedancer's
+encoder (`five8`) works the same way in base 58^5; this one keeps base 58^4 columns.
+
+- **The table is a constant**: `2^(32k)` for 8 or 16 words in 12 or 24 columns (44 and
+  88 characters, padded to groups of four). No table to build or look up, no scratch to
+  clear, no result to trim. Const asserts check that a column sum of 16 words plus a
+  carry fits in `u64` (the sums stay below 2^60, so unlike `five8` at 64 bytes nothing is
+  reduced before the carry pass) and that every value fits in 11 or 22 columns.
+- **Column sums**: NEON `umlal`, four columns per block, from the first row that is not
+  zero there; a row that is zero in a block's upper two columns adds to the lower two
+  only. On x86_64 AVX2 `vpmuludq`, picked at run time with `is_x86_feature_detected!`;
+  other targets run plain Rust. As constants, every pair of table entries took its own
+  load (`adrp`, `ldr d`), one per `umlal`, so the NEON kernel reads the table through
+  `black_box`:
+  11% faster at 64 bytes (35.4 against 39.6 ns), 4% slower at 32 (16.5 against 15.9;
+  both with the general path's carry); skipping the zero half-rows then took off 1–2%.
+- **The carry is serial.** About half of a call is the carry pass: with it removed
+  (wrong output, timing only) a call took 5.8 against 11.4 ns at 32 bytes and 12.7
+  against 27.1 ns at 64. The general path's `normalize` (two divisions per column, off
+  the chain) took 1.33× as long as a plain serial carry at 32 bytes (16.1 against
+  12.1 ns) and 1.15–1.24× at 64 (33.7–35.8 against 28.9–29.2 ns, two runs), though its
+  chain is shorter. The chain keeps only the quotients: `t += c; c = t / 58^4`. The
+  column, `t - 58^4·c`, is below 2^32, so the digit kernels compute it modulo 2^32 from
+  the low halves, four columns per instruction: 5–7% faster again (11.4 against 12.1 ns,
+  27.1 against 28.9–29.2).
+- **Characters**: the general path's NEON kernel with that subtraction in front. On
+  x86_64 an AVX2 kernel (`c div 3364` by `vpmuludq`, the pairs by `vpmulhuw`, the alphabet
+  by compares), checked against the scalar one on every column value.
+- **Output**: the leading `'1'`s of the characters are dropped and one per leading zero
+  byte put back. A result is 32–44 or 64–88 characters, so two overlapping fixed-size
+  copies write exactly it.
+- The NEON and AVX2 paths have no branch or table lookup that depends on the input
+  except through the result's length (its leading zero bytes and digit count). The
+  plain-Rust path, like the general one, indexes the table of character pairs by digit
+  pairs. Not checked with tools.
+
+Apple M5 Pro, AC power, `cargo bench --bench encode -- --warm-up-time 1
+--measurement-time 3 'encode/[^/]+/(31|32|64)$'`: the base commit (`e1a9f13`), this
+code, then the base commit again, back to back. During the second base run's 64-byte
+row the machine was busier: every encoder there took 4–22% longer than in the first
+(`matrix` 22%).
+`matrix-general` is `encode_matrix` without the fixed-size path, in the new binary. ns:
+
+| bytes | five8 | matrix, base | matrix | matrix-general | matrix-portable, base | matrix-portable | speedup |
+|------:|------:|-------------:|-------:|---------------:|----------------------:|----------------:|--------:|
+| 31    |       | 31.5, 31.8   | 31.6   |                | 39.0, 39.4            | 39.8            | 1.00×   |
+| 32    | 31.1  | 31.4, 32.0   | **12.7** | 32.1         | 42.1, 41.8            | 19.0            | 2.47×   |
+| 64    | 74.8  | 55.2, 67.5   | **28.8** | 55.7         | 72.8, 76.2            | 76.4            | 1.92×   |
+
+(speedup: `matrix` against the first base run; 31 bytes is a control and does not take
+the new path.)
+
+- `encode_matrix` is 2.5× faster at 32 bytes and 1.9× at 64 (2.5× and 1.9× against
+  `matrix-general` in the same binary), and 2.4× and 2.6× faster than `five8`.
+- `matrix-portable` gains 2.2× at 32 bytes. At 64 bytes its column sums take 173 scalar
+  multiply-adds (43 at 32), and it is 2–5% slower than the general path's plain-Rust
+  kernels (two runs). Kept for one rule for both sizes; no target here uses it.
+- A previous build of the same kernels measured 12.7 and 29.2 ns (base 31.6–31.8 and
+  54.8–55.9 ns, `five8` 31.1–31.9 and 72.9–78.0 ns).
+
+Tried and not kept (M5):
+
+- **Two accumulator chains per block** indexed by row parity: LLVM kept them in memory,
+  2.3× slower at 64 bytes (one binary, interleaved).
+- **Stack buffers aligned to 64 bytes**: slower, from an extra copy of the column sums.
+- **One fused NEON pass per block** (its sums, its four carry steps and its characters,
+  all in registers, so program order follows the carry chain): 12.3 ns at 32 bytes but
+  44 ns at 64; with two accumulator chains per block 11.8 and 43.9 ns. The staged kernels
+  took 12.6 and 28.4 ns in the next build.
+- **Zipped iterators** in the row loops of the staged NEON kernel (for clippy) instead of
+  indexing: 13.2 and 47.0 ns, against 12.9 and 29.0 ns indexed in the next build. The two
+  functions differ by under 2% in instruction mix (881 against 894) and differ mostly in
+  order. So at 64 bytes this code has a 1.6× cliff that depends on how LLVM schedules
+  it. The cause is not found; moving the stack buffers by 2 KiB in a slow build changed
+  nothing. Other builds may land on the slow side.

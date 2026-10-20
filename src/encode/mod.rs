@@ -5,7 +5,8 @@
 //! - [`encode`] (`dc.rs`): divide and conquer by powers of 58^10, each division Barrett's
 //!   with a Newton reciprocal, over any `Multiplier`.
 //! - [`encode_matrix`] (`matrix.rs`): a matrix of powers with the decoder's SIMD
-//!   multiply-adds, up to 8 KiB.
+//!   multiply-adds, up to 8 KiB, and a fixed-size path for 32 and 64 bytes
+//!   (`matrix/fixed.rs`).
 
 mod batched;
 mod dc;
@@ -24,7 +25,7 @@ use crate::common::{ALPHABET, BASE};
 const LOG58_2: u128 = 3148993499475808360;
 
 /// An upper bound on the encoded length of `len` bytes.
-pub fn max_encoded_len(len: usize) -> usize {
+pub const fn max_encoded_len(len: usize) -> usize {
     // Leading zero bytes take one character each, fewer than any other byte, so `len`
     // bytes encode to at most the digits of 2^(8 len) - 1.
     ((8 * len as u128 * (LOG58_2 + 1)) >> 64) as usize + 1

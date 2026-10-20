@@ -26,7 +26,14 @@ const ENCODERS: &[(&str, EncodeFn, fn(usize) -> bool)] = &[
     ("dc-malachite", |d, out| base58_bench::encode_malachite(d, out).unwrap(), dc),
     ("matrix", |d, out| base58_bench::encode_matrix(d, out).unwrap(), |size| size <= 8192),
     ("matrix-portable", |d, out| base58_bench::encode_matrix_portable(d, out).unwrap(), |size| size <= 8192),
+    ("matrix-general", matrix_general, |size| size == 32 || size == 64),
 ];
+
+/// `encode_matrix` without its fixed-size path for 32 and 64 bytes (22 is its
+/// `MATRIX_MIN`).
+fn matrix_general(d: &[u8], out: &mut [u8]) -> usize {
+    base58_bench::bench::encode_matrix_with(d, out, 22).unwrap()
+}
 
 /// The divide-and-conquer encoders run `encode_batched` below about 3.7 KiB.
 fn dc(size: usize) -> bool {

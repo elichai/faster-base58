@@ -11,9 +11,12 @@ use crate::{BufferTooSmall, encode_ntt_cached};
 use crate::matrix::{PANEL, PANEL_PORTABLE, Panel, zeroed};
 use table::{CARRY_EVERY, COL_BASE, MAX_BYTES, MAX_COLS, MAX_WORDS, PANEL_BYTES, ROWS, WORD};
 
+mod fixed;
 #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
 mod neon;
 mod table;
+#[cfg(target_arch = "x86_64")]
+mod x86;
 
 /// Inputs with fewer bytes than this, after leading zeros, use [`encode_batched`], which
 /// is faster there. Tuned by measurement; README.md has the numbers.
@@ -40,19 +43,35 @@ const BEST: Kernels = Kernels { panel: PANEL, digits };
 /// 1.2x (32 B) to 3.9x (512 B) faster than [`encode_batched`]. Other targets run the
 /// plain-Rust kernels.
 ///
+/// Exactly 32 or 64 bytes take a fixed-size path (`matrix/fixed.rs`) with its table in
+/// the binary: AVX2 if the CPU has it on x86_64, NEON on aarch64.
+///
 /// No allocation per call up to 8 KiB, and about 30 KiB of stack. Each size class of the
 /// table is built once, on first use, and kept: 47 KiB, 181 KiB, 712 KiB, 2.8 MiB or
 /// 11 MiB.
 pub fn encode_matrix(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    if let Ok(x) = input.try_into() {
+        return fixed::encode_32(x, output);
+    }
+    if let Ok(x) = input.try_into() {
+        return fixed::encode_64(x, output);
+    }
     encode_with(&BEST, input, output, MATRIX_MIN)
 }
 
 /// [`encode_matrix`] with the plain-Rust kernels, to show what the SIMD ones add.
 pub fn encode_matrix_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    if let Ok(x) = input.try_into() {
+        return fixed::encode_32_portable(x, output);
+    }
+    if let Ok(x) = input.try_into() {
+        return fixed::encode_64_portable(x, output);
+    }
     encode_with(&PORTABLE, input, output, MATRIX_MIN)
 }
 
-/// [`encode_matrix`] with [`encode_batched`] below `min` bytes, for tuning.
+/// [`encode_matrix`] with [`encode_batched`] below `min` bytes and without the fixed-size
+/// path, for tuning.
 pub fn encode_matrix_with(
     input: &[u8],
     output: &mut [u8],
