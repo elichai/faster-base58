@@ -75,6 +75,15 @@ pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Erro
 pub(crate) const ENCODE_THRESHOLD: usize = 4096;
 const ENCODE_LEAF: usize = 32;
 
+/// The leaf size with matrix leaves, which pay off much larger: in one binary with loops
+/// aligned to 64 bytes (M5 Pro), 768 chunks was 4-8% faster than 256 from 32 KiB to
+/// 1 MiB, and within 1% of 1024 there but 3-4% faster at 12 and 24 KiB.
+const ENCODE_MATRIX_LEAF: usize = 768;
+
+/// The leaf size of the caching encoders, which use [`Leaves::BEST`].
+const CACHED_LEAF: usize =
+    if matches!(Leaves::BEST, Leaves::Matrix) { ENCODE_MATRIX_LEAF } else { ENCODE_LEAF };
+
 /// Like [`crate::encode`], but multiplies with NTTs. Builds twiddle tables for each call.
 pub fn encode_ntt(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(false, Kernels::best());
@@ -84,14 +93,14 @@ pub fn encode_ntt(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSma
 /// [`encode_ntt`], with twiddle tables from the process-wide cache.
 pub fn encode_ntt_cached(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(true, Kernels::best());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::BEST)
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, CACHED_LEAF, Leaves::BEST)
 }
 
 /// [`encode_ntt_cached`] with the portable kernels, as [`decode_ntt_portable`] is for
 /// decoding: on aarch64 this compares hand-written with compiler-generated NEON.
 pub fn encode_ntt_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(true, Kernels::portable());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::BEST)
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, CACHED_LEAF, Leaves::BEST)
 }
 
 /// [`encode_ntt_cached`] with divide and conquer above `threshold` bytes and leaves of at

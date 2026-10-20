@@ -119,8 +119,8 @@ impl Scratch {
 
 /// [`convert`] with the fastest kernels: the divide-and-conquer encoders' matrix leaves.
 pub(super) fn columns<'a>(x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
-    // A leaf has at most `LEAF` chunks, so at most `8 LEAF` bytes.
-    const _: () = assert!(8 * crate::dc::LEAF <= MAX_BYTES);
+    // A leaf has at most `MATRIX_LEAF` chunks, so at most `8 MATRIX_LEAF` bytes.
+    const _: () = assert!(8 * super::dc::MATRIX_LEAF <= MAX_BYTES);
     convert(&BEST, x, scratch)
 }
 

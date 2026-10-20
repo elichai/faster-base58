@@ -298,7 +298,11 @@ pub(crate) fn powers<'a>(
     let p;
     (p, table) = table.split_at_mut(unit);
     p[0] = 1;
-    let len = mul_add_chunks(p, 1, &[0; LEAF][..unit]);
+    // BASE^unit, at most LEAF chunks at a time: the encoders' units can be larger.
+    let zeros = [0; LEAF];
+    let len = (0..unit).step_by(LEAF).fold(1, |len, i| {
+        mul_add_chunks(p, len, &zeros[..LEAF.min(unit - i)])
+    });
     powers[0] = Power::new(unit, &p[..len], 0);
     for i in 1..levels {
         let last = powers[i - 1];

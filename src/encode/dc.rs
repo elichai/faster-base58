@@ -27,6 +27,10 @@ pub(crate) const DC_LEAF: usize = 96;
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;
 
+/// The largest matrix leaf in chunks: at most `8 MATRIX_LEAF` bytes, `encode_matrix`'s
+/// cap. Horner leaves keep `LEAF`, which sizes their stack buffers.
+pub(super) const MATRIX_LEAF: usize = 1024;
+
 /// Like [`crate::encode_batched`], but subquadratic for large inputs.
 pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     encode_with(input, output, &mut Karatsuba)
@@ -85,7 +89,8 @@ pub(crate) fn encode_tuned(
     leaf: usize,
     leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    assert!((1..=LEAF).contains(&leaf), "leaf of {leaf} chunks");
+    let max = if leaves == Leaves::Matrix { MATRIX_LEAF } else { LEAF };
+    assert!((1..=max).contains(&leaf), "{leaves:?} leaf of {leaf} chunks");
     let (zeros, x) = split_zeros(input);
     if x.len() <= threshold {
         return encode_batched(input, output);
@@ -320,9 +325,9 @@ fn node_scratch_len(divs: &[Divisor], m: &impl Multiplier) -> usize {
     divs.iter().fold(0, |below, d| 2 * d.qn() + 1 + divide_scratch_len(d, m).max(below))
 }
 
-/// The big-endian bytes of `x < BASE^n`, `n <= LEAF`, without leading zeros, in `buf`.
-fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8; 8 * LEAF]) -> &'a [u8] {
-    // `x < BASE^n < 2^(64 n)`, so it has at most `n` limbs.
+/// The big-endian bytes of `x < BASE^n` without leading zeros, in `buf`, which needs
+/// `8 n` bytes: `x < 2^(64 n)`, so it has at most `n` limbs.
+fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8]) -> &'a [u8] {
     let bytes = &mut buf[..8 * x.len()];
     for (b, l) in bytes.rchunks_exact_mut(8).zip(x) {
         b.copy_from_slice(&l.to_be_bytes());
@@ -330,11 +335,11 @@ fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8; 8 * LEAF]) -> &'a [u8] {
     split_zeros(bytes).1
 }
 
-/// [`node`] for `n <= LEAF` by `encode_matrix`'s conversion. Not inlined: its frame holds
-/// the matrix's scratch, about 30 KiB.
+/// [`node`] for `n <= MATRIX_LEAF` by `encode_matrix`'s conversion. Not inlined: its
+/// frame holds the matrix's scratch and the bytes, about 38 KiB.
 #[inline(never)]
 fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
-    let mut bytes = [0u8; 8 * LEAF];
+    let mut bytes = [0u8; 8 * MATRIX_LEAF];
     let mut scratch = matrix::Scratch::new();
     let cols = matrix::columns(be_bytes(x, &mut bytes), &mut scratch);
     let Some((&top, rest)) = cols.split_last() else {
@@ -683,10 +688,11 @@ mod tests {
         }
     }
 
-    /// Whole encodes with Horner and matrix leaves of 1 to `LEAF` chunks against
-    /// `encode_batched`: padded leaves whose top column holds fewer than four of their
-    /// digits, or all of them with '1's before, unpadded top leaves, and zero leaves. Both
-    /// buffers start as 0xAA, so this also checks that nothing is written past the result.
+    /// Whole encodes with Horner leaves of 1 to `LEAF` chunks and matrix leaves of 1 to
+    /// `MATRIX_LEAF` against `encode_batched`: padded leaves whose top column holds fewer
+    /// than four of their digits, or all of them with '1's before, unpadded top leaves,
+    /// and zero leaves. Both buffers start as 0xAA, so this also checks that nothing is
+    /// written past the result.
     #[test]
     fn leaf_kinds_and_sizes() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(34);
@@ -698,10 +704,10 @@ mod tests {
             for data in [random, vec![0xFF; len], runs, [vec![0; 2], vec![0xFF; len]].concat()] {
                 let mut want = vec![0xAA; crate::max_encoded_len(data.len())];
                 let n = encode_batched(&data, &mut want);
-                for (leaf, kind) in [1, 2, 3, 7, 32, 96, 255, LEAF]
-                    .into_iter()
-                    .flat_map(|l| [(l, Leaves::Horner), (l, Leaves::Matrix)])
-                {
+                let both = [1, 2, 3, 7, 32, 96, 255, LEAF].into_iter();
+                let both = both.flat_map(|l| [(l, Leaves::Horner), (l, Leaves::Matrix)]);
+                let matrix = [LEAF + 1, 512, MATRIX_LEAF].map(|l| (l, Leaves::Matrix));
+                for (leaf, kind) in both.chain(matrix) {
                     let mut got = vec![0xAA; want.len()];
                     let r = encode_tuned(&data, &mut got, &mut Karatsuba, 0, leaf, kind);
                     assert_eq!(r, n, "{len} bytes, leaf {leaf}, {kind:?}");
