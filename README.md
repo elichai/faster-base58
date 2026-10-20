@@ -956,6 +956,78 @@ and `dc-malachite`, as controls, within ±1%). With every loop aligned to 64 byt
 7.26 against 7.71 ms, with the second's interval 7.51–7.92). So `ntt-cached`'s numbers
 depend on where its loops land by up to about 7%. The merge changed no NTT code.
 
+### Encoding results on Zen 5
+
+AMD EPYC 9B45 (Zen 5, AVX-512 IFMA) on a GCP VM, commit `49fb679`, rustc 1.99.0, default
+flags (no `target-cpu`), the same command and sizes as above. A watcher on the VM saw only
+the benchmark during the run. On IFMA CPUs `encode_matrix` converts up to 4 KiB itself and
+calls `encode_ntt_cached` above. `five8` selects its AVX2 code at compile time, so with
+default flags it ran its scalar code; our encoders detect AVX-512 at run time.
+
+| bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
+|---:|---:|---:|---:|---:|:---|---:|---:|
+| 31 | 817 ns | 190 ns |  | 161 ns | **54 ns** matrix | 15× | 2.98× |
+| 32 | 900 ns | 194 ns | 57.8 ns | 169 ns | **52.9 ns** matrix | 17× | 1.09× |
+| 64 | 3.91 µs | 422 ns | 119 ns | 319 ns | **86.5 ns** matrix | 45× | 1.38× |
+| 128 | 16.6 µs | 1.01 µs |  | 714 ns | **168 ns** matrix | 99× | 4.25× |
+| 256 | 69.7 µs | 3.63 µs |  | 2.06 µs | **396 ns** matrix | 176× | 5.20× |
+| 512 | 282 µs | 8.89 µs |  | 4.72 µs | **1.1 µs** matrix | 257× | 4.31× |
+| 1024 | 1.13 ms | 24.3 µs |  | 12.9 µs | **3.38 µs** matrix | 334× | 3.82× |
+| 1875 | 3.79 ms | 61.8 µs |  | 31.8 µs | **10.3 µs** matrix | 370× | 3.10× |
+| 4096 | 18.1 ms | 188 µs |  | 100 µs | **43.5 µs** matrix | 416× | 2.31× |
+| 6144 | 40.7 ms | 320 µs |  | 186 µs | **82.2 µs** ntt-cached | 495× | 2.26× |
+| 8192 | 72.4 ms | 548 µs |  | 283 µs | **123 µs** ntt-portable | 588× | 2.30× |
+| 12288 | 163 ms | 943 µs |  | 522 µs | **238 µs** ntt-cached | 684× | 2.19× |
+| 16384 | 292 ms | 1.64 ms |  | 804 µs | **365 µs** ntt-portable | 800× | 2.21× |
+| 24576 | 652 ms | 2.75 ms |  | 1.54 ms | **713 µs** ntt-cached | 914× | 2.17× |
+| 32768 | 1.16 s | 4.57 ms |  | 2.24 ms | **1.1 ms** ntt-cached | 1049× | 2.03× |
+| 36864 |  |  |  | 2.6 ms | **1.41 ms** ntt-portable |  | 1.84× |
+| 49152 |  |  |  | 3.81 ms | **2.17 ms** ntt-cached |  | 1.75× |
+| 131072 |  |  |  | 12.1 ms | **9.17 ms** ntt-cached |  | 1.32× |
+| 147456 |  |  |  | 14.1 ms | **10.8 ms** ntt-cached |  | 1.30× |
+| 1048576 |  |  |  | 132 ms | **111 ms** dc-malachite |  | 1.19× |
+
+Every encoder:
+
+| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 31 | 817 ns | 190 ns | 786 ns | 161 ns | 65.9 ns | **54 ns** | 62.1 ns | | | | | | | |
+| 32 | 900 ns | 194 ns | 844 ns | 169 ns | 65.7 ns | **52.9 ns** | 60.5 ns | 57.8 ns | | | | | | |
+| 64 | 3.91 µs | 422 ns | 3.41 µs | 319 ns | 138 ns | **86.5 ns** | 117 ns | 119 ns | | | | | | |
+| 128 | 16.6 µs | 1.01 µs | 14 µs | 714 ns | 377 ns | **168 ns** | 255 ns | | | | | | | |
+| 256 | 69.7 µs | 3.63 µs | 56.3 µs | 2.06 µs | 1.19 µs | **396 ns** | 697 ns | | | | | | | |
+| 512 | 282 µs | 8.89 µs | 225 µs | 4.72 µs | 4.34 µs | **1.1 µs** | 2.24 µs | | | | | | | |
+| 1024 | 1.13 ms | 24.3 µs | 901 µs | 12.9 µs | 16.2 µs | **3.38 µs** | 7.58 µs | | | | | | | |
+| 1875 | 3.79 ms | 61.8 µs | 3.01 ms | 31.8 µs | 52.9 µs | **10.3 µs** | 24 µs | | | | | | | |
+| 4096 | 18.1 ms | 188 µs | 14.4 ms | 100 µs | 247 µs | **43.5 µs** | 107 µs | | 56.2 µs | 56.3 µs | 68 µs | 44.7 µs | 44.6 µs | 140 µs |
+| 6144 | 40.7 ms | 320 µs | 32.4 ms | 186 µs | 552 µs | 82.3 µs | 82.3 µs | | 101 µs | 100 µs | 112 µs | **82.2 µs** | 82.3 µs | 250 µs |
+| 8192 | 72.4 ms | 548 µs | 57.6 ms | 283 µs | 979 µs | 124 µs | 123 µs | | 151 µs | 151 µs | 174 µs | 123 µs | **123 µs** | 364 µs |
+| 12288 | 163 ms | 943 µs | 130 ms | 522 µs | 2.2 ms | | | | 286 µs | 285 µs | 310 µs | **238 µs** | 240 µs | 625 µs |
+| 16384 | 292 ms | 1.64 ms | 233 ms | 804 µs | 3.94 ms | | | | 440 µs | 440 µs | 485 µs | 366 µs | **365 µs** | 876 µs |
+| 24576 | 652 ms | 2.75 ms | 518 ms | 1.54 ms | 8.78 ms | | | | 842 µs | 841 µs | 892 µs | **713 µs** | 713 µs | 1.44 ms |
+| 32768 | 1.16 s | 4.57 ms | 921 ms | 2.24 ms | 15.6 ms | | | | 1.29 ms | 1.29 ms | 1.48 ms | **1.1 ms** | 1.1 ms | 2.05 ms |
+| 36864 | | | | 2.6 ms | | | | | 1.47 ms | 1.47 ms | 1.67 ms | 1.42 ms | **1.41 ms** | 2.4 ms |
+| 49152 | | | | 3.81 ms | | | | | 2.53 ms | 2.48 ms | 2.76 ms | **2.17 ms** | 2.18 ms | 3.4 ms |
+| 131072 | | | | 12.1 ms | | | | | 11.6 ms | 11 ms | 10.6 ms | **9.17 ms** | 27.3 ms | 10.4 ms |
+| 147456 | | | | 14.1 ms | | | | | 13.2 ms | 12.8 ms | 11.7 ms | **10.8 ms** | 32.6 ms | 12.2 ms |
+| 1048576 | | | | 132 ms | | | | | 316 ms | 252 ms | 124 ms | 111 ms | 484 ms | **111 ms** |
+
+- `encode_matrix` is the fastest up to 4 KiB: 1.09× faster than scalar `five8` at 32
+  bytes, 1.38× at 64, and 2.3–5.2× faster than the fastest other crate from 128 bytes.
+- From 6 KiB `encode_ntt_cached` leads: about 2.2× faster than malachite's own conversion
+  from 6 to 24 KiB, 2.03× at 32 KiB, 1.75× at 48 KiB, 1.30–1.32× at 128–144 KiB.
+- At 6–8 KiB `matrix`, `ntt-cached` and `ntt-portable` took the same time within 1%, so
+  the bold there is noise. `ntt-portable` (baseline x86-64 kernels: no AVX2 or AVX-512)
+  matches `ntt-cached` up to 48 KiB, so the transform kernels hardly matter there on this
+  CPU. It takes 3.0× as long at 128–144 KiB and 4.3× at 1 MiB.
+- At 1 MiB `dc-malachite` (111.05 ms) and `ntt-cached` (111.40 ms) tie, 1.19× faster than
+  malachite's own conversion. On the M5 `ntt-cached` was 1.39× faster than `dc-malachite`
+  there. On x86_64 the NTT kernels are the portable code compiled for AVX-512; aarch64 has
+  hand-written NEON ones. Hand-written AVX-512 kernels might close this gap; not tried.
+- Against `bs58` our fastest is 15× faster at 31 B, 334× at 1 KiB and 1049× at 32 KiB.
+- With the IFMA leaf, Karatsuba (`dc`) is only 1.17× slower than the NTT at 32 KiB and
+  2.8× at 1 MiB (3.0× and 12.9× on the M5).
+
 ### Tuning
 
 All in one binary (`benches/encode_tune.rs`: interleaved rounds, the minimum time per
