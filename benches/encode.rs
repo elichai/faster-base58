@@ -77,7 +77,7 @@ fn malachite(d: &[u8], out: &mut [u8]) -> usize {
 }
 
 /// Input sizes in bytes.
-const SIZES: [usize; 17] = [
+const SIZES: [usize; 20] = [
     31,
     32,
     64,
@@ -89,6 +89,9 @@ const SIZES: [usize; 17] = [
     4096,
     6144,
     8192,
+    12 * 1024,
+    16 * 1024,
+    24 * 1024,
     32 * 1024,
     36 * 1024,
     48 * 1024,
@@ -98,7 +101,7 @@ const SIZES: [usize; 17] = [
 ];
 
 /// From this size on, each iteration is slow enough to use few, flat samples.
-const LARGE: usize = 32 * 1024;
+const LARGE: usize = 12 * 1024;
 
 /// Deterministic random bytes, first byte forced non-zero so the encoded length is not
 /// skewed by leading-zero '1' characters.
