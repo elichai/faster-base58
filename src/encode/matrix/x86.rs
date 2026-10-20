@@ -17,6 +17,77 @@ pub(super) fn encode_fixed<const N: usize, const W: usize, const C: usize>(
     fixed::encode(x, output, |x, o| fixed::chars(x, o, |x| cols(x, t), |t, q, o| digits(t, q, o)))
 }
 
+/// Kernel combinations for one Zen 5 sweep: `benches/encode.rs` times each at 32 and 64
+/// bytes. Temporary: the winners replace `encode_fixed`'s choice.
+#[doc(hidden)]
+pub mod sweep {
+    use super::*;
+
+    type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
+
+    /// AVX2 sums, plain-Rust digits.
+    #[target_feature(enable = "avx2")]
+    fn sums<const N: usize, const W: usize, const C: usize>(
+        x: &[u8; N],
+        output: &mut [u8],
+        t: &Table<W, C>,
+    ) -> Result<usize, BufferTooSmall> {
+        fixed::encode(x, output, |x, o| fixed::chars(x, o, |x| cols(x, t), fixed::digits))
+    }
+
+    /// Plain-Rust sums, AVX2 digits.
+    #[target_feature(enable = "avx2")]
+    fn chars_only<const N: usize, const W: usize, const C: usize>(
+        x: &[u8; N],
+        output: &mut [u8],
+        t: &Table<W, C>,
+    ) -> Result<usize, BufferTooSmall> {
+        let avx2 = |t: &[u64], q: &[u32], o: &mut [[u8; 4]]| digits(t, q, o);
+        fixed::encode(x, output, |x, o| fixed::chars(x, o, |x| fixed::cols(x, t), avx2))
+    }
+
+    /// AVX2 sums and digits with the general path's carry (`normalize`).
+    #[target_feature(enable = "avx2")]
+    fn normalized<const N: usize, const W: usize, const C: usize>(
+        x: &[u8; N],
+        output: &mut [u8],
+        t: &Table<W, C>,
+    ) -> Result<usize, BufferTooSmall> {
+        fixed::encode(x, output, |x, o: &mut [[u8; 4]; C]| {
+            let mut s = cols(x, t);
+            super::super::normalize(&mut s);
+            digits(&s, &[0; C], o)
+        })
+    }
+
+    macro_rules! variant {
+        ($name:ident, $f:ident) => {
+            fn $name(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+                assert!(is_x86_feature_detected!("avx2"), "the sweep needs AVX2");
+                // SAFETY: the CPU has AVX2.
+                unsafe {
+                    match d.len() {
+                        32 => $f::<32, 8, 12>(d.try_into().unwrap(), o, &fixed::TABLE_32),
+                        _ => $f::<64, 16, 24>(d.try_into().unwrap(), o, &fixed::TABLE_64),
+                    }
+                }
+            }
+        };
+    }
+    variant!(avx2, encode_fixed);
+    variant!(avx2_sums, sums);
+    variant!(avx2_chars, chars_only);
+    variant!(avx2_normalize, normalized);
+
+    /// `fixed-avx2` is `encode_matrix`'s 64-byte path, timed a second time.
+    pub const VARIANTS: [(&str, Encode); 4] = [
+        ("fixed-avx2", avx2),
+        ("fixed-avx2-sums", avx2_sums),
+        ("fixed-avx2-chars", avx2_chars),
+        ("fixed-avx2-normalize", avx2_normalize),
+    ];
+}
+
 /// The column sums of `x`'s words, four columns per block.
 #[target_feature(enable = "avx2")]
 fn cols<const N: usize, const W: usize, const C: usize>(x: &[u8; N], t: &Table<W, C>) -> [u64; C] {
@@ -122,6 +193,31 @@ mod tests {
             // SAFETY: the CPU has AVX2.
             unsafe { digits(t, q, &mut got) };
             assert!(got == want);
+        }
+    }
+
+    #[test]
+    fn sweep_matches_bs58() {
+        if !is_x86_feature_detected!("avx2") {
+            eprintln!("no AVX2 on this CPU: sweep not run");
+            return;
+        }
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(46);
+        for n in [32, 64] {
+            for i in 0..500 {
+                let mut x: Vec<u8> = (0..n).map(|_| rng.next_u32() as u8).collect();
+                x[..i % 5].fill(0);
+                if i % 50 == 0 {
+                    x.fill(0xFF);
+                }
+                let want = bs58::encode(&x).into_vec();
+                for (name, f) in sweep::VARIANTS {
+                    let mut out = vec![0xAA; want.len() + 1];
+                    assert_eq!(f(&x, &mut out), Ok(want.len()), "{name}: {x:?}");
+                    assert!(out[..want.len()] == want[..] && out[want.len()] == 0xAA, "{name}");
+                    assert_eq!(f(&x, &mut out[..want.len() - 1]), Err(BufferTooSmall), "{name}");
+                }
+            }
         }
     }
 

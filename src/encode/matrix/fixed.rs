@@ -97,8 +97,12 @@ pub(super) const TABLE_64: Table<16, 24> = Table::new();
 const _: () = TABLE_32.check(32);
 const _: () = TABLE_64.check(64);
 
-/// [`encode_matrix`](super::encode_matrix) for 32 bytes.
+/// [`encode_matrix`](super::encode_matrix) for 32 bytes. On x86_64 with the plain-Rust
+/// kernels, which beat the AVX2 ones on Zen 5 (README, "Fixed sizes").
 pub(super) fn encode_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    #[cfg(target_arch = "x86_64")]
+    return encode_32_portable(x, output);
+    #[cfg(not(target_arch = "x86_64"))]
     encode_best(x, output, &TABLE_32)
 }
 
