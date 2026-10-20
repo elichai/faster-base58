@@ -1016,17 +1016,25 @@ Every encoder:
   bytes, 1.38× at 64, and 2.3–5.2× faster than the fastest other crate from 128 bytes.
 - From 6 KiB `encode_ntt_cached` leads: about 2.2× faster than malachite's own conversion
   from 6 to 24 KiB, 2.03× at 32 KiB, 1.75× at 48 KiB, 1.30–1.32× at 128–144 KiB.
-- At 6–8 KiB `matrix`, `ntt-cached` and `ntt-portable` took the same time within 1%, so
-  the bold there is noise. `ntt-portable` (baseline x86-64 kernels: no AVX2 or AVX-512)
-  matches `ntt-cached` up to 48 KiB, so the transform kernels hardly matter there on this
-  CPU. It takes 3.0× as long at 128–144 KiB and 4.3× at 1 MiB.
+- Up to 48 KiB no transform runs on this CPU. Every product there is below
+  `IFMA_THRESHOLD` (3072 limbs, or 2048 for a prepared power), so the NTT multiplier
+  passes it to Karatsuba with the IFMA leaf. Counted with the IFMA thresholds and
+  parameters forced on the M5: no forward transform up to 48 KiB, 93 at 128 KiB, 801 at
+  1 MiB. So up to 48 KiB `ntt-cached` is Karatsuba with 96-chunk matrix leaves.
+- For the same reason `ntt-cached` and `ntt-portable` run the same code up to 48 KiB and
+  took the same time within 1%, as did `matrix` at 6–8 KiB (it calls `ntt-cached`). The
+  bold among them is noise. From 128 KiB the transforms run, and `ntt-portable`'s kernels
+  (baseline x86-64: no AVX2 or AVX-512) take 3.0× as long at 128–144 KiB and 4.3× at
+  1 MiB.
 - At 1 MiB `dc-malachite` (111.05 ms) and `ntt-cached` (111.40 ms) tie, 1.19× faster than
   malachite's own conversion. On the M5 `ntt-cached` was 1.39× faster than `dc-malachite`
   there. On x86_64 the NTT kernels are the portable code compiled for AVX-512; aarch64 has
   hand-written NEON ones. Hand-written AVX-512 kernels might close this gap; not tried.
 - Against `bs58` our fastest is 15× faster at 31 B, 334× at 1 KiB and 1049× at 32 KiB.
-- With the IFMA leaf, Karatsuba (`dc`) is only 1.17× slower than the NTT at 32 KiB and
-  2.8× at 1 MiB (3.0× and 12.9× on the M5).
+- `dc` (plain `encode`: Karatsuba with 32-chunk Horner leaves) takes 1.17–1.26× as long
+  as `ntt-cached` from 4 to 32 KiB. No transform runs there, so that gap is the leaves
+  alone. At 1 MiB it takes 2.8× as long. On the M5, where transforms start at 128 limbs,
+  it took 3.0× as long at 32 KiB and 12.9× at 1 MiB.
 
 ### Tuning
 
@@ -1347,7 +1355,10 @@ matrix leaves and the thresholds:
   (3% slower at 1 KiB, 15% faster at 1.5 KiB).
 - Karatsuba with matrix leaves (`dc /96m`) was fastest from 6 to 32 KiB, by up to 9%,
   but 2.5× slower than the NTT at 1 MiB. Plain `encode` keeps Horner leaves, and the
-  fallback above `encode_matrix`'s cap stays the NTT encoder.
+  fallback above `encode_matrix`'s cap stays the NTT encoder. Up to 48 KiB no product
+  reaches the transforms on IFMA CPUs (see "Encoding results on Zen 5"), so there
+  `ntt-cached /96m` and `dc /96m` compute the same thing: the 9% at 6 KiB is not the
+  multiplier.
 - `MATRIX_MIN = 22` holds: the matrix lost at 8 and 12 bytes (0.74–0.84×), was within
   6% at 16, 20 and 28, and won at 24 and 32 (1.10× and 1.21×). The differences are a few
   nanoseconds.
