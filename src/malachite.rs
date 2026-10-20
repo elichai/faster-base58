@@ -25,9 +25,9 @@ pub(crate) const ENCODE_THRESHOLD: usize = 3072;
 const ENCODE_LEAF: usize = 96;
 
 /// [`ENCODE_THRESHOLD`] on CPUs with the IFMA leaf, where `encode_batched` is slower
-/// relative to malachite. Provisional: on Zen 5 this encoder beat it at 2 KiB, the
-/// smallest size measured so far.
-pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 2048;
+/// relative to malachite. On Zen 5 this encoder (96-chunk leaves) took 3% longer than
+/// `encode_batched` at 1 KiB and 15% less time at 1.5 KiB.
+pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 1280;
 
 /// Like [`crate::encode`], but multiplies with malachite-nz.
 pub fn encode_malachite(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {

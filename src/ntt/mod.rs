@@ -75,26 +75,26 @@ pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Erro
 pub(crate) const ENCODE_THRESHOLD: usize = 4096;
 const ENCODE_LEAF: usize = 32;
 
-/// The leaf size with matrix leaves, which pay off much larger: in one binary with loops
-/// aligned to 64 bytes (M5 Pro), 768 chunks was 4-8% faster than 256 from 32 KiB to
-/// 1 MiB, and within 1% of 1024 there but 3-4% faster at 12 and 24 KiB.
-const ENCODE_MATRIX_LEAF: usize = 768;
+/// The leaf size of the caching encoders, which use [`Leaves::BEST`]. Matrix leaves pay off
+/// much larger with NEON: in one binary with loops aligned to 64 bytes (M5 Pro), 768
+/// chunks was 4-8% faster than 256 from 32 KiB to 1 MiB, and within 1% of 1024 there but
+/// 3-4% faster at 12 and 24 KiB. With the x86 kernels (Zen 5) 96 was best: 256 within 5%,
+/// 768 39% slower at 6 KiB and 58% at 8 KiB, where the whole input became one leaf.
+const CACHED_LEAF: usize = match Leaves::BEST {
+    Leaves::Horner => ENCODE_LEAF,
+    Leaves::Matrix if cfg!(target_arch = "x86_64") => 96,
+    Leaves::Matrix => 768,
+};
 
-/// The leaf size of the caching encoders, which use [`Leaves::BEST`].
-const CACHED_LEAF: usize =
-    if matches!(Leaves::BEST, Leaves::Matrix) { ENCODE_MATRIX_LEAF } else { ENCODE_LEAF };
-
-/// [`ENCODE_THRESHOLD`] and [`CACHED_LEAF`] with the IFMA leaf. Provisional: on Zen 5
-/// divide and conquer already beat `encode_batched` at 2 KiB, the smallest size measured
-/// so far, and leaves above 256 chunks are not measured there yet.
-pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 2048;
-const CACHED_IFMA_LEAF: usize = CACHED_LEAF;
+/// [`ENCODE_THRESHOLD`] with the IFMA leaf. On Zen 5 divide and conquer with 32-chunk
+/// Horner leaves tied `encode_batched` at 512 bytes and took 26% less time at 768.
+pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 512;
 
 /// The threshold and the caching encoders' leaf size for this CPU.
 fn encode_params() -> (usize, usize) {
     match mul::ifma_threshold() {
         0 => (ENCODE_THRESHOLD, CACHED_LEAF),
-        _ => (ENCODE_IFMA_THRESHOLD, CACHED_IFMA_LEAF),
+        _ => (ENCODE_IFMA_THRESHOLD, CACHED_LEAF),
     }
 }
 

@@ -28,9 +28,9 @@ pub(crate) const DC_LEAF: usize = 96;
 /// so favours smaller leaves: on Zen 5, 96 took 13-29% longer than 32 at 2-8 KiB.
 const DC_IFMA_LEAF: usize = 32;
 
-/// [`DC_THRESHOLD`] with the IFMA leaf. Provisional: on Zen 5 divide and conquer already
-/// beat [`encode_batched`] 2.8x at 2 KiB, the smallest size measured so far.
-pub(crate) const DC_IFMA_THRESHOLD: usize = 2048;
+/// [`DC_THRESHOLD`] with the IFMA leaf. On Zen 5 divide and conquer with 32-chunk leaves
+/// tied [`encode_batched`] at 512 bytes and took 28% less time at 768.
+pub(crate) const DC_IFMA_THRESHOLD: usize = 512;
 
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;

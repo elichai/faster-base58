@@ -1226,3 +1226,31 @@ so `Leaves::BEST` is Matrix on x86_64 too. With the AVX-512 IFMA leaf, Karatsuba
 cheap enough that plain `encode` wants 32-chunk leaves there (96 took 13–29% longer at
 2–8 KiB). The NTT encoder with matrix leaves tied `encode_matrix` at 4 KiB and was 33%
 faster at 8 KiB, so on IFMA CPUs `encode_matrix` hands over above 4 KiB.
+
+A second Zen 5 run (default flags, minimum of interleaved rounds, µs) swept the larger
+matrix leaves and the thresholds:
+
+| bytes | ntt-cached /96m | /256m  | /768m  | dc /96m   | batched | dc /32h | malachite (`dc-malachite`) /96h |
+|------:|----------------:|-------:|-------:|----------:|--------:|--------:|--------------------------------:|
+| 512   |                 |        |        |           | 4.3     | 4.1     | 4.3                             |
+| 768   |                 |        |        |           | 9.3     | 6.7     | 10.3                            |
+| 1024  |                 |        |        |           | 16.3    | 9.4     | 16.8                            |
+| 1536  |                 |        |        |           | 35.9    | 15.3    | 30.5                            |
+| 6144  | 89.1            | 93.3   | 123.6  | **81.2**  |         |         |                                 |
+| 8192  | 123.6           | 124.8  | 195.2  | **123.5** |         |         |                                 |
+| 32768 | 1104.5          | 1105.0 | 1277.3 | **1099.0**|         |         |                                 |
+| 1 MiB | 111270          | **111029** | 116000 | 284653 |      |         |                                 |
+
+- On x86 the caching NTT encoders use 96-chunk matrix leaves: 768 took 39% longer at
+  6 KiB and 58% at 8 KiB, where the whole input is one leaf (the x86 matrix kernels are
+  slower than NEON's). So `CACHED_LEAF` is 768 on aarch64 and 96 on x86_64.
+- With the IFMA leaf, divide and conquer with 32-chunk Horner leaves ties
+  `encode_batched` at 512 bytes and takes 26–28% less time at 768, so the IFMA
+  thresholds are 512 for `encode` and the NTT encoders, and 1280 for `encode_malachite`
+  (3% slower at 1 KiB, 15% faster at 1.5 KiB).
+- Karatsuba with matrix leaves (`dc /96m`) was fastest from 6 to 32 KiB, by up to 9%,
+  but 2.5× slower than the NTT at 1 MiB. Plain `encode` keeps Horner leaves, and the
+  fallback above `encode_matrix`'s cap stays the NTT encoder.
+- `MATRIX_MIN = 22` holds: the matrix lost at 8 and 12 bytes (0.74–0.84×), was within
+  6% at 16, 20 and 28, and won at 24 and 32 (1.10× and 1.21×). The differences are a few
+  nanoseconds.
