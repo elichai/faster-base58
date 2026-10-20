@@ -1220,8 +1220,9 @@ to 1 MiB, and 15% faster than 32-chunk Horner leaves at 32 KiB. 1024 was within 
 the large sizes but 3–4% slower at 12 and 24 KiB.
 
 On Zen 5 (EPYC 9B45, the remote VM; default flags, a single sweep of leaves up to 256),
-matrix leaves were 2–36% faster than Horner leaves for every backend and leaf size, so
-`Leaves::BEST` is Matrix on x86_64 too. With the AVX-512 IFMA leaf, Karatsuba is cheap
-enough that plain `encode` wants 32-chunk leaves there (20–30% faster than 96 at
+matrix leaves took less time than Horner leaves for every backend and leaf size: from 2%
+(32-chunk leaves at 128 KiB) to 59% (256-chunk leaves at 2 KiB, 17.4 against 42.8 µs),
+so `Leaves::BEST` is Matrix on x86_64 too. With the AVX-512 IFMA leaf, Karatsuba is
+cheap enough that plain `encode` wants 32-chunk leaves there (96 took 13–29% longer at
 2–8 KiB). The NTT encoder with matrix leaves tied `encode_matrix` at 4 KiB and was 33%
 faster at 8 KiB, so on IFMA CPUs `encode_matrix` hands over above 4 KiB.

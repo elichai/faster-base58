@@ -25,7 +25,7 @@ pub(crate) const DC_THRESHOLD: usize = 5120;
 pub(crate) const DC_LEAF: usize = 96;
 
 /// [`DC_LEAF`] when Karatsuba has the AVX-512 IFMA leaf, which makes products cheaper and
-/// so favours smaller leaves: on Zen 5, 32 was 20-30% faster than 96 at 2-8 KiB.
+/// so favours smaller leaves: on Zen 5, 96 took 13-29% longer than 32 at 2-8 KiB.
 const DC_IFMA_LEAF: usize = 32;
 
 /// [`DC_THRESHOLD`] with the IFMA leaf. Provisional: on Zen 5 divide and conquer already
@@ -82,7 +82,7 @@ pub enum Leaves {
 
 impl Leaves {
     /// [`Leaves::Matrix`] where `encode_matrix` has SIMD kernels: NEON, and AVX2 or SSE4.1
-    /// on x86_64, where matrix leaves were 2-36% faster than Horner leaves for every
+    /// on x86_64, where matrix leaves took 2-59% less time than Horner leaves for every
     /// backend and leaf size measured (Zen 5). Elsewhere [`Leaves::Horner`].
     pub(crate) const BEST: Leaves = if cfg!(any(
         all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
