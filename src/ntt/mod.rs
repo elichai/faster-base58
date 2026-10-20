@@ -86,6 +86,13 @@ pub fn encode_ntt_cached(input: &[u8], output: &mut [u8]) -> Result<usize, Buffe
     encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF)
 }
 
+/// [`encode_ntt_cached`] with the portable kernels, as [`decode_ntt_portable`] is for
+/// decoding: on aarch64 this compares hand-written with compiler-generated NEON.
+pub fn encode_ntt_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    let m = &mut Ntt::new(true, Kernels::portable());
+    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF)
+}
+
 /// [`encode_ntt_cached`] with divide and conquer above `threshold` bytes and leaves of at
 /// most `leaf` chunks.
 pub fn encode_ntt_with(

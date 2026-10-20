@@ -816,8 +816,9 @@ writes nothing past the result. `max_encoded_len(n)` bounds the length for `n` b
 
 - `encode_batched`: quadratic, in place in `output`, no allocation.
 - `encode`: divide and conquer with Karatsuba; `encode_toom3`, `encode_ntt`,
-  `encode_ntt_cached` and `encode_malachite` use the other multipliers. All run
-  `encode_batched` up to `DC_THRESHOLD` input bytes.
+  `encode_ntt_cached` and `encode_malachite` use the other multipliers, and
+  `encode_ntt_portable` the NTT with the plain-Rust kernels (as `decode_ntt_portable`).
+  All run `encode_batched` up to their threshold.
 - `encode_matrix`, `encode_matrix_portable`: a matrix of powers with the decoder's SIMD
   multiply-adds, up to 4 KiB; see [below](#encode_matrix-a-matrix-of-powers).
 

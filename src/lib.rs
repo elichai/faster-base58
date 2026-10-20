@@ -4,8 +4,8 @@
 //! The encoders are in `encode/`: [`encode_batched`] (quadratic, in place), [`encode`]
 //! (divide and conquer with Barrett division) and [`encode_matrix`],
 //! [`encode_matrix_portable`] (a matrix of powers, up to 4 KiB); the backend modules below
-//! also hold [`encode_toom3`], [`encode_ntt`], [`encode_ntt_cached`] and
-//! [`encode_malachite`].
+//! also hold [`encode_toom3`], [`encode_ntt`], [`encode_ntt_cached`],
+//! [`encode_ntt_portable`] and [`encode_malachite`].
 //!
 //! Each decoding algorithm has its own module:
 //! - [`decode_batched`] (`batched.rs`): quadratic, one limb update per ten characters
@@ -42,7 +42,10 @@ pub use dc::decode;
 pub use encode::{encode, encode_batched, encode_matrix, encode_matrix_portable, max_encoded_len};
 pub use malachite::{decode_malachite, encode_malachite};
 pub use matrix::{decode_matrix, decode_matrix_portable};
-pub use ntt::{decode_ntt, decode_ntt_cached, decode_ntt_portable, encode_ntt, encode_ntt_cached};
+pub use ntt::{
+    decode_ntt, decode_ntt_cached, decode_ntt_portable, encode_ntt, encode_ntt_cached,
+    encode_ntt_portable,
+};
 pub use toom3::{decode_toom3, encode_toom3};
 
 /// Hooks for benchmarks and A/B harnesses; not part of the API.

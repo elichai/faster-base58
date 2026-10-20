@@ -22,6 +22,7 @@ const ENCODERS: &[(&str, EncodeFn, fn(usize) -> bool)] = &[
     ("dc-toom3", |d, out| base58_bench::encode_toom3(d, out).unwrap(), dc),
     ("ntt", |d, out| base58_bench::encode_ntt(d, out).unwrap(), dc),
     ("ntt-cached", |d, out| base58_bench::encode_ntt_cached(d, out).unwrap(), dc),
+    ("ntt-portable", |d, out| base58_bench::encode_ntt_portable(d, out).unwrap(), dc),
     ("dc-malachite", |d, out| base58_bench::encode_malachite(d, out).unwrap(), dc),
     ("matrix", |d, out| base58_bench::encode_matrix(d, out).unwrap(), |size| size <= 4096),
     ("matrix-portable", |d, out| base58_bench::encode_matrix_portable(d, out).unwrap(), |size| size <= 4096),

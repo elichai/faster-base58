@@ -11,7 +11,7 @@ use super::{max_encoded_len, min_digits};
 use crate::common::ALPHABET;
 use crate::{
     BufferTooSmall, decode, encode, encode_batched, encode_malachite, encode_ntt,
-    encode_ntt_cached, encode_toom3,
+    encode_ntt_cached, encode_ntt_portable, encode_toom3,
 };
 
 pub(crate) type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
@@ -23,6 +23,7 @@ const ENCODERS: &[(&str, Encode)] = &[
     ("dc-toom3", encode_toom3),
     ("ntt", encode_ntt),
     ("ntt-cached", encode_ntt_cached),
+    ("ntt-portable", encode_ntt_portable),
     ("dc-malachite", encode_malachite),
     ("matrix", crate::encode_matrix),
     ("matrix-portable", crate::encode_matrix_portable),
