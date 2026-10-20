@@ -33,11 +33,12 @@ const BEST: Kernels = Kernels { panel: PANEL, digits: neon::digits };
 const BEST: Kernels = Kernels { panel: PANEL, digits };
 
 /// Like [`encode_batched`], but faster from 22 bytes to 8 KiB when the table of powers is
-/// in cache. Fewer than `MATRIX_MIN` bytes use [`encode_batched`]; more than 8192 use
-/// [`encode_ntt_cached`].
+/// in cache. Fewer than `MATRIX_MIN` bytes use [`encode_batched`]; more than 8192 (4096 on
+/// CPUs with the AVX-512 IFMA leaf, see [`IFMA_CAP`]) use [`encode_ntt_cached`].
 ///
-/// The speedup was measured with NEON (aarch64). x86_64 uses the decoder's AVX2 or SSE4.1
-/// kernels, not measured. Other targets run the plain-Rust kernels.
+/// NEON on aarch64; the decoder's AVX2 or SSE4.1 kernels on x86_64, where on Zen 5 it was
+/// 1.2x (32 B) to 3.9x (512 B) faster than [`encode_batched`]. Other targets run the
+/// plain-Rust kernels.
 ///
 /// No allocation per call up to 8 KiB, and about 30 KiB of stack. Each size class of the
 /// table is built once, on first use, and kept: 47 KiB, 181 KiB, 712 KiB, 2.8 MiB or
@@ -89,11 +90,28 @@ fn encode_large(
     if x.len() < min {
         return encode_batched(input, output);
     }
-    if x.len() > MAX_BYTES {
+    let cap = if crate::mul::ifma_threshold() != 0 { IFMA_CAP } else { MAX_BYTES };
+    if x.len() > cap {
         return encode_ntt_cached(input, output);
     }
     let mut scratch = Scratch::new();
     write(k, zeros, convert(k, x, &mut scratch), output)
+}
+
+/// The largest input `encode_matrix` converts itself when Karatsuba has the AVX-512 IFMA
+/// leaf. On Zen 5 the NTT encoder with matrix leaves tied the matrix at 4 KiB (43.7
+/// against 44.4 µs) and was 33% faster at 8 KiB.
+const IFMA_CAP: usize = 4096;
+
+/// [`encode_matrix`]'s conversion with the fastest kernels, without its thresholds: the
+/// divide-and-conquer encoders' single-leaf case. Requires at most `MAX_BYTES` bytes after
+/// the leading zeros.
+#[inline(never)]
+pub(super) fn encode_whole(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    let (zeros, x) = split_zeros(input);
+    assert!(x.len() <= MAX_BYTES, "{} bytes for one matrix", x.len());
+    let mut scratch = Scratch::new();
+    write(&BEST, zeros, convert(&BEST, x, &mut scratch), output)
 }
 
 /// Stack space for one conversion, about 30 KiB. Only the part an input needs is written.

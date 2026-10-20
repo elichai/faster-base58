@@ -24,6 +24,10 @@ use crate::{BufferTooSmall, encode_batched};
 pub(crate) const DC_THRESHOLD: usize = 5120;
 pub(crate) const DC_LEAF: usize = 96;
 
+/// [`DC_LEAF`] when Karatsuba has the AVX-512 IFMA leaf, which makes products cheaper and
+/// so favours smaller leaves: on Zen 5, 32 was 20-30% faster than 96 at 2-8 KiB.
+const DC_IFMA_LEAF: usize = 32;
+
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;
 
@@ -54,7 +58,8 @@ pub(crate) fn encode_with(
     output: &mut [u8],
     m: &mut impl Multiplier,
 ) -> Result<usize, BufferTooSmall> {
-    encode_tuned(input, output, m, DC_THRESHOLD, DC_LEAF, Leaves::Horner)
+    let leaf = if crate::mul::ifma_threshold() != 0 { DC_IFMA_LEAF } else { DC_LEAF };
+    encode_tuned(input, output, m, DC_THRESHOLD, leaf, Leaves::Horner)
 }
 
 /// How the divide-and-conquer encoders convert their leaves.
@@ -69,14 +74,17 @@ pub enum Leaves {
 }
 
 impl Leaves {
-    /// [`Leaves::Matrix`] where `encode_matrix` has its NEON kernels, else
-    /// [`Leaves::Horner`]. Provisional on x86_64, where it is not measured yet.
-    pub(crate) const BEST: Leaves =
-        if cfg!(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon")) {
-            Leaves::Matrix
-        } else {
-            Leaves::Horner
-        };
+    /// [`Leaves::Matrix`] where `encode_matrix` has SIMD kernels: NEON, and AVX2 or SSE4.1
+    /// on x86_64, where matrix leaves were 2-36% faster than Horner leaves for every
+    /// backend and leaf size measured (Zen 5). Elsewhere [`Leaves::Horner`].
+    pub(crate) const BEST: Leaves = if cfg!(any(
+        all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
+        target_arch = "x86_64"
+    )) {
+        Leaves::Matrix
+    } else {
+        Leaves::Horner
+    };
 }
 
 /// [`encode_with`] with divide and conquer above `threshold` bytes, leaves of at most
@@ -104,7 +112,11 @@ pub(crate) fn encode_tuned(
     let n = (min + 2).div_ceil(CHUNK);
     let (unit, levels) = split_unit_leaf(n, leaf);
     if levels == 0 {
-        return encode_batched(input, output);
+        // One leaf: the whole value.
+        return match leaves {
+            Leaves::Horner => encode_batched(input, output),
+            Leaves::Matrix => matrix::encode_whole(input, output),
+        };
     }
     let e = unit << (levels - 1);
     // No divisor, quotient or remainder is longer than BASE^e, at most `full(e)` limbs, and
