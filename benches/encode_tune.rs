@@ -10,7 +10,7 @@ use std::hint::black_box;
 use std::time::Instant;
 
 use base58_bench::bench::{Leaves, encode_karatsuba_with, encode_malachite_with, encode_ntt_with};
-use base58_bench::{BufferTooSmall, encode_batched, max_encoded_len};
+use base58_bench::{BufferTooSmall, encode_batched, encode_matrix, max_encoded_len};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
@@ -48,6 +48,7 @@ fn main() {
         BACKENDS.iter().filter(|(n, _)| names.is_empty() || names.iter().any(|a| a == n)).collect();
     let mut configs: Vec<(String, Box<dyn Fn(&[u8], &mut [u8]) -> usize>)> =
         vec![("batched".into(), Box::new(|d, o| encode_batched(d, o).unwrap()))];
+    configs.push(("matrix".into(), Box::new(|d, o| encode_matrix(d, o).unwrap())));
     for &&(name, f) in &backends {
         for &leaf in &leaves {
             for &kind in &kinds {
