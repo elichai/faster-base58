@@ -1036,6 +1036,113 @@ Every encoder:
   alone. At 1 MiB it takes 2.8× as long. On the M5, where transforms start at 128 limbs,
   it took 3.0× as long at 32 KiB and 12.9× at 1 MiB.
 
+### Native CPU on Zen 5
+
+The same VM ran the encode bench twice, back to back in one session: first with default
+flags, then with `-C target-cpu=native` (znver5: AVX2, AVX-512F, AVX-512 IFMA). The code
+was that of `49fb679`, with no LTO and no pinning. A watcher saw only the benchmark in
+both windows (steal 0). The default run matched the run above within −2.0% to +3.3% in
+all 176 cells, so the default tables above stand. The M5 numbers above are already
+native: the local cargo config sets `target-cpu=apple-m4`.
+
+With native flags (`× best other` is against the other crates built with native flags
+too):
+
+| bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
+|---:|---:|---:|---:|---:|:---|---:|---:|
+| 31 | 693 ns | 193 ns |  | 151 ns | **52.7 ns** matrix | 13× | 2.87× |
+| 32 | 764 ns | 188 ns | 33.6 ns | 155 ns | **51.2 ns** matrix | 15× | 0.66× |
+| 64 | 3.27 µs | 426 ns | 52.5 ns | 310 ns | **82.6 ns** matrix | 40× | 0.64× |
+| 128 | 13.7 µs | 1.01 µs |  | 715 ns | **175 ns** matrix | 78× | 4.09× |
+| 256 | 59.7 µs | 3.94 µs |  | 2.13 µs | **420 ns** matrix | 142× | 5.07× |
+| 512 | 242 µs | 9.44 µs |  | 4.71 µs | **1.16 µs** matrix | 208× | 4.05× |
+| 1024 | 974 µs | 25.6 µs |  | 13.8 µs | **3.42 µs** matrix | 285× | 4.04× |
+| 1875 | 3.38 ms | 65.5 µs |  | 37.1 µs | **10.7 µs** matrix | 317× | 3.48× |
+| 4096 | 15.7 ms | 191 µs |  | 125 µs | **44.3 µs** ntt-cached | 354× | 2.83× |
+| 6144 | 34.4 ms | 332 µs |  | 224 µs | **78.8 µs** ntt-portable | 437× | 2.84× |
+| 8192 | 59.9 ms | 537 µs |  | 354 µs | **118 µs** matrix-portable | 509× | 3.01× |
+| 12288 | 135 ms | 929 µs |  | 642 µs | **225 µs** ntt-cached | 598× | 2.85× |
+| 16384 | 239 ms | 1.59 ms |  | 998 µs | **344 µs** ntt-cached | 697× | 2.90× |
+| 24576 | 541 ms | 2.72 ms |  | 1.85 ms | **665 µs** ntt-cached | 813× | 2.78× |
+| 32768 | 958 ms | 4.5 ms |  | 2.72 ms | **1.03 ms** ntt-portable | 932× | 2.65× |
+| 36864 |  |  |  | 3.18 ms | **1.32 ms** ntt-cached |  | 2.42× |
+| 49152 |  |  |  | 4.49 ms | **1.99 ms** ntt-cached |  | 2.26× |
+| 131072 |  |  |  | 14.1 ms | **8.63 ms** ntt-portable |  | 1.64× |
+| 147456 |  |  |  | 16.8 ms | **10.7 ms** ntt-cached |  | 1.58× |
+| 1048576 |  |  |  | 148 ms | **107 ms** dc-malachite |  | 1.38× |
+
+Every encoder, native flags:
+
+| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 31 | 693 ns | 193 ns | 765 ns | 151 ns | 65.8 ns | **52.7 ns** | 52.7 ns | | | | | | | |
+| 32 | 764 ns | 188 ns | 834 ns | 155 ns | 66.2 ns | 51.2 ns | 51.2 ns | **33.6 ns** | | | | | | |
+| 64 | 3.27 µs | 426 ns | 3.44 µs | 310 ns | 137 ns | 82.6 ns | 83.6 ns | **52.5 ns** | | | | | | |
+| 128 | 13.7 µs | 1.01 µs | 14 µs | 715 ns | 372 ns | **175 ns** | 277 ns | | | | | | | |
+| 256 | 59.7 µs | 3.94 µs | 58.5 µs | 2.13 µs | 1.22 µs | **420 ns** | 852 ns | | | | | | | |
+| 512 | 242 µs | 9.44 µs | 230 µs | 4.71 µs | 4.2 µs | **1.16 µs** | 3.18 µs | | | | | | | |
+| 1024 | 974 µs | 25.6 µs | 927 µs | 13.8 µs | 15.2 µs | **3.42 µs** | 11.4 µs | | | | | | | |
+| 1875 | 3.38 ms | 65.5 µs | 3.15 ms | 37.1 µs | 50.8 µs | **10.7 µs** | 40.4 µs | | | | | | | |
+| 4096 | 15.7 ms | 191 µs | 14.7 ms | 125 µs | 237 µs | 47.4 µs | 204 µs | | 56.3 µs | 56.2 µs | 67.6 µs | **44.3 µs** | 44.8 µs | 172 µs |
+| 6144 | 34.4 ms | 332 µs | 32.8 ms | 224 µs | 514 µs | 79.3 µs | 79 µs | | 97.6 µs | 97.5 µs | 107 µs | 79 µs | **78.8 µs** | 296 µs |
+| 8192 | 59.9 ms | 537 µs | 56.4 ms | 354 µs | 905 µs | 118 µs | **118 µs** | | 145 µs | 145 µs | 165 µs | 118 µs | 118 µs | 421 µs |
+| 12288 | 135 ms | 929 µs | 127 ms | 642 µs | 2.04 ms | | | | 271 µs | 271 µs | 290 µs | **225 µs** | 225 µs | 684 µs |
+| 16384 | 239 ms | 1.59 ms | 225 ms | 998 µs | 3.6 ms | | | | 417 µs | 415 µs | 456 µs | **344 µs** | 344 µs | 959 µs |
+| 24576 | 541 ms | 2.72 ms | 508 ms | 1.85 ms | 8.12 ms | | | | 786 µs | 789 µs | 835 µs | **665 µs** | 665 µs | 1.53 ms |
+| 32768 | 958 ms | 4.5 ms | 902 ms | 2.72 ms | 14.4 ms | | | | 1.22 ms | 1.21 ms | 1.4 ms | 1.03 ms | **1.03 ms** | 2.14 ms |
+| 36864 | | | | 3.18 ms | | | | | 1.38 ms | 1.36 ms | 1.55 ms | **1.32 ms** | 1.32 ms | 2.46 ms |
+| 49152 | | | | 4.49 ms | | | | | 2.34 ms | 2.28 ms | 2.54 ms | **1.99 ms** | 1.99 ms | 3.45 ms |
+| 131072 | | | | 14.1 ms | | | | | 10.8 ms | 10.1 ms | 10.1 ms | 8.63 ms | **8.63 ms** | 10.5 ms |
+| 147456 | | | | 16.8 ms | | | | | 12.3 ms | 11.6 ms | 11.1 ms | **10.7 ms** | 10.9 ms | 12.4 ms |
+| 1048576 | | | | 148 ms | | | | | 292 ms | 226 ms | 123 ms | 110 ms | 108 ms | **107 ms** |
+
+Native time over default time, per encoder over its sizes (below 1: faster with native
+flags):
+
+| encoder | sizes | min | median | max |
+|:---|---:|---:|---:|---:|
+| five8 | 2 | 0.438 | 0.508 | 0.579 |
+| bs58 | 15 | 0.823 | 0.844 | 0.892 |
+| dc | 12 | 0.910 | 0.934 | 0.983 |
+| dc-toom3 | 12 | 0.895 | 0.936 | 0.985 |
+| ntt | 12 | 0.907 | 0.935 | 1.011 |
+| ntt-cached | 12 | 0.910 | 0.941 | 0.996 |
+| batched | 15 | 0.920 | 0.954 | 1.015 |
+| basexx | 15 | 0.976 | 0.997 | 1.070 |
+| basexx-b | 15 | 0.974 | 0.998 | 1.044 |
+| matrix | 11 | 0.942 | 1.011 | 1.060 |
+| dc-malachite | 12 | 0.963 | 1.044 | 1.226 |
+| malachite | 20 | 0.937 | 1.177 | 1.249 |
+| matrix-portable | 11 | 0.715 | 1.075 | 1.885 |
+| ntt-portable | 12 | 0.222 | 0.928 | 1.003 |
+
+- `five8` selects its AVX2 code at compile time, so only the native build uses it. It is
+  then the fastest at 32 and 64 bytes: 33.6 and 52.5 ns against `encode_matrix`'s 51.2
+  and 82.6 ns (1.5× and 1.6× faster). With default flags it was slower than
+  `encode_matrix` (58 and 120 ns).
+- `encode_matrix` does not change (median +1%, within ±6%). Its panel kernels are
+  selected at run time (AVX2 here) in both builds. It stays the fastest at 31 bytes and
+  from 128 to 1875 bytes. At 4 KiB, its hand-off size on IFMA CPUs, `ntt-cached` was 7% faster with
+  native flags (44.3 against 47.4 µs) and tied it with default flags (44.5 against
+  44.9 µs). The cap is unchanged: this is one run, and `matrix` at 4 KiB moved 3.3%
+  between the two default runs.
+- The divide-and-conquer encoders and `encode_batched` take about 5–7% less time with
+  native flags.
+- malachite's own conversion takes 18% more time with native flags (median; up to 25%),
+  and `dc-malachite`, which multiplies with malachite, 4%. Not investigated. So the
+  `× best other` column is higher with native flags partly because malachite got slower.
+  At 12 KiB native `ntt-cached` (225 µs) is 2.85× faster than native malachite (642 µs)
+  and 2.33× faster than default-flag malachite (524 µs). With default flags on both sides
+  it was 2.18×.
+- `ntt-portable`'s kernels compile for AVX-512 with native flags, and it then matches
+  `ntt-cached` (8.63 against 8.63 ms at 128 KiB, 108 against 110 ms at 1 MiB). With
+  default flags it took 3.0–4.4× as long from 128 KiB.
+- `matrix-portable` (the plain-Rust matrix kernel) takes 15–28% less time at 31–64 bytes
+  with native flags, but 1.24–1.88× as long from 256 bytes to 4 KiB. `encode_matrix`
+  does not use it on x86_64.
+- At 1 MiB `dc-malachite` (107 ms), `ntt-portable` (108 ms) and `ntt-cached` (110 ms)
+  are within 3%: a tie.
+
 ### Tuning
 
 All in one binary (`benches/encode_tune.rs`: interleaved rounds, the minimum time per
