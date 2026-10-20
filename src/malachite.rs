@@ -24,10 +24,19 @@ pub fn decode_malachite(input: &str, output: &mut [u8]) -> Result<usize, Error> 
 pub(crate) const ENCODE_THRESHOLD: usize = 3072;
 const ENCODE_LEAF: usize = 96;
 
+/// [`ENCODE_THRESHOLD`] on CPUs with the IFMA leaf, where `encode_batched` is slower
+/// relative to malachite. Provisional: on Zen 5 this encoder beat it at 2 KiB, the
+/// smallest size measured so far.
+pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 2048;
+
 /// Like [`crate::encode`], but multiplies with malachite-nz.
 pub fn encode_malachite(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Malachite::default();
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::Horner)
+    let threshold = match crate::mul::ifma_threshold() {
+        0 => ENCODE_THRESHOLD,
+        _ => ENCODE_IFMA_THRESHOLD,
+    };
+    encode::encode_tuned(input, output, m, threshold, ENCODE_LEAF, Leaves::Horner)
 }
 
 /// [`encode_malachite`] with divide and conquer above `threshold` bytes and leaves of at

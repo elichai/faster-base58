@@ -28,6 +28,10 @@ pub(crate) const DC_LEAF: usize = 96;
 /// so favours smaller leaves: on Zen 5, 32 was 20-30% faster than 96 at 2-8 KiB.
 const DC_IFMA_LEAF: usize = 32;
 
+/// [`DC_THRESHOLD`] with the IFMA leaf. Provisional: on Zen 5 divide and conquer already
+/// beat [`encode_batched`] 2.8x at 2 KiB, the smallest size measured so far.
+pub(crate) const DC_IFMA_THRESHOLD: usize = 2048;
+
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;
 
@@ -58,8 +62,11 @@ pub(crate) fn encode_with(
     output: &mut [u8],
     m: &mut impl Multiplier,
 ) -> Result<usize, BufferTooSmall> {
-    let leaf = if crate::mul::ifma_threshold() != 0 { DC_IFMA_LEAF } else { DC_LEAF };
-    encode_tuned(input, output, m, DC_THRESHOLD, leaf, Leaves::Horner)
+    let (threshold, leaf) = match crate::mul::ifma_threshold() {
+        0 => (DC_THRESHOLD, DC_LEAF),
+        _ => (DC_IFMA_THRESHOLD, DC_IFMA_LEAF),
+    };
+    encode_tuned(input, output, m, threshold, leaf, Leaves::Horner)
 }
 
 /// How the divide-and-conquer encoders convert their leaves.

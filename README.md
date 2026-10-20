@@ -872,7 +872,8 @@ table (balanced splits `unit·2^i`, powers stored without their low zero limbs),
   values are those of `pn mod (x^(2L) - 1)`. A cyclic coefficient sums at most
   `2L <= 2^23` products of 32-bit coefficients, below `2^87`, so Garner's CRT still
   recovers it; the carry out of the top limb wraps to the bottom.
-- **Leaves** convert with `encode_batched`'s kernel on stack buffers.
+- **Leaves** convert with `encode_batched`'s kernel on stack buffers, or in the caching
+  NTT encoders with `encode_matrix`'s conversion ([Matrix leaves](#matrix-leaves)).
 - So each node costs two products (`A1 · inv` and `q · pn`, maybe wrapped) against
   `decode`'s one, plus a reciprocal per level.
 
@@ -995,8 +996,6 @@ Tried and not kept:
 - **Scaled remainder tree** (Bouvier–Zimmermann): one reciprocal for the whole number,
   then one product per node (a middle product, which a cyclic NTT gives) instead of two,
   and no reciprocal per level. Needs a proved error bound and an exact fix-up.
-- **Matrix leaves** for the divide-and-conquer encoders: see
-  [`encode_matrix`](#encode_matrix-a-matrix-of-powers).
 - **Four passes per sweep** in `encode_batched`'s kernel.
 
 ### `encode_matrix`: a matrix of powers
@@ -1175,19 +1174,54 @@ Tried and not kept (interleaved A/B in one binary, AC power, another session bui
   panel time at 256 B, none at 1 KiB and 2% at 4 KiB. The kernel is limited by
   throughput, not by the latency of its `umlal` chains.
 
+Since then:
+
+- **Matrix leaves** are in the divide-and-conquer encoders: see
+  [Matrix leaves](#matrix-leaves).
+- **The fallback above 8 KiB** stays `encode_ntt_cached`, now with matrix leaves. In one
+  binary with loops aligned, `encode_malachite` with matrix leaves won at 16 KiB by 4%,
+  lost at 24 KiB by 4%, and tied at 12 and 32 KiB.
+- **x86_64** has timings (Zen 5, [Matrix leaves](#matrix-leaves)). The characters are
+  still scalar there.
+
 Possible next steps:
 
-- **Matrix leaves** in the divide-and-conquer encoders, as `decode_ntt_cached` does:
-  leaves are 3–19% of their time (see [Tuning](#tuning)), and they would close the cliff
-  at 8 KiB (2.3×). Two 4 KiB leaves take 56 µs against 112 µs for one 8 KiB matrix, so a
-  split at the top wins if its division and reciprocal take less than about 56 µs (not
-  measured). Up to 32 KiB, malachite's own conversion as the fallback would make the
-  cliff 1.75×.
-- **The fallback above 8 KiB**: `encode_malachite` up to about 32 KiB and
-  `encode_ntt_cached` above would not depend on code placement there (see **The cap**).
-  Decide in one binary with loops aligned.
-- **x86_64**: the AVX2 and SSE4.1 panel kernels pass the encode tests under Rosetta
-  (`ROSETTA_ADVERTISE_AVX=1 cargo test --release --target x86_64-apple-darwin`); there
-  are no x86 timings, and the characters are scalar there.
 - **SME** on M4 and later: outer products into the ZA tiles could raise the
   multiply-add throughput that bounds the panels.
+
+### Matrix leaves
+
+The divide-and-conquer encoders can convert their leaves with `encode_matrix`'s
+conversion instead of `encode_batched`'s kernel (`Leaves::Matrix`). A leaf of `n` chunks
+must write exactly `10n` characters, which four-character columns do not divide. So the
+top column gives only its last few characters (the others must be zero digits), or gets
+`'1'`s before it. As in the decoder, only the encoders that cache tables anyway use
+them: `encode_ntt_cached` and `encode_ntt_portable`. The others keep Horner leaves and
+no state between calls. An input that fits in one leaf is converted as a whole. Matrix
+leaves can be up to `MATRIX_LEAF = 1024` chunks (8 KiB, the matrix's largest table),
+where Horner leaves stop at 256.
+
+On the M5 Pro (one binary with loops aligned to 64 bytes, minimum of 11 interleaved
+rounds, µs; `h` Horner leaves, `m` matrix leaves, the number the leaf size in chunks):
+
+| bytes   | ntt-cached /32h | /256h | /256m | /768m      | /1024m     |
+|--------:|----------------:|------:|------:|-----------:|-----------:|
+| 8 KiB   | 271.9           | 279.7 | 240.3 | 198.2      | 197.6      |
+| 16 KiB  | 648.6           | 659.1 | 577.1 | 519.0      | 517.8      |
+| 32 KiB  | 1447            | 1489  | 1331  | **1227**   | 1230       |
+| 128 KiB | 7047            | 7260  | 6819  | 6400       | **6376**   |
+| 1 MiB   |                 |       | 72371 | **69380**  | 69634      |
+
+(Two aligned sweeps: the Horner columns from the first, the matrix columns from a second
+after the change that allowed leaves above 256. `/256m` was in both: 238.4 against
+240.3 µs at 8 KiB, 1325 against 1331 µs at 32 KiB.)
+So `encode_ntt_cached` uses 768-chunk matrix leaves: 4–8% faster than 256 from 32 KiB
+to 1 MiB, and 15% faster than 32-chunk Horner leaves at 32 KiB. 1024 was within 1% at
+the large sizes but 3–4% slower at 12 and 24 KiB.
+
+On Zen 5 (EPYC 9B45, the remote VM; default flags, a single sweep of leaves up to 256),
+matrix leaves were 2–36% faster than Horner leaves for every backend and leaf size, so
+`Leaves::BEST` is Matrix on x86_64 too. With the AVX-512 IFMA leaf, Karatsuba is cheap
+enough that plain `encode` wants 32-chunk leaves there (20–30% faster than 96 at
+2–8 KiB). The NTT encoder with matrix leaves tied `encode_matrix` at 4 KiB and was 33%
+faster at 8 KiB, so on IFMA CPUs `encode_matrix` hands over above 4 KiB.

@@ -84,23 +84,39 @@ const ENCODE_MATRIX_LEAF: usize = 768;
 const CACHED_LEAF: usize =
     if matches!(Leaves::BEST, Leaves::Matrix) { ENCODE_MATRIX_LEAF } else { ENCODE_LEAF };
 
+/// [`ENCODE_THRESHOLD`] and [`CACHED_LEAF`] with the IFMA leaf. Provisional: on Zen 5
+/// divide and conquer already beat `encode_batched` at 2 KiB, the smallest size measured
+/// so far, and leaves above 256 chunks are not measured there yet.
+pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 2048;
+const CACHED_IFMA_LEAF: usize = CACHED_LEAF;
+
+/// The threshold and the caching encoders' leaf size for this CPU.
+fn encode_params() -> (usize, usize) {
+    match mul::ifma_threshold() {
+        0 => (ENCODE_THRESHOLD, CACHED_LEAF),
+        _ => (ENCODE_IFMA_THRESHOLD, CACHED_IFMA_LEAF),
+    }
+}
+
 /// Like [`crate::encode`], but multiplies with NTTs. Builds twiddle tables for each call.
 pub fn encode_ntt(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(false, Kernels::best());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, ENCODE_LEAF, Leaves::Horner)
+    encode::encode_tuned(input, output, m, encode_params().0, ENCODE_LEAF, Leaves::Horner)
 }
 
 /// [`encode_ntt`], with twiddle tables from the process-wide cache.
 pub fn encode_ntt_cached(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(true, Kernels::best());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, CACHED_LEAF, Leaves::BEST)
+    let (threshold, leaf) = encode_params();
+    encode::encode_tuned(input, output, m, threshold, leaf, Leaves::BEST)
 }
 
 /// [`encode_ntt_cached`] with the portable kernels, as [`decode_ntt_portable`] is for
 /// decoding: on aarch64 this compares hand-written with compiler-generated NEON.
 pub fn encode_ntt_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(true, Kernels::portable());
-    encode::encode_tuned(input, output, m, ENCODE_THRESHOLD, CACHED_LEAF, Leaves::BEST)
+    let (threshold, leaf) = encode_params();
+    encode::encode_tuned(input, output, m, threshold, leaf, Leaves::BEST)
 }
 
 /// [`encode_ntt_cached`] with divide and conquer above `threshold` bytes and leaves of at

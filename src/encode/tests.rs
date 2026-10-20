@@ -63,7 +63,15 @@ fn check(data: &[u8]) {
 #[test]
 fn matches_bs58() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(20);
-    let thresholds = [DC_THRESHOLD, crate::ntt::ENCODE_THRESHOLD, crate::malachite::ENCODE_THRESHOLD];
+    // Those of CPUs with and without the IFMA leaf, whichever runs here.
+    let thresholds = [
+        DC_THRESHOLD,
+        super::dc::DC_IFMA_THRESHOLD,
+        crate::ntt::ENCODE_THRESHOLD,
+        crate::ntt::ENCODE_IFMA_THRESHOLD,
+        crate::malachite::ENCODE_THRESHOLD,
+        crate::malachite::ENCODE_IFMA_THRESHOLD,
+    ];
     let around = thresholds.into_iter().flat_map(|t| t - 8..=t + 8);
     for len in (0..=300).chain(around).chain([1024, 4096, 8192]) {
         let random = random_bytes(&mut rng, len);
