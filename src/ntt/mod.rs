@@ -437,9 +437,11 @@ impl Kernels {
 ///
 /// - Transform: four arrays of `L` `i32`s (a result per prime, and one temporary), so
 ///   `2 L` limbs, with `L < 4 (a + b) <= 8 n` (or `L = 8`): below `16 n + 64`. The
-///   pieces of a [`Plan`] need fewer: `3 w + L / 2 < 3.5 L` `i32`s, for their total
-///   length `w < L` and the longest, `L / 2`, for the temporary. Squares use no
-///   temporary.
+///   pieces of a [`Plan`] need fewer: `3 w + L / 2` `i32`s, for their total length `w`
+///   and the longest, `L / 2`, for the temporary, and two arrays of `cyc` sums ([`sums`]),
+///   `4 cyc` `i32`s. With one negacyclic piece, `w = L / 2 + cyc` and `cyc <= L / 4`;
+///   with two, `w = 3 L / 4 + cyc` and `cyc <= L / 8`: at most `3.75 L` in all. Squares
+///   use no temporary.
 /// - Blocks (`2 a <= b`): `2 a` limbs, then products of `a <= n / 2` limbs:
 ///   `2 a + 16 a + 64 <= 9 n + 64`.
 /// - Split (`b / 2 < a <= b`): at most `b + 1` limbs, then products of at most
@@ -605,6 +607,10 @@ impl Plan {
 /// Modulo `x^m + 1` is a cyclic transform of `m` points after multiplying coefficient
 /// `i` by `w^i`, for `w` a primitive `2 m`-th root of unity: the twiddles of the top
 /// stage of a `2 m`-point transform, so `t` must serve `2 m <= L` points.
+///
+/// An operand has fewer than `2 m` coefficients for the first `m` in `nega`, so [`fold`]
+/// adds at most three blocks to a negacyclic piece. It can span thousands of blocks of
+/// the cyclic rest, which [`sums`] folds once for all primes.
 #[allow(clippy::too_many_arguments)]
 fn pieces(
     out: &mut [u64],
@@ -618,13 +624,22 @@ fn pieces(
 ) {
     let width = plan.width();
     debug_assert!(2 * out.len() <= width);
+    let (sa, scratch) = scratch.split_at_mut(plan.cyc);
+    let (sb, scratch) = scratch.split_at_mut(plan.cyc);
+    let sa = sums(sa, a);
+    let sb = if ptr::eq(a, b) || fb.is_some() { None } else { sums(sb, b) };
     let (r, tmp) = as_i32(scratch).split_at_mut(3 * width);
     for (j, ((r, p), tw)) in r.chunks_exact_mut(width).zip(PRIMES).zip(&t.tw).enumerate() {
         let f = fb.map(|f| f.prime(j));
         // `x = a b` modulo `x^d + 1` (twisted by `w`) or `x^d - 1`, for `d = x.len()`:
         // `b`'s transform is at `d..2 d` or `..d` in `f` (see [`Prepared`]).
         let mut product = |x: &mut [i32], w: Option<(&[i32], &[i32])>| {
-            fold(x, a, p, w, k);
+            // An operand's coefficients for `x`, from its sums for the cyclic rest.
+            let load = |x: &mut [i32], v: &[u64], s: Option<&[u64]>| match s {
+                Some(s) if w.is_none() => narrow(x, s, p),
+                _ => fold(x, v, p, w, k),
+            };
+            load(x, a, sa);
             (k.forward)(x, p, tw);
             let d = x.len();
             if ptr::eq(a, b) {
@@ -633,7 +648,7 @@ fn pieces(
                 (k.pointwise)(x, &f[if w.is_some() { d } else { 0 }..][..d], p);
             } else {
                 let y = &mut tmp[..x.len()];
-                fold(y, b, p, w, k);
+                load(y, b, sb);
                 (k.forward)(y, p, tw);
                 (k.pointwise)(x, y, p);
             }
@@ -679,6 +694,43 @@ fn fold(dst: &mut [i32], limbs: &[u64], p: Prime, w: Option<(&[i32], &[i32])>, k
     }
     if let Some((w, wq)) = w {
         (k.twist)(dst, w, wq, p);
+    }
+}
+
+/// Operands of at most this many blocks are folded per prime ([`fold`]). A [`narrow`] pass
+/// takes about five times the instructions per coefficient of a `load_add` pass (NEON:
+/// LLVM multiplies its 64-bit lanes in scalar registers), more than a few calls cost:
+/// summing from two blocks made the 144 KiB encode 2% slower on the M5 Pro, where most
+/// cyclic rests have 2 to 5.
+const SUMS_BLOCKS: usize = 8;
+
+/// The coefficients of `limbs` modulo `x^d - 1`, for `d = s.len()`, which is even, summed
+/// exactly in `s`: each sum is below `2^32` times the number of blocks of `d`. `None` if
+/// `limbs` spans at most [`SUMS_BLOCKS`] blocks.
+fn sums<'s>(s: &'s mut [u64], limbs: &[u64]) -> Option<&'s [u64]> {
+    let half = s.len() / 2;
+    if limbs.len() <= SUMS_BLOCKS * half {
+        return None;
+    }
+    s.fill(0);
+    for blk in limbs.chunks(half) {
+        for (s, &l) in s.as_chunks_mut::<2>().0.iter_mut().zip(blk) {
+            s[0] += l & 0xFFFF_FFFF;
+            s[1] += l >> 32;
+        }
+    }
+    Some(s)
+}
+
+/// `dst[i] = s[i] mod q`, in `(-q, q)`. Requires `s[i] < 2^63`.
+fn narrow(dst: &mut [i32], s: &[u64], p: Prime) {
+    // `2^64 mod q` in Montgomery form: `mont(h, w, wq) = h 2^32 mod q`.
+    let w = p.to_mont(p.r32 as u32);
+    let wq = p.wq(w);
+    for (d, &x) in dst.iter_mut().zip(s) {
+        // `x = h 2^32 + l` with `h < 2^31`: `mont` gives below `0.75 q` and `load_one` at
+        // most `q / 2 + 32`, so the sum is below `2^31`.
+        *d = p.reduce(p.mont((x >> 32) as i32, w, wq) + portable::load_one(x as u32, p));
     }
 }
 
@@ -786,6 +838,9 @@ mod tests {
             // Three pieces, with the longer operand wrapping modulo the first.
             (150, 290),
             (300, 590),
+            // Cyclic rests of 16 and 64 coefficients that both operands span many times.
+            (1020, 1034),
+            (1100, 2000),
         ]);
         for (na, nb) in shapes {
             for (a, b) in operands(&mut rng, na, nb) {
@@ -878,6 +933,51 @@ mod tests {
                         assert_eq!(reduced(&full[at..at + d]), reduced(&x), "{msg}");
                     }
                 }
+            }
+        }
+    }
+
+    /// [`sums`] then [`narrow`] against [`fold`] modulo `x^d - 1`, for each prime: operands
+    /// from just over [`SUMS_BLOCKS`] blocks of `d` coefficients to thousands, ending
+    /// inside a block or at its end, random and all-ones (the largest sums). Values in
+    /// `(-q, q)`.
+    #[test]
+    fn sums_match_fold() {
+        use crate::ntt::tables::tests::modq;
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(43);
+        let k = Kernels::portable();
+        let reduced = |x: &[i32], q| x.iter().map(|&v| modq(v as i128, q)).collect::<Vec<_>>();
+        for d in [8, 16, 64, 256] {
+            let short = vec![u64::MAX; SUMS_BLOCKS * d / 2];
+            assert!(sums(&mut vec![0; d], &short).is_none(), "d {d}");
+            for len in [SUMS_BLOCKS * d / 2 + 1, (SUMS_BLOCKS + 2) * d / 2, 20_001] {
+                let random: Vec<u64> = (0..len).map(|_| rng.next_u64()).collect();
+                for a in [random, vec![u64::MAX; len]] {
+                    let mut s = vec![0; d];
+                    let s = sums(&mut s, &a).unwrap();
+                    for p in PRIMES {
+                        let (mut got, mut want) = (vec![0; d], vec![0; d]);
+                        narrow(&mut got, s, p);
+                        fold(&mut want, &a, p, None, &k);
+                        assert_eq!(reduced(&got, p.q), reduced(&want, p.q), "d {d}, {len} limbs");
+                        assert!(got.iter().all(|v| v.abs() < p.q), "d {d}, {len} limbs");
+                    }
+                }
+            }
+        }
+    }
+
+    /// [`narrow`] at the ends of its range, `[0, 2^63)`.
+    #[test]
+    fn narrow_extremes() {
+        use crate::ntt::tables::tests::modq;
+        let s = [0, 1, u32::MAX as u64, 1 << 32, (1 << 63) - (1 << 32), (1 << 63) - 1];
+        for p in PRIMES {
+            let mut got = [0; 6];
+            narrow(&mut got, &s, p);
+            for (&g, &x) in got.iter().zip(&s) {
+                assert_eq!(modq(g as i128, p.q), modq(x as i128, p.q), "{x}");
+                assert!(g.abs() < p.q, "{x}");
             }
         }
     }

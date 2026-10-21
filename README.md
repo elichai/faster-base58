@@ -365,9 +365,25 @@ transforms then fill about 5/6 of their points at worst, and usually more than 9
   `lo + hi`, which the same steps rebuild. Then `lo` and `hi` are half the sum and the
   difference of `lo + hi` and `lo − hi`. All of it is linear passes, exact modulo each
   prime. For two pieces, one fused kernel undoes the twist, subtracts and halves.
+- **Folding into the cyclic rest** (`sums`, `narrow`). The cyclic rest can be as short
+  as 8 coefficients while an operand has tens of thousands of limbs: a product just
+  above a power of two has `c = 8`. Folding per prime took one `load_add` call per
+  block: 273k calls per 1 MiB encode on the M5 Pro, nearly all of 8 to 256
+  coefficients. So `pieces` sums the blocks of an operand that spans more than 8 of
+  them once for all three primes, exactly, in 64-bit lanes (each sum is below `2^32`
+  times the number of blocks), and each prime reduces the `c` sums:
+  `s = h·2^32 + l` gives `mont(h, 2^64 mod q) + l mod q`. With fewer blocks the
+  per-prime fold stays: the reduction takes about five times the instructions per
+  coefficient of `load_add` on NEON, because LLVM multiplies the 64-bit lanes in scalar
+  registers. Summing every operand with two or more blocks made the 144 KiB encode 2%
+  slower: most of its cyclic rests are 128 to 8192 coefficients with 2 to 5 blocks. An
+  operand has fewer than `2m` coefficients for the first negacyclic piece `m`, so a
+  negacyclic piece gets at most three blocks.
 - **Exactness and scratch.** A product still has at most `L ≤ 2^23` coefficients, so
   the Garner bound above holds as before. The pieces of total length `w < L` need
-  `3w + L/2 < 3.5L` `i32`s of scratch, inside the cyclic path's `4L`.
+  `3w + L/2` `i32`s of scratch, and the sums of both operands `4c` more. With one
+  negacyclic piece `w = L/2 + c` and `c ≤ L/4`, with two `w = 3L/4 + c` and `c ≤ L/8`:
+  at most `3.75L`, inside the cyclic path's `4L`.
 - **At most three pieces.** A first version rounded `p` to three set bits at every size.
   It added small third pieces where two already fit, and was 12% slower at 36 KiB. Each
   piece costs passes over the largest one: folding the operands, undoing the twist,
@@ -1233,6 +1249,47 @@ and 1.28, 1.26, 1.44.
   reloading their twiddles from the stack) moved it by about 3% between two sessions.
   Code placement is a candidate; not checked.
 
+### Folding into the cyclic rest
+
+A product just above a power of two has a cyclic rest of 8 to 256 coefficients, and its
+operands span hundreds to thousands of blocks of it. `ntt::fold` loaded them per prime,
+with one `load_add` call per block; on Zen 5 those calls took 4.1% of `encode_ntt_cached`
+at 1 MiB (168k calls, about 21 ns each). Now `pieces` sums an operand of more than 8
+blocks once for all three primes (see [Power-of-two padding](#power-of-two-padding)).
+`load_add` calls per encode on the M5 Pro (a temporary counter, not in the repo):
+
+| encode bytes | before | after |
+|---:|---:|---:|
+| 128 KiB | 40,671 | 258 |
+| 144 KiB | 1,509 | 936 |
+| 1 MiB | 272,970 | 573 |
+
+`ntt-cached` with the old fold and with the sums, in one binary (a temporary switch, not in
+the repo): 41 interleaved rounds of about 0.2 s per arm, alternating which goes first;
+minimum times, and the median of the per-round ratios with its interquartile range. M5 Pro
+on AC power, with another session's benchmark on the machine:
+
+| | old | new | new/old | IQR |
+|:---|---:|---:|---:|---:|
+| encode 128 KiB | 6.06 ms | 5.94 ms | 0.981 | 0.972–0.990 |
+| encode 144 KiB | 6.86 ms | 6.85 ms | 1.000 | 0.966–1.021 |
+| encode 1 MiB | 67.9 ms | 66.9 ms | 0.976 | 0.958–0.991 |
+| decode 128 KiB | 2.48 ms | 2.47 ms | 0.993 | 0.961–1.014 |
+| decode 144 KiB | 2.90 ms | 2.91 ms | 0.987 | 0.977–1.002 |
+| decode 1 MiB | 28.8 ms | 28.5 ms | 1.006 | 0.978–1.042 |
+
+- Decodes take the sums rarely: never at 128 KiB and once at 1 MiB, so those two rows run
+  the same code in both arms and show the noise, about 1%. At 144 KiB about 120 folds of
+  10 blocks use them.
+- An earlier run, with a VM and other builds on the machine, gave 0.985, 1.000 and 0.982
+  for the three encodes. Summing every operand of two or more blocks gave 0.979, 1.021
+  and 0.980: see the 8-block limit under [Power-of-two padding](#power-of-two-padding).
+- Separate `cargo bench` runs of the two builds were not usable on the shared machine: the
+  unchanged build moved from 92 to 108 ms at 1 MiB between two runs.
+- Zen 5: not measured. On x86-64, `sums` and `narrow` are compiled for the baseline
+  target, not with the AVX-512 kernels; for `x86_64-apple-darwin` LLVM sums two limbs
+  per SSE loop iteration.
+
 ### Tuning
 
 All in one binary (`benches/encode_tune.rs`: interleaved rounds, the minimum time per
@@ -1302,10 +1359,6 @@ Tried and not kept:
 - **Setup on Zen 5.** With the AVX-512 kernels, the power table, the reciprocals and the
   prepared powers still take 36–40% of `encode_ntt_cached` from 128 KiB to 1 MiB; the top
   divisor's reciprocal serves a single division.
-- **Folding into short pieces.** `ntt::fold` calls `load_add` once per piece-sized block
-  of an operand: about 168k calls in 375 folds per 1 MiB encode, 4% of its time on
-  Zen 5. Summing the blocks' 32-bit coefficients once in 64-bit lanes, for all three
-  primes, and then reducing would replace most of them. Not tried.
 - **The default-flag forward kernel on Zen 5** (see
   [AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)): 1.33× slower than
   the same source with native flags; check code placement first.
