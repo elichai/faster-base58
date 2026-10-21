@@ -1231,7 +1231,11 @@ and 1.28, 1.26, 1.44.
   and `llvm-mca -mcpu=znver5` puts them within 5% of each other. Writing out the
   32-value block's stages (`32a3a8d`: with default flags LLVM had kept a loop over them,
   reloading their twiddles from the stack) moved it by about 3% between two sessions.
-  Code placement is a candidate; not checked.
+  It is not loop placement: with `-C llvm-args=-align-loops=64` both builds' hot loops
+  start at 0 mod 64 (unpinned: 16 with default flags, 48 with native), and the forward
+  times stayed within 2% (two repeats per build, one session). What is left is the
+  instruction order that the native build's scheduling model (znver5) gives, which
+  `llvm-mca` does not predict to matter; not checked further.
 
 ### Tuning
 
@@ -1308,7 +1312,9 @@ Tried and not kept:
   primes, and then reducing would replace most of them. Not tried.
 - **The default-flag forward kernel on Zen 5** (see
   [AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)): 1.33× slower than
-  the same source with native flags; check code placement first.
+  the same source with native flags, and not from loop placement. A source order that
+  interleaves the independent butterflies of each radix-4 group might give the default
+  build the native one's schedule. Not tried.
 
 ### `encode_matrix`: a matrix of powers
 
