@@ -968,15 +968,15 @@ the benchmark during the run. On IFMA CPUs `encode_matrix` converts up to 4 KiB 
 calls `encode_ntt_cached` above. `five8` selects its AVX2 code at compile time, so with
 default flags it ran its scalar code; our encoders detect AVX-512 at run time. The 32 and
 64 byte rows are from a later run of every encoder at those sizes (commit `b2ffc77`,
-default and native flags back to back; [Fixed sizes](#fixed-sizes-32-and-64-bytes)). Its
-64-byte `matrix` cell is the kernels `encode_matrix` uses now, timed in that run as
-`fixed-avx2-sums`.
+default and native flags back to back; [Fixed sizes](#fixed-sizes-32-and-64-bytes)),
+except the 64-byte `matrix` and `five8` cells: those are from run 4 there (`95f020d`),
+where the kernels `encode_matrix` uses now were timed as `fixed-count-split4`.
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
 | 31 | 817 ns | 190 ns |  | 161 ns | **54 ns** matrix | 15× | 2.98× |
 | 32 | 901 ns | 192 ns | 56.5 ns | 162 ns | **25.5 ns** matrix | 35× | 2.22× |
-| 64 | 3.91 µs | 437 ns | 121 ns | 312 ns | **73.3 ns** matrix | 53× | 1.65× |
+| 64 | 3.91 µs | 437 ns | 119 ns | 312 ns | **48.5 ns** matrix | 81× | 2.45× |
 | 128 | 16.6 µs | 1.01 µs |  | 714 ns | **168 ns** matrix | 99× | 4.25× |
 | 256 | 69.7 µs | 3.63 µs |  | 2.06 µs | **396 ns** matrix | 176× | 5.20× |
 | 512 | 282 µs | 8.89 µs |  | 4.72 µs | **1.1 µs** matrix | 257× | 4.31× |
@@ -1001,7 +1001,7 @@ Every encoder:
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 31 | 817 ns | 190 ns | 786 ns | 161 ns | 65.9 ns | **54 ns** | 62.1 ns | | | | | | | |
 | 32 | 901 ns | 192 ns | 838 ns | 162 ns | 65.1 ns | **25.5 ns** | 25.5 ns | 56.5 ns | | | | | | |
-| 64 | 3.91 µs | 437 ns | 3.42 µs | 312 ns | 138 ns | **73.3 ns** | 121 ns | 121 ns | | | | | | |
+| 64 | 3.91 µs | 437 ns | 3.42 µs | 312 ns | 138 ns | **48.5 ns** | 121 ns | 119 ns | | | | | | |
 | 128 | 16.6 µs | 1.01 µs | 14 µs | 714 ns | 377 ns | **168 ns** | 255 ns | | | | | | | |
 | 256 | 69.7 µs | 3.63 µs | 56.3 µs | 2.06 µs | 1.19 µs | **396 ns** | 697 ns | | | | | | | |
 | 512 | 282 µs | 8.89 µs | 225 µs | 4.72 µs | 4.34 µs | **1.1 µs** | 2.24 µs | | | | | | | |
@@ -1021,7 +1021,7 @@ Every encoder:
 | 1048576 | | | | 132 ms | | | | | 316 ms | 252 ms | 124 ms | 111 ms | 484 ms | **111 ms** |
 
 - `encode_matrix` is the fastest up to 4 KiB: 2.2× faster than scalar `five8` at 32
-  bytes, 1.65× at 64, and 2.3–5.2× faster than the fastest other crate from 128 bytes.
+  bytes, 2.45× at 64, and 2.3–5.2× faster than the fastest other crate from 128 bytes.
 - From 6 KiB `encode_ntt_cached` leads: about 2.2× faster than malachite's own conversion
   from 6 to 24 KiB, 2.03× at 32 KiB, 1.75× at 48 KiB, 1.30–1.32× at 128–144 KiB.
 - Up to 48 KiB no transform runs on this CPU. Every product there is below
@@ -1054,13 +1054,14 @@ all 176 cells, so the default tables above stand. The M5 numbers above are alrea
 native: the local cargo config sets `target-cpu=apple-m4`.
 
 With native flags (`× best other` is against the other crates built with native flags
-too; the 32 and 64 byte rows are from the `b2ffc77` run, as above):
+too; the 32 and 64 byte rows are from the `b2ffc77` run, and the 64-byte `matrix` and
+`five8` cells from run 4, as above):
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
 | 31 | 693 ns | 193 ns |  | 151 ns | **52.7 ns** matrix | 13× | 2.87× |
 | 32 | 760 ns | 188 ns | 33.6 ns | 157 ns | **24.8 ns** matrix | 31× | 1.35× |
-| 64 | 3.26 µs | 419 ns | 50.7 ns | 312 ns | **75.0 ns** matrix | 43× | 0.68× |
+| 64 | 3.26 µs | 419 ns | 50.8 ns | 312 ns | **52.6 ns** matrix | 62× | 0.97× |
 | 128 | 13.7 µs | 1.01 µs |  | 715 ns | **175 ns** matrix | 78× | 4.09× |
 | 256 | 59.7 µs | 3.94 µs |  | 2.13 µs | **420 ns** matrix | 142× | 5.07× |
 | 512 | 242 µs | 9.44 µs |  | 4.71 µs | **1.16 µs** matrix | 208× | 4.05× |
@@ -1085,7 +1086,7 @@ Every encoder, native flags:
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 31 | 693 ns | 193 ns | 765 ns | 151 ns | 65.8 ns | **52.7 ns** | 52.7 ns | | | | | | | |
 | 32 | 760 ns | 188 ns | 833 ns | 157 ns | 65.7 ns | **24.8 ns** | 24.8 ns | 33.6 ns | | | | | | |
-| 64 | 3.26 µs | 419 ns | 3.35 µs | 312 ns | 138 ns | 75 ns | 127 ns | **50.7 ns** | | | | | | |
+| 64 | 3.26 µs | 419 ns | 3.35 µs | 312 ns | 138 ns | 52.6 ns | 127 ns | **50.8 ns** | | | | | | |
 | 128 | 13.7 µs | 1.01 µs | 14 µs | 715 ns | 372 ns | **175 ns** | 277 ns | | | | | | | |
 | 256 | 59.7 µs | 3.94 µs | 58.5 µs | 2.13 µs | 1.22 µs | **420 ns** | 852 ns | | | | | | | |
 | 512 | 242 µs | 9.44 µs | 230 µs | 4.71 µs | 4.2 µs | **1.16 µs** | 3.18 µs | | | | | | | |
@@ -1126,8 +1127,10 @@ flags):
 
 - `five8` selects its AVX2 code at compile time, so only the native build uses it. With
   its fixed-size path `encode_matrix` is still 1.35× faster at 32 bytes (24.8 against
-  33.6 ns), but `five8` is 1.48× faster at 64 (50.7 against 75.0 ns). Before that path
-  (`49fb679`) `five8` won both: 33.6 and 52.5 ns against 51.2 and 82.6.
+  33.6 ns), but `five8` is 1.035× faster at 64 (50.8 against 52.6 ns; 1.48× before the
+  split carry and the register output, [Fixed sizes](#fixed-sizes-32-and-64-bytes)).
+  Before the fixed-size path (`49fb679`) `five8` won both: 33.6 and 52.5 ns against 51.2
+  and 82.6.
 - `encode_matrix` does not change (median +1%, within ±6%). Its panel kernels are
   selected at run time (AVX2 here) in both builds. It stays the fastest at 31 bytes and
   from 128 to 1875 bytes. At 4 KiB, its hand-off size on IFMA CPUs, `ntt-cached` was 7% faster with
@@ -1508,17 +1511,33 @@ encoder (`five8`) works the same way in base 58^5; this one keeps base 58^4 colu
   column, `t - 58^4·c`, is below 2^32, so the digit kernels compute it modulo 2^32 from
   the low halves (NEON four columns per instruction): 5–7% faster again on the M5 (11.4
   against 12.1 ns, 27.1 against 28.9–29.2).
+- **x86_64 with AVX2, 64 bytes: the chain in four segments** (`fixed::carry_split`).
+  Each segment carries from zero, in parallel; then each segment's first column takes
+  the carry out of the segment below (one more division) and passes the difference
+  (below 2^14) to its second column. Only if that takes the second column to 58^4 does
+  the rest of the segment change, and then the whole carry runs serially: for 1 of
+  20000 random inputs (0–6 with 2–6 segments). The chain is 6 divisions instead of 22.
+  LLVM already divides by 58^4 with one multiply and a shift (`add; mul; shr` per
+  column), so a shorter chain was the lever, not a cheaper step.
 - **Characters**: on aarch64 the general path's NEON kernel with that subtraction in
-  front. Elsewhere, x86_64 included, the scalar kernel with the table of 3364 character
-  pairs: an AVX2 kernel (`c div 3364` by `vpmuludq`, the pairs by `vpmulhuw`, the
-  alphabet by compares) was slower on Zen 5 and was removed.
+  front. On x86_64 with AVX2 at 64 bytes, AVX2 digits that stay in registers: the
+  carried columns go from general registers into six vectors, four columns each; the
+  digits come from `c div 3364` by `vpmuludq` and the pairs by `vpmulhuw`, 32 per
+  register top first, and the alphabet from compares. Elsewhere, x86_64 at 32 bytes
+  included, the scalar kernel with the table of 3364 character pairs.
 - **Output**: the leading `'1'`s of the characters are dropped and one per leading zero
   byte put back. A result is 32–44 or 64–88 characters, so two overlapping fixed-size
-  copies write exactly it.
+  copies write exactly it. On x86_64 with AVX2 at 64 bytes, three overlapping 32-byte
+  stores write it from registers: the top 32 characters shifted by the count dropped
+  (`vpermd` and variable shifts), then the other two at fixed offsets from the end. The
+  count of leading `'1'`s comes from the carried columns (the top non-zero one and its
+  digits), not from the characters.
 - The NEON path has no branch or table lookup that depends on the input except through
-  the result's length (its leading zero bytes and digit count). The x86_64 and plain-Rust
-  paths, like the general one, index the table of character pairs by digit pairs, so
-  which cache lines they touch depends on the input. Not checked with tools.
+  the result's length (its leading zero bytes and digit count). The plain-Rust paths,
+  like the general one, index the table of character pairs by digit pairs, so which
+  cache lines they touch depends on the input. The x86_64 AVX2 path at 64 bytes has no
+  table lookup, but branches on the input: the serial fallback, the search for the top
+  non-zero column and the leading zero bytes. Not checked with tools.
 
 Apple M5 Pro, AC power, `cargo bench --bench encode -- --warm-up-time 1
 --measurement-time 3 'encode/[^/]+/(31|32|64)$'`: the base commit (`e1a9f13`), `be91f3a`
@@ -1562,7 +1581,7 @@ Tried and not kept (M5):
 
 **Zen 5.** AMD EPYC 9B45 on the GCP VM, rustc 1.99.0, the same bench command with
 default flags and then `-C target-cpu=native`, back to back; no LTO, no pinning; one
-criterion run per build, steal 0. Two runs. The first (`be91f3a`) had AVX2 column sums
+criterion run per build, steal 0. Four runs. The first (`be91f3a`) had AVX2 column sums
 and AVX2 characters at both sizes. ns:
 
 | bytes | flags   | five8 | matrix (AVX2) | matrix-general | matrix-portable |
@@ -1587,18 +1606,91 @@ this run, timed a second time), sums only, characters only, and sums and charact
 - **32 bytes: plain Rust.** It took 24.8–26.5 ns in all four builds, against 35.6–53.1 ns
   with AVX2 sums. It is 2.2× faster than `five8` with default flags and 1.35× faster
   than its AVX2 code with native flags.
-- **64 bytes: AVX2 sums, plain-Rust characters**, now `encode_matrix`'s path on x86_64:
-  73.3 and 75.0 ns, against 82–101 ns with AVX2 characters and 82–86 ns for the general
-  path. That is 1.65× faster than `five8` with default flags, but `five8`'s AVX2 code is
-  1.48× faster with native flags (50.7 ns). It was timed as the `sums` column, not
-  through `encode_matrix`.
-- The AVX2 character kernel cost time with AVX2 sums at both sizes, and with plain-Rust
-  sums it was slower than plain Rust or within 3% of it. It is removed.
+- **64 bytes, in this run: AVX2 sums, plain-Rust characters**, 73.3 and 75.0 ns,
+  against 82–101 ns with AVX2 characters and 82–86 ns for the general path. That was
+  1.65× faster than `five8` with default flags, but `five8`'s AVX2 code was 1.48× faster
+  with native flags (50.7 ns). Runs 3 and 4 replaced it.
+- That AVX2 character kernel cost time with AVX2 sums at both sizes, and with plain-Rust
+  sums it was slower than plain Rust or within 3% of it. It read the carried sums and
+  quotients back in 32- and 16-byte vectors after the scalar carry had stored them in 8-
+  and 4-byte pieces, which the CPU does not forward from the stores; probably that, not
+  measured.
 - **Placement.** The same AVX2 32-byte code took 38.6, then 53.1 ns with default flags
   and 51.8, then 35.6 ns with native flags, while `bs58`, `encode_batched` and `five8`
   moved by at most 8%. The 64-byte AVX2 path timed twice in one binary: 97.3 and 98.2 ns,
   82.0 and 88.2 ns. So gaps under about 10% here are not reliable.
-- Not tried on x86: `five8`'s AVX2 code keeps its characters in registers through to
-  masked stores, where ours goes through a stack buffer and the table of pairs, and its
-  carry chain has 17 steps (base 58^5) against our 22. Either may explain its lead at
-  64 bytes with native flags; neither is measured.
+
+Runs 3 (`b2f3b26`) and 4 (`95f020d`) timed 64-byte variants in one binary with `five8`:
+the carry serial or in K segments (`splitK`), the characters through the stack buffer
+(plain-Rust digits and copies, as before) or in registers, with the write in its own
+function or inline, and the leading `'1'`s counted from the digit vectors (movemasks) or
+from the carried columns (`count`). Run 4 also built with `-C target-cpu=native -C
+target-feature=-avx512f`, which turns off every AVX-512 feature (checked with `rustc
+--print cfg`). The tests passed on the VM (109). 64 bytes, ns:
+
+| variant | carry | characters | run 3 default | run 3 native | run 4 default | run 4 native | run 4 native, no AVX-512 |
+|:---|:---|:---|---:|---:|---:|---:|---:|
+| five8 | | | 118.9 | **50.5** | 118.8 | **50.8** | 70.1 |
+| `fixed-avx2-sums` | serial | stack | 74.3 | 74.3 | 72.7 | 73.9 | 69.8 |
+| `fixed-serial` | serial | stack | 71.3 | 75.8 | | | |
+| `fixed-split2` | 2 segments | stack | 61.7 | 63.5 | | | |
+| `fixed-split4` | 4 segments | stack | 58.2 | 63.1 | 57.9 | 60.8 | 53.3 |
+| `fixed-regs` | serial | registers, call, movemasks | 75.4 | 82.5 | | | |
+| `fixed-regs-split2` | 2 segments | registers, call, movemasks | 53.3 | 66.3 | | | |
+| `fixed-regs-split3` | 3 segments | registers, call, movemasks | 51.4 | 66.2 | | | |
+| `fixed-regs-split4` | 4 segments | registers, call, movemasks | 49.8 | 71.0 | 50.0 | 69.6 | 48.5 |
+| `fixed-regs-split6` | 6 segments | registers, call, movemasks | **49.3** | 69.0 | 49.8 | 70.3 | 48.6 |
+| `fixed-inline-split4` | 4 segments | registers, movemasks | | | **48.2** | 66.4 | 46.6 |
+| `fixed-count-split3` | 3 segments | registers, count | | | 49.7 | 53.9 | 47.6 |
+| `fixed-count-split4` | 4 segments | registers, count | | | 48.5 | 52.6 | 46.8 |
+| `fixed-count-split4-b` | 4 segments | registers, count | | | 50.3 | 53.2 | 48.0 |
+| `fixed-count-split6` | 6 segments | registers, count | | | 48.3 | 53.8 | **46.0** |
+
+(`fixed-avx2-sums` was `encode_matrix`'s 64-byte path then; `fixed-serial` computes the
+carried columns in the chain, `t - 58^4 c`, where `fixed-avx2-sums` keeps the quotients;
+`-b` is a second copy of `fixed-count-split4` with one store moved, a probe of placement.)
+
+- **64 bytes now: `fixed-count-split4`**, `encode_matrix`'s path on x86_64 with AVX2. With
+  default flags 48.5 ns, a third less than the previous path in the same binary (72.7)
+  and 2.45× faster than `five8` (118.8).
+- **With native flags `five8` is still 3.5% faster**: 50.8 ns [50.7, 50.8] against 52.6
+  [52.3, 53.0]. Our default-flags time (48.5) is below `five8`'s native time, but that
+  compares two builds. The same code takes 8.5% longer with native flags than with
+  default ones, and 12% longer than without AVX-512. In the native build LLVM uses
+  AVX-512 for part of the scalar work (some carried columns go through `vpmulld` and
+  back with `vpextrd`), mask registers in the alphabet and EVEX registers in the sums;
+  which of these costs the time is not measured. llvm-mca's `znver5` model predicts the
+  native code faster, so the cost is in something it does not model.
+- **`five8`'s native speed comes from AVX-512.** Without it `five8` takes 70.1 ns, 38%
+  more: LLVM vectorizes its column sums for AVX-512. There `fixed-count-split4` takes
+  46.8 ns, 33% less than `five8`.
+- **The split carry**: with the stack output, 2 and 4 segments take 13–18% less time than
+  the serial chain (run 3). With registers, 2 segments took 7–8% more than 4 or 6 (run
+  3, default flags); 3, 4 and 6 are within 2–4% of each other (run 4), about what
+  placement moves a cell (`-b`: 1–4%). Of 3, 4 and 6 segments, 4 fall back least often.
+- **Characters in registers**: with default flags 14–16% less time than the stack output.
+  With native flags LLVM compiled the movemask count to 512-bit mask code (`vptestnmb`,
+  `kortestq`), and the register variants with it took 66–71 ns (intervals up to 9%
+  wide); counting from the carried columns, 52.6–53.9.
+- **Codegen traps.** When the fast path and the fallback both wrote one array of carried
+  columns, LLVM kept it on the stack and loaded it back in 8- and 16-byte pieces over
+  4-byte stores; when the write was a function with several callers, LLVM kept it out of
+  line and passed the columns through the stack too. The fallback now returns vectors,
+  and the write is in `encode_64`. `#[inline(always)]` is not allowed with
+  `#[target_feature]`.
+- Not built: base 58^5 (`five8`'s 17 divisions against our 22). With the split chain it
+  would save about one division on the critical path, and at 64 bytes its column sums
+  overflow `u64` unless reduced part way, as `five8` does.
+- 31 and 32 bytes did not change (run 4: `matrix` 54.5 | 52.3 ns and 25.5 | 24.7 ns,
+  default | native). Without AVX-512 the plain-Rust 32-byte path took 29.8 ns and `five8`
+  28.1.
+
+Possible next steps for the fixed sizes:
+
+- **The split carry elsewhere.** `fixed::carry_split` is plain Rust, but only the x86_64
+  AVX2 path at 64 bytes uses it. On the M5 about half of a 64-byte call is the serial
+  chain; neither NEON, plain Rust nor 32 bytes has been timed with it.
+- **The native-flags gap on Zen 5** (52.6 against 46.8 ns without AVX-512): find which of
+  LLVM's AVX-512 choices costs it, from the disassembly and timings of each choice
+  avoided. Or AVX-512 column sums picked at run time, eight columns per vector, which
+  would also take work off the default-flags path.

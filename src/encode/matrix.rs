@@ -17,8 +17,6 @@ mod neon;
 mod table;
 #[cfg(target_arch = "x86_64")]
 mod x86;
-#[cfg(target_arch = "x86_64")]
-pub use x86::sweep as fixed_sweep;
 
 /// Inputs with fewer bytes than this, after leading zeros, use [`encode_batched`], which
 /// is faster there. Tuned by measurement; README.md has the numbers.
@@ -46,8 +44,8 @@ const BEST: Kernels = Kernels { panel: PANEL, digits };
 /// plain-Rust kernels.
 ///
 /// Exactly 32 or 64 bytes take a fixed-size path (`matrix/fixed.rs`) with its table in
-/// the binary: NEON on aarch64; on x86_64 plain Rust, with AVX2 column sums for 64 bytes
-/// if the CPU has AVX2.
+/// the binary: NEON on aarch64; on x86_64 plain Rust, with AVX2 kernels for 64 bytes if
+/// the CPU has AVX2.
 ///
 /// No allocation per call up to 8 KiB, and about 30 KiB of stack. Each size class of the
 /// table is built once, on first use, and kept: 47 KiB, 181 KiB, 712 KiB, 2.8 MiB or

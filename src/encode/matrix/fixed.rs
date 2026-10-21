@@ -9,6 +9,7 @@
 //!
 //! The carry pass is serial, unlike the general path's (`super::normalize`): for at most
 //! 22 columns, one scalar multiply per column on the chain beat `normalize`'s four off it.
+//! The x86_64 AVX2 path for 64 bytes cuts the chain into four segments (`carry_split`).
 
 use super::four_digits;
 use super::table::COL_BASE;
@@ -106,8 +107,14 @@ pub(super) fn encode_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, Buffer
     encode_best(x, output, &TABLE_32)
 }
 
-/// [`encode_matrix`](super::encode_matrix) for 64 bytes.
+/// [`encode_matrix`](super::encode_matrix) for 64 bytes. On x86_64 with AVX2 kernels and
+/// the carry in four segments (`carry_split`) if the CPU has AVX2.
 pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    #[cfg(target_arch = "x86_64")]
+    if is_x86_feature_detected!("avx2") {
+        // SAFETY: the CPU has AVX2.
+        return unsafe { super::x86::encode_64(x, output) };
+    }
     encode_best(x, output, &TABLE_64)
 }
 
@@ -121,19 +128,13 @@ pub(super) fn encode_64_portable(x: &[u8; 64], out: &mut [u8]) -> Result<usize, 
     encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_64), digits))
 }
 
-/// [`encode`] with the fastest kernels: AVX2 column sums if the CPU has AVX2 on x86_64,
-/// NEON on aarch64, plain Rust otherwise.
+/// [`encode`] with NEON kernels on aarch64, plain Rust otherwise.
 #[inline(always)]
 fn encode_best<const N: usize, const W: usize, const C: usize>(
     x: &[u8; N],
     output: &mut [u8],
     table: &Table<W, C>,
 ) -> Result<usize, BufferTooSmall> {
-    #[cfg(target_arch = "x86_64")]
-    if is_x86_feature_detected!("avx2") {
-        // SAFETY: the CPU has AVX2.
-        return unsafe { super::x86::encode_fixed(x, output, table) };
-    }
     #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
     return encode(x, output, |x, o| {
         chars(x, o, |x| super::neon::cols(x, table), super::neon::fixed_digits)
@@ -223,6 +224,7 @@ fn column(t: u64, q: u32) -> u32 {
 }
 
 /// [`carry`], returning the carried columns.
+#[cfg(any(target_arch = "x86_64", test))]
 #[inline(always)]
 pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
     let mut out = [0; C];
@@ -245,6 +247,7 @@ pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
 ///
 /// The chain is about `r / K` divisions instead of `r`. Requires at least two columns per
 /// segment.
+#[cfg(any(target_arch = "x86_64", test))]
 #[inline(always)]
 pub(super) fn carry_split<const C: usize, const K: usize>(
     t: &[u64; C],
@@ -526,7 +529,7 @@ mod tests {
         }
     }
 
-    /// `benches/encode.rs`'s 64-byte input takes the split carry, so the sweep times it
+    /// `benches/encode.rs`'s 64-byte input takes the split carry, so the bench times it
     /// and not the fallback.
     #[test]
     fn bench_input_takes_the_split_carry() {
