@@ -4,8 +4,9 @@
 //!
 //! Each division is Barrett's: a quotient estimate from one product with a reciprocal of
 //! the power, the remainder from a second product, then at most a few corrections. Each
-//! power's reciprocal comes from Newton's method once per call and serves every division
-//! by it. All products go through a [`Multiplier`].
+//! power's reciprocal comes from one Newton step once per call, started from the square of
+//! the reciprocal of the power below, and serves every division by it. All products go
+//! through a [`Multiplier`].
 
 use std::cmp::Ordering;
 
@@ -134,13 +135,17 @@ pub(crate) fn encode_tuned(
     let mut table = vec![0; table_len(unit, levels)];
     let mut scratch = vec![0; m.scratch_len(e) + recip_scratch_len(full(e) + 1, m)];
     let powers = powers(unit, levels, &mut table, &mut scratch, m, false);
-    let divs: Vec<Divisor> = powers[..levels].iter().map(|p| Divisor::new(p, &mut scratch, m)).collect();
+    let mut divs: Vec<Divisor> = Vec::with_capacity(levels);
+    for p in &powers[..levels] {
+        let d = Divisor::new(p, divs.last(), &mut scratch, m);
+        divs.push(d);
+    }
     // The top divisor serves one division; the others at least two, so their products
     // may keep work on them.
     for (i, d) in divs[..levels - 1].iter().enumerate() {
         let (dn, qn) = (d.pn.len(), d.qn());
         m.prepare_power(2 * i, &d.pn, qn + dn);
-        m.prepare_power(2 * i + 1, &d.inv, 2 * qn + 1);
+        m.prepare_power(2 * i + 1, d.inv(), 2 * qn + 1);
     }
     let mut scratch = vec![0; node_scratch_len(&divs, m)];
     let mut out = Out { buf: out, pos: 0 };
@@ -155,32 +160,57 @@ fn full(e: usize) -> usize {
 }
 
 /// The power `BASE^exp`, ready for division: `pn << (64 shift)` is the power shifted left
-/// by `bits`, so that the top bit of `pn` is set, and `inv` is a reciprocal for quotients
-/// of up to `qn = pn.len() + shift` limbs.
+/// by `bits`, so that the top bit of `pn` is set, and [`Divisor::inv`] is a reciprocal for
+/// quotients of up to `qn = pn.len() + shift` limbs.
 struct Divisor {
     exp: usize,
     shift: usize,
     bits: u32,
     pn: Vec<u64>,
-    /// `floor(β^(2 qn) / (pn β^shift))`, or up to two less, in `qn + 1` limbs.
-    inv: Vec<u64>,
+    /// A reciprocal of `pn β^(shift + 1)` as [`reciprocal`] gives, in `qn + 2` limbs: one
+    /// limb more than divisions need, so that its square can start the next power's.
+    recip: Vec<u64>,
 }
 
 impl Divisor {
-    fn new(p: &Power<'_>, scratch: &mut [u64], m: &mut impl Multiplier) -> Divisor {
+    /// `below` is the divisor of the power whose square `p` is, if any.
+    fn new(
+        p: &Power<'_>,
+        below: Option<&Divisor>,
+        s: &mut [u64],
+        m: &mut impl Multiplier,
+    ) -> Divisor {
         let bits = p.limbs.last().expect("powers are not zero").leading_zeros();
         let mut pn = vec![0; p.limbs.len()];
         shl(&mut pn, p.limbs, bits);
-        let qn = pn.len() + p.shift;
-        let mut padded = vec![0; qn];
-        padded[p.shift..].copy_from_slice(&pn);
-        let mut inv = vec![0; qn + 1];
-        reciprocal(&mut inv, &padded, scratch, m);
-        Divisor { exp: p.exp, shift: p.shift, bits, pn, inv }
+        let n = pn.len() + p.shift + 1;
+        let mut a = vec![0; n];
+        a[n - pn.len()..].copy_from_slice(&pn);
+        let mut recip = vec![0; n + 1];
+        let h = n - (n - 1) / 2;
+        match below {
+            // `qn` doubles from one power to the next, or doubles less one, so `a'` below has
+            // `h` limbs: always for powers of the table.
+            Some(b) if n > RECIP_BASECASE && b.recip.len() == h + 1 => {
+                debug_assert_eq!(p.exp, 2 * b.exp);
+                // `pn β^shift` is the power times `2^bits`, so with `a' = pn' β^(shift' + 1)`
+                // below, `a = a'^2 2^(bits - 2 bits') / β` and `(β^(2h) / a')^2` is
+                // `2^k β^(n+h) / a`.
+                let k = 64 * (3 * h - n - 1) + bits as usize - 2 * b.bits as usize;
+                reciprocal_from_square(&mut recip, &a, &b.recip, k, s, m);
+            }
+            _ => reciprocal(&mut recip, &a, s, m),
+        }
+        Divisor { exp: p.exp, shift: p.shift, bits, pn, recip }
     }
 
     fn qn(&self) -> usize {
         self.pn.len() + self.shift
+    }
+
+    /// `floor(β^(2 qn) / (pn β^shift))`, or one less, in `qn + 1` limbs: `recip / β`.
+    fn inv(&self) -> &[u64] {
+        &self.recip[1..]
     }
 }
 
@@ -210,7 +240,7 @@ fn divide(
     if !a1.is_empty() {
         // q ≈ floor(a1 * inv / β^qn).
         let (p, s) = s.split_at_mut(a1.len() + qn + 1);
-        m.mul_power(p, a1, 2 * i + 1, &d.inv, s);
+        m.mul_power(p, a1, 2 * i + 1, d.inv(), s);
         let q = &p[qn..];
         hi[..q.len()].copy_from_slice(q);
         let ql = trimmed_len(hi);
@@ -443,12 +473,50 @@ fn reciprocal(x: &mut [u64], a: &[u64], s: &mut [u64], m: &mut impl Multiplier) 
         return;
     }
     let l = (n - 1) / 2;
-    let h = n - l;
-    let (xh, s) = s.split_at_mut(h + 1);
+    let (xh, s) = s.split_at_mut(n - l + 1);
     reciprocal(xh, &a[l..], s, m);
+    // `a_h x_h < β^(2h) <= a_h (x_h + 2)` for the top `h` limbs `a_h` of `a`.
+    newton(x, a, xh, s, m);
+}
+
+/// [`reciprocal`] of `a` (`n > RECIP_BASECASE` limbs, top bit set) from `y`, the
+/// [`reciprocal`] of some `a'` of `h = n - (n - 1) / 2` limbs with
+/// `(β^(2h) / a')^2 = 2^k β^(n+h) / a`: one square in place of the recursion.
+///
+/// `y < β^(2h) / a' <= y + 2`, so `x_h = floor(y^2 / 2^k)` is below `β^(n+h) / a` by less
+/// than `4 (β^(n+h) / a) / (β^(2h) / a') + 1 < 4 (2 β^h) / β^h + 1 = 9`.
+fn reciprocal_from_square(
+    x: &mut [u64],
+    a: &[u64],
+    y: &[u64],
+    k: usize,
+    s: &mut [u64],
+    m: &mut impl Multiplier,
+) {
+    let h = y.len() - 1;
+    let (xh, s) = s.split_at_mut(h + 1);
+    let (sq, rest) = s.split_at_mut(2 * h + 2);
+    m.mul(sq, y, y, rest);
+    let (sq, bits) = (&sq[k / 64..], (k % 64) as u32);
+    // `x_h < 2 β^h`: nothing above its `h + 1` limbs is cut off.
+    debug_assert!(
+        sq.len() <= h + 1 || (sq[h + 1] >> bits == 0 && sq[h + 2..].iter().all(|&v| v == 0))
+    );
+    shr(xh, sq, bits);
+    newton(x, a, xh, s, m);
+}
+
+/// The Newton step of [`reciprocal`]: writes `x` (`n + 1` limbs) from `x_h` (`h + 1` limbs,
+/// `h = n - (n - 1) / 2`) with `β^(n+h) - 9 a < a x_h < β^(n+h) + 2 β^n`.
+///
+/// With `t = β^(n+h) - a x_h` in `(0, 9 a)` (after the first loop) and `l = n - h`,
+/// `β^(2n) - t^2 / β^(2h) - a x_h / β^(2h - l) - a < a x <= β^(2n) - t^2 / β^(2h)`, and
+/// the two middle terms are below `81 a / β` and `2 a / β`: so `a x < β^(2n) <= a (x + 2)`.
+fn newton(x: &mut [u64], a: &[u64], xh: &mut [u64], s: &mut [u64], m: &mut impl Multiplier) {
+    let n = a.len();
+    let h = xh.len() - 1;
+    let l = n - h;
     // t = a x_h. Padded divisors end in zero limbs; skip them.
-    // t = a x_h, in (β^(n+h) - 2 β^n, β^(n+h) + 2 β^n). Padded divisors end in zero
-    // limbs; skip them.
     let (t, s) = s.split_at_mut(n + h + 1);
     let z = a.iter().take_while(|&&v| v == 0).count();
     t[..z].fill(0);
@@ -461,7 +529,7 @@ fn reciprocal(x: &mut [u64], a: &[u64], s: &mut [u64], m: &mut impl Multiplier) 
         sub_assign(xh, &[1]);
         sub_assign(t, a);
     }
-    // t = β^(n+h) - a x_h, in (0, 2 β^n], so `tm = t / β^l` has at most h + 1 limbs.
+    // t = β^(n+h) - a x_h, in (0, 9 a), so `tm = t / β^l` has at most h + 1 limbs.
     negate(&mut t[..n + h]);
     let tm = &t[l..n + h];
     let tm = &tm[..trimmed_len(tm)];
@@ -477,7 +545,8 @@ fn reciprocal(x: &mut [u64], a: &[u64], s: &mut [u64], m: &mut impl Multiplier) 
     }
 }
 
-/// Scratch limbs [`reciprocal`] needs for `n` limbs.
+/// Scratch limbs [`reciprocal`] needs for `n` limbs, enough for [`reciprocal_from_square`]
+/// too: its square needs less than [`newton`].
 fn recip_scratch_len(n: usize, m: &impl Multiplier) -> usize {
     if n <= RECIP_BASECASE {
         return 2 * n + 1;
@@ -545,7 +614,7 @@ fn shl(dst: &mut [u64], src: &[u64], bits: u32) {
     }
 }
 
-/// `dst = src >> bits` for `bits < 64`, over `dst.len() == src.len()` limbs.
+/// `dst = src >> bits` for `bits < 64`, cut to `dst.len() <= src.len()` limbs.
 fn shr(dst: &mut [u64], src: &[u64], bits: u32) {
     for (j, d) in dst.iter_mut().enumerate() {
         let up = match (bits, src.get(j + 1)) {
@@ -634,16 +703,53 @@ mod tests {
                 let mut x = vec![0xA5; n + 1];
                 let mut s = vec![0x5A; recip_scratch_len(n, m)];
                 reciprocal(&mut x, &a, &mut s, m);
-                let ax = product(&a, &x);
-                // β^(2n) is a one at limb 2n.
-                assert!(ax[2 * n..].iter().all(|&v| v == 0), "{n}: a x >= β^(2n)");
-                let mut x2 = x.clone();
-                x2.push(0);
-                add_assign(&mut x2, &[2]);
-                let ax2 = product(&a, &x2);
-                assert!(ax2[2 * n..].iter().any(|&v| v != 0), "{n}: a (x + 2) < β^(2n)");
+                assert_reciprocal(&a, &x, &n.to_string());
             }
         }
+    }
+
+    /// `a x < β^(2n) <= a (x + 2)` for `a` of `n` limbs.
+    fn assert_reciprocal(a: &[u64], x: &[u64], what: &str) {
+        let n = a.len();
+        let ax = product(a, x);
+        // β^(2n) is a one at limb 2n.
+        assert!(ax[2 * n..].iter().all(|&v| v == 0), "{what}: a x >= β^(2n)");
+        let mut x2 = x.to_vec();
+        x2.push(0);
+        add_assign(&mut x2, &[2]);
+        let ax2 = product(a, &x2);
+        assert!(ax2[2 * n..].iter().any(|&v| v != 0), "{what}: a (x + 2) < β^(2n)");
+    }
+
+    /// The divisors of a table, each from the one below, with the bounds of their
+    /// reciprocals checked.
+    fn divisors(unit: usize, levels: usize, m: &mut impl Multiplier) -> Vec<Divisor> {
+        let mut table = vec![0; table_len(unit, levels)];
+        let e = unit << (levels - 1);
+        let mut s = vec![0x5A; m.scratch_len(e) + recip_scratch_len(full(e) + 1, m)];
+        let powers = powers(unit, levels, &mut table, &mut s, m, false);
+        let mut divs: Vec<Divisor> = Vec::new();
+        for (i, p) in powers[..levels].iter().enumerate() {
+            let d = Divisor::new(p, divs.last(), &mut s, m);
+            // `pn β^shift`, then with one more zero limb.
+            let mut a = vec![0; d.shift];
+            a.extend_from_slice(&d.pn);
+            assert_reciprocal(&a, d.inv(), &format!("unit {unit}, level {i}, inv"));
+            a.insert(0, 0);
+            assert_reciprocal(&a, &d.recip, &format!("unit {unit}, level {i}"));
+            divs.push(d);
+        }
+        divs
+    }
+
+    /// The reciprocals of tables of many units, so many shifts between levels, where the
+    /// square of the one below starts each.
+    #[test]
+    fn reciprocals_from_squares() {
+        for unit in (1..=150).chain([255, 256, 257, 1000]) {
+            divisors(unit, 4, &mut Karatsuba);
+        }
+        divisors(1000, 4, &mut ntt(1 << 14));
     }
 
     /// `x = hi P + lo` with `lo < P`, for every level of a real table and random,
@@ -660,11 +766,9 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(31);
         let (unit, levels) = split_unit_leaf(20_000, LEAF);
         let mut table = vec![0; table_len(unit, levels)];
-        let e = unit << (levels - 1);
-        let mut s = vec![0; m.scratch_len(e) + recip_scratch_len(full(e) + 1, m)];
+        let mut s = vec![0; m.scratch_len(unit << (levels - 1))];
         let powers = powers(unit, levels, &mut table, &mut s, m, false);
-        for (i, p) in powers[..levels].iter().enumerate() {
-            let d = Divisor::new(p, &mut s, m);
+        for (i, (p, d)) in powers.iter().zip(divisors(unit, levels, m)).enumerate() {
             let mut power = vec![0; p.shift];
             power.extend_from_slice(p.limbs);
             // Below `β^(2 len - 2) <= P^2`.
