@@ -121,8 +121,8 @@ pub(super) fn encode_64_portable(x: &[u8; 64], out: &mut [u8]) -> Result<usize, 
     encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_64), digits))
 }
 
-/// [`encode`] with the fastest kernels: AVX2 if the CPU has it on x86_64, NEON on
-/// aarch64, plain Rust otherwise.
+/// [`encode`] with the fastest kernels: AVX2 column sums if the CPU has AVX2 on x86_64,
+/// NEON on aarch64, plain Rust otherwise.
 #[inline(always)]
 fn encode_best<const N: usize, const W: usize, const C: usize>(
     x: &[u8; N],
@@ -201,8 +201,8 @@ pub(super) fn chars<const N: usize, const C: usize>(
 /// in `r` columns, and the columns from `r` on to be zero.
 ///
 /// Column `j` is then `t[j] - 58^4 q[j]`, below 58^4, so the digit kernels can compute it
-/// modulo 2^32, four columns per instruction with SIMD; see [`column`]. Only the division
-/// is on the chain.
+/// modulo 2^32 (NEON four columns per instruction); see [`column`]. Only the division is on
+/// the chain.
 #[inline(always)]
 fn carry<const C: usize>(t: &mut [u64; C], r: usize) -> [u32; C] {
     let mut q = [0; C];

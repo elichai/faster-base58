@@ -147,28 +147,9 @@ fn encode(c: &mut Criterion) {
                 b.iter(|| f(black_box(d), black_box(&mut out)))
             });
         }
-        if size == 32 || size == 64 {
-            for &(name, f) in SWEEP {
-                out.fill(0);
-                assert_eq!(f(&data, &mut out), Ok(want), "{name}: wrong length");
-                assert_eq!(out[..want], reference[..want], "{name}: wrong output");
-                group.bench_with_input(BenchmarkId::new(name, size), &data, |b, d| {
-                    b.iter(|| f(black_box(d), black_box(&mut out)))
-                });
-            }
-        }
     }
     group.finish();
 }
-
-type Fixed = fn(&[u8], &mut [u8]) -> Result<usize, base58_bench::BufferTooSmall>;
-
-/// Kernel combinations for the fixed sizes, timed at 32 and 64 bytes (a Zen 5 sweep;
-/// temporary).
-#[cfg(target_arch = "x86_64")]
-const SWEEP: &[(&str, Fixed)] = &base58_bench::bench::fixed_sweep::VARIANTS;
-#[cfg(not(target_arch = "x86_64"))]
-const SWEEP: &[(&str, Fixed)] = &[];
 
 criterion_group!(benches, encode);
 criterion_main!(benches);
