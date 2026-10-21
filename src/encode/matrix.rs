@@ -17,6 +17,8 @@ mod neon;
 mod table;
 #[cfg(target_arch = "x86_64")]
 mod x86;
+#[cfg(target_arch = "x86_64")]
+pub use x86::sweep as fixed_sweep;
 
 /// Inputs with fewer bytes than this, after leading zeros, use [`encode_batched`], which
 /// is faster there. Tuned by measurement; README.md has the numbers.

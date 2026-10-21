@@ -222,6 +222,69 @@ fn column(t: u64, q: u32) -> u32 {
     (t as u32).wrapping_sub(q.wrapping_mul(COL_BASE as u32))
 }
 
+/// [`carry`], returning the carried columns.
+#[inline(always)]
+pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
+    let mut out = [0; C];
+    let mut c = 0;
+    for (t, o) in t[..r].iter().zip(&mut out) {
+        let v = t + c;
+        c = v / COL_BASE;
+        *o = column(v, c as u32);
+    }
+    debug_assert_eq!(c, 0, "the value does not fit in the columns");
+    out
+}
+
+/// [`carry_serial`] with the chain cut into `K` segments that run in parallel, each from
+/// a carry of zero. Then each segment's first column takes the carry out of the segment
+/// below (one more division) and passes the difference, `d`, to its second column. That
+/// column's carry changes only if `d` takes it to 58^4 or more: then `None`, and the
+/// caller carries serially. `d` is below 2^14; at 64 bytes this happened for 0 to 6 of
+/// 20000 random inputs (2 to 6 segments).
+///
+/// The chain is about `r / K` divisions instead of `r`. Requires at least two columns per
+/// segment.
+#[inline(always)]
+pub(super) fn carry_split<const C: usize, const K: usize>(
+    t: &[u64; C],
+    r: usize,
+) -> Option<[u32; C]> {
+    assert!(K >= 2 && 2 * K <= r && r <= C);
+    let start = |s: usize| s * r / K;
+    let mut out = [0; C];
+    // Each segment's running carry, and its first column's quotient.
+    let (mut c, mut first) = ([0; K], [0; K]);
+    // Step `i` of every segment together, so that the chains interleave.
+    for i in 0..r.div_ceil(K) {
+        for s in 0..K {
+            let j = start(s) + i;
+            if j < start(s + 1) {
+                let v = t[j] + c[s];
+                c[s] = v / COL_BASE;
+                out[j] = column(v, c[s] as u32);
+                if i == 0 {
+                    first[s] = c[s];
+                }
+            }
+        }
+    }
+    let mut serial = false;
+    for s in 1..K {
+        let j = start(s);
+        let v = t[j] + c[s - 1];
+        let q = v / COL_BASE;
+        out[j] = column(v, q as u32);
+        // `d <= c[s - 1] / 58^4 + 1`, about 2^14 at most.
+        let d = (q - first[s]) as u32;
+        out[j + 1] += d;
+        serial |= out[j + 1] >= COL_BASE as u32;
+    }
+    // From a carry of zero the top segment's carry is at most the true one, zero.
+    debug_assert_eq!(c[K - 1], 0, "the value does not fit in the columns");
+    (!serial).then_some(out)
+}
+
 /// The characters of the carried columns (see [`carry`]), top first: `out[i]` holds those
 /// of column `n - 1 - i`. Requires `t`, `q` and `out` of one length.
 #[inline(always)]
@@ -234,7 +297,7 @@ pub(super) fn digits(t: &[u64], q: &[u32], out: &mut [[u8; 4]]) {
 
 /// The number of leading zero bytes of `x`.
 #[inline(always)]
-fn leading_zeros<const N: usize>(x: &[u8; N]) -> usize {
+pub(super) fn leading_zeros<const N: usize>(x: &[u8; N]) -> usize {
     for (i, c) in x.as_chunks::<8>().0.iter().enumerate() {
         let w = u64::from_be_bytes(*c);
         if w != 0 {
@@ -254,6 +317,37 @@ fn leading_ones(chars: &[u8]) -> usize {
         }
     }
     chars.len()
+}
+
+/// `count` random 64-byte inputs for each segment but the first of [`carry_split`] with `k`
+/// segments, on which it falls back: their base-58^4 digit above the segment's first
+/// column is zero, so the carry from below takes that column to 58^4.
+#[cfg(test)]
+pub(super) fn split_fallbacks(
+    rng: &mut rand_xoshiro::Xoshiro256PlusPlus,
+    k: usize,
+    count: usize,
+) -> Vec<[u8; 64]> {
+    use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
+    use malachite_nz::natural::Natural;
+
+    let (base, r) = (Natural::from(COL_BASE), max_encoded_len(64).div_ceil(4));
+    let mut out = vec![];
+    for s in 1..k {
+        for _ in 0..count {
+            let x = crate::encode::tests::random_bytes(rng, 64).into_iter();
+            let x = Natural::from_power_of_2_digits_desc(8, x).unwrap();
+            let mut digits: Vec<Natural> = x.to_digits_asc(&base);
+            digits.resize(r, Natural::from(0u32));
+            digits[s * r / k + 1] = Natural::from(0u32);
+            let y = Natural::from_digits_asc(&base, digits.into_iter()).unwrap();
+            let bytes: Vec<u8> = y.to_power_of_2_digits_desc(8);
+            let mut x = [0; 64];
+            x[64 - bytes.len()..].copy_from_slice(&bytes);
+            out.push(x);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -393,6 +487,53 @@ mod tests {
                 assert_eq!(got, want, "{n} columns, NEON");
             }
         }
+    }
+
+    /// `carry_split`, when it returns, against `carry_serial`; returns whether it did.
+    fn split_matches<const K: usize>(x: &[u8; 64]) -> bool {
+        let (t, r) = (cols(x, &TABLE_64), max_encoded_len(64).div_ceil(4));
+        let got = carry_split::<24, K>(&t, r);
+        if let Some(got) = got {
+            assert_eq!(got, carry_serial(&t, r), "{K} segments, {x:?}");
+        }
+        got.is_some()
+    }
+
+    fn split_matches_all(x: &[u8; 64]) -> [bool; 5] {
+        [split_matches::<2>(x), split_matches::<3>(x), split_matches::<4>(x),
+            split_matches::<5>(x), split_matches::<6>(x)]
+    }
+
+    /// Random inputs, then inputs whose base-58^4 digit above a segment's first column is
+    /// zero: those must fall back.
+    #[test]
+    fn split_carry_matches_serial() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(47);
+        let mut fallbacks = [0; 5];
+        let tries = 20000;
+        for _ in 0..tries {
+            let x: [u8; 64] = random_bytes(&mut rng, 64).try_into().unwrap();
+            for (f, ok) in fallbacks.iter_mut().zip(split_matches_all(&x)) {
+                *f += !ok as usize;
+            }
+        }
+        eprintln!("fallbacks for 2 to 6 segments, of {tries} random inputs: {fallbacks:?}");
+        for k in 2..=6 {
+            for x in split_fallbacks(&mut rng, k, 20) {
+                assert!(!split_matches_all(&x)[k - 2], "{k} segments, {x:?}");
+                check(&x);
+            }
+        }
+    }
+
+    /// `benches/encode.rs`'s 64-byte input takes the split carry, so the sweep times it
+    /// and not the fallback.
+    #[test]
+    fn bench_input_takes_the_split_carry() {
+        let mut x = [0; 64];
+        Xoshiro256PlusPlus::seed_from_u64(64).fill_bytes(&mut x);
+        x[0] |= 1;
+        assert_eq!(split_matches_all(&x), [true; 5]);
     }
 
     /// The NEON column kernel against the plain-Rust one.
