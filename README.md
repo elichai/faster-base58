@@ -1285,7 +1285,7 @@ One square of `h + 1` limbs replaces a whole reciprocal of `h` limbs. The smalle
 still recurses. Karatsuba has no square path, so with it the square costs a full
 product.
 
-Results on the M5 Pro, AC power (commit `544ac09`). The machine was shared during these
+Results on the M5 Pro, AC power (commit `544ac09`; Zen 5 below). The machine was shared during these
 runs: another session's test binary and another project's test suite came and went
 (1-minute load average 2–19). So both measurements below put the two versions within
 seconds of each other.
@@ -1322,9 +1322,33 @@ medians on each side:
   86 ms at 1 MiB, against 67 ms in the quiet runs: load, not the code. They are not used.
 - At 8 KiB `ntt-cached` has one level, whose reciprocal still recurses: no change.
 - With Karatsuba and Toom-3 the gain is 3–4%: their square costs a full product.
-- Not measured on Zen 5 yet, where setup took 36–40% of `encode_ntt_cached` with the
-  AVX-512 kernels and products below 3072 limbs use the IFMA Karatsuba, which has no
-  square path.
+
+On Zen 5 (the GCP VM above: AMD EPYC 9B45, rustc 1.99.0, no LTO, no pinning; run by the
+GCP session from exact archives of the two commits): `BASE58_REQUIRE_IFMA=1 cargo test
+--release` on `544ac09` passed (102 tests, 1 ignored as before). The encode bench at the
+same sizes: four builds first, then before, after, after, before with default flags and
+again with native flags, about 2 minutes per pass. The VM ran nothing else (sampler every
+10 s: steal 0, load 1.1–3.8). Speed-up, the mean of the two criterion medians on each
+side, default / native flags:
+
+| bytes | ntt-cached | ntt | dc-malachite | dc-toom3 | dc |
+|---:|---:|---:|---:|---:|---:|
+| 32768 | 1.03 / 1.05 | 1.00 / 1.03 | 1.10 / 1.10 | 1.01 / 1.04 | 1.01 / 1.05 |
+| 131072 | 1.06 / 1.08 | 1.06 / 1.08 | 1.09 / 1.09 | 1.01 / 1.05 | 1.00 / 1.04 |
+| 147456 | 1.01 / 1.10 | 1.05 / 1.07 | 1.07 / 1.09 | 1.01 / 1.04 | 1.03 / 1.02 |
+| 1048576 | 1.11 / 1.11 | 1.11 / 1.10 | 1.07 / 1.07 | 1.01 / 1.06 | 0.99 / 1.04 |
+
+- `ntt-cached` at 1 MiB: 87.9 → 79.4 ms with default flags, 74.8 → 67.4 ms with native
+  flags. Both trees predate `e4d6144` (the forward kernel on pairs of butterflies).
+- The two pairs of each cell agreed within 2 points, except at 144 KiB with default
+  flags: `ntt-cached` 0.958 and 1.026 (after over before), `ntt` 0.929 and 0.972.
+- With default flags `dc` and `dc-toom3` do not gain (within 1%, `dc` 3% at 144 KiB);
+  with native flags they take 2–6% less time. Not explained. Below a few thousand limbs
+  their products use the IFMA basecase, where a recursive reciprocal costs about as much
+  as the square (my estimate). Between binaries, layout effects of up to 15% have been
+  seen on this CPU.
+- On IFMA CPUs no product reaches the transforms up to 48 KiB, so at 32 KiB every
+  encoder here multiplies with Karatsuba (IFMA leaf) or malachite.
 
 ### Tuning
 
