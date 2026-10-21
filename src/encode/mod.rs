@@ -17,8 +17,6 @@ mod tests;
 pub use batched::encode_batched;
 pub use dc::{Leaves, encode, encode_karatsuba_with};
 pub use matrix::{encode_matrix, encode_matrix_portable, encode_matrix_with};
-#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-pub use matrix::fixed_sweep;
 pub(crate) use dc::{encode_tuned, encode_with};
 
 use crate::common::{ALPHABET, BASE};

@@ -58,8 +58,6 @@ pub mod bench {
     pub use crate::mul_ifma::{mul as ifma_mul, scratch_len as ifma_scratch_len};
     pub use crate::encode::{Leaves, encode_karatsuba_with};
     pub use crate::encode::encode_matrix_with;
-    #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-    pub use crate::encode::fixed_sweep;
     pub use crate::malachite::encode_malachite_with;
     pub use crate::ntt::{decode_ntt_with, encode_ntt_with};
     pub use crate::toom3::decode_toom3_with;

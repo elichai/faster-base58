@@ -14,8 +14,6 @@ use table::{CARRY_EVERY, COL_BASE, MAX_BYTES, MAX_COLS, MAX_WORDS, PANEL_BYTES, 
 mod fixed;
 #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
 mod neon;
-#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-pub use neon::sweep as fixed_sweep;
 mod table;
 #[cfg(target_arch = "x86_64")]
 mod x86;

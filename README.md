@@ -887,9 +887,10 @@ build or other benchmark during the run. Random input with a non-zero first byte
 `mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32 and 64 bytes only
 (scalar on aarch64); `basexx` is num-bigint's conversion. The divide-and-conquer encoders
 run `encode_batched` up to their threshold, so they are timed from 4 KiB; `encode_matrix`
-converts up to 8 KiB itself and calls `encode_ntt_cached` above. The 32 and 64 byte rows
-are from a later run, with `encode_matrix`'s fixed-size path, of every encoder at those
-sizes ([Fixed sizes](#fixed-sizes-32-and-64-bytes)).
+converts up to 8 KiB itself and calls `encode_ntt_cached` above. The 32-byte row is from
+a later run, with `encode_matrix`'s fixed-size path, and the 64-byte row from a later one
+still, with its split carry; both of every encoder at those sizes
+([Fixed sizes](#fixed-sizes-32-and-64-bytes)).
 
 Against the other crates (`× bs58`: our fastest against `bs58`; `× best other`: against
 the fastest other crate at that size):
@@ -898,7 +899,7 @@ the fastest other crate at that size):
 |---:|---:|---:|---:|---:|:---|---:|---:|
 | 31 | 864 ns | 147 ns |  | 140 ns | **32 ns** matrix | 27× | 4.38× |
 | 32 | 960 ns | 150 ns | 31.1 ns | 135 ns | **12.7 ns** matrix | 75× | 2.44× |
-| 64 | 3.1 µs | 308 ns | 74.8 ns | 241 ns | **28.8 ns** matrix | 108× | 2.60× |
+| 64 | 3.3 µs | 311 ns | 76.8 ns | 242 ns | **23.8 ns** matrix | 139× | 3.24× |
 | 128 | 13.8 µs | 946 ns |  | 530 ns | **116 ns** matrix | 119× | 4.56× |
 | 256 | 56.9 µs | 3.27 µs |  | 1.5 µs | **231 ns** matrix | 246× | 6.51× |
 | 512 | 235 µs | 8.08 µs |  | 3.69 µs | **585 ns** matrix | 402× | 6.31× |
@@ -923,7 +924,7 @@ Every encoder:
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 31 | 864 ns | 147 ns | 838 ns | 140 ns | 36 ns | **32 ns** | 38.7 ns | | | | | | | |
 | 32 | 960 ns | 150 ns | 869 ns | 135 ns | 40 ns | **12.7 ns** | 19 ns | 31.1 ns | | | | | | |
-| 64 | 3.1 µs | 308 ns | 3.07 µs | 241 ns | 88.6 ns | **28.8 ns** | 76.4 ns | 74.8 ns | | | | | | |
+| 64 | 3.3 µs | 311 ns | 3.06 µs | 242 ns | 90.6 ns | **23.8 ns** | 78.5 ns | 76.8 ns | | | | | | |
 | 128 | 13.8 µs | 946 ns | 11.7 µs | 530 ns | 211 ns | **116 ns** | 159 ns | | | | | | | |
 | 256 | 56.9 µs | 3.27 µs | 47.5 µs | 1.5 µs | 634 ns | **231 ns** | 418 ns | | | | | | | |
 | 512 | 235 µs | 8.08 µs | 194 µs | 3.69 µs | 2.13 µs | **585 ns** | 1.28 µs | | | | | | | |
@@ -944,7 +945,7 @@ Every encoder:
 
 - `encode_matrix` is the fastest encoder from 31 B to 8 KiB, 1.7–6.5× faster than the
   fastest other crate. With its fixed-size path it is 2.4× faster than `five8`'s
-  fixed-size code at 32 bytes and 2.6× at 64.
+  fixed-size code at 32 bytes and 3.2× at 64.
 - From 12 KiB `encode_ntt_cached` (768-chunk matrix leaves) leads: 1.13× faster than
   malachite's own conversion at 12 KiB, 1.28× at 32 KiB, 1.46–1.53× at 128–144 KiB and
   1.59× at 1 MiB.
@@ -1502,29 +1503,33 @@ encoder (`five8`) works the same way in base 58^5; this one keeps base 58^4 colu
   `black_box`:
   11% faster at 64 bytes (35.4 against 39.6 ns), 4% slower at 32 (16.5 against 15.9;
   both with the general path's carry); skipping the zero half-rows then took off 1–2%.
-- **The carry is serial.** About half of a call is the carry pass: with it removed
-  (wrong output, timing only) a call took 5.8 against 11.4 ns at 32 bytes and 12.7
-  against 27.1 ns at 64. The general path's `normalize` (two divisions per column, off
-  the chain) took 1.33× as long as a plain serial carry at 32 bytes (16.1 against
-  12.1 ns) and 1.15–1.24× at 64 (33.7–35.8 against 28.9–29.2 ns, two runs), though its
-  chain is shorter. The chain keeps only the quotients: `t += c; c = t / 58^4`. The
-  column, `t - 58^4·c`, is below 2^32, so the digit kernels compute it modulo 2^32 from
-  the low halves (NEON four columns per instruction): 5–7% faster again on the M5 (11.4
-  against 12.1 ns, 27.1 against 28.9–29.2).
-- **x86_64 with AVX2, 64 bytes: the chain in four segments** (`fixed::carry_split`).
-  Each segment carries from zero, in parallel; then each segment's first column takes
-  the carry out of the segment below (one more division) and passes the difference
-  (below 2^14) to its second column. Only if that takes the second column to 58^4 does
-  the rest of the segment change, and then the whole carry runs serially: for 1 of
-  20000 random inputs (0–6 with 2–6 segments). The chain is 6 divisions instead of 22.
-  LLVM already divides by 58^4 with one multiply and a shift (`add; mul; shr` per
-  column), so a shorter chain was the lever, not a cheaper step.
-- **Characters**: on aarch64 the general path's NEON kernel with that subtraction in
-  front. On x86_64 with AVX2 at 64 bytes, AVX2 digits that stay in registers: the
-  carried columns go from general registers into six vectors, four columns each; the
-  digits come from `c div 3364` by `vpmuludq` and the pairs by `vpmulhuw`, 32 per
-  register top first, and the alphabet from compares. Elsewhere, x86_64 at 32 bytes
-  included, the scalar kernel with the table of 3364 character pairs.
+- **The carry is serial**, except at 64 bytes with AVX2 or NEON (next item). About half
+  of a call was the carry pass: with it removed (wrong output, timing only) a call took
+  5.8 against 11.4 ns at 32 bytes and 12.7 against 27.1 ns at 64. The general path's
+  `normalize` (two divisions per column, off the chain) took 1.33× as long as a plain
+  serial carry at 32 bytes (16.1 against 12.1 ns) and 1.15–1.24× at 64 (33.7–35.8
+  against 28.9–29.2 ns, two runs), though its chain is shorter. The chain keeps only
+  the quotients: `t += c; c = t / 58^4`. The column, `t - 58^4·c`, is below 2^32, so
+  the digit kernels compute it modulo 2^32 from the low halves (NEON four columns per
+  instruction): 5–7% faster again on the M5 (11.4 against 12.1 ns, 27.1 against
+  28.9–29.2).
+- **64 bytes with AVX2 (x86_64) or NEON (aarch64): the chain in four segments**
+  (`fixed::carry_split`). Each segment carries from zero, in parallel; then each
+  segment's first column takes the carry out of the segment below (one more division)
+  and passes the difference (below 2^14) to its second column. Only if that takes the
+  second column to 58^4 does the rest of the segment change, and then the whole carry
+  runs serially: for 1 of 20000 random inputs (0–6 with 2–6 segments). The chain is 6
+  divisions instead of 22. LLVM already divides by 58^4 with one multiply and a shift (`add; mul; shr` per
+  column, `umulh; lsr` on aarch64), so a shorter chain was the lever, not a cheaper
+  step. On the M5 it took a 64-byte call from 29.6–30.1 to 23.8 ns; at 32 bytes it did
+  not help (M5 below).
+- **Characters**: on aarch64 the general path's NEON kernel, at 32 bytes with that
+  subtraction in front, at 64 bytes on the carried columns. On x86_64 with AVX2 at 64
+  bytes, AVX2 digits that stay in registers: the carried columns go from general
+  registers into six vectors, four columns each; the digits come from `c div 3364` by
+  `vpmuludq` and the pairs by `vpmulhuw`, 32 per register top first, and the alphabet
+  from compares. Elsewhere, x86_64 at 32 bytes included, the scalar kernel with the
+  table of 3364 character pairs.
 - **Output**: the leading `'1'`s of the characters are dropped and one per leading zero
   byte put back. A result is 32–44 or 64–88 characters, so two overlapping fixed-size
   copies write exactly it. On x86_64 with AVX2 at 64 bytes, three overlapping 32-byte
@@ -1532,17 +1537,19 @@ encoder (`five8`) works the same way in base 58^5; this one keeps base 58^4 colu
   (`vpermd` and variable shifts), then the other two at fixed offsets from the end. The
   count of leading `'1'`s comes from the carried columns (the top non-zero one and its
   digits), not from the characters.
-- The NEON path has no branch or table lookup that depends on the input except through
-  the result's length (its leading zero bytes and digit count). The plain-Rust paths,
-  like the general one, index the table of character pairs by digit pairs, so which
-  cache lines they touch depends on the input. The x86_64 AVX2 path at 64 bytes has no
-  table lookup, but branches on the input: the serial fallback, the search for the top
-  non-zero column and the leading zero bytes. Not checked with tools.
+- The NEON path has no table lookup that depends on the input, and no branch except
+  through the result's length (its leading zero bytes and digit count) and, at 64
+  bytes, the split carry's serial fallback. The plain-Rust paths, like the general one,
+  index the table of character pairs by digit pairs, so which cache lines they touch
+  depends on the input. The x86_64 AVX2 path at 64 bytes has no table lookup, but
+  branches on the input: the serial fallback, the search for the top non-zero column
+  and the leading zero bytes. Not checked with tools.
 
 Apple M5 Pro, AC power, `cargo bench --bench encode -- --warm-up-time 1
 --measurement-time 3 'encode/[^/]+/(31|32|64)$'`: the base commit (`e1a9f13`), `be91f3a`
-(the aarch64 code has not changed since), then the base commit again, back to back. During the second base run's 64-byte
-row the machine was busier: every encoder there took 4–22% longer than in the first
+(the aarch64 code did not change again until the split carry, M5 below), then the base
+commit again, back to back. During the second base run's 64-byte row the machine was
+busier: every encoder there took 4–22% longer than in the first
 (`matrix` 22%).
 `matrix-general` is `encode_matrix` without the fixed-size path, in the new binary. ns:
 
@@ -1685,11 +1692,90 @@ carried columns in the chain, `t - 58^4 c`, where `fixed-avx2-sums` keeps the qu
   default | native). Without AVX-512 the plain-Rust 32-byte path took 29.8 ns and `five8`
   28.1.
 
+**M5: the split carry.** Apple M5 Pro, AC power, the same bench command. `7374272` timed
+NEON carry variants in one binary beside `encode_matrix`, whose 64-byte path still had
+the serial carry: `fixed-q` is a copy of that path (the chain keeps the quotients, the
+digit kernel subtracts); `fixed-serial` the serial carry returning the carried columns
+(`fixed::carry_serial`); `fixed-splitK` the split carry in K segments; both with digits
+from the carried columns through a stack array (`neon::column_digits`).
+`fixed-regs-splitK` moves the carried columns from general registers into vectors
+(`ins`), with a fallback that returns vectors, as on x86_64; `-b` is a copy of
+`fixed-regs-split4` with the digit groups in the other order, a probe of placement. Run
+1 had no register variants. During run 2's 64-byte rows another benchmark of this
+repository ran (every encoder 10–25% slower than in runs 1 and 3, `-b` 1.48× its twin),
+so run 2 is left out. Each variant matched `bs58`, also on inputs that force each
+fallback. ns:
+
+| bytes | variant | run 1 | run 3 |
+|------:|:--------|------:|------:|
+| 32 | `matrix` | 12.7 | 13.0 |
+| 32 | `fixed-q` | **10.8** | **10.8** |
+| 32 | `fixed-serial` | 10.8 | 11.2 |
+| 32 | `fixed-split2` | 12.3 | 10.9 |
+| 32 | `fixed-split3` | 11.3 | 11.2 |
+| 32 | `fixed-split4` | 11.1 | 11.0 |
+| 32 | `fixed-regs-split2` | | 10.5 |
+| 32 | `fixed-regs-split3` | | 10.9 |
+| 64 | five8 | 79.7 | 75.5 |
+| 64 | `matrix` | 34.7 | 29.3 |
+| 64 | `fixed-q` | 29.5 | 32.3 |
+| 64 | `fixed-serial` | 28.6 | 28.7 |
+| 64 | `fixed-split2` | 24.3 | 24.8 |
+| 64 | `fixed-split3` | 23.9 | 24.7 |
+| 64 | `fixed-split4` | **23.5** | **23.5** |
+| 64 | `fixed-split6` | 23.7 | 23.5 |
+| 64 | `fixed-regs-split3` | | 23.8 |
+| 64 | `fixed-regs-split4` | | 23.7 |
+| 64 | `fixed-regs-split6` | | 23.4 |
+| 64 | `fixed-regs-split4-b` | | 24.5 |
+
+(bold: the variant kept. `matrix` adds `encode_matrix`'s dispatch, about 2 ns at 32
+bytes.)
+
+Then `ccab939` (serial on aarch64), the commit that made `fixed-split4` `encode_matrix`'s
+64-byte NEON path, and `ccab939` again, back to back; `five8` and `matrix-general` from
+the new build. ns:
+
+| bytes | five8 | matrix-general | matrix, base | matrix | matrix, base again |
+|------:|------:|---------------:|-------------:|-------:|-------------------:|
+| 31    |       |                | 33.5         | 31.9   | 32.1               |
+| 32    | 30.6  | 31.7           | 13.5         | 13.3   | 12.8               |
+| 64    | 76.8  | 57.9           | 29.6         | **23.8** | 30.1             |
+
+- **64 bytes: four segments.** `encode_matrix` takes 23.8 ns, 20–21% less than before
+  and after it (29.6, 30.1), and is 3.2× faster than `five8` (76.8). That is the
+  sweep's time for `fixed-split4` (23.5), so this build is not on the slow side of the
+  1.6× cliff (Tried and not kept, above). In the sweep the split took 18% off
+  `fixed-serial`, the same code with the serial chain. 4 and 6 segments tie (23.5 ns in
+  run 3); 2 and 3 took 2–6% more. Of 3, 4 and 6, 4 fall back least often (Zen 5 above).
+- **Less than the chain's share.** With the carry removed a call took 12.7 against
+  27.1 ns, so the serial chain cost about 14 ns; the split takes off about 5–6. The
+  chain is now 6 divisions and one more at a segment edge, 7 against 22. In the asm the
+  segment loop spills general registers to the stack. Where the rest goes is not
+  measured.
+- **Registers do not help on the M5**: 3, 4 and 6 segments took 23.4–23.8 ns with the
+  columns moved into vectors from general registers, against 23.5–24.7 through the
+  stack array (run 3), within what placement moves a cell (`-b`: 24.5 against 23.7).
+  The stack array stays; it is less code. (On Zen 5 the register path also changed the
+  digit kernel, so its 14–16% gain does not carry over.)
+- **32 bytes: serial kept.** No variant beat `fixed-q` by more than 2.4%
+  (`fixed-regs-split2`, 10.5 against 10.8 ns, run 3), about what placement moves a cell;
+  with the stack array the split took 1–4% more in run 3 and up to 14% more in run 1
+  (`fixed-split2`, interval 11.5–13.4). With 11 columns the chain is half as long; why
+  the split saves nothing there is not analysed.
+- **Placement again.** In run 3 `matrix` ran the 64-byte code of `fixed-q` behind the
+  dispatch and took 29.3 against 32.3 ns; in run 1, 34.7 against 29.5 (intervals up to
+  15% wide). So gaps under about 10% between copies of one 64-byte path are not
+  reliable here, and the second table compares the builds back to back.
+
 Possible next steps for the fixed sizes:
 
-- **The split carry elsewhere.** `fixed::carry_split` is plain Rust, but only the x86_64
-  AVX2 path at 64 bytes uses it. On the M5 about half of a 64-byte call is the serial
-  chain; neither NEON, plain Rust nor 32 bytes has been timed with it.
+- **The split carry in plain Rust.** Only the AVX2 and NEON paths at 64 bytes use
+  `fixed::carry_split`; the plain-Rust kernels (x86_64 without AVX2, other targets,
+  `encode_matrix_portable`) have not been timed with it.
+- **The rest of the M5 carry at 64 bytes**: the split takes about 5–6 ns off a serial
+  chain of about 14 (above). Fewer live registers in the segment loop (for example the
+  columns written as each segment finishes) might take off more; not tried.
 - **The native-flags gap on Zen 5** (52.6 against 46.8 ns without AVX-512): find which of
   LLVM's AVX-512 choices costs it, from the disassembly and timings of each choice
   avoided. Or AVX-512 column sums picked at run time, eight columns per vector, which
