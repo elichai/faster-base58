@@ -62,6 +62,85 @@ trait V16: Copy {
     fn permute2(self, idx: Self, b: Self) -> Self;
 }
 
+/// `L` vectors as one, each operation applied to each in turn, so that code on them lists
+/// the steps of `L` independent computations together (see [`forward_v`]).
+impl<V: V16, const L: usize> V16 for [V; L] {
+    #[inline(always)]
+    unsafe fn splat(x: i32) -> Self {
+        [unsafe { V::splat(x) }; L]
+    }
+    #[inline(always)]
+    unsafe fn splat64(x: i64) -> Self {
+        [unsafe { V::splat64(x) }; L]
+    }
+    /// The same lanes in each vector.
+    #[inline(always)]
+    unsafe fn from_array(x: [i32; 16]) -> Self {
+        [unsafe { V::from_array(x) }; L]
+    }
+    /// `L` vectors one after the other.
+    #[inline(always)]
+    unsafe fn load(p: *const i32) -> Self {
+        std::array::from_fn(|i| unsafe { V::load(p.add(16 * i)) })
+    }
+    #[inline(always)]
+    unsafe fn store(self, p: *mut i32) {
+        for (i, v) in self.into_iter().enumerate() {
+            unsafe { v.store(p.add(16 * i)) }
+        }
+    }
+    #[inline(always)]
+    fn add(self, b: Self) -> Self {
+        each(self, b, V::add)
+    }
+    #[inline(always)]
+    fn sub(self, b: Self) -> Self {
+        each(self, b, V::sub)
+    }
+    #[inline(always)]
+    fn mullo(self, b: Self) -> Self {
+        each(self, b, V::mullo)
+    }
+    #[inline(always)]
+    fn mul_even(self, b: Self) -> Self {
+        each(self, b, V::mul_even)
+    }
+    #[inline(always)]
+    fn add64(self, b: Self) -> Self {
+        each(self, b, V::add64)
+    }
+    #[inline(always)]
+    fn sub64(self, b: Self) -> Self {
+        each(self, b, V::sub64)
+    }
+    #[inline(always)]
+    fn sra64<const N: u32>(self) -> Self {
+        self.map(V::sra64::<N>)
+    }
+    #[inline(always)]
+    fn odd(self) -> Self {
+        self.map(V::odd)
+    }
+    #[inline(always)]
+    fn blend(self, odd: Self) -> Self {
+        each(self, odd, V::blend)
+    }
+    #[inline(always)]
+    fn highs(self, odd: Self) -> Self {
+        each(self, odd, V::highs)
+    }
+    #[inline(always)]
+    fn permute2(self, idx: Self, b: Self) -> Self {
+        std::array::from_fn(|i| self[i].permute2(idx[i], b[i]))
+    }
+}
+
+/// `f` on the elements of `a` and `b` in turn.
+#[inline(always)]
+fn each<V: Copy, const L: usize>(a: [V; L], b: [V; L], f: impl Fn(V, V) -> V) -> [V; L] {
+    std::array::from_fn(|i| f(a[i], b[i]))
+}
+
 /// The constants of one prime.
 #[derive(Clone, Copy)]
 struct Consts<V> {
@@ -186,27 +265,21 @@ fn regroup2<V: V16>((x, y): (V, V), (i, j): (V, V)) -> (V, V) {
 // The blocks spell out their stages: with default flags LLVM kept a loop over the
 // forward ones, reloading their twiddles and indices from the stack.
 
-/// The forward stages `h = 16, 8, 4, 2, 1` on the 32 values at `p`.
-///
-/// Safety: `V` values may be created; 32 values at `p` are readable and writable.
+/// The forward stages `h = 16, 8, 4, 2, 1` on a block of 32 values, its first and second
+/// 16.
 #[inline(always)]
-unsafe fn forward32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
-    let xy = unsafe { (V::load(p), V::load(p.add(16))) };
+fn forward32<V: V16>(xy: (V, V), b: &Block<V>, c: &Consts<V>) -> (V, V) {
     let xy = regroup2(dif(xy, b.w[0], c), b.idx[0]);
     let xy = regroup2(dif(xy, b.w[1], c), b.idx[1]);
     let xy = regroup2(dif(xy, b.w[2], c), b.idx[2]);
     let xy = regroup2(dif(xy, b.w[3], c), b.idx[3]);
-    let (x, y) = regroup2(last(xy, c), b.idx[4]);
-    unsafe {
-        x.store(p);
-        y.store(p.add(16));
-    }
+    regroup2(last(xy, c), b.idx[4])
 }
 
 /// The inverse stages `h = 1, 2, 4, 8, 16` on the 32 values at `p`, of a transform of
 /// more than 16 points: `h = 2` and `h = 8` are lazy (`portable::lazy`).
 ///
-/// Safety: as [`forward32`].
+/// Safety: `V` values may be created; 32 values at `p` are readable and writable.
 #[inline(always)]
 unsafe fn inverse32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
     let xy = unsafe { (V::load(p), V::load(p.add(16))) };
@@ -221,35 +294,44 @@ unsafe fn inverse32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
     }
 }
 
-/// [`portable::forward`].
+/// Two (vector, companion) twiddle pairs as one for `[V; 2]`.
+#[inline(always)]
+fn both<V: V16>((a, aq): (V, V), (b, bq): (V, V)) -> ([V; 2], [V; 2]) {
+    ([a, b], [aq, bq])
+}
+
+/// [`portable::forward`]. Every step works on two independent vectors at once
+/// (`[V; 2]`): the two butterflies of a stage in each four-value group, two neighbouring
+/// vectors of the `h = 32` stage, or two blocks.
 ///
 /// Safety: `V` values may be created.
 #[inline(always)]
 unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     let n = a.len();
     assert!(n.is_power_of_two() && n <= t.fw.len() && n <= t.fwq.len());
-    if n < 32 {
+    if n < 64 {
         return portable::forward(a, p, t);
     }
-    let c = unsafe { Consts::<V>::new(p) };
+    let c = unsafe { Consts::<[V; 2]>::new(p) };
     let (pa, w, wq) = (a.as_mut_ptr(), t.fw.as_ptr(), t.fwq.as_ptr());
-    // SAFETY (loads and stores): `s + 2 h <= n`, `j + 16 <= h / 2` or `h`, and twiddle
-    // `i` below `2 h <= n`.
+    // SAFETY (loads and stores): `s + 2 h <= n`, `j + 16 <= h / 2`, or `j + 32 <= h`,
+    // and twiddle `i` below `2 h <= n`.
     let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
     let mut h = n / 2;
     while h >= 32 {
         if h >= 64 {
-            // Stages `h` and `g = h / 2` on four values `g` apart.
+            // Stages `h` and `g = h / 2` on four values `g` apart: first `(x0, x2)` with
+            // `(x1, x3)`, then `(x0, x1)` with `(x2, x3)`.
             let g = h / 2;
             for s in (0..n).step_by(2 * h) {
                 for j in (0..g).step_by(16) {
                     unsafe {
                         let ps = [0, g, h, h + g].map(|o| pa.add(s + j + o));
                         let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
-                        let (x0, x2) = dif((x0, x2), tw(h + j), &c);
-                        let (x1, x3) = dif((x1, x3), tw(h + g + j), &c);
-                        let (x0, x1) = dif((x0, x1), tw(g + j), &c);
-                        let (x2, x3) = dif((x2, x3), tw(g + j), &c);
+                        let tw1 = both(tw(h + j), tw(h + g + j));
+                        let ([x0, x1], [x2, x3]) = dif(([x0, x1], [x2, x3]), tw1, &c);
+                        let tw2 = tw(g + j);
+                        let ([x0, x2], [x1, x3]) = dif(([x0, x2], [x1, x3]), both(tw2, tw2), &c);
                         for (p, x) in ps.into_iter().zip([x0, x1, x2, x3]) {
                             x.store(p);
                         }
@@ -259,12 +341,15 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
             h /= 4;
         } else {
             for s in (0..n).step_by(2 * h) {
-                for j in (0..h).step_by(16) {
+                for j in (0..h).step_by(32) {
                     unsafe {
-                        let (px, py) = (pa.add(s + j), pa.add(s + j + h));
-                        let (x, y) = dif((V::load(px), V::load(py)), tw(h + j), &c);
-                        x.store(px);
-                        y.store(py);
+                        let px = [pa.add(s + j), pa.add(s + j + 16)];
+                        let (x, y) = (px.map(|p| V::load(p)), px.map(|p| V::load(p.add(h))));
+                        let (x, y) = dif((x, y), both(tw(h + j), tw(h + j + 16)), &c);
+                        for (p, (x, y)) in px.into_iter().zip(x.into_iter().zip(y)) {
+                            x.store(p);
+                            y.store(p.add(h));
+                        }
                     }
                 }
             }
@@ -272,9 +357,17 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
         }
     }
     let b = unsafe { Block::new(&t.fw, &t.fwq, &FORWARD) };
-    for i in (0..n).step_by(32) {
-        // SAFETY: `i + 32 <= n`.
-        unsafe { forward32(pa.add(i), &b, &c) }
+    for i in (0..n).step_by(64) {
+        // SAFETY: `i + 64 <= n`: two blocks of 32.
+        unsafe {
+            let ps = [pa.add(i), pa.add(i + 32)];
+            let xy = (ps.map(|p| V::load(p)), ps.map(|p| V::load(p.add(16))));
+            let (x, y) = forward32(xy, &b, &c);
+            for (p, (x, y)) in ps.into_iter().zip(x.into_iter().zip(y)) {
+                x.store(p);
+                y.store(p.add(16));
+            }
+        }
     }
 }
 
