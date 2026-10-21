@@ -102,13 +102,13 @@ fn mont<V: V16>(a: V, w: V, wq: V, q: V) -> V {
 
 /// A stage of [`portable::forward`] on one vector of pairs.
 #[inline(always)]
-fn dif<V: V16>(x: V, y: V, (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
+fn dif<V: V16>((x, y): (V, V), (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
     (reduce(x.add(y), c), mont(x.sub(y), w, wq, c.q))
 }
 
 /// A stage of [`portable::inverse`] on one vector of pairs; `LAZY` skips the reductions.
 #[inline(always)]
-fn dit<V: V16, const LAZY: bool>(x: V, y: V, (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
+fn dit<V: V16, const LAZY: bool>((x, y): (V, V), (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
     let t = mont(y, w, wq, c.q);
     let (s, d) = (x.add(t), x.sub(t));
     if LAZY { (s, d) } else { (reduce(s, c), reduce(d, c)) }
@@ -116,7 +116,7 @@ fn dit<V: V16, const LAZY: bool>(x: V, y: V, (w, wq): (V, V), c: &Consts<V>) -> 
 
 /// The `h = 1` stage, whose twiddle is 1.
 #[inline(always)]
-fn last<V: V16>(x: V, y: V, c: &Consts<V>) -> (V, V) {
+fn last<V: V16>((x, y): (V, V), c: &Consts<V>) -> (V, V) {
     (reduce(x.add(y), c), reduce(x.sub(y), c))
 }
 
@@ -179,22 +179,24 @@ impl<V: V16> Block<V> {
 
 /// [`V16::permute2`] of `x` and `y` by both index vectors.
 #[inline(always)]
-fn regroup2<V: V16>(x: V, y: V, (i, j): (V, V)) -> (V, V) {
+fn regroup2<V: V16>((x, y): (V, V), (i, j): (V, V)) -> (V, V) {
     (x.permute2(i, y), x.permute2(j, y))
 }
+
+// The blocks spell out their stages: with default flags LLVM kept a loop over the
+// forward ones, reloading their twiddles and indices from the stack.
 
 /// The forward stages `h = 16, 8, 4, 2, 1` on the 32 values at `p`.
 ///
 /// Safety: `V` values may be created; 32 values at `p` are readable and writable.
 #[inline(always)]
 unsafe fn forward32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
-    let (mut x, mut y) = unsafe { (V::load(p), V::load(p.add(16))) };
-    for k in 0..4 {
-        (x, y) = dif(x, y, b.w[k], c);
-        (x, y) = regroup2(x, y, b.idx[k]);
-    }
-    (x, y) = last(x, y, c);
-    (x, y) = regroup2(x, y, b.idx[4]);
+    let xy = unsafe { (V::load(p), V::load(p.add(16))) };
+    let xy = regroup2(dif(xy, b.w[0], c), b.idx[0]);
+    let xy = regroup2(dif(xy, b.w[1], c), b.idx[1]);
+    let xy = regroup2(dif(xy, b.w[2], c), b.idx[2]);
+    let xy = regroup2(dif(xy, b.w[3], c), b.idx[3]);
+    let (x, y) = regroup2(last(xy, c), b.idx[4]);
     unsafe {
         x.store(p);
         y.store(p.add(16));
@@ -207,16 +209,12 @@ unsafe fn forward32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
 /// Safety: as [`forward32`].
 #[inline(always)]
 unsafe fn inverse32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
-    let (x, y) = unsafe { (V::load(p), V::load(p.add(16))) };
-    let (mut x, mut y) = regroup2(x, y, b.idx[0]);
-    (x, y) = last(x, y, c);
-    for k in 0..4 {
-        (x, y) = regroup2(x, y, b.idx[k + 1]);
-        (x, y) = match k % 2 {
-            0 => dit::<V, true>(x, y, b.w[3 - k], c),
-            _ => dit::<V, false>(x, y, b.w[3 - k], c),
-        };
-    }
+    let xy = unsafe { (V::load(p), V::load(p.add(16))) };
+    let xy = last(regroup2(xy, b.idx[0]), c);
+    let xy = dit::<V, true>(regroup2(xy, b.idx[1]), b.w[3], c);
+    let xy = dit::<V, false>(regroup2(xy, b.idx[2]), b.w[2], c);
+    let xy = dit::<V, true>(regroup2(xy, b.idx[3]), b.w[1], c);
+    let (x, y) = dit::<V, false>(regroup2(xy, b.idx[4]), b.w[0], c);
     unsafe {
         x.store(p);
         y.store(p.add(16));
@@ -248,10 +246,10 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
                     unsafe {
                         let ps = [0, g, h, h + g].map(|o| pa.add(s + j + o));
                         let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
-                        let (x0, x2) = dif(x0, x2, tw(h + j), &c);
-                        let (x1, x3) = dif(x1, x3, tw(h + g + j), &c);
-                        let (x0, x1) = dif(x0, x1, tw(g + j), &c);
-                        let (x2, x3) = dif(x2, x3, tw(g + j), &c);
+                        let (x0, x2) = dif((x0, x2), tw(h + j), &c);
+                        let (x1, x3) = dif((x1, x3), tw(h + g + j), &c);
+                        let (x0, x1) = dif((x0, x1), tw(g + j), &c);
+                        let (x2, x3) = dif((x2, x3), tw(g + j), &c);
                         for (p, x) in ps.into_iter().zip([x0, x1, x2, x3]) {
                             x.store(p);
                         }
@@ -264,7 +262,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
                 for j in (0..h).step_by(16) {
                     unsafe {
                         let (px, py) = (pa.add(s + j), pa.add(s + j + h));
-                        let (x, y) = dif(V::load(px), V::load(py), tw(h + j), &c);
+                        let (x, y) = dif((V::load(px), V::load(py)), tw(h + j), &c);
                         x.store(px);
                         y.store(py);
                     }
@@ -345,10 +343,10 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
             unsafe {
                 let ps = [0, h, 2 * h, 3 * h].map(|o| p.add(s + j + o));
                 let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
-                let (x0, x1) = dit::<V, L1>(x0, x1, tw(h + j), c);
-                let (x2, x3) = dit::<V, L1>(x2, x3, tw(h + j), c);
-                let (x0, x2) = dit::<V, L2>(x0, x2, tw(2 * h + j), c);
-                let (x1, x3) = dit::<V, L2>(x1, x3, tw(3 * h + j), c);
+                let (x0, x1) = dit::<V, L1>((x0, x1), tw(h + j), c);
+                let (x2, x3) = dit::<V, L1>((x2, x3), tw(h + j), c);
+                let (x0, x2) = dit::<V, L2>((x0, x2), tw(2 * h + j), c);
+                let (x1, x3) = dit::<V, L2>((x1, x3), tw(3 * h + j), c);
                 for (p, x) in ps.into_iter().zip([x0, x1, x2, x3]) {
                     x.store(p);
                 }
@@ -375,7 +373,7 @@ unsafe fn inverse2<V: V16, const LAZY: bool>(
             unsafe {
                 let (px, py) = (p.add(s + j), p.add(s + j + h));
                 let tw = (V::load(w.add(h + j)), V::load(wq.add(h + j)));
-                let (x, y) = dit::<V, LAZY>(V::load(px), V::load(py), tw, c);
+                let (x, y) = dit::<V, LAZY>((V::load(px), V::load(py)), tw, c);
                 x.store(px);
                 y.store(py);
             }
