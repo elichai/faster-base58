@@ -147,8 +147,70 @@ fn encode(c: &mut Criterion) {
                 b.iter(|| f(black_box(d), black_box(&mut out)))
             });
         }
+        if size == 64 {
+            let sweep: Vec<_> = BASE.iter().chain(SWEEP).filter(|&&(.., has)| has()).collect();
+            for &&(name, f, _) in &sweep {
+                out.fill(0);
+                assert_eq!(f(&data, &mut out), Ok(want), "{name}: wrong length");
+                assert_eq!(out[..want], reference[..want], "{name}: wrong output");
+            }
+            // Each pad in turn, so that the entries of one pad run close together.
+            for (pad, at) in PADS.into_iter().zip(AT_PAD) {
+                for &&(name, f, _) in &sweep {
+                    let id = BenchmarkId::new(format!("{name}+{pad}"), size);
+                    group.bench_with_input(id, &data, |b, d| {
+                        b.iter(|| at(f, black_box(d), black_box(&mut out)))
+                    });
+                }
+            }
+        }
     }
     group.finish();
+}
+
+type Fixed = fn(&[u8], &mut [u8]) -> Result<usize, base58_bench::BufferTooSmall>;
+/// A name, the function, and whether the CPU runs it.
+type Variant = (&'static str, Fixed, fn() -> bool);
+/// Calls the function with stack below it (see [`at_pad`]).
+type AtPad = fn(Fixed, &[u8], &mut [u8]) -> Result<usize, base58_bench::BufferTooSmall>;
+
+/// Variants of `encode_matrix`'s 64-byte path (a Zen 5 sweep; temporary).
+#[cfg(target_arch = "x86_64")]
+const SWEEP: &[Variant] = &base58_bench::bench::fixed_sweep::VARIANTS;
+#[cfg(not(target_arch = "x86_64"))]
+const SWEEP: &[Variant] = &[];
+
+/// `five8` and `encode_matrix` itself, timed beside the sweep.
+const BASE: [Variant; 2] = [
+    ("five8", |d, o| Ok(five8(d, o)), || true),
+    ("matrix", base58_bench::encode_matrix, || true),
+];
+
+/// Bytes of stack below each sweep call: the same code, with its frame at eight
+/// addresses 544 bytes apart (multiples of 32, so the 32-byte realigned frames move by
+/// exactly this much).
+const PADS: [usize; 8] = [0, 544, 1088, 1632, 2176, 2720, 3264, 3808];
+const AT_PAD: [AtPad; 8] = [
+    at_pad::<0>,
+    at_pad::<544>,
+    at_pad::<1088>,
+    at_pad::<1632>,
+    at_pad::<2176>,
+    at_pad::<2720>,
+    at_pad::<3264>,
+    at_pad::<3808>,
+];
+
+/// Calls `f` with `P` bytes of this frame below it (uninitialised, so they cost nothing).
+#[inline(never)]
+fn at_pad<const P: usize>(
+    f: Fixed,
+    d: &[u8],
+    out: &mut [u8],
+) -> Result<usize, base58_bench::BufferTooSmall> {
+    let pad = std::mem::MaybeUninit::<[u8; P]>::uninit();
+    black_box(&pad);
+    f(d, out)
 }
 
 criterion_group!(benches, encode);
