@@ -1266,6 +1266,11 @@ The gap between the builds is 1–3% now, and both are faster. `ntt-cached` befo
 - With the final kernels the kernels take 58% (default) and 60% (native) of the 1 MiB
   encode: forward 24–25%, inverse 18–19%. At 128 KiB they take 31–32%, and Karatsuba
   products 49%.
+- Tried and not kept: the inverse transform on pairs (`6279f52`, reverted in
+  `8502562`). It took 2–5% less time per butterfly in both builds (0.173 to 0.167 ns at
+  2^20 points with default flags), but no change was measurable end to end: encode
+  0.98–1.03×, with entries that do not run it moving as much. The inverse had no
+  default-vs-native gap to close, so the simpler single-vector version stays.
 
 ### Tuning
 
@@ -1340,10 +1345,6 @@ Tried and not kept:
   of an operand: about 168k calls in 375 folds per 1 MiB encode, 4% of its time on
   Zen 5. Summing the blocks' 32-bit coefficients once in 64-bit lanes, for all three
   primes, and then reducing would replace most of them. Not tried.
-- **The inverse transform on pairs.** On Zen 5 the AVX-512 inverse takes 0.17 ns per
-  butterfly at 2^20 points in both builds, the forward one on pairs 0.14 (see
-  [AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)). The same `[V; 2]`
-  pairing may help the inverse. Not tried.
 
 ### `encode_matrix`: a matrix of powers
 
