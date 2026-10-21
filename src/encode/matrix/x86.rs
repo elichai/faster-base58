@@ -38,27 +38,29 @@ pub mod sweep {
         };
     }
     variant!(sums, encode_64_sums);
-    variant!(serial, encode_64_stack::<1>);
-    variant!(split2, encode_64_stack::<2>);
     variant!(split4, encode_64_stack::<4>);
-    variant!(regs, encode_64_regs::<1>);
-    variant!(regs_split2, encode_64_regs::<2>);
-    variant!(regs_split3, encode_64_regs::<3>);
     variant!(regs_split4, encode_64_regs::<4>);
     variant!(regs_split6, encode_64_regs::<6>);
+    variant!(inline_split4, encode_64_inline::<4, false, 0>);
+    variant!(count_split3, encode_64_inline::<3, true, 0>);
+    variant!(count_split4, encode_64_inline::<4, true, 0>);
+    variant!(count_split4_b, encode_64_inline::<4, true, 1>);
+    variant!(count_split6, encode_64_inline::<6, true, 0>);
 
     /// `fixed-avx2-sums` is `encode_matrix`'s 64-byte path. `split` cuts the carry chain
-    /// (`fixed::carry_split`); `regs` keeps the characters in registers.
+    /// (`fixed::carry_split`); `regs` keeps the characters in registers; `inline` also
+    /// writes them without a call; `count` also counts the leading ones from the carried
+    /// columns. `-b` is a second copy of the code.
     pub const VARIANTS: [(&str, Encode); 9] = [
         ("fixed-avx2-sums", sums),
-        ("fixed-serial", serial),
-        ("fixed-split2", split2),
         ("fixed-split4", split4),
-        ("fixed-regs", regs),
-        ("fixed-regs-split2", regs_split2),
-        ("fixed-regs-split3", regs_split3),
         ("fixed-regs-split4", regs_split4),
         ("fixed-regs-split6", regs_split6),
+        ("fixed-inline-split4", inline_split4),
+        ("fixed-count-split3", count_split3),
+        ("fixed-count-split4", count_split4),
+        ("fixed-count-split4-b", count_split4_b),
+        ("fixed-count-split6", count_split6),
     ];
 }
 
@@ -132,6 +134,90 @@ fn encode_64_regs<const K: usize>(
     write_regs(x, &c, output)
 }
 
+/// [`encode_64_regs`] with the writing inlined: no call, and nothing staged on the stack.
+/// `SCALAR`: the leading zero digits from the carried columns, off the vector path, and not
+/// from the digit vectors. `COPY = 1` makes the last store first (it does not overlap the
+/// first), only so that this copy of the code is not merged with the other: a probe of
+/// what placement alone changes.
+#[target_feature(enable = "avx2")]
+fn encode_64_inline<const K: usize, const SCALAR: bool, const COPY: usize>(
+    x: &[u8; 64],
+    output: &mut [u8],
+) -> Result<usize, BufferTooSmall> {
+    let t = cols(x, &TABLE_64);
+    let (c, zeros) = match carry::<K>(&t) {
+        Some(r) => (lanes(&r), zero_digits(&r)),
+        None => lanes_zeros_cold(&t),
+    };
+    let d = [group(c[0], c[1]), group(c[2], c[3]), group(c[4], c[5])];
+    let zeros = if SCALAR { zeros } else { zero_digits_v(&d) };
+    // `write`, here so that it is inlined: LLVM keeps it out of line where it has several
+    // callers, and `#[inline(always)]` is not allowed with `#[target_feature]`.
+    let n = fixed::leading_zeros(x) + 96 - zeros;
+    let out = output.get_mut(..n).ok_or(BufferTooSmall)?;
+    let skip = 96 - n;
+    let [c0, c1, c2] = d.map(|d| alphabet(d));
+    if COPY == 1 {
+        store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
+    }
+    store(out.first_chunk_mut().unwrap(), shift(c0, skip));
+    store(out[32 - skip..].first_chunk_mut().unwrap(), c1);
+    if COPY != 1 {
+        store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
+    }
+    Ok(n)
+}
+
+#[cold]
+#[inline(never)]
+#[target_feature(enable = "avx2")]
+fn lanes_zeros_cold(t: &[u64; 24]) -> ([__m256i; 6], usize) {
+    let r = fixed::carry_serial(t, COLS_64);
+    (lanes(&r), zero_digits(&r))
+}
+
+/// The leading zero digits of the 96 digits of the carried columns `r`.
+#[inline(always)]
+fn zero_digits(r: &[u32; 24]) -> usize {
+    let Some(j) = r.iter().rposition(|&c| c != 0) else {
+        return 96;
+    };
+    let c = r[j];
+    let digits = 1 + (c >= 58) as usize + (c >= 58 * 58) as usize + (c >= 58 * 58 * 58) as usize;
+    4 * (24 - j) - digits
+}
+
+/// The leading zero digits of the 96 digits `d`, top first.
+#[target_feature(enable = "avx2")]
+fn zero_digits_v(d: &[__m256i; 3]) -> usize {
+    let zero = d.map(|d| _mm256_movemask_epi8(_mm256_cmpeq_epi8(d, _mm256_setzero_si256())));
+    let zero = zero.map(|z| z as u32);
+    let top = zero[0] as u64 | (zero[1] as u64) << 32;
+    let n = if top != u64::MAX { top.trailing_ones() } else { 64 + zero[2].trailing_ones() };
+    n as usize
+}
+
+/// Writes `x`'s value from its 96 digits `d`, top first, of which `zeros` lead.
+#[target_feature(enable = "avx2")]
+fn write(
+    x: &[u8; 64],
+    d: [__m256i; 3],
+    zeros: usize,
+    output: &mut [u8],
+) -> Result<usize, BufferTooSmall> {
+    // '1' is the zero digit: drop the leading ones, then add one per leading zero byte.
+    let n = fixed::leading_zeros(x) + 96 - zeros;
+    let out = output.get_mut(..n).ok_or(BufferTooSmall)?;
+    // `64 <= n <= 88` (`fixed::Table::check`), so the stores below are in `out` and the
+    // last ends at `n`. The second overwrites the first one's excess.
+    let skip = 96 - n;
+    let [c0, c1, c2] = d.map(|d| alphabet(d));
+    store(out.first_chunk_mut().unwrap(), shift(c0, skip));
+    store(out[32 - skip..].first_chunk_mut().unwrap(), c1);
+    store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
+    Ok(n)
+}
+
 #[cold]
 #[inline(never)]
 #[target_feature(enable = "avx2")]
@@ -164,21 +250,7 @@ fn write_regs(
 ) -> Result<usize, BufferTooSmall> {
     // The 96 digits, top first: columns 23 to 16, 15 to 8, 7 to 0.
     let d = [group(c[0], c[1]), group(c[2], c[3]), group(c[4], c[5])];
-    let zero = d.map(|d| _mm256_movemask_epi8(_mm256_cmpeq_epi8(d, _mm256_setzero_si256())));
-    let zero = zero.map(|z| z as u32);
-    let top = zero[0] as u64 | (zero[1] as u64) << 32;
-    let ones = if top != u64::MAX { top.trailing_ones() } else { 64 + zero[2].trailing_ones() };
-    // '1' is the zero digit: drop the leading ones, then add one per leading zero byte.
-    let n = fixed::leading_zeros(x) + 96 - ones as usize;
-    let out = output.get_mut(..n).ok_or(BufferTooSmall)?;
-    // `64 <= n <= 88` (`fixed::Table::check`), so the stores below are in `out` and the
-    // last ends at `n`. Each overwrites the previous one's excess.
-    let skip = 96 - n;
-    let [c0, c1, c2] = d.map(|d| alphabet(d));
-    store(out.first_chunk_mut().unwrap(), shift(c0, skip));
-    store(out[32 - skip..].first_chunk_mut().unwrap(), c1);
-    store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
-    Ok(n)
+    write(x, d, zero_digits_v(&d), output)
 }
 
 #[target_feature(enable = "avx2")]
