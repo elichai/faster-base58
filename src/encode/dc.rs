@@ -199,7 +199,10 @@ impl Divisor {
                 let k = 64 * (3 * h - n - 1) + bits as usize - 2 * b.bits as usize;
                 reciprocal_from_square(&mut recip, &a, &b.recip, k, s, m);
             }
-            _ => reciprocal(&mut recip, &a, s, m),
+            _ => {
+                debug_assert!(below.is_none() || n <= RECIP_BASECASE, "not from the square");
+                reciprocal(&mut recip, &a, s, m)
+            }
         }
         Divisor { exp: p.exp, shift: p.shift, bits, pn, recip }
     }
@@ -721,8 +724,8 @@ mod tests {
         assert!(ax2[2 * n..].iter().any(|&v| v != 0), "{what}: a (x + 2) < β^(2n)");
     }
 
-    /// The divisors of a table, each from the one below, with the bounds of their
-    /// reciprocals checked.
+    /// The divisors of a table, each from the one below with exactly the scratch it needs,
+    /// with the bounds of their reciprocals checked.
     fn divisors(unit: usize, levels: usize, m: &mut impl Multiplier) -> Vec<Divisor> {
         let mut table = vec![0; table_len(unit, levels)];
         let e = unit << (levels - 1);
@@ -730,7 +733,8 @@ mod tests {
         let powers = powers(unit, levels, &mut table, &mut s, m, false);
         let mut divs: Vec<Divisor> = Vec::new();
         for (i, p) in powers[..levels].iter().enumerate() {
-            let d = Divisor::new(p, divs.last(), &mut s, m);
+            let s = &mut s[..recip_scratch_len(p.limbs.len() + p.shift + 1, m)];
+            let d = Divisor::new(p, divs.last(), s, m);
             // `pn β^shift`, then with one more zero limb.
             let mut a = vec![0; d.shift];
             a.extend_from_slice(&d.pn);
