@@ -1256,39 +1256,55 @@ operands span hundreds to thousands of blocks of it. `ntt::fold` loaded them per
 with one `load_add` call per block; on Zen 5 those calls took 4.1% of `encode_ntt_cached`
 at 1 MiB (168k calls, about 21 ns each). Now `pieces` sums an operand of more than 8
 blocks once for all three primes (see [Power-of-two padding](#power-of-two-padding)).
-`load_add` calls per encode on the M5 Pro (a temporary counter, not in the repo):
+`load_add` calls per encode (a temporary counter, not in the repo; Zen 5 makes fewer
+transform products, with Karatsuba up to 3072 limbs and 96-chunk leaves):
 
-| encode bytes | before | after |
-|---:|---:|---:|
-| 128 KiB | 40,671 | 258 |
-| 144 KiB | 1,509 | 936 |
-| 1 MiB | 272,970 | 573 |
+| encode bytes | M5 Pro: before | after | Zen 5: before | after |
+|---:|---:|---:|---:|---:|
+| 128 KiB | 40,671 | 258 | 16,911 | 18 |
+| 144 KiB | 1,509 | 936 | 1,227 | 78 |
+| 1 MiB | 272,970 | 573 | 167,949 | 144 |
 
 `ntt-cached` with the old fold and with the sums, in one binary (a temporary switch, not in
-the repo): 41 interleaved rounds of about 0.2 s per arm, alternating which goes first;
-minimum times, and the median of the per-round ratios with its interquartile range. M5 Pro
-on AC power, with another session's benchmark on the machine:
+the repo): 41 interleaved rounds of about 0.2 s per arm, alternating which goes first; the
+median of the per-round new/old ratios, with its interquartile range on the M5 (on Zen 5
+it is within 0.002 of the median, except 0.006 for decode 1 MiB native). M5 Pro on AC
+power, with another session's benchmark on the machine; Zen 5 on the GCP VM above
+(rustc 1.99.0, no LTO, steal 0, nothing else running), default and native flags:
 
-| | old | new | new/old | IQR |
+| | M5 Pro | IQR | Zen 5, default | Zen 5, native |
 |:---|---:|---:|---:|---:|
-| encode 128 KiB | 6.06 ms | 5.94 ms | 0.981 | 0.972–0.990 |
-| encode 144 KiB | 6.86 ms | 6.85 ms | 1.000 | 0.966–1.021 |
-| encode 1 MiB | 67.9 ms | 66.9 ms | 0.976 | 0.958–0.991 |
-| decode 128 KiB | 2.48 ms | 2.47 ms | 0.993 | 0.961–1.014 |
-| decode 144 KiB | 2.90 ms | 2.91 ms | 0.987 | 0.977–1.002 |
-| decode 1 MiB | 28.8 ms | 28.5 ms | 1.006 | 0.978–1.042 |
+| encode 128 KiB | 0.981 | 0.972–0.990 | 0.975 | 0.976 |
+| encode 144 KiB | 1.000 | 0.966–1.021 | 0.998 | 0.997 |
+| encode 1 MiB | 0.976 | 0.958–0.991 | 0.969 | 0.969 |
+| decode 128 KiB | 0.993 | 0.961–1.014 | 1.000 | 1.000 |
+| decode 144 KiB | 0.987 | 0.977–1.002 | 0.993 | 0.987 |
+| decode 1 MiB | 1.006 | 0.978–1.042 | 0.999 | 1.000 |
 
-- Decodes take the sums rarely: never at 128 KiB and once at 1 MiB, so those two rows run
-  the same code in both arms and show the noise, about 1%. At 144 KiB about 120 folds of
-  10 blocks use them.
-- An earlier run, with a VM and other builds on the machine, gave 0.985, 1.000 and 0.982
-  for the three encodes. Summing every operand of two or more blocks gave 0.979, 1.021
-  and 0.980: see the 8-block limit under [Power-of-two padding](#power-of-two-padding).
-- Separate `cargo bench` runs of the two builds were not usable on the shared machine: the
+At 1 MiB the minimum encode times went from 67.9 to 66.9 ms on the M5, and from 86.2 to
+83.5 ms (default) and 72.9 to 70.6 ms (native) on Zen 5.
+
+- Decodes take the sums rarely: on the M5 never at 128 KiB and once at 1 MiB, on Zen 5
+  never at either. Those rows run the same code in both arms and show the noise: about 1%
+  on the M5, none on Zen 5. At 144 KiB about 120 folds use them on the M5, 4 on Zen 5.
+- On Zen 5, the 1 MiB encode gives back 3.1% of the 4.1% the calls took. With default
+  flags `sums` and `narrow` compile for the baseline target, not with the AVX-512
+  kernels (for `x86_64-apple-darwin` LLVM sums two limbs per SSE loop iteration), yet
+  they gain as much as with native flags. That fits the calls, not the per-coefficient
+  work, having been the cost.
+- Criterion on Zen 5, `e20a0eb` against `0adef36`, before, after, before, after for each
+  flag set (ratios of the means): encode `ntt-cached` 0.979, 0.996, 0.970 (default) and
+  0.968, 0.996, 0.961 (native) at the three sizes, `dc-malachite` (unchanged)
+  0.999–1.003. But decode
+  `ntt-cached` at 128 KiB came out 0.966 and 0.972, though no operand takes the sums
+  there: the two builds differ by up to about 3% in layout alone, so the table above is
+  the measure. 103 tests pass there, the new ones included.
+- An earlier M5 run, with a VM and other builds on the machine, gave 0.985, 1.000 and
+  0.982 for the three encodes. Summing every operand of two or more blocks gave 0.979,
+  1.021 and 0.980: see the 8-block limit under
+  [Power-of-two padding](#power-of-two-padding).
+- Separate `cargo bench` runs of the two builds were not usable on the shared M5: the
   unchanged build moved from 92 to 108 ms at 1 MiB between two runs.
-- Zen 5: not measured. On x86-64, `sums` and `narrow` are compiled for the baseline
-  target, not with the AVX-512 kernels; for `x86_64-apple-darwin` LLVM sums two limbs
-  per SSE loop iteration.
 
 ### Tuning
 
