@@ -969,7 +969,9 @@ calls `encode_ntt_cached` above. `five8` selects its AVX2 code at compile time, 
 default flags it ran its scalar code; our encoders detect AVX-512 at run time. The 32
 byte row is from a later run of every encoder at those sizes (commit `b2ffc77`, default
 and native flags back to back; [Fixed sizes](#fixed-sizes-32-and-64-bytes)), the 64 byte
-row from run 5 there (`ccab939`, the present 64-byte path).
+row from run 5 there (`ccab939`, the AVX2 64-byte path). On this CPU `encode_matrix` now
+takes the AVX-512 VBMI path at 64 bytes: 34.1 ns with default flags and 36.2 with native
+ones as run 6's `x64-vbmi`, not yet timed through `encode_matrix`.
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
@@ -1129,6 +1131,8 @@ flags):
   33.6 ns) and 1.33× faster at 64 (38.1 against 50.7 ns, run 5 of
   [Fixed sizes](#fixed-sizes-32-and-64-bytes); the same code took 52.6 ns in another
   binary, and `five8` was 1.48× faster before the split carry and the register output).
+  The AVX-512 VBMI path that replaced it at 64 bytes on this CPU took 36.2 ns against
+  `five8`'s 51.0 in run 6, 1.41× faster.
   Before the fixed-size path (`49fb679`) `five8` won both: 33.6 and 52.5 ns against 51.2
   and 82.6.
 - `encode_matrix` does not change (median +1%, within ±6%). Its panel kernels are
@@ -1495,8 +1499,9 @@ encoder (`five8`) works the same way in base 58^5; this one keeps base 58^4 colu
   reduced before the carry pass) and that every value fits in 11 or 22 columns.
 - **Column sums**: NEON `umlal`, four columns per block, from the first row that is not
   zero there; a row that is zero in a block's upper two columns adds to the lower two
-  only. On x86_64 AVX2 `vpmuludq` for 64 bytes, picked at run time with
-  `is_x86_feature_detected!`, and plain Rust for 32 bytes (see Zen 5 below); other
+  only. On x86_64 at 64 bytes, picked at run time with `is_x86_feature_detected!`:
+  AVX-512F `vpmuludq`, eight columns per vector, on CPUs with AVX-512 VBMI, else AVX2
+  `vpmuludq`, four columns per vector; plain Rust for 32 bytes (see Zen 5 below); other
   targets run plain Rust. As constants, every pair of table entries took its own
   load (`adrp`, `ldr d`), one per `umlal`, so the NEON kernel reads the table through
   `black_box`:
@@ -1511,7 +1516,8 @@ encoder (`five8`) works the same way in base 58^5; this one keeps base 58^4 colu
   column, `t - 58^4·c`, is below 2^32, so the digit kernels compute it modulo 2^32 from
   the low halves (NEON four columns per instruction): 5–7% faster again on the M5 (11.4
   against 12.1 ns, 27.1 against 28.9–29.2).
-- **x86_64 with AVX2, 64 bytes: the chain in four segments** (`fixed::carry_split`).
+- **x86_64 with AVX2 or AVX-512 VBMI, 64 bytes: the chain in four segments**
+  (`fixed::carry_split`).
   Each segment carries from zero, in parallel; then each segment's first column takes
   the carry out of the segment below (one more division) and passes the difference
   (below 2^14) to its second column. Only if that takes the second column to 58^4 does
@@ -1520,24 +1526,28 @@ encoder (`five8`) works the same way in base 58^5; this one keeps base 58^4 colu
   LLVM already divides by 58^4 with one multiply and a shift (`add; mul; shr` per
   column), so a shorter chain was the lever, not a cheaper step.
 - **Characters**: on aarch64 the general path's NEON kernel with that subtraction in
-  front. On x86_64 with AVX2 at 64 bytes, AVX2 digits that stay in registers: the
+  front. On x86_64 at 64 bytes (AVX2 or VBMI), AVX2 digits that stay in registers: the
   carried columns go from general registers into six vectors, four columns each; the
   digits come from `c div 3364` by `vpmuludq` and the pairs by `vpmulhuw`, 32 per
-  register top first, and the alphabet from compares. Elsewhere, x86_64 at 32 bytes
-  included, the scalar kernel with the table of 3364 character pairs.
+  register top first, and the alphabet from compares. With AVX-512 VBMI the alphabet is
+  one byte permute over the 64-byte table (`vpermi2b`; LLVM emits a 512-bit `vpermb`).
+  Elsewhere, x86_64 at 32 bytes included, the scalar kernel with the table of 3364
+  character pairs.
 - **Output**: the leading `'1'`s of the characters are dropped and one per leading zero
   byte put back. A result is 32–44 or 64–88 characters, so two overlapping fixed-size
-  copies write exactly it. On x86_64 with AVX2 at 64 bytes, three overlapping 32-byte
+  copies write exactly it. On x86_64 at 64 bytes (AVX2 or VBMI), three overlapping 32-byte
   stores write it from registers: the top 32 characters shifted by the count dropped
-  (`vpermd` and variable shifts), then the other two at fixed offsets from the end. The
+  (`vpermd` and variable shifts, or one `vpermb` with VBMI), then the other two at fixed
+  offsets from the end. The
   count of leading `'1'`s comes from the carried columns (the top non-zero one and its
   digits), not from the characters.
 - The NEON path has no branch or table lookup that depends on the input except through
   the result's length (its leading zero bytes and digit count). The plain-Rust paths,
   like the general one, index the table of character pairs by digit pairs, so which
-  cache lines they touch depends on the input. The x86_64 AVX2 path at 64 bytes has no
-  table lookup, but branches on the input: the serial fallback, the search for the top
-  non-zero column and the leading zero bytes. Not checked with tools.
+  cache lines they touch depends on the input. The x86_64 paths at 64 bytes have no
+  table lookup in memory (the VBMI alphabet is a permute in registers), but branch on the
+  input: the serial fallback, the search for the top non-zero column and the leading zero
+  bytes. Not checked with tools.
 
 Apple M5 Pro, AC power, `cargo bench --bench encode -- --warm-up-time 1
 --measurement-time 3 'encode/[^/]+/(31|32|64)$'`: the base commit (`e1a9f13`), `be91f3a`
@@ -1581,7 +1591,7 @@ Tried and not kept (M5):
 
 **Zen 5.** AMD EPYC 9B45 on the GCP VM, rustc 1.99.0, the same bench command with
 default flags and then `-C target-cpu=native`, back to back; no LTO, no pinning; one
-criterion run per build, steal 0. Five runs. The first (`be91f3a`) had AVX2 column sums
+criterion run per build, steal 0. Six runs. The first (`be91f3a`) had AVX2 column sums
 and AVX2 characters at both sizes. ns:
 
 | bytes | flags   | five8 | matrix (AVX2) | matrix-general | matrix-portable |
@@ -1650,25 +1660,26 @@ target-feature=-avx512f`, which turns off every AVX-512 feature (checked with `r
 carried columns in the chain, `t - 58^4 c`, where `fixed-avx2-sums` keeps the quotients;
 `-b` is a second copy of `fixed-count-split4` with one store moved, a probe of placement.)
 
-- **64 bytes now: `fixed-count-split4`**, `encode_matrix`'s path on x86_64 with AVX2. In
-  run 4's binary, with default flags, 48.5 ns: a third less than the previous path in
-  the same binary (72.7) and 2.45× faster than `five8` (118.8).
+- **64 bytes with AVX2: `fixed-count-split4`**, `encode_matrix`'s path on x86_64 with
+  AVX2 but without AVX-512 VBMI (with VBMI see run 6). In run 4's binary, with default
+  flags, 48.5 ns: a third less than the previous path in the same binary (72.7) and
+  2.45× faster than `five8` (118.8).
 - **In run 4's native build `five8` was still 3.5% faster**: 50.8 ns [50.7, 50.8]
   against 52.6 [52.3, 53.0]. There the same code took 8.5% longer than with default flags
   and 12% longer than without AVX-512. In the native build LLVM uses AVX-512 for part of
   the scalar work (some carried columns go through `vpmulld` and back with `vpextrd`),
-  mask registers in the alphabet and EVEX registers in the sums. llvm-mca's `znver5`
-  model predicts the native code faster. Run 5 suggests the binary, not those choices,
-  decided most of it.
+  mask registers in the alphabet and EVEX registers in the sums. Run 6 showed that none
+  of these choices costs time: the loss was run 4's binary.
 - **Run 5 (`ccab939`): the present code through `encode_matrix`**, in its own binary
   (the sweep removed), default then native flags, tests passed (109): 41.0 ns [41.0,
   41.0] and 38.1 ns [38.1, 38.1], against `five8`'s 119.5 and 50.7 [50.6, 50.8]. So in
   the native build `encode_matrix` takes 25% less time than `five8`, and with default
   flags 66% less. The same source took 48.5 and 52.6 ns in run 4's binary, while every
   control (`five8`, `matrix-general`, `matrix-portable`, `bs58`, 32 bytes) was within 1%
-  of run 4. So this path's time depends on the binary around it by 15–28%; placement or
-  inlining is likely, not checked. Other builds may land on the slow side, as the M5's
-  64-byte path does.
+  of run 4. So this path's time depends on the binary around it by 15–28%. Its native
+  code is the same, instruction for instruction, as that of run 4's
+  `fixed-count-split4` (asm diff; only the length dispatch and the registers at entry
+  differ), so the difference is not in the code LLVM made of it.
 - **`five8`'s native speed comes from AVX-512.** Without it `five8` takes 70.1 ns, 38%
   more: LLVM vectorizes its column sums for AVX-512. There `fixed-count-split4` takes
   46.8 ns, 33% less than `five8` (run 4).
@@ -1693,13 +1704,64 @@ carried columns in the chain, `t - 58^4 c`, where `fixed-avx2-sums` keeps the qu
   default | native). Without AVX-512 the plain-Rust 32-byte path took 29.8 ns and `five8`
   28.1.
 
+Run 6 (`21fbdd3`) timed, in one binary per build, the production 64-byte code, variants
+of it that avoid each AVX-512 choice LLVM makes with native flags, and two that use
+AVX-512 on purpose, beside `five8` and `encode_matrix`. Three builds back to back: default,
+native, and native without AVX-512. The tests passed (109; the first run of the AVX-512
+kernels: Rosetta has none). Each entry ran behind a wrapper that leaves P bytes of stack
+below the call, P = 0 to 3808 in steps of 544: the same code, with its stack frame at
+eight addresses. 1 s warm-up, 2 s measurement. Median over the eight addresses, ns:
+
+| entry | what | default | native | no AVX-512 |
+|:---|:---|---:|---:|---:|
+| five8 | | 120.0 | 51.0 | 68.8 |
+| `matrix` | `encode_matrix`, production (AVX2 path) | 41.1 | 38.1 | 40.7 |
+| `x64` | the same code, called as run 4 called its entries | 41.0 | 38.1 | 40.6 |
+| `x64-b` | `x64` with one store moved | 43.4 | 39.6 | 42.5 |
+| `x64-lut` | the alphabet's offset from a `vpshufb` table: no masked `vpaddb` | 41.0 | 38.5 | 40.6 |
+| `x64-shift` | the shift in two steps below 32 bits: no `vptestmd` | 40.6 | 38.0 | 40.4 |
+| `x64-lut-shift` | both: no mask register in the code | 40.6 | 38.5 | 40.7 |
+| `x64-noslp` | carried columns through an empty `asm!`: no SLP pairs, more spills | 42.6 | 42.2 | 43.5 |
+| `x64-noslp-lut-shift` | the three | 42.3 | 42.5 | 43.4 |
+| `x64-zmm` | AVX-512F column sums, eight columns per vector | 40.3 | 38.5 | 40.7 |
+| `x64-zmm-lut-shift` | | 39.9 | 38.8 | 40.5 |
+| `x64-vbmi` | zmm sums, alphabet and shift by `vpermb` | **34.1** | **36.2** | **35.3** |
+
+- **No AVX-512 cost to remove.** In one binary the production code takes 38.1 ns with
+  native flags (38.1–38.4 over the addresses), less than with default flags (41.0) or
+  without AVX-512 (40.6). Taking out LLVM's mask-register code (`lut`, `shift`,
+  `lut-shift`) changes it by −0.3% to +1.0%. Keeping the carried columns scalar
+  (`noslp`) costs 11%, from the spills the barrier adds. `x64`, the same code called as
+  run 4 called `fixed-count-split4`, takes what `matrix` takes in every build: run 4's
+  52.6 ns was its binary.
+- **The stack address.** With native flags and without AVX-512 the production code moved
+  by at most 1% over the eight addresses. With default flags it took 41.0 ns at seven and
+  54.4–54.9 at one (2720), 33% more; every variant with AVX2 sums took 23–38% more there.
+  The zmm and VBMI variants did not, but took 6–7% more at 3264. So where the stack frame
+  lands can move this code by a third, about the gap between runs 4 and 5 (run 4 was not
+  rerun to check). Cause not investigated; 4 KiB aliasing (stack and buffer addresses
+  equal modulo 4096) is one candidate.
+- **AVX-512 VBMI wins**: `x64-vbmi` takes 17%, 5% and 13% less time than `x64`, and is
+  the lowest entry at every address in every build. Against `five8`: 3.5× faster with
+  default flags (34.1 against 120.0 ns), 1.41× with native flags (36.2 against 51.0).
+  The zmm sums alone change little (−1.7% | +1.0% | +0.2%): the gain is the alphabet and
+  the shift as byte permutes. So `encode_matrix` now takes this path
+  (`x86::encode_64_vbmi`) on CPUs with AVX-512 F, BW, VL and VBMI, and the AVX2 one on
+  other CPUs with AVX2. Only Zen 5 is measured. Its code is that of `x64-vbmi` except
+  for the length dispatch (asm diff, both builds); it has not been timed through
+  `encode_matrix` itself.
+- `x64-b` took 4–6% longer than `x64` at nearly every address in all three builds, so
+  that store order costs time; it is not noise.
+
 Possible next steps for the fixed sizes:
 
 - **The split carry elsewhere.** `fixed::carry_split` is plain Rust, but only the x86_64
-  AVX2 path at 64 bytes uses it. On the M5 about half of a 64-byte call is the serial
+  paths at 64 bytes use it. On the M5 about half of a 64-byte call is the serial
   chain; neither NEON, plain Rust nor 32 bytes has been timed with it.
-- **The 15–28% between binaries on Zen 5** (48.5 | 52.6 ns in run 4's, 41.0 | 38.1 in run
-  5's): time the production path next to an unchanged copy in one binary, with and
-  without pinned alignment, to find what moves it. Then, if a native-flags loss remains,
-  which of LLVM's AVX-512 choices costs it. AVX-512 column sums picked at run time,
-  eight columns per vector, would take work off both builds.
+- **The stack-address cliff on Zen 5**: 33% at one of eight stack addresses with default
+  flags (run 6). Finding its cause (performance counters, or a finer sweep of addresses
+  against the buffers' addresses) would say whether code can avoid it.
+- **VBMI at 32 bytes.** The 32-byte path is plain Rust on x86_64; the `vpermb` alphabet
+  and output have not been tried there.
+- **Time the VBMI path through `encode_matrix`** in its own binary, to confirm run 6's
+  `x64-vbmi`.

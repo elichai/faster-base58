@@ -9,7 +9,8 @@
 //!
 //! The carry pass is serial, unlike the general path's (`super::normalize`): for at most
 //! 22 columns, one scalar multiply per column on the chain beat `normalize`'s four off it.
-//! The x86_64 AVX2 path for 64 bytes cuts the chain into four segments (`carry_split`).
+//! The x86_64 paths for 64 bytes (AVX2, AVX-512 VBMI) cut the chain into four segments
+//! (`carry_split`).
 
 use super::four_digits;
 use super::table::COL_BASE;
@@ -107,13 +108,19 @@ pub(super) fn encode_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, Buffer
     encode_best(x, output, &TABLE_32)
 }
 
-/// [`encode_matrix`](super::encode_matrix) for 64 bytes. On x86_64 with AVX2 kernels and
-/// the carry in four segments (`carry_split`) if the CPU has AVX2.
+/// [`encode_matrix`](super::encode_matrix) for 64 bytes. On x86_64 with AVX-512 VBMI or
+/// AVX2 kernels and the carry in four segments (`carry_split`) if the CPU has them.
 pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     #[cfg(target_arch = "x86_64")]
-    if is_x86_feature_detected!("avx2") {
-        // SAFETY: the CPU has AVX2.
-        return unsafe { super::x86::encode_64(x, output) };
+    {
+        if super::x86::has_vbmi() {
+            // SAFETY: the CPU has the features `has_vbmi` checks.
+            return unsafe { super::x86::encode_64_vbmi(x, output) };
+        }
+        if is_x86_feature_detected!("avx2") {
+            // SAFETY: the CPU has AVX2.
+            return unsafe { super::x86::encode_64(x, output) };
+        }
     }
     encode_best(x, output, &TABLE_64)
 }
@@ -383,8 +390,8 @@ mod tests {
         assert_eq!(Natural::from(COL_BASE), Natural::from(58u32).pow(4));
     }
 
-    /// Both sizes through each entry point. `best` runs the AVX2 kernels when the CPU has
-    /// them (the tests in `x86.rs` say when it has not), NEON on aarch64.
+    /// Both sizes through each entry point. `best` runs the AVX-512 VBMI or AVX2 kernels
+    /// when the CPU has them (the tests in `x86.rs` say when it has not), NEON on aarch64.
     const ENCODERS: [(&str, Encode); 4] = [
         ("matrix", encode_matrix),
         ("matrix-portable", encode_matrix_portable),

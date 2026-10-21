@@ -1,6 +1,8 @@
-//! AVX2 kernels for the fixed size of 64 bytes, which `fixed.rs` picks at run time:
-//! column sums, the carry in four segments (`fixed::carry_split`), and digits that stay in
-//! registers until three stores write the result. README, "Fixed sizes", has the numbers.
+//! AVX2 and AVX-512 VBMI kernels for the fixed size of 64 bytes, which `fixed.rs` picks at
+//! run time: column sums, the carry in four segments (`fixed::carry_split`), and digits that
+//! stay in registers until three stores write the result. With VBMI the sums take eight
+//! columns per vector and `vpermb` maps and shifts the characters. README, "Fixed sizes",
+//! has the numbers.
 
 use core::arch::x86_64::*;
 
@@ -12,7 +14,16 @@ use crate::encode::max_encoded_len;
 /// Columns that hold the value at 64 bytes: 88 characters.
 const COLS_64: usize = max_encoded_len(64).div_ceil(4);
 
-/// [`encode_matrix`](super::encode_matrix) for 64 bytes.
+/// Whether the CPU runs [`encode_64_vbmi`].
+pub(super) fn has_vbmi() -> bool {
+    is_x86_feature_detected!("avx2")
+        && is_x86_feature_detected!("avx512f")
+        && is_x86_feature_detected!("avx512bw")
+        && is_x86_feature_detected!("avx512vl")
+        && is_x86_feature_detected!("avx512vbmi")
+}
+
+/// [`encode_matrix`](super::encode_matrix) for 64 bytes with AVX2.
 #[target_feature(enable = "avx2")]
 pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let t = cols(x, &TABLE_64);
@@ -38,7 +49,7 @@ pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, Buffer
     Ok(n)
 }
 
-/// [`encode_64`]'s columns where `fixed::carry_split` falls back.
+/// The columns where `fixed::carry_split` falls back.
 #[cold]
 #[inline(never)]
 #[target_feature(enable = "avx2")]
@@ -47,178 +58,28 @@ fn carry_cold(t: &[u64; 24]) -> ([__m256i; 6], usize) {
     (lanes(&r), zero_digits(&r))
 }
 
-/// Variants of [`encode_64`] for one Zen 5 sweep: `benches/encode.rs` times each at 64
-/// bytes. With `-C target-cpu=native` LLVM makes AVX-512 choices in [`encode_64`] that the
-/// default build cannot (README, "Fixed sizes"); each variant avoids one of them, or uses
-/// AVX-512 on purpose. Temporary: the winner replaces [`encode_64`].
-#[doc(hidden)]
-pub mod sweep {
-    use super::*;
-
-    type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
-    /// A name, the function, and whether the CPU runs it.
-    pub type Variant = (&'static str, Encode, fn() -> bool);
-
-    macro_rules! variant {
-        ($name:ident, $f:expr, $($feature:tt),+) => {
-            fn $name(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
-                assert!($(is_x86_feature_detected!($feature))&&+, "the CPU lacks a feature");
-                // SAFETY: the CPU has the features.
-                unsafe { $f(d.try_into().expect("the sweep takes 64 bytes"), o) }
-            }
-        };
-    }
-    variant!(base, encode_64, "avx2");
-    variant!(copy, encode_64_opt::<COPY>, "avx2");
-    variant!(lut, encode_64_opt::<LUT>, "avx2");
-    variant!(shift, encode_64_opt::<SHIFT>, "avx2");
-    variant!(lut_shift, encode_64_opt::<{ LUT | SHIFT }>, "avx2");
-    variant!(noslp, encode_64_opt::<NOSLP>, "avx2");
-    variant!(noslp_lut_shift, encode_64_opt::<{ NOSLP | LUT | SHIFT }>, "avx2");
-    variant!(zmm, encode_64_opt::<ZMM>, "avx2", "avx512f");
-    variant!(zmm_lut_shift, encode_64_opt::<{ ZMM | LUT | SHIFT }>, "avx2", "avx512f");
-    variant!(vbmi, encode_64_vbmi, "avx2", "avx512f", "avx512bw", "avx512vl", "avx512vbmi");
-
-    /// `x64` is [`encode_64`]; `-b` the same with one store moved (placement probe); `lut`
-    /// takes the alphabet's offsets from a table; `shift` shifts without a case for 32
-    /// bits; `noslp` keeps the carried columns scalar; `zmm` sums eight columns per
-    /// AVX-512 vector; `vbmi` also maps and shifts the characters with `vpermb`.
-    pub const VARIANTS: [Variant; 10] = [
-        ("x64", base, has_avx2),
-        ("x64-b", copy, has_avx2),
-        ("x64-lut", lut, has_avx2),
-        ("x64-shift", shift, has_avx2),
-        ("x64-lut-shift", lut_shift, has_avx2),
-        ("x64-noslp", noslp, has_avx2),
-        ("x64-noslp-lut-shift", noslp_lut_shift, has_avx2),
-        ("x64-zmm", zmm, has_avx512),
-        ("x64-zmm-lut-shift", zmm_lut_shift, has_avx512),
-        ("x64-vbmi", vbmi, has_vbmi),
-    ];
-
-    fn has_avx2() -> bool {
-        is_x86_feature_detected!("avx2")
-    }
-
-    fn has_avx512() -> bool {
-        has_avx2() && is_x86_feature_detected!("avx512f")
-    }
-
-    fn has_vbmi() -> bool {
-        has_avx512()
-            && is_x86_feature_detected!("avx512bw")
-            && is_x86_feature_detected!("avx512vl")
-            && is_x86_feature_detected!("avx512vbmi")
-    }
-}
-
-/// [`encode_64_opt`]'s options.
-const NOSLP: u8 = 1;
-const LUT: u8 = 2;
-const SHIFT: u8 = 4;
-const ZMM: u8 = 8;
-const COPY: u8 = 16;
-
-/// [`encode_64`] with the options `OPT`: `NOSLP` passes the carried columns through
-/// [`opaque`], `LUT` maps digits with [`alphabet_lut`], `SHIFT` shifts with
-/// [`shift_in_range`], `ZMM` sums with [`cols_512`] (the caller checks AVX-512F), `COPY`
-/// moves the last store first.
-#[target_feature(enable = "avx2")]
-fn encode_64_opt<const OPT: u8>(
-    x: &[u8; 64],
-    output: &mut [u8],
-) -> Result<usize, BufferTooSmall> {
-    let t = if OPT & ZMM != 0 {
-        // SAFETY: the caller checked that the CPU has AVX-512F.
-        unsafe { cols_512(x, &TABLE_64) }
-    } else {
-        cols(x, &TABLE_64)
-    };
-    let (c, zeros) = match fixed::carry_split::<24, 4>(&t, COLS_64) {
-        Some(mut r) => {
-            if OPT & NOSLP != 0 {
-                r[..COLS_64].iter_mut().for_each(|c| *c = opaque(*c));
-            }
-            (lanes(&r), zero_digits(&r))
-        }
-        None => carry_cold(&t),
-    };
-    let d = [group(c[0], c[1]), group(c[2], c[3]), group(c[4], c[5])];
-    let n = fixed::leading_zeros(x) + 96 - zeros;
-    let out = output.get_mut(..n).ok_or(BufferTooSmall)?;
-    let skip = 96 - n;
-    let [c0, c1, c2] = d.map(|d| if OPT & LUT != 0 { alphabet_lut(d) } else { alphabet(d) });
-    let c0 = if OPT & SHIFT != 0 { shift_in_range(c0, skip) } else { shift(c0, skip) };
-    if OPT & COPY != 0 {
-        store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
-    }
-    store(out.first_chunk_mut().unwrap(), c0);
-    store(out[32 - skip..].first_chunk_mut().unwrap(), c1);
-    if OPT & COPY == 0 {
-        store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
-    }
-    Ok(n)
-}
-
-/// [`encode_64`] with AVX-512: [`cols_512`], then [`alphabet_vbmi`] and [`shift_vbmi`].
+/// [`encode_64`] with AVX-512 VBMI: the column sums eight columns per vector
+/// ([`cols_512`]), and the characters mapped by [`alphabet_vbmi`] and shifted by
+/// [`shift_vbmi`]. The caller checks [`has_vbmi`].
 #[target_feature(enable = "avx2,avx512f,avx512bw,avx512vl,avx512vbmi")]
-fn encode_64_vbmi(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+pub(super) fn encode_64_vbmi(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let t = cols_512(x, &TABLE_64);
+    // Vectors, not the array of carried columns: see `encode_64`.
     let (c, zeros) = match fixed::carry_split::<24, 4>(&t, COLS_64) {
         Some(r) => (lanes(&r), zero_digits(&r)),
         None => carry_cold(&t),
     };
+    // The 96 digits, top first, and their count as in `encode_64`.
     let d = [group(c[0], c[1]), group(c[2], c[3]), group(c[4], c[5])];
     let n = fixed::leading_zeros(x) + 96 - zeros;
     let out = output.get_mut(..n).ok_or(BufferTooSmall)?;
+    // `64 <= n <= 88`: the stores are in `out`, as in `encode_64`.
     let skip = 96 - n;
     let [c0, c1, c2] = d.map(|d| alphabet_vbmi(d));
     store(out.first_chunk_mut().unwrap(), shift_vbmi(c0, skip));
     store(out[32 - skip..].first_chunk_mut().unwrap(), c1);
     store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
     Ok(n)
-}
-
-/// `x`, through an empty `asm!` that LLVM cannot see into: no instruction, but the value
-/// stays scalar, so the SLP vectorizer cannot pair the computations that produce it.
-#[inline(always)]
-fn opaque(mut x: u32) -> u32 {
-    // SAFETY: the template is a comment; `x` stays in its register.
-    unsafe {
-        core::arch::asm!("/* {0:e} */", inout(reg) x, options(pure, nomem, nostack, preserves_flags))
-    };
-    x
-}
-
-/// [`alphabet`], with the offset `char - d` from a table indexed by the number of gaps
-/// below `d`: no `and` of a compare with a constant, which LLVM turns into a masked add
-/// with AVX-512.
-#[target_feature(enable = "avx2")]
-fn alphabet_lut(d: __m256i) -> __m256i {
-    // -1 where `d > n`.
-    let gt = |n: i8| _mm256_cmpgt_epi8(d, _mm256_set1_epi8(n));
-    let gaps = _mm256_add_epi8(_mm256_add_epi8(gt(8), gt(16)), _mm256_add_epi8(gt(21), gt(32)));
-    let gaps = _mm256_abs_epi8(_mm256_add_epi8(gaps, gt(43)));
-    // '1', 'A', 'J', 'P', 'a' and 'm', less their digits.
-    #[rustfmt::skip]
-    let offset = _mm256_setr_epi8(
-        49, 56, 57, 58, 64, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        49, 56, 57, 58, 64, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    );
-    _mm256_add_epi8(d, _mm256_shuffle_epi8(offset, gaps))
-}
-
-/// [`shift`] with the high part shifted in two steps, each by less than 32 bits, so that
-/// LLVM needs no case for a shift by 32.
-#[target_feature(enable = "avx2")]
-fn shift_in_range(v: __m256i, n: usize) -> __m256i {
-    let i = _mm256_set1_epi32(n as i32 / 4);
-    let i = _mm256_add_epi32(_mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7), i);
-    let lo = _mm256_permutevar8x32_epi32(v, i);
-    let hi = _mm256_permutevar8x32_epi32(v, _mm256_add_epi32(i, _mm256_set1_epi32(1)));
-    let bits = 8 * (n % 4) as i32;
-    let hi = _mm256_sllv_epi32(_mm256_slli_epi32::<1>(hi), _mm256_set1_epi32(31 - bits));
-    _mm256_or_si256(_mm256_srlv_epi32(lo, _mm256_set1_epi32(bits)), hi)
 }
 
 /// The alphabet in two 32-byte halves, zero past its end.
@@ -232,16 +93,19 @@ const ALPHABET_64: [[u8; 32]; 2] = {
     t
 };
 
-/// The characters of 32 digits below 58, from the alphabet by `vpermi2b`.
+/// [`alphabet`] by one byte permute over the 64-byte table (`vpermi2b`; LLVM emits a
+/// 512-bit `vpermb`).
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi")]
 fn alphabet_vbmi(d: __m256i) -> __m256i {
     let [lo, hi] = &ALPHABET_64;
     // SAFETY: `lo` and `hi` hold 32 bytes; the loads are unaligned.
-    let (lo, hi) = unsafe { (_mm256_loadu_si256(lo.as_ptr().cast()), _mm256_loadu_si256(hi.as_ptr().cast())) };
+    let (lo, hi) = unsafe {
+        (_mm256_loadu_si256(lo.as_ptr().cast()), _mm256_loadu_si256(hi.as_ptr().cast()))
+    };
     _mm256_permutex2var_epi8(lo, d, hi)
 }
 
-/// [`shift`] by `vpermb`.
+/// [`shift`] by one byte permute (`vpermb`).
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi")]
 fn shift_vbmi(v: __m256i, n: usize) -> __m256i {
     #[rustfmt::skip]
@@ -419,19 +283,8 @@ mod tests {
         yes
     }
 
-    fn avx512() -> bool {
-        let yes = is_x86_feature_detected!("avx512f");
-        if !yes {
-            eprintln!("no AVX-512F on this CPU: AVX-512 kernels not run");
-        }
-        yes
-    }
-
     fn vbmi() -> bool {
-        let yes = is_x86_feature_detected!("avx512f")
-            && is_x86_feature_detected!("avx512bw")
-            && is_x86_feature_detected!("avx512vl")
-            && is_x86_feature_detected!("avx512vbmi");
+        let yes = has_vbmi();
         if !yes {
             eprintln!("no AVX-512 VBMI on this CPU: VBMI kernels not run");
         }
@@ -443,7 +296,7 @@ mod tests {
         if !avx2() {
             return;
         }
-        let wide = avx512();
+        let wide = vbmi();
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(45);
         let mut inputs: Vec<[u8; 64]> = [0, 1, 0x80, 0xFF].map(|b| [b; 64]).to_vec();
         inputs.extend((0..1000).map(|_| std::array::from_fn(|_| rng.next_u32() as u8)));
@@ -493,8 +346,7 @@ mod tests {
             return;
         }
         type Map = unsafe fn(__m256i) -> __m256i;
-        let mut kernels: Vec<(&str, Map)> =
-            vec![("alphabet", alphabet), ("alphabet_lut", alphabet_lut)];
+        let mut kernels: Vec<(&str, Map)> = vec![("alphabet", alphabet)];
         if vbmi() {
             kernels.push(("alphabet_vbmi", alphabet_vbmi));
         }
@@ -517,8 +369,7 @@ mod tests {
             return;
         }
         type Shift = unsafe fn(__m256i, usize) -> __m256i;
-        let mut kernels: Vec<(&str, Shift)> =
-            vec![("shift", shift), ("shift_in_range", shift_in_range)];
+        let mut kernels: Vec<(&str, Shift)> = vec![("shift", shift)];
         if vbmi() {
             kernels.push(("shift_vbmi", shift_vbmi));
         }
@@ -534,16 +385,20 @@ mod tests {
         }
     }
 
-    /// `encode_64` and the sweep's variants against bs58: random inputs, every count of
-    /// leading zero bytes, all 0xFF, inputs that take the serial fallback; into an ample
-    /// buffer (nothing written past the result), an exact one and one a byte short
-    /// (nothing written).
+    /// `encode_64` and `encode_64_vbmi` against bs58: random inputs, every count of leading
+    /// zero bytes, all 0xFF, inputs that take the serial fallback; into an ample buffer
+    /// (nothing written past the result), an exact one and one a byte short (nothing
+    /// written).
     #[test]
     fn encode_64_matches_bs58() {
         if !avx2() {
             return;
         }
-        let (wide, vbmi) = (avx512(), vbmi());
+        type Encode = unsafe fn(&[u8; 64], &mut [u8]) -> Result<usize, BufferTooSmall>;
+        let mut kernels: Vec<(&str, Encode)> = vec![("encode_64", encode_64)];
+        if vbmi() {
+            kernels.push(("encode_64_vbmi", encode_64_vbmi));
+        }
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(46);
         let mut random = || -> [u8; 64] { std::array::from_fn(|_| rng.next_u32() as u8) };
         let mut inputs: Vec<[u8; 64]> = (0..3000).map(|_| random()).collect();
@@ -560,9 +415,9 @@ mod tests {
         }
         inputs.extend([0x80, 0xFF].map(|b| [b; 64]));
         inputs.extend(fixed::split_fallbacks(&mut rng, 4, 20));
-        let run: Vec<_> = sweep::VARIANTS.iter().filter(|&&(.., has)| has()).collect();
-        assert_eq!(run.len(), [7, 9, 10][wide as usize + vbmi as usize]);
-        for &&(name, f, _) in &run {
+        for (name, f) in kernels {
+            // SAFETY: the CPU has the kernel's features.
+            let f = |x, o: &mut [u8]| unsafe { f(x, o) };
             for x in &inputs {
                 let want = bs58::encode(x).into_vec();
                 let at = format!("{name}: {x:?}");
