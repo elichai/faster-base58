@@ -249,8 +249,9 @@ least `THRESHOLD` limbs with NTTs instead of Karatsuba.
 - **Backends.** NEON on aarch64. On x86_64 with AVX-512F, hand-written kernels for the
   transforms and the pointwise products (`src/ntt/avx512.rs`): the stages `h ≤ 16` on
   blocks of 32 values in two registers, regrouped by `vpermt2d`, and the others two per
-  pass. The other kernels are the plain-Rust ones compiled for AVX-512, or for AVX2
-  without it; all are chosen at runtime. The AVX-512 code is written against a small
+  pass; the forward transform works on pairs of independent vectors, which with default
+  flags made it 1.5–1.9× faster on Zen 5. The other kernels are the plain-Rust ones
+  compiled for AVX-512, or for AVX2 without it; all are chosen at runtime. The AVX-512 code is written against a small
   vector trait with an emulation, so the tests check it on any CPU, and on Zen 5 they
   ran it for real. Under Rosetta the tests pass with the AVX2 kernels
   (`ROSETTA_ADVERTISE_AVX=1`, release build).
@@ -1040,7 +1041,7 @@ Every encoder:
 - At 1 MiB `dc-malachite` (111.05 ms) and `ntt-cached` (111.40 ms) tie, 1.19× faster than
   malachite's own conversion. On the M5 `ntt-cached` was 1.39× faster than `dc-malachite`
   there. The NTT kernels here were the portable code compiled for AVX-512; with the
-  hand-written ones `ntt-cached` is 1.27× faster than `dc-malachite` at 1 MiB (see
+  hand-written ones `ntt-cached` is 1.47× faster than `dc-malachite` at 1 MiB (see
   [AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)).
 - Against `bs58` our fastest is 15× faster at 31 B, 334× at 1 KiB and 1049× at 32 KiB.
 - `dc` (plain `encode`: Karatsuba with 32-chunk Horner leaves) takes 1.17–1.26× as long
@@ -1154,7 +1155,7 @@ flags):
   does not use it on x86_64.
 - At 1 MiB `dc-malachite` (107 ms), `ntt-portable` (108 ms) and `ntt-cached` (110 ms)
   are within 3%: a tie. With the hand-written AVX-512 kernels (next section) `ntt-cached`
-  is 1.41× faster than `dc-malachite` there.
+  is 1.48× faster than `dc-malachite` there.
 
 ### AVX-512 NTT kernels on Zen 5
 
@@ -1181,8 +1182,9 @@ timers in a test build, not in the repo; native flags gave shares within 3 point
 The power table, the reciprocals and the prepared powers, whose products are in the rows
 above, took about 40% at every size. Decoding at 1 MiB spent 63% in the kernels.
 
-Nanoseconds per butterfly (per point for `pointwise`), each kernel at 2^10 and 2^20
-points, old and new in one binary:
+The kernels came in two steps: `32a3a8d` (the hand-written kernels) and `e4d6144` (the
+forward transform on pairs, below). Nanoseconds per butterfly (per point for
+`pointwise`), each kernel at 2^10 and 2^20 points, old and `32a3a8d` in one binary:
 
 | kernel | old, default | new, default | old, native | new, native |
 |:---|---:|---:|---:|---:|
@@ -1213,29 +1215,57 @@ kernels, alternately), the speedups are encode 1.15, 1.16 and 1.26 with default 
 and 1.27, 1.27 and 1.45 with native flags at the three sizes, decode 1.16, 1.14, 1.27
 and 1.28, 1.26, 1.44.
 
-- `ntt-cached` is now the fastest encoder and decoder from 128 KiB to 1 MiB on this CPU:
-  at 1 MiB it encodes 1.27× faster than `dc-malachite` with default flags and 1.41× with
-  native flags, where the two had tied. `ntt` (tables built per call) gained 1.15–1.22×
-  encoding and 1.12–1.25× decoding with default flags, 1.22–1.40× and 1.20–1.39× with
-  native flags.
-- The entries that do not use these kernels (`malachite`, `dc-malachite`,
-  `ntt-portable`) stayed within 0.99–1.02× of the old binary, except `ntt-portable` at
-  144 KiB (1.05×, default). `dc` and `dc-toom3` moved up to 1.07× (default), and up to
-  1.23× between two sessions of the same tree: layout, not these kernels.
-- With the new kernels the kernels take 64% (default) and 62% (native) of the 1 MiB
-  encode, and 39% and 36% at 128 KiB, where Karatsuba products take 48% and 51%. The
-  forward transforms alone are 35% of the 1 MiB encode with default flags.
-- Open: the forward kernel takes 1.33× as long with default flags as with native flags
-  at 2^20 points (1.55× at 2^10), while the inverse and pointwise ones take the same.
-  The radix-4 loops of the two builds have the same instructions in a different order,
-  and `llvm-mca -mcpu=znver5` puts them within 5% of each other. Writing out the
-  32-value block's stages (`32a3a8d`: with default flags LLVM had kept a loop over them,
-  reloading their twiddles from the stack) moved it by about 3% between two sessions.
-  It is not loop placement: with `-C llvm-args=-align-loops=64` both builds' hot loops
-  start at 0 mod 64 (unpinned: 16 with default flags, 48 with native), and the forward
-  times stayed within 2% (two repeats per build, one session). What is left is the
-  instruction order that the native build's scheduling model (znver5) gives, which
-  `llvm-mca` does not predict to matter; not checked further.
+In this step `ntt` (tables built per call) gained 1.15–1.22× encoding and 1.12–1.25×
+decoding with default flags, 1.22–1.40× and 1.20–1.39× with native flags. The entries
+that do not use these kernels (`malachite`, `dc-malachite`, `ntt-portable`) stayed
+within 0.99–1.02× of the old binary, except `ntt-portable` at 144 KiB (1.05×, default).
+`dc` and `dc-toom3` moved up to 1.07× (default), and up to 1.23× between two sessions of
+the same tree: layout, not these kernels.
+
+**The forward transform on pairs.** With `32a3a8d` the forward kernel took 1.33× as long
+with default flags as with native flags at 2^20 points (1.55× at 2^10); the inverse and
+pointwise ones took the same in both builds. The radix-4 loops of the two builds had the
+same instructions in another order, which `llvm-mca -mcpu=znver5` put within 5% of each
+other. It was not loop placement: with `-C llvm-args=-align-loops=64` both builds' hot
+loops start at 0 mod 64 (unpinned: 16 and 48), and the times did not move (within 2%).
+Writing out the block's stages (`32a3a8d`; with default flags LLVM had kept a loop over
+them) moved it by about 3%. `e4d6144` implements the vector trait for `[V; 2]`, so the
+same arithmetic runs on two independent vectors step by step: the two butterflies of
+each radix-4 stage, two neighbouring vectors of the `h = 32` stage, two blocks. Forward,
+ns per butterfly at 2^10, 2^14 and 2^20 points (two test binaries alternated, two repeats
+each, which agree within 1%):
+
+| forward kernel | default | native |
+|:---|---:|---:|
+| one vector at a time (`32a3a8d`) | 0.292 / 0.234 / 0.210 | 0.189 / 0.160 / 0.157 |
+| on pairs (`e4d6144`) | 0.156 / 0.134 / 0.139 | 0.151 / 0.130 / 0.135 |
+
+The gap between the builds is 1–3% now, and both are faster. `ntt-cached` before
+(`32a3a8d`) and after (`e4d6144`), measured as above in another session:
+
+| encode bytes | default: before | after | ×  | dc-malachite | native: before | after | ×  | dc-malachite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 131072 | 7.90 ms | **7.18 ms** | 1.10 | 10.4 ms | 7.02 ms | **6.68 ms** | 1.05 | 10.4 ms |
+| 147456 | 9.28 ms | **8.53 ms** | 1.09 | 12.2 ms | 8.16 ms | **7.89 ms** | 1.03 | 12.2 ms |
+| 1048576 | 87.4 ms | **75.6 ms** | 1.16 | 111 ms | 75.0 ms | **71.4 ms** | 1.05 | 106 ms |
+
+| decode bytes | default: before | after | ×  | dc-malachite | native: before | after | ×  | dc-malachite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 131072 | 3.02 ms | **2.76 ms** | 1.09 | 3.77 ms | 2.52 ms | **2.48 ms** | 1.02 | 3.63 ms |
+| 147456 | 3.82 ms | **3.54 ms** | 1.08 | 4.30 ms | 3.24 ms | **3.17 ms** | 1.02 | 4.14 ms |
+| 1048576 | 34.7 ms | **30.7 ms** | 1.13 | 42.5 ms | 29.1 ms | **28.0 ms** | 1.04 | 39.5 ms |
+
+- The entries without NTT kernels stayed within 0.98–1.02×, and the `32a3a8d` tree
+  measured in both sessions agreed within 1% in 76 of 78 cells, so the two steps chain:
+  from `e1a9f13`, `ntt-cached` takes 32% less time for a 1 MiB encode with default flags
+  (112 to 75.6 ms) and 35% less with native flags (110 to 71.4 ms); decoding, 31% and
+  33% less (44.3 to 30.7, 41.6 to 28.0 ms).
+- `ntt-cached` is now the fastest encoder and decoder from 128 KiB to 1 MiB on this CPU.
+  At 1 MiB it encodes 1.47× faster than `dc-malachite` with default flags and 1.48× with
+  native flags, where the two had tied, and decodes 1.38× and 1.41× faster.
+- With the final kernels the kernels take 58% (default) and 60% (native) of the 1 MiB
+  encode: forward 24–25%, inverse 18–19%. At 128 KiB they take 31–32%, and Karatsuba
+  products 49%.
 
 ### Tuning
 
@@ -1304,17 +1334,16 @@ Tried and not kept:
   and no reciprocal per level. Needs a proved error bound and an exact fix-up.
 - **Four passes per sweep** in `encode_batched`'s kernel.
 - **Setup on Zen 5.** With the AVX-512 kernels, the power table, the reciprocals and the
-  prepared powers still take 36–40% of `encode_ntt_cached` from 128 KiB to 1 MiB; the top
+  prepared powers still take 35–43% of `encode_ntt_cached` from 128 KiB to 1 MiB; the top
   divisor's reciprocal serves a single division.
 - **Folding into short pieces.** `ntt::fold` calls `load_add` once per piece-sized block
   of an operand: about 168k calls in 375 folds per 1 MiB encode, 4% of its time on
   Zen 5. Summing the blocks' 32-bit coefficients once in 64-bit lanes, for all three
   primes, and then reducing would replace most of them. Not tried.
-- **The default-flag forward kernel on Zen 5** (see
-  [AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)): 1.33× slower than
-  the same source with native flags, and not from loop placement. A source order that
-  interleaves the independent butterflies of each radix-4 group might give the default
-  build the native one's schedule. Not tried.
+- **The inverse transform on pairs.** On Zen 5 the AVX-512 inverse takes 0.17 ns per
+  butterfly at 2^20 points in both builds, the forward one on pairs 0.14 (see
+  [AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)). The same `[V; 2]`
+  pairing may help the inverse. Not tried.
 
 ### `encode_matrix`: a matrix of powers
 

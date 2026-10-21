@@ -4,7 +4,8 @@
 //! has no 32-bit high multiply, so [`mont`] and [`reduce`] multiply the even and the odd
 //! lanes into 64-bit products (`vpmuldq`) and keep the halves they need. The stages with
 //! `h <= 16` run on blocks of 32 values in two registers, regrouped between stages by
-//! `vpermt2d` (see [`regroup`]); the other stages run two per pass.
+//! `vpermt2d` (see [`regroup`]); the other stages run two per pass. The forward transform
+//! works on pairs of independent vectors throughout (`[V; 2]`).
 //!
 //! The code is written against [`V16`]: `__m512i` on x86-64, and an emulation in tests
 //! that checks the arithmetic and the regrouping on any CPU, so tests build this module
@@ -63,7 +64,10 @@ trait V16: Copy {
 }
 
 /// `L` vectors as one, each operation applied to each in turn, so that code on them lists
-/// the steps of `L` independent computations together (see [`forward_v`]).
+/// the steps of `L` independent computations together. On Zen 5 a forward transform that
+/// did one butterfly after the other took 1.33-1.55x as long with default flags as with
+/// `-C target-cpu=native`: the same instructions, in another order. On pairs
+/// ([`forward_v`]) the two builds are within 3% of each other, and both faster.
 impl<V: V16, const L: usize> V16 for [V; L] {
     #[inline(always)]
     unsafe fn splat(x: i32) -> Self {
