@@ -866,11 +866,14 @@ table (balanced splits `unit·2^i`, powers stored without their low zero limbs),
   bit (`pn`) and divided with Barrett's method: the quotient estimate is the high part
   of `floor(A/β^dn)·inv`, at most 6 below the quotient; the remainder takes one product
   with `pn` and up to 6 subtractions. `x < P^2` bounds every length.
-- **Reciprocals once per power.** `inv = floor(β^(2qn) / (pn·β^shift))`, or up to two
-  less, comes from Newton's method (Brent–Zimmermann, Algorithm 3.5): the reciprocal of
-  the top half, then one Newton step; schoolbook division (Knuth's Algorithm D) below
-  17 limbs. Each power's reciprocal serves every division by it, as in malachite's
-  port of GMP's `mpn_get_str` (GMP itself recomputes it per division).
+- **Reciprocals once per power.** `inv = floor(β^(2qn) / (pn·β^shift))`, or one less,
+  comes from one Newton step (Brent–Zimmermann, Algorithm 3.5) from `x_h`, a reciprocal
+  of the top half. For the smallest power `x_h` comes from the same algorithm,
+  recursively, with schoolbook division (Knuth's Algorithm D) below 17 limbs. For the
+  others it is the square of the reciprocal one level down: see
+  [Reciprocals from squares](#reciprocals-from-squares). Each power's reciprocal serves
+  every division by it, as in malachite's port of GMP's `mpn_get_str` (GMP itself
+  recomputes it per division).
 - **Prepared operands.** Every power but the top one divides at least two nodes, so
   `pn` and `inv` go to `Multiplier::prepare_power`: the NTT keeps their transforms.
 - **A wrapped `q·pn`.** The remainder `A - q·pn` is below `7·pn < β^(dn+1)`, so only
@@ -889,7 +892,9 @@ table (balanced splits `unit·2^i`, powers stored without their low zero limbs),
 ### Encoding results
 
 Apple M5 Pro, AC power, commit `49fb679`, `cargo bench --bench encode -- --warm-up-time 1
---measurement-time 3`: criterion medians from one run of every encoder. A watcher saw no
+--measurement-time 3`: criterion medians from one run of every encoder. These tables
+predate [Reciprocals from squares](#reciprocals-from-squares), which took 3–12% off the
+divide-and-conquer encoders from 32 KiB. A watcher saw no
 build or other benchmark during the run. Random input with a non-zero first byte.
 `malachite` is malachite-nz's own conversion (`Natural::to_digits_desc`, a port of GMP's
 `mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32 and 64 bytes only
@@ -1233,6 +1238,94 @@ and 1.28, 1.26, 1.44.
   reloading their twiddles from the stack) moved it by about 3% between two sessions.
   Code placement is a candidate; not checked.
 
+### Reciprocals from squares
+
+Setup is what `encode_tuned` does before the tree: the squarings of the power table, a
+reciprocal per level, and the forward transforms of the prepared powers. Where
+`encode_ntt_cached`'s time went on the M5 Pro, before and after the change below
+(temporary timers in a test build, not in the repo; both versions in one binary, 30
+encodes at 128 and 144 KiB and 8 at 1 MiB; a separate run of `e20a0eb` itself matched
+the before columns within a point). Shares are of each column's own total:
+
+| | 128 KiB before | after | 144 KiB before | after | 1 MiB before | after |
+|:---|---:|---:|---:|---:|---:|---:|
+| total (untimed) | 6.18 ms | 5.48 ms | 6.82 ms | 6.09 ms | 67.8 ms | 61.4 ms |
+| setup | 2.73 ms | 1.92 ms | 2.94 ms | 2.18 ms | 25.4 ms | 18.8 ms |
+| setup, share | 43% | 35% | 43% | 36% | 37% | 31% |
+| reciprocals | 33% | 24% | 31% | 23% | 28% | 21% |
+| of which the top level's | 17% | 12% | 17% | 12% | 15% | 12% |
+| power squarings | 4% | 5% | 4% | 5% | 3% | 4% |
+| prepared powers | 5% | 6% | 6% | 7% | 5% | 5% |
+| the top division (in the tree, not setup) | 12% | 14% | 11% | 12% | 11% | 12% |
+
+Before, each level's reciprocal took about twice as long as the one below. About half of
+it was the recursive call for `x_h`, the reciprocal of the top half, and half the two
+products of the final Newton step. At 1 MiB the top level's took 10.3 ms, 5.2 of them for
+`x_h`; after, 7.1 ms, 1.7 of them for `x_h`.
+
+Each power is the square of the one below, so the square of that power's reciprocal
+approximates the reciprocal of the top half. Now:
+
+- Each reciprocal is that of `a = pn·β^(shift+1)`: one limb more than the divisions
+  need, `qn + 2` limbs. Divisions use it without its low limb, which is
+  `floor(β^(2qn) / (pn·β^shift))` or one less.
+- `qn` doubles, or doubles less one, from one level to the next. So for `a` of
+  `n = qn + 1` limbs and `h = n - floor((n-1)/2)`, the reciprocal `y` of the level below
+  (that of some `a'` of `h` limbs) has `h + 1` limbs, and `(β^(2h)/a')^2 = 2^k·β^(n+h)/a`
+  for a shift `k` that follows from the two levels' lengths and `bits`.
+- `y < β^(2h)/a' <= y + 2`, so `x_h = floor(y^2 / 2^k)` is below `β^(n+h)/a` by less
+  than `4·(2β^h)/β^h + 1 = 9`, and never above it.
+- The Newton step needs only `t = β^(n+h) - a·x_h > 0` for `a·x < β^(2n)`. The gap
+  `β^(2n) - a·x` is below `t^2/β^(2h)`, the step's quadratic error, plus
+  `a·x_h/β^(2h-l) + a` from its two truncations (`l = n - h`). With `t < 9a` that is
+  below `a·(81/β + 2/β + 1) < 2a`, so `a·x < β^(2n) <= a·(x + 2)` still holds, as with
+  the recursion.
+
+One square of `h + 1` limbs replaces a whole reciprocal of `h` limbs. The smallest power
+still recurses. Karatsuba has no square path, so with it the square costs a full
+product.
+
+Results on the M5 Pro, AC power (commit `544ac09`). The machine was shared during these
+runs: another session's test binary and another project's test suite came and went
+(1-minute load average 2–19). So both measurements below put the two versions within
+seconds of each other.
+
+Speed-up (old time over new) in one test binary, with a temporary switch between the
+recursion and the square: 41 rounds (15 at 1 MiB), alternating which ran first, the
+median of the per-round ratios. The old side there is the recursion on the extended
+`a`, one limb longer than before.
+
+| bytes | ntt-cached | ntt | dc-malachite | dc-toom3 | dc |
+|---:|---:|---:|---:|---:|---:|
+| 8192 | 1.01 | 1.10 | 1.06 | 1.04 | 1.03 |
+| 32768 | 1.12 | 1.11 | 1.07 | 1.04 | 1.04 |
+| 131072 | 1.13 | 1.10 | 1.08 | 1.04 | 1.03 |
+| 147456 | 1.12 | 1.09 | 1.09 | 1.04 | 1.03 |
+| 1048576 | 1.10 | 1.11 | 1.06 | | |
+
+`cargo bench --bench encode` built at `e20a0eb` (before) and `544ac09` (after), both
+binaries built first. Then per encoder and size: before, after, after, before, with
+`--warm-up-time 1 --measurement-time 3`. The table gives the mean of the two criterion
+medians on each side:
+
+| bytes | ntt-cached | ntt | dc-malachite | dc-toom3 | dc |
+|---:|---:|---:|---:|---:|---:|
+| 32768 | 1.19 → 1.14 ms (1.04×) | 1.46 → 1.28 ms (1.14×) | 1.50 → 1.40 ms (1.07×) | 3.12 → 2.99 ms (1.05×) | 3.38 → 3.26 ms (1.04×) |
+| 131072 | 6.04 → 5.42 ms (1.11×) | 6.85 → 6.25 ms (1.10×) | 8.18 → 7.37 ms (1.11×) | 25.6 → 24.6 ms (1.04×) | 31.3 → 30.1 ms (1.04×) |
+| 147456 | 6.71 → 6.00 ms (1.12×) | 7.85 → 7.15 ms (1.10×) | 9.30 → 8.52 ms (1.09×) | 30.4 → 29.2 ms (1.04×) | 37.0 → 35.9 ms (1.03×) |
+| 1048576 | 66.7 → 60.7 ms (1.10×) | 73.6 → 67.3 ms (1.09×) | 92.3 → 85.2 ms (1.08×) | 596 → 573 ms (1.04×) | 878 → 846 ms (1.04×) |
+
+- From 128 KiB the two pairs of each cell (after over before) agreed within 0.04, most
+  within 0.005. At 32 KiB `ntt-cached`'s were 1.008 and 0.919 and `ntt`'s 0.843 and
+  0.911; the one-binary run gives 1.12× and 1.11× there.
+- Two earlier whole-run passes (all before, then all after, twice) put "before" at up to
+  86 ms at 1 MiB, against 67 ms in the quiet runs: load, not the code. They are not used.
+- At 8 KiB `ntt-cached` has one level, whose reciprocal still recurses: no change.
+- With Karatsuba and Toom-3 the gain is 3–4%: their square costs a full product.
+- Not measured on Zen 5 yet, where setup took 36–40% of `encode_ntt_cached` with the
+  AVX-512 kernels and products below 3072 limbs use the IFMA Karatsuba, which has no
+  square path.
+
 ### Tuning
 
 All in one binary (`benches/encode_tune.rs`: interleaved rounds, the minimum time per
@@ -1299,9 +1392,12 @@ Tried and not kept:
   then one product per node (a middle product, which a cyclic NTT gives) instead of two,
   and no reciprocal per level. Needs a proved error bound and an exact fix-up.
 - **Four passes per sweep** in `encode_batched`'s kernel.
-- **Setup on Zen 5.** With the AVX-512 kernels, the power table, the reciprocals and the
-  prepared powers still take 36–40% of `encode_ntt_cached` from 128 KiB to 1 MiB; the top
-  divisor's reciprocal serves a single division.
+- **The top node.** Its reciprocal's Newton step and the top division serve one node:
+  5.4 and 7.4 ms of the 61 ms 1 MiB encode on the M5 Pro after
+  [Reciprocals from squares](#reciprocals-from-squares). Karp and Markstein fold the last
+  Newton step into the division: two half-size Barrett steps with `x_h` itself, with the
+  transform of `pn` kept for both remainders. A guess from the product sizes alone is
+  about 4% at 1 MiB. Not tried.
 - **Folding into short pieces.** `ntt::fold` calls `load_add` once per piece-sized block
   of an operand: about 168k calls in 375 folds per 1 MiB encode, 4% of its time on
   Zen 5. Summing the blocks' 32-bit coefficients once in 64-bit lanes, for all three
