@@ -969,15 +969,14 @@ calls `encode_ntt_cached` above. `five8` selects its AVX2 code at compile time, 
 default flags it ran its scalar code; our encoders detect AVX-512 at run time. The 32
 byte row is from a later run of every encoder at those sizes (commit `b2ffc77`, default
 and native flags back to back; [Fixed sizes](#fixed-sizes-32-and-64-bytes)), the 64 byte
-row from run 5 there (`ccab939`, the AVX2 64-byte path). On this CPU `encode_matrix` now
-takes the AVX-512 VBMI path at 64 bytes: 34.1 ns with default flags and 36.2 with native
-ones as run 6's `x64-vbmi`, not yet timed through `encode_matrix`.
+row from run 7 there (`f382688`, the present 64-byte path, which takes AVX-512 VBMI
+kernels on this CPU).
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
 | 31 | 817 ns | 190 ns |  | 161 ns | **54 ns** matrix | 15× | 2.98× |
 | 32 | 901 ns | 192 ns | 56.5 ns | 162 ns | **25.5 ns** matrix | 35× | 2.22× |
-| 64 | 3.9 µs | 420 ns | 119 ns | 316 ns | **41 ns** matrix | 95× | 2.91× |
+| 64 | 3.9 µs | 428 ns | 119 ns | 319 ns | **34.4 ns** matrix | 113× | 3.46× |
 | 128 | 16.6 µs | 1.01 µs |  | 714 ns | **168 ns** matrix | 99× | 4.25× |
 | 256 | 69.7 µs | 3.63 µs |  | 2.06 µs | **396 ns** matrix | 176× | 5.20× |
 | 512 | 282 µs | 8.89 µs |  | 4.72 µs | **1.1 µs** matrix | 257× | 4.31× |
@@ -1002,7 +1001,7 @@ Every encoder:
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 31 | 817 ns | 190 ns | 786 ns | 161 ns | 65.9 ns | **54 ns** | 62.1 ns | | | | | | | |
 | 32 | 901 ns | 192 ns | 838 ns | 162 ns | 65.1 ns | **25.5 ns** | 25.5 ns | 56.5 ns | | | | | | |
-| 64 | 3.9 µs | 420 ns | 3.38 µs | 316 ns | 137 ns | **41 ns** | 121 ns | 119 ns | | | | | | |
+| 64 | 3.9 µs | 428 ns | 3.42 µs | 319 ns | 137 ns | **34.4 ns** | 122 ns | 119 ns | | | | | | |
 | 128 | 16.6 µs | 1.01 µs | 14 µs | 714 ns | 377 ns | **168 ns** | 255 ns | | | | | | | |
 | 256 | 69.7 µs | 3.63 µs | 56.3 µs | 2.06 µs | 1.19 µs | **396 ns** | 697 ns | | | | | | | |
 | 512 | 282 µs | 8.89 µs | 225 µs | 4.72 µs | 4.34 µs | **1.1 µs** | 2.24 µs | | | | | | | |
@@ -1055,14 +1054,14 @@ all 176 cells, so the default tables above stand. The M5 numbers above are alrea
 native: the local cargo config sets `target-cpu=apple-m4`.
 
 With native flags (`× best other` is against the other crates built with native flags
-too; the 32 byte row is from the `b2ffc77` run and the 64 byte row from run 5, as
+too; the 32 byte row is from the `b2ffc77` run and the 64 byte row from run 7, as
 above):
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
 | 31 | 693 ns | 193 ns |  | 151 ns | **52.7 ns** matrix | 13× | 2.87× |
 | 32 | 760 ns | 188 ns | 33.6 ns | 157 ns | **24.8 ns** matrix | 31× | 1.35× |
-| 64 | 3.24 µs | 425 ns | 50.7 ns | 317 ns | **38.1 ns** matrix | 85× | 1.33× |
+| 64 | 3.25 µs | 420 ns | 51.2 ns | 308 ns | **35.5 ns** matrix | 92× | 1.44× |
 | 128 | 13.7 µs | 1.01 µs |  | 715 ns | **175 ns** matrix | 78× | 4.09× |
 | 256 | 59.7 µs | 3.94 µs |  | 2.13 µs | **420 ns** matrix | 142× | 5.07× |
 | 512 | 242 µs | 9.44 µs |  | 4.71 µs | **1.16 µs** matrix | 208× | 4.05× |
@@ -1087,7 +1086,7 @@ Every encoder, native flags:
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 31 | 693 ns | 193 ns | 765 ns | 151 ns | 65.8 ns | **52.7 ns** | 52.7 ns | | | | | | | |
 | 32 | 760 ns | 188 ns | 833 ns | 157 ns | 65.7 ns | **24.8 ns** | 24.8 ns | 33.6 ns | | | | | | |
-| 64 | 3.24 µs | 425 ns | 3.36 µs | 317 ns | 138 ns | **38.1 ns** | 126 ns | 50.7 ns | | | | | | |
+| 64 | 3.25 µs | 420 ns | 3.36 µs | 308 ns | 136 ns | **35.5 ns** | 126 ns | 51.2 ns | | | | | | |
 | 128 | 13.7 µs | 1.01 µs | 14 µs | 715 ns | 372 ns | **175 ns** | 277 ns | | | | | | | |
 | 256 | 59.7 µs | 3.94 µs | 58.5 µs | 2.13 µs | 1.22 µs | **420 ns** | 852 ns | | | | | | | |
 | 512 | 242 µs | 9.44 µs | 230 µs | 4.71 µs | 4.2 µs | **1.16 µs** | 3.18 µs | | | | | | | |
@@ -1128,11 +1127,10 @@ flags):
 
 - `five8` selects its AVX2 code at compile time, so only the native build uses it. With
   its fixed-size path `encode_matrix` is still 1.35× faster at 32 bytes (24.8 against
-  33.6 ns) and 1.33× faster at 64 (38.1 against 50.7 ns, run 5 of
-  [Fixed sizes](#fixed-sizes-32-and-64-bytes); the same code took 52.6 ns in another
-  binary, and `five8` was 1.48× faster before the split carry and the register output).
-  The AVX-512 VBMI path that replaced it at 64 bytes on this CPU took 36.2 ns against
-  `five8`'s 51.0 in run 6, 1.41× faster.
+  33.6 ns) and 1.44× faster at 64 (35.5 against 51.2 ns with AVX-512 VBMI kernels, run 7
+  of [Fixed sizes](#fixed-sizes-32-and-64-bytes); the AVX2 path took 38.1 ns in run 5
+  and 52.6 in another binary, and `five8` was 1.48× faster before the split carry and
+  the register output).
   Before the fixed-size path (`49fb679`) `five8` won both: 33.6 and 52.5 ns against 51.2
   and 82.6.
 - `encode_matrix` does not change (median +1%, within ±6%). Its panel kernels are
@@ -1591,7 +1589,7 @@ Tried and not kept (M5):
 
 **Zen 5.** AMD EPYC 9B45 on the GCP VM, rustc 1.99.0, the same bench command with
 default flags and then `-C target-cpu=native`, back to back; no LTO, no pinning; one
-criterion run per build, steal 0. Six runs. The first (`be91f3a`) had AVX2 column sums
+criterion run per build, steal 0. Seven runs. The first (`be91f3a`) had AVX2 column sums
 and AVX2 characters at both sizes. ns:
 
 | bytes | flags   | five8 | matrix (AVX2) | matrix-general | matrix-portable |
@@ -1748,10 +1746,20 @@ eight addresses. 1 s warm-up, 2 s measurement. Median over the eight addresses, 
   the shift as byte permutes. So `encode_matrix` now takes this path
   (`x86::encode_64_vbmi`) on CPUs with AVX-512 F, BW, VL and VBMI, and the AVX2 one on
   other CPUs with AVX2. Only Zen 5 is measured. Its code is that of `x64-vbmi` except
-  for the length dispatch (asm diff, both builds); it has not been timed through
-  `encode_matrix` itself.
+  for the length dispatch (asm diff, both builds).
 - `x64-b` took 4–6% longer than `x64` at nearly every address in all three builds, so
   that store order costs time; it is not noise.
+
+Run 7 (`f382688`): the VBMI path through `encode_matrix`, in its own binary (the sweep
+removed), with run 5's command, default then native flags. Tests passed (109). 64 bytes:
+**34.4 ns** [34.4, 34.4] and **35.5 ns** [35.4, 35.5], against `five8`'s 118.9 and 51.2
+[50.9, 51.5]: 71% and 31% less time, 3.46× and 1.44× faster. Against the AVX2 path in run
+5 (41.0 | 38.1) that is 16% and 7% less. It matches run 6's `x64-vbmi` (34.1 | 36.2 over
+the eight stack addresses, 34.4 | 36.2 at the first). Controls were within 2% of run 5
+(`five8`, `matrix-general`, `matrix-portable`, `bs58`, 31 and 32 bytes), and 31 and 32
+bytes did not change. With VBMI the native build is 3% slower than the default one at 64
+bytes; with the AVX2 path it was 7% faster. The bench calls it from one stack address
+only, so run 7 does not say how far it moves with the address (run 6: up to 7%).
 
 Possible next steps for the fixed sizes:
 
@@ -1763,5 +1771,3 @@ Possible next steps for the fixed sizes:
   against the buffers' addresses) would say whether code can avoid it.
 - **VBMI at 32 bytes.** The 32-byte path is plain Rust on x86_64; the `vpermb` alphabet
   and output have not been tried there.
-- **Time the VBMI path through `encode_matrix`** in its own binary, to confirm run 6's
-  `x64-vbmi`.
