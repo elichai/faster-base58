@@ -4,8 +4,8 @@
 //! has no 32-bit high multiply, so [`mont`] and [`reduce`] multiply the even and the odd
 //! lanes into 64-bit products (`vpmuldq`) and keep the halves they need. The stages with
 //! `h <= 16` run on blocks of 32 values in two registers, regrouped between stages by
-//! `vpermt2d` (see [`regroup`]); the other stages run two per pass. Both transforms work
-//! on pairs of independent vectors throughout (`[V; 2]`).
+//! `vpermt2d` (see [`regroup`]); the other stages run two per pass. The forward transform
+//! works on pairs of independent vectors throughout (`[V; 2]`).
 //!
 //! The code is written against [`V16`]: `__m512i` on x86-64, and an emulation in tests
 //! that checks the arithmetic and the regrouping on any CPU, so tests build this module
@@ -280,16 +280,22 @@ fn forward32<V: V16>(xy: (V, V), b: &Block<V>, c: &Consts<V>) -> (V, V) {
     regroup2(last(xy, c), b.idx[4])
 }
 
-/// The inverse stages `h = 1, 2, 4, 8, 16` on a block of 32 values, its first and second
-/// 16, of a transform of more than 16 points: `h = 2` and `h = 8` are lazy
-/// (`portable::lazy`).
+/// The inverse stages `h = 1, 2, 4, 8, 16` on the 32 values at `p`, of a transform of
+/// more than 16 points: `h = 2` and `h = 8` are lazy (`portable::lazy`).
+///
+/// Safety: `V` values may be created; 32 values at `p` are readable and writable.
 #[inline(always)]
-fn inverse32<V: V16>(xy: (V, V), b: &Block<V>, c: &Consts<V>) -> (V, V) {
+unsafe fn inverse32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
+    let xy = unsafe { (V::load(p), V::load(p.add(16))) };
     let xy = last(regroup2(xy, b.idx[0]), c);
     let xy = dit::<V, true>(regroup2(xy, b.idx[1]), b.w[3], c);
     let xy = dit::<V, false>(regroup2(xy, b.idx[2]), b.w[2], c);
     let xy = dit::<V, true>(regroup2(xy, b.idx[3]), b.w[1], c);
-    dit::<V, false>(regroup2(xy, b.idx[4]), b.w[0], c)
+    let (x, y) = dit::<V, false>(regroup2(xy, b.idx[4]), b.w[0], c);
+    unsafe {
+        x.store(p);
+        y.store(p.add(16));
+    }
 }
 
 /// Two (vector, companion) twiddle pairs as one for `[V; 2]`.
@@ -369,31 +375,25 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     }
 }
 
-/// [`portable::inverse`], on pairs of independent vectors as [`forward_v`].
+/// [`portable::inverse`], one vector at a time: on pairs, as [`forward_v`], it was only
+/// 2-5% faster per butterfly on Zen 5, with no gain measurable end to end, and it ran
+/// equally fast with default and native flags either way.
 ///
 /// Safety: `V` values may be created.
 #[inline(always)]
 unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     let n = a.len();
     assert!(n.is_power_of_two() && n <= t.iw.len() && n <= t.iwq.len());
-    if n < 64 {
+    if n < 32 {
         return portable::inverse(a, p, t);
     }
     debug_assert!(portable::lazy(2, n) && !portable::lazy(4, n) && portable::lazy(8, n));
-    let c = unsafe { Consts::<[V; 2]>::new(p) };
+    let c = unsafe { Consts::<V>::new(p) };
     let pa = a.as_mut_ptr();
     let b = unsafe { Block::new(&t.iw, &t.iwq, &INVERSE) };
-    for i in (0..n).step_by(64) {
-        // SAFETY: `i + 64 <= n`: two blocks of 32.
-        unsafe {
-            let ps = [pa.add(i), pa.add(i + 32)];
-            let xy = (ps.map(|p| V::load(p)), ps.map(|p| V::load(p.add(16))));
-            let (x, y) = inverse32(xy, &b, &c);
-            for (p, (x, y)) in ps.into_iter().zip(x.into_iter().zip(y)) {
-                x.store(p);
-                y.store(p.add(16));
-            }
-        }
+    for i in (0..n).step_by(32) {
+        // SAFETY: `i + 32 <= n`.
+        unsafe { inverse32(pa.add(i), &b, &c) }
     }
     let mut h = 32;
     while h < n {
@@ -421,8 +421,8 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     }
 }
 
-/// The inverse stages `h` and `2 h` on four values `h` apart, first `(x0, x1)` with
-/// `(x2, x3)`, then `(x0, x2)` with `(x1, x3)`; `L1` and `L2` skip their reductions.
+/// The inverse stages `h` and `2 h` on four values `h` apart; `L1` and `L2` skip their
+/// reductions.
 ///
 /// Safety: `V` values may be created; `p` has `n` values, `n` is a multiple of `4 h`,
 /// `h` of 16, and `t.iw`, `t.iwq` have at least `4 h`.
@@ -432,7 +432,7 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     n: usize,
     h: usize,
     t: &Twiddles,
-    c: &Consts<[V; 2]>,
+    c: &Consts<V>,
 ) {
     let (w, wq) = (t.iw.as_ptr(), t.iwq.as_ptr());
     // SAFETY (loads and stores): `s + 4 h <= n`, `j + 16 <= h`, twiddle `i` below `4 h`.
@@ -442,10 +442,10 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
             unsafe {
                 let ps = [0, h, 2 * h, 3 * h].map(|o| p.add(s + j + o));
                 let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
-                let tw1 = tw(h + j);
-                let ([x0, x2], [x1, x3]) = dit::<_, L1>(([x0, x2], [x1, x3]), both(tw1, tw1), c);
-                let tw2 = both(tw(2 * h + j), tw(3 * h + j));
-                let ([x0, x1], [x2, x3]) = dit::<_, L2>(([x0, x1], [x2, x3]), tw2, c);
+                let (x0, x1) = dit::<V, L1>((x0, x1), tw(h + j), c);
+                let (x2, x3) = dit::<V, L1>((x2, x3), tw(h + j), c);
+                let (x0, x2) = dit::<V, L2>((x0, x2), tw(2 * h + j), c);
+                let (x1, x3) = dit::<V, L2>((x1, x3), tw(3 * h + j), c);
                 for (p, x) in ps.into_iter().zip([x0, x1, x2, x3]) {
                     x.store(p);
                 }
@@ -454,31 +454,27 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     }
 }
 
-/// The inverse stage `h`, on two neighbouring vectors at a time; `LAZY` skips the
-/// reductions.
+/// The inverse stage `h`; `LAZY` skips the reductions.
 ///
-/// Safety: as [`inverse4`], with `2 h` for `4 h` and `h` a multiple of 32.
+/// Safety: as [`inverse4`], with `2 h` for `4 h`.
 #[inline(always)]
 unsafe fn inverse2<V: V16, const LAZY: bool>(
     p: *mut i32,
     n: usize,
     h: usize,
     t: &Twiddles,
-    c: &Consts<[V; 2]>,
+    c: &Consts<V>,
 ) {
     let (w, wq) = (t.iw.as_ptr(), t.iwq.as_ptr());
-    // SAFETY (loads and stores): `s + 2 h <= n`, `j + 32 <= h`, twiddle `i` below `2 h`.
-    let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
     for s in (0..n).step_by(2 * h) {
-        for j in (0..h).step_by(32) {
+        for j in (0..h).step_by(16) {
+            // SAFETY: `s + 2 h <= n`, `j + 16 <= h`, twiddle `h + j + 16 <= 2 h`.
             unsafe {
-                let px = [p.add(s + j), p.add(s + j + 16)];
-                let (x, y) = (px.map(|p| V::load(p)), px.map(|p| V::load(p.add(h))));
-                let (x, y) = dit::<_, LAZY>((x, y), both(tw(h + j), tw(h + j + 16)), c);
-                for (p, (x, y)) in px.into_iter().zip(x.into_iter().zip(y)) {
-                    x.store(p);
-                    y.store(p.add(h));
-                }
+                let (px, py) = (p.add(s + j), p.add(s + j + h));
+                let tw = (V::load(w.add(h + j)), V::load(wq.add(h + j)));
+                let (x, y) = dit::<V, LAZY>((V::load(px), V::load(py)), tw, c);
+                x.store(px);
+                y.store(py);
             }
         }
     }
