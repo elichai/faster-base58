@@ -223,8 +223,32 @@ fn column(t: u64, q: u32) -> u32 {
     (t as u32).wrapping_sub(q.wrapping_mul(COL_BASE as u32))
 }
 
+/// [`chars`] with the carried columns from [`carry_split`] in `K` segments, or from
+/// [`carry_serial`] for `K = 1` and where the split falls back; `digits` takes them.
+#[inline(always)]
+pub(super) fn chars_split<const N: usize, const C: usize, const K: usize>(
+    x: &[u8; N],
+    out: &mut [[u8; 4]; C],
+    cols: impl FnOnce(&[u8; N]) -> [u64; C],
+    digits: impl FnOnce(&[u32; C], &mut [[u8; 4]; C]),
+) {
+    let t = cols(x);
+    let r = max_encoded_len(N).div_ceil(4);
+    let c = match K {
+        1 => carry_serial(&t, r),
+        _ => carry_split::<C, K>(&t, r).unwrap_or_else(|| carry_cold(&t, r)),
+    };
+    digits(&c, out);
+}
+
+/// [`carry_serial`], out of line: the fallback of [`carry_split`].
+#[cold]
+#[inline(never)]
+fn carry_cold<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
+    carry_serial(t, r)
+}
+
 /// [`carry`], returning the carried columns.
-#[cfg(any(target_arch = "x86_64", test))]
 #[inline(always)]
 pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
     let mut out = [0; C];
@@ -247,7 +271,6 @@ pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
 ///
 /// The chain is about `r / K` divisions instead of `r`. Requires at least two columns per
 /// segment.
-#[cfg(any(target_arch = "x86_64", test))]
 #[inline(always)]
 pub(super) fn carry_split<const C: usize, const K: usize>(
     t: &[u64; C],
@@ -322,31 +345,31 @@ fn leading_ones(chars: &[u8]) -> usize {
     chars.len()
 }
 
-/// `count` random 64-byte inputs for each segment but the first of [`carry_split`] with `k`
-/// segments, on which it falls back: their base-58^4 digit above the segment's first
+/// `count` random `N`-byte inputs for each segment but the first of [`carry_split`] with
+/// `k` segments, on which it falls back: their base-58^4 digit above the segment's first
 /// column is zero, so the carry from below takes that column to 58^4.
 #[cfg(test)]
-pub(super) fn split_fallbacks(
+pub(super) fn split_fallbacks<const N: usize>(
     rng: &mut rand_xoshiro::Xoshiro256PlusPlus,
     k: usize,
     count: usize,
-) -> Vec<[u8; 64]> {
+) -> Vec<[u8; N]> {
     use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
     use malachite_nz::natural::Natural;
 
-    let (base, r) = (Natural::from(COL_BASE), max_encoded_len(64).div_ceil(4));
+    let (base, r) = (Natural::from(COL_BASE), max_encoded_len(N).div_ceil(4));
     let mut out = vec![];
     for s in 1..k {
         for _ in 0..count {
-            let x = crate::encode::tests::random_bytes(rng, 64).into_iter();
+            let x = crate::encode::tests::random_bytes(rng, N).into_iter();
             let x = Natural::from_power_of_2_digits_desc(8, x).unwrap();
             let mut digits: Vec<Natural> = x.to_digits_asc(&base);
             digits.resize(r, Natural::from(0u32));
             digits[s * r / k + 1] = Natural::from(0u32);
             let y = Natural::from_digits_asc(&base, digits.into_iter()).unwrap();
             let bytes: Vec<u8> = y.to_power_of_2_digits_desc(8);
-            let mut x = [0; 64];
-            x[64 - bytes.len()..].copy_from_slice(&bytes);
+            let mut x = [0; N];
+            x[N - bytes.len()..].copy_from_slice(&bytes);
             out.push(x);
         }
     }

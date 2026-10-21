@@ -133,9 +133,213 @@ pub(super) fn fixed_digits(t: &[u64], q: &[u32], out: &mut [[u8; 4]]) {
     }
 }
 
+/// The characters of the carried columns `c` (see `fixed::carry_split`), top first:
+/// `out[i]` holds those of column `C - 1 - i`. Requires whole groups of four columns.
+#[inline(always)]
+pub(super) fn column_digits<const C: usize>(c: &[u32; C], out: &mut [[u8; 4]; C]) {
+    const { assert!(C.is_multiple_of(4)) };
+    // SAFETY: NEON is enabled at compile time (cfg on the module). Step `g` reads
+    // `c[C - 4 (g + 1)..C - 4 g]` and writes `out[4 g..4 g + 4]`.
+    unsafe {
+        let table = vld1q_u8_x4(TABLE.as_ptr());
+        let reverse = vld1q_u8(REVERSE.as_ptr());
+        for g in 0..C / 4 {
+            let v = vld1q_u32(c.as_ptr().add(C - 4 * (g + 1)));
+            vst1q_u8(out.as_mut_ptr().add(4 * g).cast(), chars(v, table, reverse));
+        }
+    }
+}
+
+/// Carry variants for 32 and 64 bytes, for one M5 sweep: `benches/encode.rs` times each.
+/// Temporary: the winner replaces `fixed::encode_best`'s carry.
+#[doc(hidden)]
+pub mod sweep {
+    use super::super::fixed::{self, TABLE_32, TABLE_64};
+    use super::*;
+    use crate::BufferTooSmall;
+
+    type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
+
+    /// `encode_matrix`'s path: the serial carry keeps the quotients.
+    fn quotients_32(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        let x: &[u8; 32] = d.try_into().expect("32 bytes");
+        fixed::encode(x, o, |x, o| fixed::chars(x, o, |x| cols(x, &TABLE_32), fixed_digits))
+    }
+
+    fn quotients_64(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        let x: &[u8; 64] = d.try_into().expect("64 bytes");
+        fixed::encode(x, o, |x, o| fixed::chars(x, o, |x| cols(x, &TABLE_64), fixed_digits))
+    }
+
+    /// The carried columns from `K` segments (1: serial).
+    fn split_32<const K: usize>(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        let x: &[u8; 32] = d.try_into().expect("32 bytes");
+        fixed::encode(x, o, |x, o| {
+            fixed::chars_split::<32, 12, K>(x, o, |x| cols(x, &TABLE_32), column_digits)
+        })
+    }
+
+    fn split_64<const K: usize>(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        let x: &[u8; 64] = d.try_into().expect("64 bytes");
+        fixed::encode(x, o, |x, o| {
+            fixed::chars_split::<64, 24, K>(x, o, |x| cols(x, &TABLE_64), column_digits)
+        })
+    }
+
+    /// The carried columns `c` in vectors of four, lowest first.
+    #[inline(always)]
+    fn vectors<const C: usize, const G: usize>(c: &[u32; C]) -> [uint32x4_t; G] {
+        const { assert!(C == 4 * G) };
+        // SAFETY: NEON is enabled at compile time (cfg on the module).
+        std::array::from_fn(|g| unsafe {
+            let pair = |i: usize| vcreate_u32(c[i] as u64 | (c[i + 1] as u64) << 32);
+            vcombine_u32(pair(4 * g), pair(4 * g + 2))
+        })
+    }
+
+    /// The fallback, returning vectors so that the hot path's columns need not go through
+    /// an array on the stack.
+    #[cold]
+    #[inline(never)]
+    fn vectors_cold<const C: usize, const G: usize>(t: &[u64; C], r: usize) -> [uint32x4_t; G] {
+        vectors(&fixed::carry_serial(t, r))
+    }
+
+    /// [`split_32`] and [`split_64`] with the carried columns moved into vectors from
+    /// general registers.
+    #[inline(always)]
+    fn regs<const N: usize, const W: usize, const C: usize, const G: usize, const K: usize>(
+        d: &[u8],
+        o: &mut [u8],
+        table: &Table<W, C>,
+    ) -> Result<usize, BufferTooSmall> {
+        let x: &[u8; N] = d.try_into().expect("N bytes");
+        fixed::encode(x, o, |x, o: &mut [[u8; 4]; C]| {
+            let t = cols(x, table);
+            let r = crate::encode::max_encoded_len(N).div_ceil(4);
+            let v: [uint32x4_t; G] = match fixed::carry_split::<C, K>(&t, r) {
+                Some(c) => vectors(&c),
+                None => vectors_cold(&t, r),
+            };
+            // SAFETY: NEON is enabled at compile time (cfg on the module). Step `g` writes
+            // `o[4 g..4 g + 4]`, and `o` has `C = 4 G` entries.
+            unsafe {
+                let alphabet = vld1q_u8_x4(TABLE.as_ptr());
+                let reverse = vld1q_u8(REVERSE.as_ptr());
+                for g in 0..G {
+                    let c = chars(v[G - 1 - g], alphabet, reverse);
+                    vst1q_u8(o.as_mut_ptr().add(4 * g).cast(), c);
+                }
+            }
+        })
+    }
+
+    fn regs_32<const K: usize>(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        regs::<32, 8, 12, 3, K>(d, o, &TABLE_32)
+    }
+
+    fn regs_64<const K: usize>(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        regs::<64, 16, 24, 6, K>(d, o, &TABLE_64)
+    }
+
+    /// [`regs_64`] with the digit groups in the other order: a probe of placement.
+    fn regs_64b<const K: usize>(d: &[u8], o: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        let x: &[u8; 64] = d.try_into().expect("64 bytes");
+        fixed::encode(x, o, |x, o: &mut [[u8; 4]; 24]| {
+            let t = cols(x, &TABLE_64);
+            let r = crate::encode::max_encoded_len(64).div_ceil(4);
+            let v: [uint32x4_t; 6] = match fixed::carry_split::<24, K>(&t, r) {
+                Some(c) => vectors(&c),
+                None => vectors_cold(&t, r),
+            };
+            // SAFETY: as in `regs`.
+            unsafe {
+                let alphabet = vld1q_u8_x4(TABLE.as_ptr());
+                let reverse = vld1q_u8(REVERSE.as_ptr());
+                for g in (0..6).rev() {
+                    let c = chars(v[5 - g], alphabet, reverse);
+                    vst1q_u8(o.as_mut_ptr().add(4 * g).cast(), c);
+                }
+            }
+        })
+    }
+
+    /// Name, input size, encoder.
+    pub const VARIANTS: [(&str, usize, Encode); 17] = [
+        ("fixed-q", 32, quotients_32),
+        ("fixed-serial", 32, split_32::<1>),
+        ("fixed-split2", 32, split_32::<2>),
+        ("fixed-split3", 32, split_32::<3>),
+        ("fixed-split4", 32, split_32::<4>),
+        ("fixed-regs-split2", 32, regs_32::<2>),
+        ("fixed-regs-split3", 32, regs_32::<3>),
+        ("fixed-q", 64, quotients_64),
+        ("fixed-serial", 64, split_64::<1>),
+        ("fixed-split2", 64, split_64::<2>),
+        ("fixed-split3", 64, split_64::<3>),
+        ("fixed-split4", 64, split_64::<4>),
+        ("fixed-split6", 64, split_64::<6>),
+        ("fixed-regs-split3", 64, regs_64::<3>),
+        ("fixed-regs-split4", 64, regs_64::<4>),
+        ("fixed-regs-split6", 64, regs_64::<6>),
+        ("fixed-regs-split4-b", 64, regs_64b::<4>),
+    ];
+}
+
 #[cfg(test)]
 mod tests {
+    use rand_xoshiro::Xoshiro256PlusPlus;
+    use rand_xoshiro::rand_core::{Rng, SeedableRng};
+
+    use super::super::fixed;
     use super::*;
+    use crate::BufferTooSmall;
+
+    /// Each sweep variant against bs58: random inputs, every count of leading zero bytes,
+    /// all 0xFF, and inputs that force each split's fallback; into an ample buffer
+    /// (nothing written past the result), an exact one and one a byte short.
+    #[test]
+    fn sweep_matches_bs58() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(48);
+        let mut inputs: Vec<Vec<u8>> = vec![];
+        for n in [32, 64] {
+            for _ in 0..3000 {
+                inputs.push((0..n).map(|_| rng.next_u32() as u8).collect());
+            }
+            for zeros in 0..=n {
+                let mut x: Vec<u8> = (0..n).map(|_| rng.next_u32() as u8).collect();
+                x[..zeros].fill(0);
+                if zeros < n {
+                    x[zeros] = x[zeros].max(1);
+                }
+                inputs.push(x);
+            }
+            inputs.push(vec![0xFF; n]);
+        }
+        for k in [2, 3, 4] {
+            inputs.extend(fixed::split_fallbacks::<32>(&mut rng, k, 5).into_iter().map(Vec::from));
+        }
+        for k in [2, 3, 4, 6] {
+            inputs.extend(fixed::split_fallbacks::<64>(&mut rng, k, 5).into_iter().map(Vec::from));
+        }
+        for x in &inputs {
+            let want = bs58::encode(x).into_vec();
+            for (name, n, f) in sweep::VARIANTS {
+                if n != x.len() {
+                    continue;
+                }
+                let at = format!("{name}, {n} bytes: {x:?}");
+                let mut out = vec![0xAA; want.len() + 40];
+                assert_eq!(f(x, &mut out), Ok(want.len()), "{at}");
+                assert!(out[..want.len()] == want[..], "{at}");
+                assert!(out[want.len()..].iter().all(|&b| b == 0xAA), "{at}: wrote past");
+                assert_eq!(f(x, &mut out[..want.len()]), Ok(want.len()), "{at}: exact");
+                let mut short = vec![0xAA; want.len() - 1];
+                assert_eq!(f(x, &mut short), Err(BufferTooSmall), "{at}: short");
+                assert!(short.iter().all(|&b| b == 0xAA), "{at}: wrote into a short buffer");
+            }
+        }
+    }
 
     #[test]
     fn matches_scalar() {
