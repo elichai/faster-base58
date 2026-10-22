@@ -769,6 +769,42 @@ A/A control gave 0.997–1.000.
 | 144 KiB       | 2.80 ms | 2.79 ms | −0.2%  |
 | 1 MiB         | 27.3 ms | 27.2 ms | +0.3%  |
 
+**After the merge with the encoders.** This alignment and the 64-point smallest piece
+([Small cyclic pieces](#small-cyclic-pieces)) reached the encoders' tree in one merge
+(`8d9a6ec`). Against the tree before it (`d05d98b`) on the M5 Pro: one harness built
+against each tree (fat LTO, `apple-m4`), the two binaries run alternately (ABBA three
+times), each process the minimum of 21 interleaved rounds. Times are the minimum over
+the six processes per tree in the second run; the ratios (after / before) are from two
+such runs. `dc-malachite`, which does not use the NTT, is the control. Other programs
+ran during both runs (load 2–6).
+
+| op     | bytes   | before  | after   | ratio, run 1 | run 2 | control, run 1 | run 2 |
+|:-------|--------:|--------:|--------:|-------------:|------:|---------------:|------:|
+| decode | 32 KiB  | 455 µs  | 440 µs  | 0.966        | 0.967 | 1.003          | 0.998 |
+| decode | 36 KiB  | 556 µs  | 534 µs  | 0.968        | 0.961 | 1.002          | 0.996 |
+| decode | 48 KiB  | 750 µs  | 731 µs  | 0.980        | 0.974 | 1.003          | 0.999 |
+| decode | 72 KiB  | 1.28 ms | 1.24 ms | 0.972        | 0.968 | 1.005          | 0.998 |
+| decode | 128 KiB | 2.36 ms | 2.35 ms | 1.002        | 0.992 | 1.001          | 0.998 |
+| decode | 140 KiB | 2.95 ms | 2.76 ms | 0.936        | 0.936 | 1.004          | 1.001 |
+| decode | 144 KiB | 2.82 ms | 2.83 ms | 1.004        | 1.001 | 0.995          | 0.994 |
+| decode | 1 MiB   | 27.2 ms | 27.1 ms | 1.001        | 0.997 | 1.000          | 0.996 |
+| encode | 8 KiB   | 180 µs  | 181 µs  | 0.986        | 1.006 | 1.000          | 1.036 |
+| encode | 16 KiB  | 437 µs  | 430 µs  | 0.965        | 0.985 | 0.999          | 1.039 |
+| encode | 32 KiB  | 1.01 ms | 989 µs  | 0.968        | 0.975 | 1.024          | 1.039 |
+| encode | 36 KiB  | 1.16 ms | 1.17 ms | 1.005        | 1.007 | 1.055          | 1.005 |
+| encode | 48 KiB  | 1.67 ms | 1.63 ms | 1.003        | 0.979 | 1.042          | 1.003 |
+| encode | 128 KiB | 5.31 ms | 5.09 ms | 0.972        | 0.959 | 1.048          | 0.994 |
+| encode | 144 KiB | 6.07 ms | 5.98 ms | 0.996        | 0.984 | 1.040          | 0.992 |
+| encode | 1 MiB   | 60.9 ms | 56.4 ms | 0.943        | 0.926 | 1.041          | 1.000 |
+
+- Decoding keeps the gains measured before: 2–4% from 32 to 72 KiB (this alignment),
+  6.4% at 140 KiB (the small pieces), none at 128 KiB, 144 KiB and 1 MiB. The control
+  stayed within 0.6%.
+- Encoding gained 5.7–7.4% at 1 MiB and 2.8–4.1% at 128 KiB, 1.5–3.5% at 16 and
+  32 KiB, and nothing at 8, 36 and 144 KiB. Its control moved by up to 5.5% between
+  runs, so only 1 MiB and 128 KiB are clearly beyond the noise. Which of the two
+  changes gives the encoding gains was not measured.
+
 ### Residue placement: measured, not changed
 
 In a product timed alone, one prime's negacyclic product could take up to 16% longer
