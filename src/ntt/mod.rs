@@ -8,6 +8,8 @@
 //! polynomials instead, negacyclic and cyclic, and put together by polynomial Chinese
 //! remaindering ([`Plan`], [`crt()`]).
 
+#[cfg(any(target_arch = "x86_64", test))]
+mod avx512;
 mod crt;
 #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
 mod neon;
@@ -409,8 +411,9 @@ impl Kernels {
         }
     }
 
-    /// The fastest kernels for this CPU: NEON on aarch64; on x86_64 the portable ones
-    /// compiled for AVX-512 or AVX2 when available.
+    /// The fastest kernels for this CPU: NEON on aarch64; on x86_64 those of `avx512.rs`
+    /// with AVX-512F, the rest the portable ones compiled for AVX-512 or AVX2 when
+    /// available.
     pub fn best() -> Self {
         #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
         {
@@ -418,7 +421,7 @@ impl Kernels {
         }
         #[cfg(target_arch = "x86_64")]
         {
-            portable::x86().unwrap_or_else(Kernels::portable)
+            avx512::kernels().or_else(portable::x86).unwrap_or_else(Kernels::portable)
         }
         #[cfg(not(any(
             all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
