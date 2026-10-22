@@ -1,5 +1,6 @@
 //! NEON kernels: digits, with the contract of `super::digits`, and the fixed-size column
-//! sums and digits, with those of `fixed::cols` and `fixed::digits`.
+//! sums and digits, with those of `fixed::cols` and `fixed::digits`, and digits of carried
+//! columns.
 
 use core::arch::aarch64::*;
 
@@ -129,6 +130,23 @@ pub(super) fn fixed_digits(t: &[u64], q: &[u32], out: &mut [[u8; 4]]) {
             let q = vld1q_u32(q.as_ptr().add(i));
             let c = vmlsq_n_u32(vuzp1q_u32(lo, hi), q, COL_BASE as u32);
             vst1q_u8(out.as_mut_ptr().add(4 * g).cast(), chars(c, table, reverse));
+        }
+    }
+}
+
+/// The characters of the carried columns `c` (see `fixed::carry_split`), top first:
+/// `out[i]` holds those of column `C - 1 - i`. Requires whole groups of four columns.
+#[inline(always)]
+pub(super) fn column_digits<const C: usize>(c: &[u32; C], out: &mut [[u8; 4]; C]) {
+    const { assert!(C.is_multiple_of(4)) };
+    // SAFETY: NEON is enabled at compile time (cfg on the module). Step `g` reads
+    // `c[C - 4 (g + 1)..C - 4 g]` and writes `out[4 g..4 g + 4]`.
+    unsafe {
+        let table = vld1q_u8_x4(TABLE.as_ptr());
+        let reverse = vld1q_u8(REVERSE.as_ptr());
+        for g in 0..C / 4 {
+            let v = vld1q_u32(c.as_ptr().add(C - 4 * (g + 1)));
+            vst1q_u8(out.as_mut_ptr().add(4 * g).cast(), chars(v, table, reverse));
         }
     }
 }

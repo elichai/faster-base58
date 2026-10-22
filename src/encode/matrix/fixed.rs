@@ -9,8 +9,8 @@
 //!
 //! The carry pass is serial, unlike the general path's (`super::normalize`): for at most
 //! 22 columns, one scalar multiply per column on the chain beat `normalize`'s four off it.
-//! The x86_64 paths for 64 bytes (AVX2, AVX-512 VBMI) cut the chain into four segments
-//! (`carry_split`).
+//! The x86_64 (AVX2, AVX-512 VBMI) and NEON paths for 64 bytes cut the chain into four
+//! segments (`carry_split`).
 
 use super::four_digits;
 use super::table::COL_BASE;
@@ -108,8 +108,9 @@ pub(super) fn encode_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, Buffer
     encode_best(x, output, &TABLE_32)
 }
 
-/// [`encode_matrix`](super::encode_matrix) for 64 bytes. On x86_64 with AVX-512 VBMI or
-/// AVX2 kernels and the carry in four segments (`carry_split`) if the CPU has them.
+/// [`encode_matrix`](super::encode_matrix) for 64 bytes. With the carry in four segments
+/// (`carry_split`): on x86_64 with AVX-512 VBMI or AVX2 kernels if the CPU has them, and
+/// on aarch64 with NEON kernels.
 pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     #[cfg(target_arch = "x86_64")]
     {
@@ -122,7 +123,22 @@ pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, Buffer
             return unsafe { super::x86::encode_64(x, output) };
         }
     }
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
+    return encode(x, output, |x, o| {
+        let (t, r) = (super::neon::cols(x, &TABLE_64), max_encoded_len(64).div_ceil(4));
+        let c = carry_split::<24, 4>(&t, r).unwrap_or_else(|| carry_cold(&t, r));
+        super::neon::column_digits(&c, o)
+    });
+    #[allow(unreachable_code)]
     encode_best(x, output, &TABLE_64)
+}
+
+/// [`carry_serial`] out of line, where [`encode_64`]'s `carry_split` falls back.
+#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
+#[cold]
+#[inline(never)]
+fn carry_cold(t: &[u64; 24], r: usize) -> [u32; 24] {
+    carry_serial(t, r)
 }
 
 /// [`encode_32`] with the plain-Rust kernels.
@@ -231,7 +247,11 @@ fn column(t: u64, q: u32) -> u32 {
 }
 
 /// [`carry`], returning the carried columns.
-#[cfg(any(target_arch = "x86_64", test))]
+#[cfg(any(
+    target_arch = "x86_64",
+    all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
+    test
+))]
 #[inline(always)]
 pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
     let mut out = [0; C];
@@ -254,7 +274,11 @@ pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
 ///
 /// The chain is about `r / K` divisions instead of `r`. Requires at least two columns per
 /// segment.
-#[cfg(any(target_arch = "x86_64", test))]
+#[cfg(any(
+    target_arch = "x86_64",
+    all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
+    test
+))]
 #[inline(always)]
 pub(super) fn carry_split<const C: usize, const K: usize>(
     t: &[u64; C],
