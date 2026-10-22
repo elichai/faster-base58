@@ -909,80 +909,80 @@ table (balanced splits `unit·2^i`, powers stored without their low zero limbs),
 
 ### Encoding results
 
-Apple M5 Pro, AC power, commit `49fb679`, `cargo bench --bench encode -- --warm-up-time 1
---measurement-time 3`: criterion medians from one run of every encoder. These tables
-predate [Reciprocals from squares](#reciprocals-from-squares), which took 3–12% off the
-divide-and-conquer encoders from 32 KiB. A watcher saw no
-build or other benchmark during the run. Random input with a non-zero first byte.
+Apple M5 Pro, AC power, commit `eb66fd3` (every change in the sections below merged),
+`cargo bench --bench encode -- --warm-up-time 1 --measurement-time 3`: criterion medians
+from one run of every encoder, in one binary. A watcher saw no build, no other benchmark
+and no switch to battery during the run. Random input with a non-zero first byte.
 `malachite` is malachite-nz's own conversion (`Natural::to_digits_desc`, a port of GMP's
 `mpn_get_str`) plus the alphabet; `five8` is Firedancer's encoder for 32 and 64 bytes only
 (scalar on aarch64); `basexx` is num-bigint's conversion. The divide-and-conquer encoders
-run `encode_batched` up to their threshold, so they are timed from 4 KiB; `encode_matrix`
-converts up to 8 KiB itself and calls `encode_ntt_cached` above. The 32-byte row is from
-a later run, with `encode_matrix`'s fixed-size path, and the 64-byte row from a later one
-still, with its split carry; both of every encoder at those sizes
-([Fixed sizes](#fixed-sizes-32-and-64-bytes)).
+run `encode_batched` up to their threshold, so they are timed from 4 KiB. `encode_matrix`
+converts up to 8 KiB itself, 32 and 64 bytes on its fixed-size path
+([Fixed sizes](#fixed-sizes-32-and-64-bytes)), and calls `encode_ntt_cached` above;
+`matrix-general` is its general path at 32 and 64 bytes. Each change's own gain is in its
+section, measured before and after back to back; this run is not compared with older ones.
 
 Against the other crates (`× bs58`: our fastest against `bs58`; `× best other`: against
 the fastest other crate at that size):
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
-| 31 | 864 ns | 147 ns |  | 140 ns | **32 ns** matrix | 27× | 4.38× |
-| 32 | 960 ns | 150 ns | 31.1 ns | 135 ns | **12.7 ns** matrix | 75× | 2.44× |
-| 64 | 3.3 µs | 311 ns | 76.8 ns | 242 ns | **23.8 ns** matrix | 139× | 3.24× |
-| 128 | 13.8 µs | 946 ns |  | 530 ns | **116 ns** matrix | 119× | 4.56× |
-| 256 | 56.9 µs | 3.27 µs |  | 1.5 µs | **231 ns** matrix | 246× | 6.51× |
-| 512 | 235 µs | 8.08 µs |  | 3.69 µs | **585 ns** matrix | 402× | 6.31× |
-| 1024 | 943 µs | 22.1 µs |  | 10 µs | **1.95 µs** matrix | 485× | 5.16× |
-| 1875 | 3.2 ms | 56.1 µs |  | 23.9 µs | **5.91 µs** matrix | 542× | 4.04× |
-| 4096 | 15.4 ms | 175 µs |  | 76 µs | **28.9 µs** matrix | 533× | 2.63× |
-| 6144 | 35.5 ms | 309 µs |  | 142 µs | **65.4 µs** matrix | 543× | 2.16× |
-| 8192 | 61.1 ms | 524 µs |  | 204 µs | **119 µs** matrix | 513× | 1.71× |
-| 12288 | 137 ms | 878 µs |  | 380 µs | **335 µs** ntt-cached | 409× | 1.13× |
-| 16384 | 243 ms | 1.51 ms |  | 566 µs | **489 µs** ntt-cached | 497× | 1.16× |
-| 24576 | 550 ms | 2.56 ms |  | 1.03 ms | **826 µs** ntt-cached | 666× | 1.25× |
-| 32768 | 973 ms | 4.64 ms |  | 1.54 ms | **1.2 ms** ntt-cached | 812× | 1.28× |
-| 36864 |  |  |  | 2.09 ms | **1.33 ms** ntt-cached |  | 1.57× |
-| 49152 |  |  |  | 2.79 ms | **1.95 ms** ntt-cached |  | 1.43× |
-| 131072 |  |  |  | 9.04 ms | **6.2 ms** ntt-cached |  | 1.46× |
-| 147456 |  |  |  | 10.6 ms | **6.88 ms** ntt-cached |  | 1.53× |
-| 1048576 |  |  |  | 108 ms | **67.6 ms** ntt-cached |  | 1.59× |
+| 31 | 872 ns | 141 ns |  | 138 ns | **31.6 ns** matrix | 28× | 4.37× |
+| 32 | 975 ns | 147 ns | 30.8 ns | 136 ns | **12.9 ns** matrix | 75× | 2.38× |
+| 64 | 3.13 µs | 320 ns | 78.5 ns | 241 ns | **23.5 ns** matrix | 133× | 3.33× |
+| 128 | 14.1 µs | 972 ns |  | 521 ns | **121 ns** matrix | 116× | 4.30× |
+| 256 | 59.6 µs | 3.32 µs |  | 1.56 µs | **236 ns** matrix | 253× | 6.63× |
+| 512 | 252 µs | 8.61 µs |  | 3.78 µs | **602 ns** matrix | 418× | 6.28× |
+| 1024 | 978 µs | 22.6 µs |  | 10.3 µs | **1.97 µs** matrix | 495× | 5.24× |
+| 1875 | 3.28 ms | 58.1 µs |  | 24.9 µs | **6.03 µs** matrix | 545× | 4.14× |
+| 4096 | 16.9 ms | 189 µs |  | 78.3 µs | **30.6 µs** matrix | 551× | 2.56× |
+| 6144 | 37 ms | 336 µs |  | 149 µs | **73.9 µs** matrix | 501× | 2.02× |
+| 8192 | 67.9 ms | 561 µs |  | 227 µs | **122 µs** matrix | 559× | 1.87× |
+| 12288 | 144 ms | 914 µs |  | 392 µs | **305 µs** ntt-cached | 473× | 1.29× |
+| 16384 | 255 ms | 1.55 ms |  | 578 µs | **442 µs** ntt-cached | 576× | 1.31× |
+| 24576 | 548 ms | 2.58 ms |  | 1.04 ms | **728 µs** ntt-cached | 754× | 1.44× |
+| 32768 | 991 ms | 4.38 ms |  | 1.48 ms | **1.02 ms** ntt-cached | 970× | 1.45× |
+| 36864 |  |  |  | 1.81 ms | **1.17 ms** ntt-cached |  | 1.55× |
+| 49152 |  |  |  | 2.59 ms | **1.65 ms** ntt-cached |  | 1.56× |
+| 131072 |  |  |  | 8.85 ms | **5.27 ms** ntt-cached |  | 1.68× |
+| 147456 |  |  |  | 10.5 ms | **5.99 ms** ntt-cached |  | 1.75× |
+| 1048576 |  |  |  | 104 ms | **60.3 ms** ntt-cached |  | 1.73× |
 
 Every encoder:
 
-| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 31 | 864 ns | 147 ns | 838 ns | 140 ns | 36 ns | **32 ns** | 38.7 ns | | | | | | | |
-| 32 | 960 ns | 150 ns | 869 ns | 135 ns | 40 ns | **12.7 ns** | 19 ns | 31.1 ns | | | | | | |
-| 64 | 3.3 µs | 311 ns | 3.06 µs | 242 ns | 90.6 ns | **23.8 ns** | 78.5 ns | 76.8 ns | | | | | | |
-| 128 | 13.8 µs | 946 ns | 11.7 µs | 530 ns | 211 ns | **116 ns** | 159 ns | | | | | | | |
-| 256 | 56.9 µs | 3.27 µs | 47.5 µs | 1.5 µs | 634 ns | **231 ns** | 418 ns | | | | | | | |
-| 512 | 235 µs | 8.08 µs | 194 µs | 3.69 µs | 2.13 µs | **585 ns** | 1.28 µs | | | | | | | |
-| 1024 | 943 µs | 22.1 µs | 786 µs | 10 µs | 8.14 µs | **1.95 µs** | 4.55 µs | | | | | | | |
-| 1875 | 3.2 ms | 56.1 µs | 2.65 ms | 23.9 µs | 24.2 µs | **5.91 µs** | 14.5 µs | | | | | | | |
-| 4096 | 15.4 ms | 175 µs | 12.6 ms | 76 µs | 107 µs | **28.9 µs** | 68.1 µs | | 107 µs | 107 µs | 107 µs | 106 µs | 107 µs | 92.5 µs |
-| 6144 | 35.5 ms | 309 µs | 28.7 ms | 142 µs | 241 µs | **65.4 µs** | 148 µs | | 222 µs | 222 µs | 186 µs | 124 µs | 165 µs | 173 µs |
-| 8192 | 61.1 ms | 524 µs | 50.5 ms | 204 µs | 414 µs | **119 µs** | 265 µs | | 351 µs | 345 µs | 264 µs | 190 µs | 254 µs | 251 µs |
-| 12288 | 137 ms | 878 µs | 114 ms | 380 µs | 934 µs | | | | 680 µs | 657 µs | 441 µs | **335 µs** | 514 µs | 443 µs |
-| 16384 | 243 ms | 1.51 ms | 203 ms | 566 µs | 1.63 ms | | | | 1.09 ms | 1.04 ms | 617 µs | **489 µs** | 735 µs | 621 µs |
-| 24576 | 550 ms | 2.56 ms | 454 ms | 1.03 ms | 3.67 ms | | | | 2.07 ms | 1.95 ms | 1.01 ms | **826 µs** | 1.33 ms | 1.1 ms |
-| 32768 | 973 ms | 4.64 ms | 865 ms | 1.54 ms | 6.95 ms | | | | 3.55 ms | 3.32 ms | 1.47 ms | **1.2 ms** | 1.96 ms | 1.69 ms |
-| 36864 | | | | 2.09 ms | | | | | 4.35 ms | 3.97 ms | 1.7 ms | **1.33 ms** | 2.13 ms | 1.85 ms |
-| 49152 | | | | 2.79 ms | | | | | 6.52 ms | 5.92 ms | 2.37 ms | **1.95 ms** | 3.16 ms | 2.55 ms |
-| 131072 | | | | 9.04 ms | | | | | 32.1 ms | 26.2 ms | 6.95 ms | **6.2 ms** | 10.1 ms | 8.28 ms |
-| 147456 | | | | 10.6 ms | | | | | 38.3 ms | 31.2 ms | 8.16 ms | **6.88 ms** | 11.5 ms | 9.7 ms |
-| 1048576 | | | | 108 ms | | | | | 874 ms | 587 ms | 74.2 ms | **67.6 ms** | 110 ms | 94.1 ms |
+| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | matrix-general | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 31 | 872 ns | 141 ns | 847 ns | 138 ns | 34.3 ns | **31.6 ns** | 42.7 ns | | | | | | | | |
+| 32 | 975 ns | 147 ns | 854 ns | 136 ns | 38.2 ns | **12.9 ns** | 18.1 ns | 30.8 ns | 31.9 ns | | | | | | |
+| 64 | 3.13 µs | 320 ns | 2.97 µs | 241 ns | 92.2 ns | **23.5 ns** | 81.1 ns | 78.5 ns | 57.6 ns | | | | | | |
+| 128 | 14.1 µs | 972 ns | 12.2 µs | 521 ns | 217 ns | **121 ns** | 173 ns | | | | | | | | |
+| 256 | 59.6 µs | 3.32 µs | 49.9 µs | 1.56 µs | 660 ns | **236 ns** | 454 ns | | | | | | | | |
+| 512 | 252 µs | 8.61 µs | 202 µs | 3.78 µs | 2.22 µs | **602 ns** | 1.33 µs | | | | | | | | |
+| 1024 | 978 µs | 22.6 µs | 825 µs | 10.3 µs | 7.82 µs | **1.97 µs** | 4.68 µs | | | | | | | | |
+| 1875 | 3.28 ms | 58.1 µs | 2.75 ms | 24.9 µs | 24.7 µs | **6.03 µs** | 15 µs | | | | | | | | |
+| 4096 | 16.9 ms | 189 µs | 14 ms | 78.3 µs | 114 µs | **30.6 µs** | 68.9 µs | | | 117 µs | 111 µs | 116 µs | 113 µs | 114 µs | 94.1 µs |
+| 6144 | 37 ms | 336 µs | 32.4 ms | 149 µs | 251 µs | **73.9 µs** | 158 µs | | | 228 µs | 239 µs | 197 µs | 144 µs | 169 µs | 197 µs |
+| 8192 | 67.9 ms | 561 µs | 54.2 ms | 227 µs | 435 µs | **122 µs** | 269 µs | | | 352 µs | 356 µs | 253 µs | 189 µs | 243 µs | 246 µs |
+| 12288 | 144 ms | 914 µs | 117 ms | 392 µs | 967 µs | | | | | 676 µs | 667 µs | 404 µs | **305 µs** | 460 µs | 434 µs |
+| 16384 | 255 ms | 1.55 ms | 204 ms | 578 µs | 1.67 ms | | | | | 1.07 ms | 1.02 ms | 569 µs | **442 µs** | 644 µs | 597 µs |
+| 24576 | 548 ms | 2.58 ms | 456 ms | 1.04 ms | 3.7 ms | | | | | 2.03 ms | 1.9 ms | 917 µs | **728 µs** | 1.12 ms | 993 µs |
+| 32768 | 991 ms | 4.38 ms | 809 ms | 1.48 ms | 6.5 ms | | | | | 3.21 ms | 2.96 ms | 1.24 ms | **1.02 ms** | 1.55 ms | 1.36 ms |
+| 36864 | | | | 1.81 ms | | | | | | 3.94 ms | 3.52 ms | 1.45 ms | **1.17 ms** | 1.79 ms | 1.57 ms |
+| 49152 | | | | 2.59 ms | | | | | | 6.22 ms | 5.55 ms | 2.07 ms | **1.65 ms** | 2.64 ms | 2.3 ms |
+| 131072 | | | | 8.85 ms | | | | | | 30.2 ms | 24.5 ms | 6.17 ms | **5.27 ms** | 8.3 ms | 7.36 ms |
+| 147456 | | | | 10.5 ms | | | | | | 36.1 ms | 29.4 ms | 7.12 ms | **5.99 ms** | 9.56 ms | 8.54 ms |
+| 1048576 | | | | 104 ms | | | | | | 834 ms | 552 ms | 67.7 ms | **60.3 ms** | 93.2 ms | 85.7 ms |
 
-- `encode_matrix` is the fastest encoder from 31 B to 8 KiB, 1.7–6.5× faster than the
-  fastest other crate. With its fixed-size path it is 2.4× faster than `five8`'s
-  fixed-size code at 32 bytes and 3.2× at 64.
-- From 12 KiB `encode_ntt_cached` (768-chunk matrix leaves) leads: 1.13× faster than
-  malachite's own conversion at 12 KiB, 1.28× at 32 KiB, 1.46–1.53× at 128–144 KiB and
-  1.59× at 1 MiB.
-- Against `bs58` our fastest is 27× faster at 31 B and up to 812× at 32 KiB;
-  `encode_batched` alone is 24× (31 B) to 140× (32 KiB) faster.
-- Karatsuba (`dc`) is 3.0× slower than the NTT at 32 KiB and 12.9× at 1 MiB.
+- `encode_matrix` is the fastest encoder from 31 B to 8 KiB, 1.9–6.6× faster than the
+  fastest other crate. Its fixed-size path takes 12.9 and 23.5 ns at 32 and 64 bytes,
+  against 31.9 and 57.6 ns for its general path and 30.8 and 78.5 ns for `five8`'s
+  fixed-size code: 2.4× and 3.3× faster than `five8`.
+- From 12 KiB `encode_ntt_cached` (768-chunk matrix leaves) leads: 1.29× faster than
+  malachite's own conversion at 12 KiB, 1.45× at 32 KiB, 1.68–1.75× at 128–144 KiB and
+  1.73× at 1 MiB, and 1.42× faster than `dc-malachite` at 1 MiB.
+- Against `bs58` our fastest is 28× faster at 31 B and up to 970× at 32 KiB;
+  `encode_batched` alone is 25× (31 B) to 152× (32 KiB) faster.
+- Karatsuba (`dc`) takes 3.1× as long as the NTT at 32 KiB and 13.8× at 1 MiB.
 
 **Code placement.** The same NTT code ran 6.6–7.5% faster in the binary before the
 matrix encoder's merge (`a80b4fb`) than after it (back-to-back criterion runs at 32 KiB, 128 KiB and 1 MiB; malachite
