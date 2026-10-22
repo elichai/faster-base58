@@ -16,7 +16,9 @@ mod tests;
 
 pub use batched::encode_batched;
 pub use dc::{Leaves, encode, encode_karatsuba_with};
-pub use matrix::{encode_matrix, encode_matrix_portable, encode_matrix_with};
+pub use matrix::{
+    encode_matrix, encode_matrix_portable, encode_matrix_with, encode_whole as encode_matrix_whole,
+};
 pub(crate) use dc::{encode_tuned, encode_with};
 
 use crate::common::{ALPHABET, BASE};

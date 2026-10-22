@@ -8,16 +8,20 @@
 //!   before. The timer ticks every 41.7 ns on Apple Silicon.
 //! - `cargo bench --bench encode_matrix_tune -- first`: the first call in each table size
 //!   class, which builds the table, against the second.
+//! - `cargo bench --bench encode_matrix_tune -- cap`: the matrix conversion without the
+//!   cap against `encode_ntt_cached`, warm, from 1.5 to 4.5 KiB: for tuning `IFMA_CAP`.
+//!   Without the IFMA leaf `ntt-cached` runs `encode_batched` up to 4 KiB.
 //!
 //! `SIZES` (comma-separated) replaces the default list. Above its cap, `matrix` times
-//! `encode_matrix`'s fallback.
+//! `encode_matrix`'s fallback (but not with `cap`).
 
 use std::hint::black_box;
 use std::time::Instant;
 
-use base58_bench::bench::encode_matrix_with;
+use base58_bench::bench::{encode_matrix_whole, encode_matrix_with, ifma_threshold};
 use base58_bench::{
-    encode, encode_batched, encode_malachite, encode_ntt_cached, encode_toom3, max_encoded_len,
+    encode, encode_batched, encode_malachite, encode_matrix, encode_ntt_cached, encode_toom3,
+    max_encoded_len,
 };
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
 use malachite_nz::natural::Natural;
@@ -38,8 +42,17 @@ const CONFIGS: [Config; 7] = [
     ("malachite", malachite, large),
     ("matrix", |d, o| encode_matrix_with(d, o, 0).unwrap(), |_| true),
 ];
+/// `encode_matrix` dispatches; `matrix` is its conversion at every size.
+const CAP: [Config; 3] = [
+    ("ntt-cached", |d, o| encode_ntt_cached(d, o).unwrap(), |_| true),
+    ("encode_matrix", |d, o| encode_matrix(d, o).unwrap(), |_| true),
+    ("matrix", |d, o| encode_matrix_whole(d, o).unwrap(), |_| true),
+];
 const SWEEP: [usize; 14] = [32, 48, 64, 80, 96, 112, 128, 144, 160, 192, 224, 256, 384, 512];
 const COLD: [usize; 6] = [512, 1024, 1875, 4096, 6144, 8192];
+/// 2049 bytes is the first in the 4 KiB table class (2.8 MiB).
+const CAP_SIZES: [usize; 12] =
+    [1536, 2048, 2049, 2304, 2560, 2816, 3072, 3328, 3584, 3840, 4096, 4608];
 const ROUNDS: usize = 31;
 /// Target length of one timed block.
 const BLOCK_NS: u128 = 2_000_000;
@@ -73,10 +86,11 @@ fn main() {
     if std::env::args().skip(1).any(|a| a == "first") {
         return first_calls();
     }
+    if std::env::args().skip(1).any(|a| a == "cap") {
+        return cap();
+    }
     let cold = std::env::args().skip(1).any(|a| a == "cold");
-    let default = if cold { &COLD[..] } else { &SWEEP[..] };
-    let sizes: Vec<usize> = std::env::var("SIZES")
-        .map_or(default.to_vec(), |s| s.split(',').map(|v| v.parse().unwrap()).collect());
+    let sizes = sizes(if cold { &COLD } else { &SWEEP });
     println!("| bytes | {} | speedup |", CONFIGS.map(|c| c.0).join(" | "));
     println!("|---:|{}---:|", "---:|".repeat(CONFIGS.len()));
     let mut evict = vec![0u8; 64 << 20];
@@ -84,12 +98,7 @@ fn main() {
         let data = data(size);
         let mut out = vec![0u8; max_encoded_len(size)];
         let configs: Vec<_> = CONFIGS.iter().filter(|c| c.2(size)).collect();
-        let n = encode_batched(&data, &mut out).unwrap();
-        let want = out[..n].to_vec();
-        for (name, f, _) in &configs {
-            let n = f(&data, &mut out);
-            assert!(out[..n] == want[..], "{name}: wrong output at {size} bytes");
-        }
+        check(&configs, &data, &mut out);
         let times = if cold {
             cold_times(&configs, &data, &mut out, &mut evict)
         } else {
@@ -109,6 +118,38 @@ fn main() {
             .min_by(|a, b| a.0.total_cmp(&b.0))
             .unwrap();
         println!("| {size} | {} | {:.2} ({name}) |", cells.join(" | "), best / matrix[0]);
+    }
+}
+
+/// [`CAP`], warm. Below 1, `ntt-cached / matrix` favors handing off.
+fn cap() {
+    println!("IFMA threshold: {}", ifma_threshold());
+    println!("| bytes | {} | ntt-cached / matrix |", CAP.map(|c| c.0).join(" | "));
+    println!("|---:|{}---:|", "---:|".repeat(CAP.len()));
+    for size in sizes(&CAP_SIZES) {
+        let data = data(size);
+        let mut out = vec![0u8; max_encoded_len(size)];
+        let configs: Vec<_> = CAP.iter().collect();
+        check(&configs, &data, &mut out);
+        let t = warm_times(&configs, &data, &mut out);
+        let cells: Vec<_> = t.iter().map(|t| format!("{:.3}", t / 1000.0)).collect();
+        println!("| {size} | {} | {:.3} |", cells.join(" | "), t[0] / t[2]);
+    }
+}
+
+/// `SIZES`, or `default`.
+fn sizes(default: &[usize]) -> Vec<usize> {
+    std::env::var("SIZES")
+        .map_or(default.to_vec(), |s| s.split(',').map(|v| v.parse().unwrap()).collect())
+}
+
+/// Asserts that each config's output is `encode_batched`'s. Also builds the tables.
+fn check(configs: &[&Config], data: &[u8], out: &mut [u8]) {
+    let n = encode_batched(data, out).unwrap();
+    let want = out[..n].to_vec();
+    for (name, f, _) in configs {
+        let n = f(data, out);
+        assert!(out[..n] == want[..], "{name}: wrong output at {} bytes", data.len());
     }
 }
 

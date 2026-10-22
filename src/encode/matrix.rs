@@ -127,7 +127,7 @@ const IFMA_CAP: usize = 4096;
 /// divide-and-conquer encoders' single-leaf case. Requires at most `MAX_BYTES` bytes after
 /// the leading zeros.
 #[inline(never)]
-pub(super) fn encode_whole(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+pub fn encode_whole(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let (zeros, x) = split_zeros(input);
     assert!(x.len() <= MAX_BYTES, "{} bytes for one matrix", x.len());
     let mut scratch = Scratch::new();
