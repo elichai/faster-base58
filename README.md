@@ -1066,8 +1066,8 @@ Every encoder, default flags:
   converts 4 KiB itself on IFMA CPUs. In run 3 (`49fb679`) they tied; the two runs are not
   back to back, so the cause is not established ([Reciprocals from
   squares](#reciprocals-from-squares) made the divide-and-conquer setup cheaper and is one
-  candidate). The hand-off (`IFMA_CAP`, 4 KiB) is unchanged; a sweep from 2 to 4 KiB on
-  this CPU would settle it.
+  candidate). A sweep in one binary reproduced it, so the hand-off (`IFMA_CAP`) is now
+  3584 bytes: see **The hand-off on IFMA CPUs** in [Matrix leaves](#matrix-leaves).
 - From 6 KiB `encode_ntt_cached` leads: 2.4× faster than malachite's own conversion at
   6–8 KiB, 2.25–2.30× at 12–24 KiB, 2.11× at 32 KiB, 1.81× at 48 KiB, 1.84–1.89× at
   128–144 KiB and 2.00× at 1 MiB; against `dc-malachite`, 1.48–1.51× at 128–144 KiB and
@@ -1777,7 +1777,8 @@ matrix leaves took less time than Horner leaves for every backend and leaf size:
 so `Leaves::BEST` is Matrix on x86_64 too. With the AVX-512 IFMA leaf, Karatsuba is
 cheap enough that plain `encode` wants 32-chunk leaves there (96 took 13–29% longer at
 2–8 KiB). The NTT encoder with matrix leaves tied `encode_matrix` at 4 KiB and was 33%
-faster at 8 KiB, so on IFMA CPUs `encode_matrix` hands over above 4 KiB.
+faster at 8 KiB, so on IFMA CPUs `encode_matrix` handed over above 4 KiB (now above
+3584 bytes: see **The hand-off on IFMA CPUs** below).
 
 A second Zen 5 run (default flags, minimum of interleaved rounds, µs) swept the larger
 matrix leaves and the thresholds:
@@ -1809,6 +1810,50 @@ matrix leaves and the thresholds:
 - `MATRIX_MIN = 22` holds: the matrix lost at 8 and 12 bytes (0.74–0.84×), was within
   6% at 16, 20 and 28, and won at 24 and 32 (1.10× and 1.21×). The differences are a few
   nanoseconds.
+
+**The hand-off on IFMA CPUs.** In run 8 ([Encoding results on
+Zen 5](#encoding-results-on-zen-5)) `ntt-cached` was 7% (default flags) and 12% (native)
+faster than `encode_matrix` at 4 KiB, which `encode_matrix` then converted itself.
+`cargo bench --bench encode_matrix_tune -- cap` times, in one binary, `encode_ntt_cached`
+(on IFMA CPUs divide and conquer above 512 bytes, 96-chunk matrix leaves, Karatsuba with
+the IFMA leaf), `encode_matrix`, and the matrix conversion without the cap (`matrix`),
+each the minimum of 31 interleaved rounds. Zen 5 VM (EPYC 9B45), commit `3686d04`, rustc
+1.99.0, no LTO, no pinning; five runs per build, default and native flags alternating,
+back to back; the minimum of the five runs, µs. The tests passed first (116, with
+`BASE58_REQUIRE_IFMA=1`); steal 0.
+
+| bytes | ntt-cached | matrix | ntt / matrix | ntt-cached, native | matrix, native | ntt / matrix, native |
+|------:|-----------:|-------:|-------------:|-------------------:|---------------:|---------------------:|
+| 1536  | 10.50      | **7.10**  | 1.478 | 9.68      | **7.08**  | 1.366 |
+| 2048  | 15.62      | **11.79** | 1.325 | 14.65     | **11.78** | 1.243 |
+| 2049  | 15.74      | **12.08** | 1.303 | 14.76     | **12.14** | 1.216 |
+| 2304  | 18.48      | **14.69** | 1.258 | 17.34     | **14.71** | 1.179 |
+| 2560  | 21.99      | **17.94** | 1.226 | 20.33     | **18.02** | 1.128 |
+| 2816  | 23.49      | **21.44** | 1.095 | 21.84     | **21.60** | 1.011 |
+| 3072  | 27.79      | **25.81** | 1.077 | **25.51** | 25.83     | 0.988 |
+| 3328  | 33.89      | **30.01** | 1.129 | **29.49** | 30.00     | 0.983 |
+| 3584  | 35.48      | **34.36** | 1.033 | **31.78** | 34.27     | 0.927 |
+| 3840  | **37.68**  | 39.06     | 0.965 | **34.98** | 39.15     | 0.893 |
+| 4096  | **41.41**  | 44.16     | 0.938 | **39.09** | 44.13     | 0.886 |
+| 4608  | 56.10      | **55.73** | 1.007 | **53.61** | 55.65     | 0.963 |
+
+- With default flags the matrix leads up to 3584 bytes (by 3.3% there) and `ntt-cached`
+  from 3840 (by 3.5% at 3840, 6.2% at 4096). With native flags `ntt-cached` leads from
+  3072: by 1–2% at 3072–3328 and 7–11% from 3584. Every run's ratio was on the same side
+  of 1 as the minimums' ratio, at every size, in both builds. So `IFMA_CAP` is now 3584
+  (was 4096). Sizes from 3585 to 3839 were not measured; with default flags, the cut may
+  cost a few percent there.
+- The 4 KiB cells reproduce run 8, a different binary: 41.4 against 44.2 µs here and 41.4
+  against 44.7 there; with native flags 39.1 against 44.1, and 39.4 against 44.7.
+- `encode_matrix` (not shown) was within 0.2% of `matrix` up to 4 KiB, so `matrix`
+  times the same conversion. At 4.5 KiB `encode_matrix` calls `ntt-cached`, and the two
+  were within 1%.
+- `matrix` grows smoothly: 3.75× from 2 to 4 KiB, where the work grows 4×. Entering the
+  4 KiB table class at 2049 bytes (2.8 MiB, more than Zen 5's 1 MiB L2) costs it about
+  2.5%. `ntt-cached` grows in steps: with default flags 22% from 3072 to 3328 bytes and
+  35% from 4096 to 4608. So at 4.5 KiB, above the cap, it ties with the matrix with
+  default flags (0.7% slower) and is 3.7% faster with native flags; the first Zen 5 run
+  had it 33% faster at 8 KiB.
 
 ### Fixed sizes: 32 and 64 bytes
 

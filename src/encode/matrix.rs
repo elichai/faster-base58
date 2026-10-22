@@ -36,7 +36,7 @@ const BEST: Kernels = Kernels { panel: PANEL, digits: neon::digits };
 const BEST: Kernels = Kernels { panel: PANEL, digits };
 
 /// Like [`encode_batched`], but faster from 22 bytes to 8 KiB when the table of powers is
-/// in cache. Fewer than `MATRIX_MIN` bytes use [`encode_batched`]; more than 8192 (4096 on
+/// in cache. Fewer than `MATRIX_MIN` bytes use [`encode_batched`]; more than 8192 (3584 on
 /// CPUs with the AVX-512 IFMA leaf, see [`IFMA_CAP`]) use [`encode_ntt_cached`].
 ///
 /// NEON on aarch64; the decoder's AVX2 or SSE4.1 kernels on x86_64, where on Zen 5 it was
@@ -119,9 +119,10 @@ fn encode_large(
 }
 
 /// The largest input `encode_matrix` converts itself when Karatsuba has the AVX-512 IFMA
-/// leaf. On Zen 5 the NTT encoder with matrix leaves tied the matrix at 4 KiB (43.7
-/// against 44.4 µs) and was 33% faster at 8 KiB.
-const IFMA_CAP: usize = 4096;
+/// leaf. On Zen 5, in one binary, the NTT encoder with matrix leaves took 3% more time
+/// than the matrix at 3584 bytes with default flags and 3.5–6% less at 3840 and 4096
+/// (7–11% less from 3584 with native flags). README.md has the numbers.
+const IFMA_CAP: usize = 3584;
 
 /// [`encode_matrix`]'s conversion with the fastest kernels, without its thresholds: the
 /// divide-and-conquer encoders' single-leaf case. Requires at most `MAX_BYTES` bytes after
@@ -438,13 +439,14 @@ mod tests {
         }
     }
 
-    /// Below `MATRIX_MIN` bytes after the leading zeros, and around it.
+    /// Below `MATRIX_MIN` bytes after the leading zeros, and around it and the caps.
     #[test]
     fn leading_zeros_around_threshold() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(32);
         let real: [(&str, Encode); 2] =
             [("best", encode_matrix), ("portable", encode_matrix_portable)];
-        for bytes in [MATRIX_MIN - 1, MATRIX_MIN, MATRIX_MIN + 1, MAX_BYTES, MAX_BYTES + 1] {
+        let caps = [IFMA_CAP, IFMA_CAP + 1, MAX_BYTES, MAX_BYTES + 1];
+        for bytes in [MATRIX_MIN - 1, MATRIX_MIN, MATRIX_MIN + 1].into_iter().chain(caps) {
             for zeros in [0, 1, 2, 100, MATRIX_MIN] {
                 let mut x = random_bytes(&mut rng, bytes);
                 x[0] |= 1;
