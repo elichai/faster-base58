@@ -190,9 +190,9 @@ impl Divisor {
         let h = n - (n - 1) / 2;
         match below {
             // `qn` doubles from one power to the next, or doubles less one, so `a'` below has
-            // `h` limbs: always for powers of the table.
-            Some(b) if n > RECIP_BASECASE && b.recip.len() == h + 1 => {
-                debug_assert_eq!(p.exp, 2 * b.exp);
+            // `h` limbs: always for powers of the table. The bound needs `p` to be exactly
+            // the square of the power below, so that is checked in release builds too.
+            Some(b) if n > RECIP_BASECASE && p.exp == 2 * b.exp && b.recip.len() == h + 1 => {
                 // `pn β^shift` is the power times `2^bits`, so with `a' = pn' β^(shift' + 1)`
                 // below, `a = a'^2 2^(bits - 2 bits') / β` and `(β^(2h) / a')^2` is
                 // `2^k β^(n+h) / a`.
