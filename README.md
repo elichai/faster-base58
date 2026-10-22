@@ -994,208 +994,208 @@ depend on where its loops land by up to about 7%. The merge changed no NTT code.
 
 ### Encoding results on Zen 5
 
-AMD EPYC 9B45 (Zen 5, AVX-512 IFMA) on a GCP VM, commit `49fb679` (before the
-hand-written AVX-512 NTT kernels: for those see
-[AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)), rustc 1.99.0, default
-flags (no `target-cpu`), the same command and sizes as above. A watcher on the VM saw only
-the benchmark during the run. On IFMA CPUs `encode_matrix` converts up to 4 KiB itself and
-calls `encode_ntt_cached` above. `five8` selects its AVX2 code at compile time, so with
-default flags it ran its scalar code; our encoders detect AVX-512 at run time. The 32
-byte row is from a later run of every encoder at those sizes (commit `b2ffc77`, default
-and native flags back to back; [Fixed sizes](#fixed-sizes-32-and-64-bytes)), the 64 byte
-row from run 7 there (`f382688`, the present 64-byte path, which takes AVX-512 VBMI
-kernels on this CPU).
+AMD EPYC 9B45 (Zen 5: AVX-512 IFMA and VBMI) on a GCP VM, commit `eb66fd3` (the code of
+the M5 run above), rustc 1.99.0, no LTO, no pinning. Run 8: the encode bench with default
+flags (no `target-cpu`), then with `-C target-cpu=native` (znver5) in its own target
+directory, back to back in one session, after the tests passed in both builds with
+`BASE58_REQUIRE_IFMA=1` (116 each, so the AVX-512 and VBMI paths ran). A sampler every
+15 s saw steal 0 and only the benchmark busy in both windows. On IFMA CPUs
+`encode_matrix` converts up to 4 KiB itself (32 and 64 bytes on its fixed-size path:
+plain Rust at 32 bytes, AVX-512 VBMI kernels at 64 on this CPU) and calls
+`encode_ntt_cached` above. `five8` selects its AVX2 code at compile time, so only the
+native build runs it; our encoders select AVX2, AVX-512 and IFMA code at run time in
+both builds.
+
+Default flags:
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
-| 31 | 817 ns | 190 ns |  | 161 ns | **54 ns** matrix | 15× | 2.98× |
-| 32 | 901 ns | 192 ns | 56.5 ns | 162 ns | **25.5 ns** matrix | 35× | 2.22× |
-| 64 | 3.9 µs | 428 ns | 119 ns | 319 ns | **34.4 ns** matrix | 113× | 3.46× |
-| 128 | 16.6 µs | 1.01 µs |  | 714 ns | **168 ns** matrix | 99× | 4.25× |
-| 256 | 69.7 µs | 3.63 µs |  | 2.06 µs | **396 ns** matrix | 176× | 5.20× |
-| 512 | 282 µs | 8.89 µs |  | 4.72 µs | **1.1 µs** matrix | 257× | 4.31× |
-| 1024 | 1.13 ms | 24.3 µs |  | 12.9 µs | **3.38 µs** matrix | 334× | 3.82× |
-| 1875 | 3.79 ms | 61.8 µs |  | 31.8 µs | **10.3 µs** matrix | 370× | 3.10× |
-| 4096 | 18.1 ms | 188 µs |  | 100 µs | **43.5 µs** matrix | 416× | 2.31× |
-| 6144 | 40.7 ms | 320 µs |  | 186 µs | **82.2 µs** ntt-cached | 495× | 2.26× |
-| 8192 | 72.4 ms | 548 µs |  | 283 µs | **123 µs** ntt-portable | 588× | 2.30× |
-| 12288 | 163 ms | 943 µs |  | 522 µs | **238 µs** ntt-cached | 684× | 2.19× |
-| 16384 | 292 ms | 1.64 ms |  | 804 µs | **365 µs** ntt-portable | 800× | 2.21× |
-| 24576 | 652 ms | 2.75 ms |  | 1.54 ms | **713 µs** ntt-cached | 914× | 2.17× |
-| 32768 | 1.16 s | 4.57 ms |  | 2.24 ms | **1.1 ms** ntt-cached | 1049× | 2.03× |
-| 36864 |  |  |  | 2.6 ms | **1.41 ms** ntt-portable |  | 1.84× |
-| 49152 |  |  |  | 3.81 ms | **2.17 ms** ntt-cached |  | 1.75× |
-| 131072 |  |  |  | 12.1 ms | **9.17 ms** ntt-cached |  | 1.32× |
-| 147456 |  |  |  | 14.1 ms | **10.8 ms** ntt-cached |  | 1.30× |
-| 1048576 |  |  |  | 132 ms | **111 ms** dc-malachite |  | 1.19× |
+| 31 | 817 ns | 189 ns |  | 158 ns | **53.6 ns** matrix | 15× | 2.95× |
+| 32 | 894 ns | 191 ns | 56.3 ns | 164 ns | **25.4 ns** matrix-portable | 35× | 2.22× |
+| 64 | 3.9 µs | 427 ns | 120 ns | 317 ns | **33.3 ns** matrix | 117× | 3.59× |
+| 128 | 16.6 µs | 1 µs |  | 700 ns | **168 ns** matrix | 99× | 4.18× |
+| 256 | 69.5 µs | 3.66 µs |  | 2.03 µs | **400 ns** matrix | 174× | 5.08× |
+| 512 | 282 µs | 8.99 µs |  | 4.66 µs | **1.09 µs** matrix | 258× | 4.27× |
+| 1024 | 1.13 ms | 24.6 µs |  | 12.8 µs | **3.39 µs** matrix | 333× | 3.79× |
+| 1875 | 3.78 ms | 61.8 µs |  | 31.6 µs | **10.2 µs** matrix | 369× | 3.08× |
+| 4096 | 18.1 ms | 187 µs |  | 100 µs | **41.3 µs** ntt-portable | 438× | 2.43× |
+| 6144 | 40.6 ms | 323 µs |  | 184 µs | **76.3 µs** ntt-portable | 532× | 2.41× |
+| 8192 | 72.2 ms | 550 µs |  | 282 µs | **117 µs** matrix | 619× | 2.42× |
+| 12288 | 162 ms | 946 µs |  | 519 µs | **226 µs** ntt-cached | 718× | 2.30× |
+| 16384 | 289 ms | 1.61 ms |  | 795 µs | **349 µs** ntt-portable | 826× | 2.27× |
+| 24576 | 650 ms | 2.74 ms |  | 1.53 ms | **682 µs** ntt-portable | 953× | 2.25× |
+| 32768 | 1.16 s | 4.56 ms |  | 2.24 ms | **1.06 ms** ntt-portable | 1088× | 2.11× |
+| 36864 |  |  |  | 2.59 ms | **1.35 ms** ntt-portable |  | 1.92× |
+| 49152 |  |  |  | 3.76 ms | **2.08 ms** ntt-cached |  | 1.81× |
+| 131072 |  |  |  | 12.1 ms | **6.4 ms** ntt-cached |  | 1.89× |
+| 147456 |  |  |  | 14.1 ms | **7.65 ms** ntt-cached |  | 1.84× |
+| 1048576 |  |  |  | 132 ms | **66 ms** ntt-cached |  | 2.00× |
 
-Every encoder:
+Every encoder, default flags:
 
-| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 31 | 817 ns | 190 ns | 786 ns | 161 ns | 65.9 ns | **54 ns** | 62.1 ns | | | | | | | |
-| 32 | 901 ns | 192 ns | 838 ns | 162 ns | 65.1 ns | **25.5 ns** | 25.5 ns | 56.5 ns | | | | | | |
-| 64 | 3.9 µs | 428 ns | 3.42 µs | 319 ns | 137 ns | **34.4 ns** | 122 ns | 119 ns | | | | | | |
-| 128 | 16.6 µs | 1.01 µs | 14 µs | 714 ns | 377 ns | **168 ns** | 255 ns | | | | | | | |
-| 256 | 69.7 µs | 3.63 µs | 56.3 µs | 2.06 µs | 1.19 µs | **396 ns** | 697 ns | | | | | | | |
-| 512 | 282 µs | 8.89 µs | 225 µs | 4.72 µs | 4.34 µs | **1.1 µs** | 2.24 µs | | | | | | | |
-| 1024 | 1.13 ms | 24.3 µs | 901 µs | 12.9 µs | 16.2 µs | **3.38 µs** | 7.58 µs | | | | | | | |
-| 1875 | 3.79 ms | 61.8 µs | 3.01 ms | 31.8 µs | 52.9 µs | **10.3 µs** | 24 µs | | | | | | | |
-| 4096 | 18.1 ms | 188 µs | 14.4 ms | 100 µs | 247 µs | **43.5 µs** | 107 µs | | 56.2 µs | 56.3 µs | 68 µs | 44.7 µs | 44.6 µs | 140 µs |
-| 6144 | 40.7 ms | 320 µs | 32.4 ms | 186 µs | 552 µs | 82.3 µs | 82.3 µs | | 101 µs | 100 µs | 112 µs | **82.2 µs** | 82.3 µs | 250 µs |
-| 8192 | 72.4 ms | 548 µs | 57.6 ms | 283 µs | 979 µs | 124 µs | 123 µs | | 151 µs | 151 µs | 174 µs | 123 µs | **123 µs** | 364 µs |
-| 12288 | 163 ms | 943 µs | 130 ms | 522 µs | 2.2 ms | | | | 286 µs | 285 µs | 310 µs | **238 µs** | 240 µs | 625 µs |
-| 16384 | 292 ms | 1.64 ms | 233 ms | 804 µs | 3.94 ms | | | | 440 µs | 440 µs | 485 µs | 366 µs | **365 µs** | 876 µs |
-| 24576 | 652 ms | 2.75 ms | 518 ms | 1.54 ms | 8.78 ms | | | | 842 µs | 841 µs | 892 µs | **713 µs** | 713 µs | 1.44 ms |
-| 32768 | 1.16 s | 4.57 ms | 921 ms | 2.24 ms | 15.6 ms | | | | 1.29 ms | 1.29 ms | 1.48 ms | **1.1 ms** | 1.1 ms | 2.05 ms |
-| 36864 | | | | 2.6 ms | | | | | 1.47 ms | 1.47 ms | 1.67 ms | 1.42 ms | **1.41 ms** | 2.4 ms |
-| 49152 | | | | 3.81 ms | | | | | 2.53 ms | 2.48 ms | 2.76 ms | **2.17 ms** | 2.18 ms | 3.4 ms |
-| 131072 | | | | 12.1 ms | | | | | 11.6 ms | 11 ms | 10.6 ms | **9.17 ms** | 27.3 ms | 10.4 ms |
-| 147456 | | | | 14.1 ms | | | | | 13.2 ms | 12.8 ms | 11.7 ms | **10.8 ms** | 32.6 ms | 12.2 ms |
-| 1048576 | | | | 132 ms | | | | | 316 ms | 252 ms | 124 ms | 111 ms | 484 ms | **111 ms** |
+| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | matrix-general | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 31 | 817 ns | 189 ns | 769 ns | 158 ns | 64.8 ns | **53.6 ns** | 61.3 ns | | | | | | | | |
+| 32 | 894 ns | 191 ns | 844 ns | 164 ns | 65.1 ns | 25.4 ns | **25.4 ns** | 56.3 ns | 52.6 ns | | | | | | |
+| 64 | 3.9 µs | 427 ns | 3.41 µs | 317 ns | 138 ns | **33.3 ns** | 121 ns | 120 ns | 85.8 ns | | | | | | |
+| 128 | 16.6 µs | 1 µs | 13.9 µs | 700 ns | 377 ns | **168 ns** | 258 ns | | | | | | | | |
+| 256 | 69.5 µs | 3.66 µs | 56.1 µs | 2.03 µs | 1.2 µs | **400 ns** | 688 ns | | | | | | | | |
+| 512 | 282 µs | 8.99 µs | 224 µs | 4.66 µs | 4.26 µs | **1.09 µs** | 2.18 µs | | | | | | | | |
+| 1024 | 1.13 ms | 24.6 µs | 896 µs | 12.8 µs | 16.4 µs | **3.39 µs** | 7.47 µs | | | | | | | | |
+| 1875 | 3.78 ms | 61.8 µs | 3.01 ms | 31.6 µs | 53 µs | **10.2 µs** | 23.9 µs | | | | | | | | |
+| 4096 | 18.1 ms | 187 µs | 14.4 ms | 100 µs | 249 µs | 44.7 µs | 107 µs | | | 52 µs | 52.2 µs | 63.8 µs | 41.4 µs | **41.3 µs** | 132 µs |
+| 6144 | 40.6 ms | 323 µs | 32.3 ms | 184 µs | 555 µs | 76.4 µs | 76.4 µs | | | 94.3 µs | 93.7 µs | 105 µs | 76.7 µs | **76.3 µs** | 237 µs |
+| 8192 | 72.2 ms | 550 µs | 57.4 ms | 282 µs | 986 µs | **117 µs** | 117 µs | | | 143 µs | 142 µs | 166 µs | 117 µs | 117 µs | 342 µs |
+| 12288 | 162 ms | 946 µs | 129 ms | 519 µs | 2.2 ms | | | | | 271 µs | 272 µs | 295 µs | **226 µs** | 227 µs | 578 µs |
+| 16384 | 289 ms | 1.61 ms | 230 ms | 795 µs | 3.9 ms | | | | | 416 µs | 417 µs | 462 µs | 350 µs | **349 µs** | 822 µs |
+| 24576 | 650 ms | 2.74 ms | 517 ms | 1.53 ms | 8.76 ms | | | | | 813 µs | 811 µs | 849 µs | 684 µs | **682 µs** | 1.33 ms |
+| 32768 | 1.16 s | 4.56 ms | 918 ms | 2.24 ms | 15.5 ms | | | | | 1.24 ms | 1.25 ms | 1.43 ms | 1.07 ms | **1.06 ms** | 1.87 ms |
+| 36864 | | | | 2.59 ms | | | | | | 1.42 ms | 1.4 ms | 1.6 ms | 1.35 ms | **1.35 ms** | 2.2 ms |
+| 49152 | | | | 3.76 ms | | | | | | 2.42 ms | 2.36 ms | 2.63 ms | **2.08 ms** | 2.09 ms | 3.09 ms |
+| 131072 | | | | 12.1 ms | | | | | | 11.3 ms | 10.6 ms | 7.78 ms | **6.4 ms** | 26.8 ms | 9.64 ms |
+| 147456 | | | | 14.1 ms | | | | | | 12.8 ms | 12.2 ms | 8.65 ms | **7.65 ms** | 32.3 ms | 11.3 ms |
+| 1048576 | | | | 132 ms | | | | | | 306 ms | 240 ms | 78.4 ms | **66 ms** | 421 ms | 104 ms |
 
-- `encode_matrix` is the fastest up to 4 KiB: 2.2× faster than scalar `five8` at 32
-  bytes, 2.9× at 64, and 2.3–5.2× faster than the fastest other crate from 128 bytes.
-- From 6 KiB `encode_ntt_cached` leads: about 2.2× faster than malachite's own conversion
-  from 6 to 24 KiB, 2.03× at 32 KiB, 1.75× at 48 KiB, 1.30–1.32× at 128–144 KiB.
+- `encode_matrix` is the fastest at 31 bytes and from 64 to 1875 bytes, 3.1–5.1× faster
+  than the fastest other crate from 128 bytes. At 32 bytes its fixed-size path is plain
+  Rust on x86_64, so `matrix-portable` takes the same 25.4 ns. Against scalar `five8` it
+  is 2.2× faster at 32 bytes and 3.6× at 64; its general path took 52.6 and 85.8 ns
+  there.
+- **At 4 KiB the NTT encoder is now faster.** `ntt-cached` took 41.4 µs against
+  `encode_matrix`'s 44.7 (7% less; 12% less with native flags), though `encode_matrix`
+  converts 4 KiB itself on IFMA CPUs. In run 3 (`49fb679`) they tied; the two runs are not
+  back to back, so the cause is not established ([Reciprocals from
+  squares](#reciprocals-from-squares) made the divide-and-conquer setup cheaper and is one
+  candidate). The hand-off (`IFMA_CAP`, 4 KiB) is unchanged; a sweep from 2 to 4 KiB on
+  this CPU would settle it.
+- From 6 KiB `encode_ntt_cached` leads: 2.4× faster than malachite's own conversion at
+  6–8 KiB, 2.25–2.30× at 12–24 KiB, 2.11× at 32 KiB, 1.81× at 48 KiB, 1.84–1.89× at
+  128–144 KiB and 2.00× at 1 MiB; against `dc-malachite`, 1.48–1.51× at 128–144 KiB and
+  1.58× at 1 MiB.
 - Up to 48 KiB no transform runs on this CPU. Every product there is below
   `IFMA_THRESHOLD` (3072 limbs, or 2048 for a prepared power), so the NTT multiplier
   passes it to Karatsuba with the IFMA leaf. Counted with the IFMA thresholds and
   parameters forced on the M5: no forward transform up to 48 KiB, 93 at 128 KiB, 801 at
-  1 MiB. So up to 48 KiB `ntt-cached` is Karatsuba with 96-chunk matrix leaves.
-- For the same reason `ntt-cached` and `ntt-portable` run the same code up to 48 KiB and
-  took the same time within 1%, as did `matrix` at 6–8 KiB (it calls `ntt-cached`). The
-  bold among them is noise. From 128 KiB the transforms run, and `ntt-portable`'s kernels
-  (baseline x86-64: no AVX2 or AVX-512) take 3.0× as long at 128–144 KiB and 4.3× at
-  1 MiB.
-- At 1 MiB `dc-malachite` (111.05 ms) and `ntt-cached` (111.40 ms) tie, 1.19× faster than
-  malachite's own conversion. On the M5 `ntt-cached` was 1.39× faster than `dc-malachite`
-  there. The NTT kernels here were the portable code compiled for AVX-512; with the
-  hand-written ones `ntt-cached` is 1.47× faster than `dc-malachite` at 1 MiB (see
-  [AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)).
-- Against `bs58` our fastest is 15× faster at 31 B, 334× at 1 KiB and 1049× at 32 KiB.
-- `dc` (plain `encode`: Karatsuba with 32-chunk Horner leaves) takes 1.17–1.26× as long
-  as `ntt-cached` from 4 to 32 KiB. No transform runs there, so that gap is the leaves
-  alone. At 1 MiB it takes 2.8× as long. On the M5, where transforms start at 128 limbs,
-  it took 3.0× as long at 32 KiB and 12.9× at 1 MiB.
+  1 MiB. So up to 48 KiB `ntt-cached` is Karatsuba with 96-chunk matrix leaves, and
+  `ntt-portable` runs the same code: they took the same time within 1%, as did
+  `encode_matrix` at 6–8 KiB (it calls `ntt-cached`). The bold among them is noise.
+- From 128 KiB the transforms run: `ntt-portable`'s baseline x86-64 kernels (no AVX2 or
+  AVX-512) take 4.2× as long as `ntt-cached`'s hand-written AVX-512 ones at 128–144 KiB
+  and 6.4× at 1 MiB ([AVX-512 NTT kernels on Zen 5](#avx-512-ntt-kernels-on-zen-5)).
+- Against `bs58` our fastest is 15× faster at 31 B, 117× at 64 B, 333× at 1 KiB and
+  1088× at 32 KiB.
+- `dc` (plain `encode`: Karatsuba with 32-chunk Horner leaves) takes 1.16–1.26× as long
+  as `ntt-cached` from 4 to 32 KiB, where no transform runs, so that gap is the leaves
+  alone; at 1 MiB it takes 4.6× as long.
 
 ### Native CPU on Zen 5
 
-The same VM ran the encode bench twice, back to back in one session: first with default
-flags, then with `-C target-cpu=native` (znver5: AVX2, AVX-512F, AVX-512 IFMA). The code
-was that of `49fb679`, with no LTO and no pinning. A watcher saw only the benchmark in
-both windows (steal 0). The default run matched the run above within −2.0% to +3.3% in
-all 176 cells, so the default tables above stand. The M5 numbers above are already
-native: the local cargo config sets `target-cpu=apple-m4`.
+The native build of run 8 (`-C target-cpu=native`: znver5), measured right after the
+default one above. The M5 numbers above are already native: the local cargo config sets
+`target-cpu=apple-m4`.
 
 With native flags (`× best other` is against the other crates built with native flags
-too; the 32 byte row is from the `b2ffc77` run and the 64 byte row from run 7, as
-above):
+too):
 
 | bytes | bs58 | basexx | five8 | malachite | fastest here | × bs58 | × best other |
 |---:|---:|---:|---:|---:|:---|---:|---:|
-| 31 | 693 ns | 193 ns |  | 151 ns | **52.7 ns** matrix | 13× | 2.87× |
-| 32 | 760 ns | 188 ns | 33.6 ns | 157 ns | **24.8 ns** matrix | 31× | 1.35× |
-| 64 | 3.25 µs | 420 ns | 51.2 ns | 308 ns | **35.5 ns** matrix | 92× | 1.44× |
-| 128 | 13.7 µs | 1.01 µs |  | 715 ns | **175 ns** matrix | 78× | 4.09× |
-| 256 | 59.7 µs | 3.94 µs |  | 2.13 µs | **420 ns** matrix | 142× | 5.07× |
-| 512 | 242 µs | 9.44 µs |  | 4.71 µs | **1.16 µs** matrix | 208× | 4.05× |
-| 1024 | 974 µs | 25.6 µs |  | 13.8 µs | **3.42 µs** matrix | 285× | 4.04× |
-| 1875 | 3.38 ms | 65.5 µs |  | 37.1 µs | **10.7 µs** matrix | 317× | 3.48× |
-| 4096 | 15.7 ms | 191 µs |  | 125 µs | **44.3 µs** ntt-cached | 354× | 2.83× |
-| 6144 | 34.4 ms | 332 µs |  | 224 µs | **78.8 µs** ntt-portable | 437× | 2.84× |
-| 8192 | 59.9 ms | 537 µs |  | 354 µs | **118 µs** matrix-portable | 509× | 3.01× |
-| 12288 | 135 ms | 929 µs |  | 642 µs | **225 µs** ntt-cached | 598× | 2.85× |
-| 16384 | 239 ms | 1.59 ms |  | 998 µs | **344 µs** ntt-cached | 697× | 2.90× |
-| 24576 | 541 ms | 2.72 ms |  | 1.85 ms | **665 µs** ntt-cached | 813× | 2.78× |
-| 32768 | 958 ms | 4.5 ms |  | 2.72 ms | **1.03 ms** ntt-portable | 932× | 2.65× |
-| 36864 |  |  |  | 3.18 ms | **1.32 ms** ntt-cached |  | 2.42× |
-| 49152 |  |  |  | 4.49 ms | **1.99 ms** ntt-cached |  | 2.26× |
-| 131072 |  |  |  | 14.1 ms | **8.63 ms** ntt-portable |  | 1.64× |
-| 147456 |  |  |  | 16.8 ms | **10.7 ms** ntt-cached |  | 1.58× |
-| 1048576 |  |  |  | 148 ms | **107 ms** dc-malachite |  | 1.38× |
+| 31 | 691 ns | 193 ns |  | 154 ns | **53.4 ns** matrix-portable | 13× | 2.89× |
+| 32 | 757 ns | 188 ns | 33.5 ns | 157 ns | **24.7 ns** matrix | 31× | 1.36× |
+| 64 | 3.24 µs | 418 ns | 50.8 ns | 317 ns | **37.5 ns** matrix | 87× | 1.36× |
+| 128 | 13.7 µs | 1 µs |  | 694 ns | **164 ns** matrix | 83× | 4.23× |
+| 256 | 56.3 µs | 3.71 µs |  | 2.03 µs | **397 ns** matrix | 142× | 5.11× |
+| 512 | 230 µs | 9.09 µs |  | 4.64 µs | **1.1 µs** matrix | 209× | 4.22× |
+| 1024 | 930 µs | 24.2 µs |  | 13.5 µs | **3.37 µs** matrix | 276× | 4.00× |
+| 1875 | 3.13 ms | 60.9 µs |  | 35.3 µs | **10.2 µs** matrix | 307× | 3.46× |
+| 4096 | 14.9 ms | 186 µs |  | 120 µs | **39.3 µs** ntt-portable | 380× | 3.07× |
+| 6144 | 33.6 ms | 315 µs |  | 222 µs | **72.8 µs** matrix | 461× | 3.04× |
+| 8192 | 59.7 ms | 539 µs |  | 354 µs | **109 µs** matrix-portable | 549× | 3.25× |
+| 12288 | 134 ms | 918 µs |  | 638 µs | **213 µs** ntt-cached | 631× | 2.99× |
+| 16384 | 239 ms | 1.58 ms |  | 1 ms | **324 µs** ntt-portable | 737× | 3.09× |
+| 24576 | 565 ms | 2.7 ms |  | 1.85 ms | **633 µs** ntt-portable | 892× | 2.92× |
+| 32768 | 955 ms | 4.49 ms |  | 2.72 ms | **970 µs** ntt-portable | 985× | 2.81× |
+| 36864 |  |  |  | 3.19 ms | **1.26 ms** ntt-cached |  | 2.53× |
+| 49152 |  |  |  | 4.5 ms | **1.91 ms** ntt-portable |  | 2.35× |
+| 131072 |  |  |  | 14.2 ms | **6 ms** ntt-cached |  | 2.36× |
+| 147456 |  |  |  | 16.6 ms | **7.21 ms** ntt-cached |  | 2.31× |
+| 1048576 |  |  |  | 145 ms | **62.8 ms** ntt-cached |  | 2.32× |
 
 Every encoder, native flags:
 
-| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 31 | 693 ns | 193 ns | 765 ns | 151 ns | 65.8 ns | **52.7 ns** | 52.7 ns | | | | | | | |
-| 32 | 760 ns | 188 ns | 833 ns | 157 ns | 65.7 ns | **24.8 ns** | 24.8 ns | 33.6 ns | | | | | | |
-| 64 | 3.25 µs | 420 ns | 3.36 µs | 308 ns | 136 ns | **35.5 ns** | 126 ns | 51.2 ns | | | | | | |
-| 128 | 13.7 µs | 1.01 µs | 14 µs | 715 ns | 372 ns | **175 ns** | 277 ns | | | | | | | |
-| 256 | 59.7 µs | 3.94 µs | 58.5 µs | 2.13 µs | 1.22 µs | **420 ns** | 852 ns | | | | | | | |
-| 512 | 242 µs | 9.44 µs | 230 µs | 4.71 µs | 4.2 µs | **1.16 µs** | 3.18 µs | | | | | | | |
-| 1024 | 974 µs | 25.6 µs | 927 µs | 13.8 µs | 15.2 µs | **3.42 µs** | 11.4 µs | | | | | | | |
-| 1875 | 3.38 ms | 65.5 µs | 3.15 ms | 37.1 µs | 50.8 µs | **10.7 µs** | 40.4 µs | | | | | | | |
-| 4096 | 15.7 ms | 191 µs | 14.7 ms | 125 µs | 237 µs | 47.4 µs | 204 µs | | 56.3 µs | 56.2 µs | 67.6 µs | **44.3 µs** | 44.8 µs | 172 µs |
-| 6144 | 34.4 ms | 332 µs | 32.8 ms | 224 µs | 514 µs | 79.3 µs | 79 µs | | 97.6 µs | 97.5 µs | 107 µs | 79 µs | **78.8 µs** | 296 µs |
-| 8192 | 59.9 ms | 537 µs | 56.4 ms | 354 µs | 905 µs | 118 µs | **118 µs** | | 145 µs | 145 µs | 165 µs | 118 µs | 118 µs | 421 µs |
-| 12288 | 135 ms | 929 µs | 127 ms | 642 µs | 2.04 ms | | | | 271 µs | 271 µs | 290 µs | **225 µs** | 225 µs | 684 µs |
-| 16384 | 239 ms | 1.59 ms | 225 ms | 998 µs | 3.6 ms | | | | 417 µs | 415 µs | 456 µs | **344 µs** | 344 µs | 959 µs |
-| 24576 | 541 ms | 2.72 ms | 508 ms | 1.85 ms | 8.12 ms | | | | 786 µs | 789 µs | 835 µs | **665 µs** | 665 µs | 1.53 ms |
-| 32768 | 958 ms | 4.5 ms | 902 ms | 2.72 ms | 14.4 ms | | | | 1.22 ms | 1.21 ms | 1.4 ms | 1.03 ms | **1.03 ms** | 2.14 ms |
-| 36864 | | | | 3.18 ms | | | | | 1.38 ms | 1.36 ms | 1.55 ms | **1.32 ms** | 1.32 ms | 2.46 ms |
-| 49152 | | | | 4.49 ms | | | | | 2.34 ms | 2.28 ms | 2.54 ms | **1.99 ms** | 1.99 ms | 3.45 ms |
-| 131072 | | | | 14.1 ms | | | | | 10.8 ms | 10.1 ms | 10.1 ms | 8.63 ms | **8.63 ms** | 10.5 ms |
-| 147456 | | | | 16.8 ms | | | | | 12.3 ms | 11.6 ms | 11.1 ms | **10.7 ms** | 10.9 ms | 12.4 ms |
-| 1048576 | | | | 148 ms | | | | | 292 ms | 226 ms | 123 ms | 110 ms | 108 ms | **107 ms** |
+| bytes | bs58 | basexx | basexx-b | malachite | batched | matrix | matrix-portable | five8 | matrix-general | dc | dc-toom3 | ntt | ntt-cached | ntt-portable | dc-malachite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 31 | 691 ns | 193 ns | 763 ns | 154 ns | 65.3 ns | 53.7 ns | **53.4 ns** | | | | | | | | |
+| 32 | 757 ns | 188 ns | 828 ns | 157 ns | 65.3 ns | **24.7 ns** | 24.7 ns | 33.5 ns | 50.5 ns | | | | | | |
+| 64 | 3.24 µs | 418 ns | 3.35 µs | 317 ns | 136 ns | **37.5 ns** | 126 ns | 50.8 ns | 82.3 ns | | | | | | |
+| 128 | 13.7 µs | 1 µs | 13.8 µs | 694 ns | 370 ns | **164 ns** | 264 ns | | | | | | | | |
+| 256 | 56.3 µs | 3.71 µs | 55.3 µs | 2.03 µs | 1.15 µs | **397 ns** | 810 ns | | | | | | | | |
+| 512 | 230 µs | 9.09 µs | 221 µs | 4.64 µs | 4.02 µs | **1.1 µs** | 2.98 µs | | | | | | | | |
+| 1024 | 930 µs | 24.2 µs | 881 µs | 13.5 µs | 14.9 µs | **3.37 µs** | 11.1 µs | | | | | | | | |
+| 1875 | 3.13 ms | 60.9 µs | 2.95 ms | 35.3 µs | 48.9 µs | **10.2 µs** | 37 µs | | | | | | | | |
+| 4096 | 14.9 ms | 186 µs | 14.1 ms | 120 µs | 230 µs | 44.7 µs | 188 µs | | | 50.9 µs | 51.1 µs | 60.3 µs | 39.4 µs | **39.3 µs** | 153 µs |
+| 6144 | 33.6 ms | 315 µs | 31.6 ms | 222 µs | 509 µs | **72.8 µs** | 73.1 µs | | | 90.4 µs | 91 µs | 100 µs | 73.2 µs | 73.2 µs | 278 µs |
+| 8192 | 59.7 ms | 539 µs | 56.2 ms | 354 µs | 901 µs | 110 µs | **109 µs** | | | 138 µs | 139 µs | 157 µs | 109 µs | 110 µs | 390 µs |
+| 12288 | 134 ms | 918 µs | 127 ms | 638 µs | 2.03 ms | | | | | 260 µs | 257 µs | 279 µs | **213 µs** | 214 µs | 633 µs |
+| 16384 | 239 ms | 1.58 ms | 225 ms | 1 ms | 3.59 ms | | | | | 401 µs | 400 µs | 437 µs | 326 µs | **324 µs** | 893 µs |
+| 24576 | 565 ms | 2.7 ms | 506 ms | 1.85 ms | 8.12 ms | | | | | 750 µs | 753 µs | 792 µs | 636 µs | **633 µs** | 1.39 ms |
+| 32768 | 955 ms | 4.49 ms | 900 ms | 2.72 ms | 14.4 ms | | | | | 1.17 ms | 1.16 ms | 1.33 ms | 979 µs | **970 µs** | 1.94 ms |
+| 36864 | | | | 3.19 ms | | | | | | 1.33 ms | 1.31 ms | 1.51 ms | **1.26 ms** | 1.27 ms | 2.25 ms |
+| 49152 | | | | 4.5 ms | | | | | | 2.23 ms | 2.17 ms | 2.48 ms | 1.92 ms | **1.91 ms** | 3.15 ms |
+| 131072 | | | | 14.2 ms | | | | | | 10.3 ms | 9.71 ms | 7.36 ms | **6 ms** | 8.04 ms | 9.62 ms |
+| 147456 | | | | 16.6 ms | | | | | | 11.8 ms | 11 ms | 8.24 ms | **7.21 ms** | 9.68 ms | 11.2 ms |
+| 1048576 | | | | 145 ms | | | | | | 277 ms | 212 ms | 73.5 ms | **62.8 ms** | 95.3 ms | 99.8 ms |
 
 Native time over default time, per encoder over its sizes (below 1: faster with native
 flags):
 
 | encoder | sizes | min | median | max |
 |:---|---:|---:|---:|---:|
-| five8 | 2 | 0.438 | 0.508 | 0.579 |
-| bs58 | 15 | 0.823 | 0.844 | 0.892 |
-| dc | 12 | 0.910 | 0.934 | 0.983 |
-| dc-toom3 | 12 | 0.895 | 0.936 | 0.985 |
-| ntt | 12 | 0.907 | 0.935 | 1.011 |
-| ntt-cached | 12 | 0.910 | 0.941 | 0.996 |
-| batched | 15 | 0.920 | 0.954 | 1.015 |
-| basexx | 15 | 0.976 | 0.997 | 1.070 |
-| basexx-b | 15 | 0.974 | 0.998 | 1.044 |
-| matrix | 11 | 0.942 | 1.011 | 1.060 |
-| dc-malachite | 12 | 0.963 | 1.044 | 1.226 |
-| malachite | 20 | 0.937 | 1.177 | 1.249 |
-| matrix-portable | 11 | 0.715 | 1.075 | 1.885 |
-| ntt-portable | 12 | 0.222 | 0.928 | 1.003 |
+| five8 | 2 | 0.425 | 0.510 | 0.595 |
+| bs58 | 15 | 0.810 | 0.827 | 0.869 |
+| batched | 15 | 0.910 | 0.926 | 1.008 |
+| dc-toom3 | 12 | 0.881 | 0.934 | 0.980 |
+| dc | 12 | 0.906 | 0.937 | 0.979 |
+| ntt-cached | 12 | 0.915 | 0.938 | 0.954 |
+| ntt | 12 | 0.932 | 0.944 | 0.953 |
+| matrix-general | 2 | 0.959 | 0.960 | 0.961 |
+| basexx-b | 15 | 0.978 | 0.980 | 0.992 |
+| basexx | 15 | 0.970 | 0.984 | 1.017 |
+| matrix | 11 | 0.939 | 0.995 | 1.124 |
+| matrix-portable | 11 | 0.871 | 1.040 | 1.753 |
+| dc-malachite | 12 | 0.956 | 1.042 | 1.176 |
+| malachite | 20 | 0.960 | 1.175 | 1.259 |
+| ntt-portable | 12 | 0.226 | 0.928 | 0.959 |
 
-- `five8` selects its AVX2 code at compile time, so only the native build uses it. With
-  its fixed-size path `encode_matrix` is still 1.35× faster at 32 bytes (24.8 against
-  33.6 ns) and 1.44× faster at 64 (35.5 against 51.2 ns with AVX-512 VBMI kernels, run 7
-  of [Fixed sizes](#fixed-sizes-32-and-64-bytes); the AVX2 path took 38.1 ns in run 5
-  and 52.6 in another binary, and `five8` was 1.48× faster before the split carry and
-  the register output).
-  Before the fixed-size path (`49fb679`) `five8` won both: 33.6 and 52.5 ns against 51.2
-  and 82.6.
-- `encode_matrix` does not change (median +1%, within ±6%). Its panel kernels are
-  selected at run time (AVX2 here) in both builds. It stays the fastest at 31 bytes and
-  from 128 to 1875 bytes. At 4 KiB, its hand-off size on IFMA CPUs, `ntt-cached` was 7% faster with
-  native flags (44.3 against 47.4 µs) and tied it with default flags (44.5 against
-  44.9 µs). The cap is unchanged: this is one run, and `matrix` at 4 KiB moved 3.3%
-  between the two default runs.
-- The divide-and-conquer encoders and `encode_batched` take about 5–7% less time with
-  native flags.
-- malachite's own conversion takes 18% more time with native flags (median; up to 25%),
-  and `dc-malachite`, which multiplies with malachite, 4%. Not investigated. So the
-  `× best other` column is higher with native flags partly because malachite got slower.
-  At 12 KiB native `ntt-cached` (225 µs) is 2.85× faster than native malachite (642 µs)
-  and 2.33× faster than default-flag malachite (524 µs). With default flags on both sides
-  it was 2.18×.
-- `ntt-portable`'s kernels compile for AVX-512 with native flags, and it then matches
-  `ntt-cached` (8.63 against 8.63 ms at 128 KiB, 108 against 110 ms at 1 MiB). With
-  default flags it took 3.0–4.4× as long from 128 KiB.
-- `matrix-portable` (the plain-Rust matrix kernel) takes 15–28% less time at 31–64 bytes
-  with native flags, but 1.24–1.88× as long from 256 bytes to 4 KiB. `encode_matrix`
-  does not use it on x86_64.
-- At 1 MiB `dc-malachite` (107 ms), `ntt-portable` (108 ms) and `ntt-cached` (110 ms)
-  are within 3%: a tie. With the hand-written AVX-512 kernels (next section) `ntt-cached`
-  is 1.48× faster than `dc-malachite` there.
+- **`five8` with AVX2.** Only the native build uses `five8`'s AVX2 code; it then takes
+  33.5 and 50.8 ns at 32 and 64 bytes, and `encode_matrix` (24.7 and 37.5 ns) is 1.36×
+  and 1.35× faster. At 64 bytes `encode_matrix` took 12% more time than with default
+  flags (37.5 against 33.3 ns); in run 7's binary
+  ([Fixed sizes](#fixed-sizes-32-and-64-bytes)) the same VBMI path took 35.5 and
+  34.4 ns, so this cell moves a few percent with the binary around it.
+- `encode_matrix` otherwise does not change (median −0.5%): its kernels are selected at
+  run time in both builds. It stays the fastest from 32 to 1875 bytes; at 31 bytes it
+  ties `matrix-portable` (53.7 against 53.4 ns).
+- The divide-and-conquer encoders and `encode_batched` take 5–7% less time with native
+  flags (medians 0.926–0.944).
+- malachite's own conversion takes 18% more time with native flags (median; up to 26%),
+  and `dc-malachite`, which multiplies with malachite, 4%. Not investigated. So
+  `× best other` is higher here partly because malachite got slower: at 1 MiB native
+  `ntt-cached` (62.8 ms) is 2.32× faster than native malachite (145 ms) and 2.10× faster
+  than default-flag malachite (132 ms).
+- `ntt-portable`'s plain kernels compile for AVX-512 with native flags, and then take
+  1.34× as long as `ntt-cached`'s hand-written ones at 128–144 KiB (8.04 against 6.00 ms,
+  9.68 against 7.21) and 1.52× at 1 MiB (95.3 against 62.8 ms).
+- `matrix-portable` (the plain-Rust kernels): 13% less time at 31 bytes, within 4% at 32
+  and 64 bytes (its fixed-size path), and 1.18–1.75× as long from 256 bytes to 4 KiB.
+  `encode_matrix` does not use it on x86_64.
+- At 1 MiB `ntt-cached` takes 62.8 ms: 1.59× faster than `dc-malachite` (99.8 ms) and
+  1.17× faster than `ntt` (73.5 ms), which builds its tables per call.
 
 ### AVX-512 NTT kernels on Zen 5
 
-The tables above predate the hand-written AVX-512 transforms (`src/ntt/avx512.rs`, see
-[`decode_ntt`](#decode_ntt-number-theoretic-transform-multiplication)). Before them the
+The hand-written AVX-512 transforms (`src/ntt/avx512.rs`, see
+[`decode_ntt`](#decode_ntt-number-theoretic-transform-multiplication)), measured before
+and after; the tables above include them. Before them the
 x86_64 kernels were the plain-Rust ones compiled for AVX-512F; LLVM's 16-lane butterfly
 widens every product to 64 bits and narrows it back (about 38 instructions per 16
 butterflies against about 30 now), and the stages `h < 16` run outside its 16-lane loop.
