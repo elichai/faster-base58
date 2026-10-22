@@ -45,9 +45,10 @@ const BEST: Kernels = PORTABLE;
 /// powers is in cache. Fewer than `MATRIX_MIN` digits use [`decode_batched`]; more than
 /// 5632 use [`decode`].
 ///
-/// The speedup was measured with NEON (aarch64). x86_64 uses AVX2 or SSE4.1 kernels, not
-/// measured. Other targets run the plain-Rust kernels, which are slower than
-/// [`decode_batched`].
+/// The speedup was measured with NEON (aarch64). x86_64 uses AVX2 or SSE4.1 kernels: on
+/// AMD Zen 5 they were faster from about 1 KiB with default flags, but with
+/// `-C target-cpu=native` they only tied [`decode_batched`] at 2–4 KiB. Other targets run
+/// the plain-Rust kernels, which are slower than [`decode_batched`].
 ///
 /// No allocation per call. Each size class of the table is built once, on first use, and
 /// kept: 40 KiB, 154 KiB, 601 KiB or 2.3 MiB.

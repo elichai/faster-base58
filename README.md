@@ -13,14 +13,46 @@ Benchmarks base58 (Bitcoin alphabet) decoders, plus faster decoders in `src/`:
   number-theoretic-transform multiplication.
 - `decode_malachite`: `decode` with malachite-nz's multiplication.
 - `decode_matrix`, `decode_matrix_portable`: a matrix of powers with SIMD multiply-adds,
-  for about 0.4 KiB to 4 KiB. The speedup was measured with NEON (aarch64). x86_64 has
-  AVX2 and SSE4.1 kernels, not measured; elsewhere the plain-Rust kernels are slower
-  than `decode_batched`.
+  for about 0.4 KiB to 4 KiB. The speedup was measured with NEON (aarch64). On AMD
+  Zen 5 the AVX2 kernel was faster from about 1 KiB with default flags, but only tied
+  `decode_batched` at 2–4 KiB with `-C target-cpu=native`. Elsewhere the plain-Rust
+  kernels are slower than `decode_batched`.
 
 All return the same bytes as `bs58`. On invalid input they report the same index,
 the first invalid byte. If the input is invalid and the buffer is also too small for
 it, which of the two errors is reported is unspecified: it can differ from `bs58` and
 between decoders.
+
+## Build configuration
+
+- **Fat LTO** for release builds and `cargo bench`, set in `Cargo.toml`. The Apple M5
+  Pro numbers were measured before the repo set it, with the same fat LTO from the
+  author's `~/.cargo/config.toml`.
+- **`-C target-cpu=apple-m4`** for every Apple M5 Pro number, also from that config.
+  It is specific to the host, so the repo does not set it. Elsewhere, builds target the
+  default CPU unless you pass `-C target-cpu`.
+- **AMD Zen 5 numbers** (GCP `c4d-highcpu-4`, in the `decode_matrix` section) are
+  release builds from before the repo set LTO: 16 codegen units, no LTO. The "default"
+  columns target the default CPU, the "native" columns `-C target-cpu=native`
+  (znver5). So a comparison between the two machines also compares LTO with no LTO.
+- **LTO's effect depends on the machine.** From 4 KiB to 1 MiB:
+  - Zen 5, `-C target-cpu=native`: fat LTO made `dc` 14–26% and `dc-toom3` 13–22%
+    slower (1 MiB: 326 to 411 ms and 207 to 254 ms). `decode_batched`, the NTT
+    decoders, `dc-malachite` and the matrix kernel moved by 5% or less. These are
+    separate runs, one per build, on a shared VM, without pinned code alignment. On
+    that VM a 16-byte shift of `decode_batched`, which made its hot loop cross a
+    64-byte line, alone cost 24–31%, and 64-byte alignment removed it. So part or all
+    of the LTO loss may be placement, not LTO.
+  - M5 Pro, `-C target-cpu=apple-m4`: fat LTO took 0.94–1.04× the time of Cargo's
+    default (`lto = false`, thin LTO inside each crate): `dc` 0.97–1.01, `dc-toom3`
+    0.96–1.03, `ntt-cached` 0.98–1.03, `dc-malachite` 0.94–1.04. That is from
+    back-to-back `cargo bench` runs, two rounds per build. Two sizes in one run had a
+    load spike and are left out. So the M5 numbers would be about the same without fat
+    LTO.
+  - `lto = "off"` also drops the thin LTO inside each crate. On the M5 it made
+    `dc-malachite` 1.5–1.8× slower and the others up to 11% slower, so it is not a
+    fair "no LTO" baseline.
+  - Not measured: fat LTO with the default x86 CPU.
 
 ## Layout
 
@@ -111,7 +143,9 @@ Design choices that mattered:
   comment. The tests run `mul` with exactly the documented scratch length, pre-filled
   with garbage.
 
-Thresholds were re-tuned on an Apple M5 Pro after the two-chain kernels:
+Thresholds were re-tuned on an Apple M5 Pro after the two-chain kernels, with fat LTO
+and `-C target-cpu=apple-m4` (see [Build configuration](#build-configuration)). A build
+without LTO or for another CPU may favour other values:
 - **Karatsuba:** 32/40/48/64 tried; 32 is best by 1.5–2.5%.
 - **Leaf size:** 128/192/256/384 tried; 128 and 256 are within 1%.
 - **`DC_THRESHOLD`:** 512 chunks (about 3.7 KB decoded), where `decode_batched` and
@@ -192,7 +226,8 @@ So each loop now runs two chains, the second one step behind the first:
   `j − 1` right after row `i` adds into column `j`.
 
 A standalone microbenchmark of the quadratic kernel, in ns per limb update over 16 to
-4096 limbs:
+4096 limbs. This and the A/B below ran on the Apple M5 Pro with fat LTO and
+`-C target-cpu=apple-m4` (see [Build configuration](#build-configuration)):
 
 | one chain | `hi` and `lo` in one loop | two passes over one number | ×58^20, one chain | four chains |
 |----------:|--------------------------:|---------------------------:|------------------:|------------:|
@@ -262,8 +297,10 @@ least `THRESHOLD` limbs with NTTs instead of Karatsuba.
   at 32 KiB. Products with a prepared power use transforms from
   `PREPARED_THRESHOLD = 96` limbs.
 
-Apple M5 Pro, rustc 1.99.0, `cargo bench` (criterion medians from one run). 36864,
-49152 and 147456 bytes need products just above a power of two; see
+Apple M5 Pro, rustc 1.99.0, `cargo bench` (criterion medians from one run). Like every
+M5 number in this section, these were built with fat LTO and `-C target-cpu=apple-m4`
+(see [Build configuration](#build-configuration)). 36864, 49152 and 147456
+bytes need products just above a power of two; see
 [Power-of-two padding](#power-of-two-padding).
 
 | decoded bytes | dc      | dc-toom3 | ntt     | ntt-cached | ntt-portable |
@@ -277,6 +314,10 @@ Apple M5 Pro, rustc 1.99.0, `cargo bench` (criterion medians from one run). 3686
 
 Building the tables on every call (`ntt`) costs 2–8% over `ntt-cached` at these
 sizes, about as much as the noise between runs.
+
+These runs predate [Scratch alignment](#scratch-alignment), which made `ntt-cached`
+4.5%, 3.4% and 2.3% faster at 32, 36 and 48 KiB in a same-binary A/B, and left the
+other sizes of the table unchanged. Criterion was not run again.
 
 Each level of the divide-and-conquer costs about one top-level product, so with
 O(n log n) products the decode is O(n log² n).
@@ -335,7 +376,8 @@ of 8 and `t` the largest power of two not above `p`:
 | `≤ 7t/4`    | `x^t + 1`, `x^(t/2) + 1`, `x^c − 1`         | `1.5 t + c`, `c < t/2` |
 | otherwise   | `x^(2t) − 1`                                | `2t`                  |
 
-`c` is the smallest power of two (at least 8) that covers the rest of `p`. The
+`c` is the smallest power of two (at least 64, see
+[Small cyclic pieces](#small-cyclic-pieces)) that covers the rest of `p`. The
 transforms then fill about 5/6 of their points at worst, and usually more than 90%.
 
 - **Negacyclic pieces.** Modulo `x^m + 1` is an `m`-point cyclic transform after
@@ -388,23 +430,87 @@ pieces.
 
 Tried and not kept:
 
-- **Aligning `dc`'s splits** so products land just below a power of two. A scan of every
-  `unit` that `dc` accepts near its default gave the upper bound below, with the best
-  unit for each size, confirmed in a second interleaved run:
+- **Choosing `dc`'s unit per decode** so that products fill their transforms better.
+  Measured in a copy of the crate with the unit forced at run time (a probe, not in the
+  repo). At the default number of levels, `dc` accepts units from the default `u0` up to
+  `min(256, 2·u0 − 1)`. A unit `u ≤ 128` with one more level gives the same tree as
+  `2u`, because nodes of at most 256 chunks are leaves.
+  - **Cost model.** Each operation of the tree costs a linear formula: per transform
+    piece of `m` points, `m·log2 m` per transform, passes per piece and a fixed cost;
+    plus the product length. Karatsuba costs `b·a^0.585`, schoolbook `a·b`, a leaf `m²`.
+    Fitted to about 5,200 operations timed alone: median error 2–3%, 90th percentile
+    4.5–6.5%. Summed over the tree, plus a constant per size, it is within about 2% of
+    the measured decode for 90% of the units from 32 to 144 KiB.
+  - **Result.** Measured after the [scratch alignment](#scratch-alignment) fix. The
+    model's unit against the default in one binary. Each size has three arms: the
+    default, the model's unit, and the default again (an A/A control). An arm is a block
+    of about 50 ms of decodes, timed as the best decode of the block (one decode at
+    1 MiB). The order of the arms rotates every round. The table gives the median of 31
+    per-round ratios. A second process with 15 rounds agreed within 0.8 points at every
+    size. The A/A medians were 0.995–1.006. The cost of the search is not included.
+    "Best tried": a scan timed every unit that `dc` accepts (best of 21 interleaved
+    decodes, 7 at 1 MiB). Then the four or five fastest ran against the default as above,
+    with 21 rounds (41 at 1 MiB). `L + 1` marks one more level than the default. Where
+    the best tried is the model's unit, the two changes come from different runs and
+    differ by up to 0.5 points.
 
-  | decoded bytes | default unit | best unit | change |
-  |--------------:|-------------:|----------:|-------:|
-  | 32 KiB        | 140          | 146       | −0.9%  |
-  | 36 KiB        | 158          | 162       | −0.6%  |
-  | 44 KiB        | 193          | 225       | −5.5%  |
-  | 64 KiB        | 140          | 149       | −3.3%  |
-  | 128 KiB       | 140          | 145       | −2.6%  |
-  | 144 KiB       | 158          | 159       | −2.0%  |
+    | decoded bytes | default unit | model's unit | change | best tried | change | 64-pt rest |
+    |--------------:|-------------:|-------------:|-------:|-----------:|-------:|-----------:|
+    | 32 KiB        | 140          | 150          | −1.2%  | 150        | −0.7%  | −0.7%      |
+    | 36 KiB        | 158          | 162          | −0.6%  | 162        | −0.6%  | −0.8%      |
+    | 44 KiB        | 193          | 210          | −4.0%  |            |        | −4.0%      |
+    | 48 KiB        | 210          | 227          | −0.3%  | 113, L + 1 | −0.4%  | −0.2%      |
+    | 88 KiB        | 193          | 228          | −5.5%  |            |        | −4.8%      |
+    | 128 KiB       | 140          | 151          | −2.2%  | 150        | −2.4%  | −2.1%      |
+    | 140 KiB       | 153          | 154          | −7.4%  |            |        | 162: −2.2% |
+    | 144 KiB       | 158          | 162          | −0.7%  | 84, L + 1  | −1.0%  | −0.8%      |
+    | 1 MiB         | 140          | 151          | −2.7%  | 151        | −2.8%  | −2.9%      |
 
-  Run-to-run noise is about 3%, so only 44 KiB is clearly better. The best unit
-  differs by size. A real version would need a cost method on `Multiplier`, and a
-  search for the unit on every decode, which costs about as much as the gain at
-  32 KiB.
+    Over 34 sizes (32 to 160 KiB in steps of 4 KiB, and 1 MiB) the model keeps the
+    default at 4. At the other 30 its unit was faster in both runs, except at 68 KiB:
+    −0.3% and +0.2%, inside the A/A spread. The geometric mean over the 34 was −1.4% in
+    both runs. Both runs gained 2–8% at 44, 60, 88, 120, 124, 140 and 160 KiB and at
+    1 MiB. At the six sizes scanned, the model's unit was within 1% of the best unit
+    tried. The same A/B before the alignment fix gave −1.2%, with 64, 112, 116, 128 and
+    152 KiB and 1 MiB 1.5–3.6% slower.
+
+    "64-pt rest": the same A/B again after the smallest cyclic piece became 64 points
+    ([Small cyclic pieces](#small-cyclic-pieces)), 31 rounds; a second process with 15
+    rounds agreed within 0.6 points at every size. The model picks the same unit as
+    before at every size except 140 KiB, where it now picks 162. The geometric mean over
+    the 34 sizes was −1.2% in both runs (it was −1.4%). All 30 sizes with a changed unit
+    were faster in both runs, 68 KiB included; the A/A medians were 0.997–1.005. So
+    about 0.2 points of the gain came from avoiding small pieces, nearly all at 140 KiB.
+  - **Why the model misses: products are slower inside a decode.** Now about equally
+    for every unit. At 144 KiB the top product takes about 400 µs inside the decode with
+    units 158, 159 and 162, and about 285 µs alone. Before the fix it took 402 µs with
+    158 and 440 µs with 159 or 163. At 1 MiB all multiplier calls together take 3.1%
+    (unit 140) and 3.5% (unit 151) longer inside than alone; before the fix, about 0
+    and 10–15%. A probable cause is the cache: timed alone, the prepared power and the
+    operands are warm. Not checked.
+  - **Why the model missed: small cyclic pieces were slow.** Fixed since; see
+    [Small cyclic pieces](#small-cyclic-pieces). At 140 KiB the model expected −1.1%,
+    and the A/B measured −7.4%. With unit 153 most products of the second and third
+    levels are 8,193 to 8,199 and 4,100 limbs, just above a power of two, so `Plan`
+    added an 8- or 16-point cyclic piece to a 16,384- or 8,192-point negacyclic one. The
+    top product, 16,391 limbs, got a 16-point piece. With unit 154 the top product,
+    16,381 limbs, fits one cyclic transform, and the products of the next two levels get
+    pieces of 64 or 128 points, or none. The model charges each piece by its own length,
+    so a small piece looked almost free.
+  - **A ±3.5% effect that was not the split: scratch alignment.** Before the fix, at
+    36 KiB, unit 79 with one more level was 3.6% faster than the default 158. It makes
+    the same multiplier calls, plus a 61-limb power and its square. At 72 KiB 79 was
+    3.1% faster, at 144 KiB 3.3% slower. The cause was the address of the NTT's scratch,
+    which follows the power table in one allocation: the tables of 79 and 158 differ by
+    43 limbs, an odd number, so one of the two put the scratch 8 bytes off a 16-byte
+    boundary (see [Scratch alignment](#scratch-alignment)). With the fix, 79 against
+    158 is −0.2% at 36 KiB and −0.3% at 144 KiB, and one limb of padding before the
+    scratch changes the decode by 0.3% or less (it was 3.4%).
+
+  Not built. The model's unit now gains reliably, but the search as probed costs more
+  than it saves. It walks every node of the tree for each unit it tries: 46 µs at
+  32 KiB (10% of the decode), 166 µs at 128 KiB (7%) and 1.4 ms at 1 MiB (5%). What a
+  real implementation needs is in [Possible next steps](#possible-next-steps).
 - **A truncated FFT.** The pieces are a coarse truncated FFT. On the same points they
   do fewer butterflies than one, because each piece's transform is shorter than `L`.
   After them a truncated FFT could save at most about 17% on the worst products and
@@ -412,6 +518,92 @@ Tried and not kept:
   NEON. Modelled, not built.
 - **Mixed radix `3·2^k`.** It needs new primes: of the three, only q3 = 105·2^23 + 1 is
   1 mod 3·2^23. Not tried.
+
+#### Small cyclic pieces
+
+The cyclic piece of a plan has at least 64 points. It used to go down to 8. A product a
+few limbs above a power of two then got an 8- or 16-point piece next to a negacyclic
+piece of thousands of points, and took up to 12% longer than with a 64-point piece,
+although the larger piece does more work. The change affects only products whose rest
+is at most 32 coefficients.
+
+Two linear passes cost one step per block of the small piece, and every step updates
+the same `c` sums:
+
+- **Folding.** `fold` reduces an operand modulo `x^c − 1` by adding it to the piece in
+  blocks of `c/2` limbs, one `load_add` call per block. Each call loads the sums that
+  the previous call stored, adds, reduces and stores them. For `c = 8`, an operand of
+  4,500 limbs takes about 1,100 calls of two vectors each.
+- **Recombining.** `pair` subtracts each `c`-point block of the negacyclic residue from
+  the same `c` sums: 2,048 dependent steps for `c = 8` next to a 16,384-point piece.
+  With three pieces, `fold_sub` in `crt` does the same.
+
+So both passes run at the latency of one load–add–reduce–store step, not at the
+throughput of the vector unit. Timed alone, one prime, next to a 16,384-point
+negacyclic piece (best of 200 runs):
+
+| `c` | fold, 4,508 limbs | fold, 3,688 limbs | pair   |
+|----:|------------------:|------------------:|-------:|
+| 8   | 3.1 µs            | 2.5 µs            | 5.2 µs |
+| 16  | 1.7 µs            | 1.3 µs            | 2.7 µs |
+| 32  | 1.3 µs            | 1.1 µs            | 2.7 µs |
+| 64  | 1.3 µs            | 1.0 µs            | 2.3 µs |
+| 128 | 1.3 µs            | 1.0 µs            | 2.1 µs |
+
+With each phase timed inside a 4,508 × 3,688-limb product (three primes, mean of 200
+runs), folding and recombining took 26 µs more with `c = 8` than with `c = 64`: 21 µs
+against 7 µs for folding, 20 µs against 7 µs for `pair`. The negacyclic transforms took
+3–5 µs more too, although their length and work did not change. Timed per prime in an
+8,200-limb product (16-point rest), all of that was for the second prime. The cause
+there is where the scratch layout puts that prime's residues, which moves with the
+total length of the pieces. With unused `i32`s between the primes' residues (plain
+product, mean of 300 runs), the second prime's negacyclic product took 42.8 µs with a
+16-point rest and none, 39.1 µs with 48; with a 64-point rest 38.9 µs with none, and
+36.5 µs with 976, as fast as for the other two primes. Why those addresses are slow, and
+why decodes do not meet them: [Residue placement](#residue-placement-measured-not-changed).
+
+Products alone, `2^13` limbs plus a few, with the smallest piece as a run-time knob in a
+copy of the crate (a probe outside the repo). Operands of 0.55 and 0.45 of the length,
+best of 60 runs, the four settings back to back, M5 Pro:
+
+| limbs | rest | smallest 8 (before) | 32     | 64 (after) | 128    |
+|------:|-----:|--------------------:|-------:|-----------:|-------:|
+| 8,192 | none | 182 µs              | 182 µs | 182 µs     | 182 µs |
+| 8,196 | 8    | 220 µs              | 200 µs | 199 µs     | 199 µs |
+| 8,200 | 16   | 203 µs              | 200 µs | 199 µs     | 199 µs |
+| 8,208 | 32   | 200 µs              | 200 µs | 199 µs     | 199 µs |
+| 8,224 | 64   | 199 µs              | 199 µs | 199 µs     | 198 µs |
+
+With an 8-point rest (`2^k + 4` limbs), 64 points saved 8–10% for `k` = 9 to 14, and
+8–11% with a prepared power. 32 points saved almost as much; 64 was 0.1–1.2% faster again
+for rests of 8 to 32 at `k` = 12 to 14. 128 was within 0.4% of 64. At `k` = 8
+(512-point pieces, products of 3.5–5 µs) the settings differed by at most 0.1 µs either
+way, near the timer's 0.04 µs resolution. The 145 × 121-limb products of 36, 72 and
+144 KiB are of that size; their rest goes from 32 to 64 points.
+
+Decodes: `ntt-cached` with the smallest piece 8 (before), 32, 64 (after) and 8 again (an
+A/A control), in one binary. An arm is a block of about 50 ms of decodes, timed as the
+best decode of the block; the order of the arms rotates every round. Changes are the
+median of the per-round ratios to the first arm. Run 1: 31 rounds (62 at 1 MiB); run 2:
+21 rounds (42 at 1 MiB), over the 34 sizes of the unit choice above. "Changed" counts the
+multiplier calls whose plan changes, of all multiplier calls of the decode.
+
+| decoded bytes | changed      | before  | after   | run 1  | run 2  |
+|--------------:|-------------:|--------:|--------:|-------:|-------:|
+| 32 KiB        | 0 of 39      | 473 µs  | 473 µs  | 0.0%   | 0.0%   |
+| 36 KiB        | 16 of 39     | 574 µs  | 575 µs  | +0.1%  | +0.1%  |
+| 128 KiB       | 0 of 139     | 2.49 ms | 2.49 ms | +0.1%  | 0.0%   |
+| 140 KiB       | 122 of 139   | 3.16 ms | 2.94 ms | −7.6%  | −7.8%  |
+| 144 KiB       | 63 of 138    | 3.01 ms | 3.01 ms | +0.2%  | +0.1%  |
+| 1 MiB         | 0 of 1,040   | 28.3 ms | 28.3 ms | −0.1%  | −0.3%  |
+
+The A/A medians were 0.996–1.000 in run 1 and 0.998–1.003 in run 2. 15 of the 34 sizes
+have changed calls. At 140 KiB the default unit 153 gives an 8-point piece to 120 of the
+139 calls, at every level from 512 to 16,384 points, and a 16-point piece to two,
+among them the top product. Every other size was between −0.3% and +0.2%, inside the
+A/A spread; the geometric mean over the 34 was −0.25%, all of it from 140 KiB. 32
+points gave the same within 0.25 points at every size except 1 MiB (−0.6%, with no
+changed call: noise).
 
 ### Squares
 
@@ -423,11 +615,12 @@ two diagonal products of halves are squares too.
 Before prepared powers, the power table took about 9–12% of an `ntt-cached` decode (a
 probe timing `dc::powers()`). A square skips one load and one of the three transforms
 per prime, so the expected gain was about 3–4%. Measured on the Apple M5 Pro (NEON
-kernels; not measured on x86-64), in one binary against the same code with the square
-path turned off, with [prepared powers](#prepared-powers) and the
-[lazy inverse](#lazy-inverse) in place (a probe, not in the repo: 41 interleaved rounds
-of about 100 ms per size, median of the per-round ratios, two runs, times from the
-second):
+kernels, fat LTO and `-C target-cpu=apple-m4`, see
+[Build configuration](#build-configuration); not measured on x86-64), in one binary
+against the same code with the square path turned off, with
+[prepared powers](#prepared-powers) and the [lazy inverse](#lazy-inverse) in place (a
+probe, not in the repo: 41 interleaved rounds of about 100 ms per size, median of the
+per-round ratios, two runs, times from the second):
 
 | decoded bytes | squares | no squares | change, run 1 | change, run 2 |
 |--------------:|--------:|-----------:|--------------:|--------------:|
@@ -505,6 +698,119 @@ Criterion medians, back-to-back before and after: `ntt-cached` −2.0% at 32 KiB
 36 KiB, −3.3% at 48 KiB, −4.8% at 128 KiB, −4.1% at 144 KiB and −4.9% at 1 MiB. In a
 32 KiB profile the inverse samples per depth fell 10–28%.
 
+### Scratch alignment
+
+`as_i32` (`src/ntt/mod.rs`) starts the transforms' `i32` scratch at the next 64-byte
+boundary. It skips at most 7 limbs, which the `+ 64` of `scratch_len` covers. Before,
+the scratch started where `dc` cut it from its one allocation: after `n` limbs and the
+power table. So its address mod 16 depended on the parity of `n` plus the table length.
+When it was 8 bytes off a 16-byte boundary, a quarter of the NEON 16-byte loads and
+stores crossed a 64-byte cache line, and every transform product took 3–8% longer.
+
+- **Found** from the 36 KiB case in [Power-of-two padding](#power-of-two-padding). In a
+  probe, moving the scratch by an odd number of limbs swapped the fast and the slow
+  unit, at 36 and at 144 KiB. Moves of 2, 4, 6 and 8 limbs changed nothing, so 16-byte
+  alignment is enough on the M5 Pro. 64 bytes also covers wider vectors; x86-64 was not
+  measured.
+- **Counted** with Instruments (`xctrace`, CPU Counters, guided mode "L1D Request
+  Characteristics"), 550 decodes of 36 KiB with unit 158: 629 million µops crossed a
+  64-byte line with the scratch 8 bytes off, 73 million with it aligned. µops crossing
+  a 16 KiB page: 2.7 million against 8.
+- **Which sizes.** The table's slots after the first have even lengths, so the scratch
+  was off when `n + unit` was odd. That holds for every size below that got faster, and
+  for none of those that did not. At 44 and 56 KiB the unit is odd, so the lowest
+  level, whose scratch starts `unit` limbs further in, was aligned already: smaller
+  gains.
+
+`ntt-cached` before and after, in one binary (a probe outside the repo: 11 rounds of
+about 50 ms per arm and size, order alternating, median of the per-round ratios). An
+A/A control gave 0.997–1.000.
+
+| decoded bytes | before  | after   | change |
+|--------------:|--------:|--------:|-------:|
+| 32 KiB        | 462 µs  | 441 µs  | −4.5%  |
+| 36 KiB        | 555 µs  | 536 µs  | −3.4%  |
+| 44 KiB        | 724 µs  | 706 µs  | −2.4%  |
+| 48 KiB        | 765 µs  | 747 µs  | −2.3%  |
+| 56 KiB        | 925 µs  | 909 µs  | −1.7%  |
+| 64 KiB        | 1.02 ms | 1.02 ms | 0      |
+| 72 KiB        | 1.27 ms | 1.23 ms | −3.1%  |
+| 108 KiB       | 2.05 ms | 2.00 ms | −2.4%  |
+| 128 KiB       | 2.33 ms | 2.32 ms | −0.1%  |
+| 144 KiB       | 2.80 ms | 2.79 ms | −0.2%  |
+| 1 MiB         | 27.3 ms | 27.2 ms | +0.3%  |
+
+### Residue placement: measured, not changed
+
+In a product timed alone, one prime's negacyclic product could take up to 16% longer
+than the other two (see [Small cyclic pieces](#small-cyclic-pieces)). The cause is an
+address match, modulo 4 MiB, between the residue a transform writes and the twiddle
+table it reads. Decodes almost never meet it, and two layout rules gained nothing
+there, so `pieces` still puts the three primes' residues back to back. All on the M5
+Pro, in a copy of the crate with run-time knobs (a probe outside the repo).
+
+- **Which transform.** Timed per prime and kernel inside a 4,510 × 3,690-limb product
+  with a prepared operand and a 16-point rest (min over 15 rounds of the mean of 40
+  runs): forward 16.4 µs and pointwise 2.1 µs for each prime, inverse 17.6, 23.5 and
+  17.5 µs. Another processing order left the second prime slow. Swapping its part of
+  the scratch with the first or the third prime's made all three fast. A gap of 16 or
+  32 KiB between the residues left that inverse at 18.9 µs; of 48 or 64 KiB, 17.4 µs.
+  So the address within a 16 KiB page did not decide it alone.
+- **Which addresses.** There the residue started `0x804040` bytes after the second
+  prime's `iw` table. A probe copies the tables to chosen offsets in one 64 MiB block
+  and times a 16,384-point inverse (16.3–17.4 µs at clean offsets). It is slow when
+  the residue starts a little after a table, by 16 to about 336 bytes beyond a
+  multiple of 512 bytes, 4 KiB, 16 KiB or 32 KiB, modulo 4 MiB. With such offsets, in
+  some blocks of some stages, each twiddle load has the same address modulo 4 MiB as a
+  store to the residue 1 to 21 loop iterations earlier. The residue 16 bytes after
+  `iw + 8 MiB`: 41.3 µs; 64 bytes after: 22.9 µs; at exactly `iw + 8 MiB`: not slow.
+  `+4 MiB` and `+12 MiB` act like `+8 MiB` (21.1 and 20.6 µs against 24.4 µs at 64
+  bytes after); offsets more than about 64 KiB from a multiple of 4 MiB were never
+  slow. The forward transform against `fw`: the same (30.7 µs 16 bytes after
+  `fw + 8 MiB`, 15.3 µs at it).
+- **Counted** with Instruments (`xctrace`, CPU Counters, guided modes "L1D Cache
+  Metrics", "Discarded Sampling" and "Instruction Processing Bottlenecks"), 50,000
+  inverses at a slow and at a clean offset: 30% more cycles; fewer L1D misses (loads
+  434 against 471 million, stores 151 against 266 million); work discarded for memory
+  dependences about zero in both; twice the share of cycles in which the window holds
+  µops but issues none while no L1D miss is pending. So not cache-set conflicts and
+  not flushes: loads wait. That fits a check of loads against older, still-buffered
+  stores on the low 22 virtual-address bits, like the 4 KiB aliasing of Intel cores.
+  This is an inference; Apple does not document it. Some milder slow offsets (64 bytes
+  past a 4 KiB multiple, up to 48 KiB from a multiple of 4 MiB, 1–2 µs) do not fit
+  it: there the nearest store with a matching address is 260 or more loop iterations
+  (4 KiB of residue) back.
+  Their cause was not found.
+- **Why decodes miss it.** An `n`-point transform is exposed only when its residue
+  starts within about `4 n` bytes of a table position modulo 4 MiB, and a little after
+  it. In the probe product the scratch, the tables and the prepared transforms were
+  fresh page-aligned allocations close together, which made that likely. A decode cuts
+  its scratch from `dc`'s buffer. A model of the exposed butterflies (the store window
+  only, without the milder cases above) counted, in one decode each, 0.08% of the
+  butterflies at 32 KiB, none at 36 and 128 KiB, about 0.002% at 140 KiB, 144 KiB and
+  1 MiB. Over 74 sizes from 4 KiB to 2 MiB the most was 0.55%, at 4 KiB.
+- **Rules tried.** (a) Start the `i32` scratch at a 4 KiB boundary and the primes'
+  residues a multiple of 4 KiB apart (up to 16 KiB more scratch). Twiddle tables
+  of `2^12` points or more are 16 KiB-aligned from macOS `malloc`, so every residue
+  then starts a multiple of 4 KiB from them. No such offset was slow in the probe, and
+  it made the three primes equal in the product above. (b) The 976 unused `i32`s
+  between the primes' residues that made that product fast. Products alone with (a),
+  60 lengths from 258 to 235,929 limbs, each at 8 scratch offsets: geometric mean of
+  the ratios 1.0002 with a prepared operand and 1.0027 without; A/A 1.0054 and 1.0013.
+
+`ntt-cached` decodes in one binary: 31 rounds (62 at 1 MiB) of about 50 ms per arm,
+order rotated, median of the per-round ratios. Rule (a) in two runs, (b) in one, each
+with its own A/A control:
+
+| decoded bytes | time    | (a) run 1 | (a) run 2 | (b)    | A/A            |
+|--------------:|--------:|----------:|----------:|-------:|---------------:|
+| 32 KiB        | 444 µs  | +0.13%    | +0.10%    | −0.03% | −0.05…−0.02%   |
+| 36 KiB        | 540 µs  | +0.12%    | +0.15%    | +0.09% | −0.10…+0.13%   |
+| 128 KiB       | 2.34 ms | +0.06%    | −0.06%    | +0.08% | −0.50…+0.08%   |
+| 140 KiB       | 2.76 ms | +0.07%    | +0.14%    | +0.01% | −0.07…+0.15%   |
+| 144 KiB       | 2.82 ms | +0.10%    | −0.15%    | −0.38% | −0.25…+0.17%   |
+| 1 MiB         | 27.3 ms | +0.15%    | −0.06%    | +0.12% | −0.14…+0.01%   |
+
 ### Leaf size: measured, not changed
 
 `LEAF` (256 chunks) bounds the leaves of every `dc` decoder. A same-binary A/B, with the
@@ -513,7 +819,9 @@ leaf size read at run time in a copy of the crate, found:
 - 192: no change at these sizes. Their units are at most 158 chunks, so the tree is the
   same.
 - 128: 0.5% slower at 32 KiB, 128 KiB and 1 MiB, where it halves a unit of 140, and 2.8%
-  faster at 36 KiB, where it halves a unit of 158.
+  faster at 36 KiB, where it halves a unit of 158. That was probably not the leaf size:
+  halving 158 to 79 makes the power table 43 limbs longer, which aligned the scratch
+  (see [Scratch alignment](#scratch-alignment)). Not measured again since that fix.
 
 Measured again with the matrix leaf on aarch64: 256 stays (see
 [`decode_matrix`](#decode_matrix-a-matrix-of-powers)).
@@ -562,8 +870,10 @@ output, after one warm-up decode, so `ntt-cached` does not count its tables):
 At 1 MiB the decode makes about 1030 products, so about 3.4 allocations each. All but
 O(levels) of them are malachite's own.
 
-Apple M5 Pro, rustc 1.99.0, `cargo bench` (criterion medians from one run, with other
-programs running):
+Apple M5 Pro, rustc 1.99.0, `cargo bench` with fat LTO and `-C target-cpu=apple-m4`
+(see [Build configuration](#build-configuration)); criterion medians
+from one run, with other programs running. The `ntt-cached` column predates the later NTT
+changes, squares among them. The probes below used the same build settings.
 
 | decoded bytes | dc      | dc-toom3 | ntt-cached | dc-malachite |
 |--------------:|--------:|---------:|-----------:|-------------:|
@@ -574,8 +884,23 @@ programs running):
 | 147456        | 14.3 ms | 11.5 ms  | 4.05 ms    | 3.35 ms      |
 | 1048576       | 330 ms  | 223 ms   | 40.2 ms    | 35.9 ms      |
 
-`dc-malachite` is 5–19% faster than `ntt-cached`. Up to 1 KiB all four run
-`decode_batched` and are equal within noise.
+Against this older `ntt-cached`, `dc-malachite` was 5–19% faster. Up to 1 KiB all
+four run `decode_batched` and are equal within noise.
+
+The current `ntt-cached` is faster than `dc-malachite` on the M5 from 32 KiB up, and
+slower on AMD Zen 5. Criterion medians, one run per machine. The M5 used this README's
+build settings. Zen 5 used a default release build, without
+LTO and without pinned code alignment (see [Build configuration](#build-configuration)):
+
+| decoded bytes | M5: ntt-cached | M5: dc-malachite | Zen 5: ntt-cached | Zen 5: dc-malachite |
+|--------------:|---------------:|-----------------:|------------------:|--------------------:|
+| 4 KiB         | 35.9 µs        | 33.5 µs          | 61.5 µs           | 46.5 µs             |
+| 32 KiB        | 482 µs         | 537 µs           | 923 µs            | 686 µs              |
+| 1 MiB         | 28.4 ms        | 36.9 ms          | 53.6 ms           | 42.4 ms             |
+
+On the M5, `dc-malachite` takes 1.11× as long as `ntt-cached` at 32 KiB and 1.30× at
+1 MiB. Back-to-back M5 runs with the same build settings agree at 36–144 KiB
+(1.04–1.21×). On Zen 5, `ntt-cached` takes 1.35× as long at 32 KiB and 1.26× at 1 MiB.
 
 The squaring path, measured in one binary against a copy without it (best of 7
 interleaved rounds per size; a probe, not in the repo):
@@ -588,8 +913,8 @@ interleaved rounds per size; a probe, not in the repo):
 | 144 KiB       | 3.49 ms, 279 µs              | 3.64 ms, 397 µs                 | +4.3%  |
 | 1 MiB         | 38.3 ms, 2.52 ms             | 39.4 ms, 3.35 ms                | +2.9%  |
 
-- So squares save 3–8% of a decode, and most of the lead over `ntt-cached` remains
-  without them. A first estimate from two separate `cargo bench` runs said 7–17%; that
+- So squares save 3–8% of a decode, and most of the lead over the older `ntt-cached`
+  remains without them. A first estimate from two separate `cargo bench` runs said 7–17%; that
   was run-to-run noise.
 - Part of the gain at the small sizes is a malachite threshold, not squaring itself.
   Equal-length products of 389–999 limbs use Toom-6h or Toom-8h, while an n × (n − 1)
@@ -599,8 +924,10 @@ interleaved rounds per size; a probe, not in the repo):
 
 ## Results
 
-Apple M5 Pro, rustc 1.99.0, `cargo bench` (criterion medians from one run; expect
-several percent of noise between runs):
+Apple M5 Pro, rustc 1.99.0, `cargo bench` with fat LTO and `-C target-cpu=apple-m4`
+(see [Build configuration](#build-configuration)); criterion medians
+from one run, expect several percent of noise between runs. The ad-hoc harness below
+used the same build settings.
 
 | decoded bytes | bs58    | basexx  | basexx-b | batched | dc      | dc-toom3 |
 |--------------:|--------:|--------:|---------:|--------:|--------:|---------:|
@@ -635,7 +962,7 @@ about 30% higher. An interleaved A/B against that version, both in the same bina
 
 ## Tests
 
-`cargo test` (about 5 s; the dev profile uses `opt-level = 3` but keeps debug
+`cargo test` (about 7 s; the dev profile uses `opt-level = 3` but keeps debug
 assertions and overflow checks):
 
 - **Every decoder in `DECODERS` against `bs58`:** output, first-invalid-character index, exactly
@@ -677,7 +1004,9 @@ assertions and overflow checks):
   squares and products through two and three pieces at 2^20 + 2^18 and
   2^20 + 2^19 + 2^16 points; squares that never call `pointwise`, and products with a
   copy that never call `square`; the plans (coverage, distinct
-  powers of two, table size) for every product up to 2^14 limbs; the polynomial CRT
+  powers of two, table size) for every product up to 2^14 limbs; products and squares
+  of every length from 4 limbs below to 36 above 2^k and 1.5·2^k limbs (k = 7, 10, 12),
+  so every small cyclic piece with two and three pieces; the polynomial CRT
   and the fused two-piece kernel against direct reduction; the twisted load against
   direct powers of the root; the three decoders against `decode` up to 1M
   characters; 8 threads racing to build the cached tables; smaller tables being
@@ -705,9 +1034,38 @@ assertions and overflow checks):
   fusing its linear passes.
 - **Four carry chains** in the quadratic loop: about 1.3× more in the microbenchmark,
   for more complex tail handling.
-- **`dc` split alignment for the NTT**: up to 5.5% at some sizes (see
-  [Power-of-two padding](#power-of-two-padding)), if choosing the unit costs less than
-  it saves.
+- **Choose `dc`'s unit per decode** (see
+  [Power-of-two padding](#power-of-two-padding)). Measured after the alignment fix and
+  the 64-point smallest cyclic piece, the fitted model's unit was 1.2% faster on average
+  over 34 sizes, up to 5% at some, and slower at none beyond the noise. A real
+  implementation needs:
+  - A cheaper search. The probe walks every node for each unit: 46 µs at 32 KiB, 10% of
+    the decode. Full nodes of one level have the same shape, so their cost is needed
+    once per level: about `4·levels` formula evaluations per unit, about 2,300 at
+    32 KiB. At the probe's rate (about 5 ns each) that is about 13 µs, still more than
+    the 1% it gains there (an estimate, not measured). So search only above some size,
+    or use a table made in advance: the unit depends only on `n`.
+  - The choice only where it was measured. The formula models `ntt-cached`'s
+    multiplier; the other `dc` decoders were not measured with other units.
+  - Coefficients for each target, or a check that these transfer. They were fitted on
+    the M5 Pro; x86-64 was not measured.
+  - Tests that every unit the search can return decodes correctly at many lengths. The
+    probe checked every accepted unit at six sizes.
+- **Align the other NTT buffers** to 64 bytes. The prepared transforms and the twiddle
+  tables are `Vec`s, 16-byte aligned from macOS `malloc`, and the operands' limbs start
+  at any 8-byte offset. With the scratch aligned, 550 decodes of 36 KiB still count 73
+  million line-crossing µops (against 629 million before); where they come from was not
+  looked at. On the M5 Pro 16-byte alignment was enough for the scratch. A 64-byte
+  AVX-512 access that is not 64-byte aligned always spans two lines, so x86-64 may gain
+  more. Not measured.
+- **Residues on 4 KiB boundaries on x86-64.** Intel documents "4K aliasing": a load
+  waits for an older store whose address matches in the low 12 bits. There the
+  twiddle loads of [Residue placement](#residue-placement-measured-not-changed) would
+  wait whenever a residue starts a little after a table position modulo 4 KiB, with no
+  4 MiB condition: much more often than on the M5 Pro. Rule (a) of that section avoids
+  it unless a table starts a few hundred bytes or less before a 4 KiB boundary (macOS
+  puts large blocks on one, glibc 16 bytes past one). Not measured; how AMD Zen 5, the
+  remote x86-64 machine, behaves here is not known.
 - **Squares from prepared transforms**: a power's square could take its pieces from the
   power's stored transform instead of transforming it again. That is about 2–3% at
   32 KiB, going by the profile.
@@ -796,6 +1154,23 @@ about 128 KiB. `LEAF` and `DC_THRESHOLD` were measured again with this leaf and 
 faster than both.
 
 On x86_64 the panel kernel uses AVX2 or SSE4.1 (`pmuludq` and `paddq`), chosen at run
-time, and parsing is plain Rust. Both kernels pass the tests under
-Rosetta on Apple Silicon, AVX2 with `ROSETTA_ADVERTISE_AVX=1`; there are no x86
-performance numbers.
+time, and parsing is plain Rust. Both kernels pass the tests under Rosetta on Apple
+Silicon, AVX2 with `ROSETTA_ADVERTISE_AVX=1`. On AMD Zen 5 (GCP `c4d-highcpu-4`,
+criterion medians, one run per build) the AVX2 kernel was 1.9–3.9× faster than the
+plain-Rust one. Against `decode_batched`:
+
+| decoded bytes | batched, default | matrix, default | batched, native | matrix, native |
+|--------------:|-----------------:|----------------:|----------------:|---------------:|
+| 512           | 0.99 µs          | 1.00 µs         | 793 ns          | 1.01 µs        |
+| 1024          | 3.82 µs          | 2.97 µs         | 2.73 µs         | 3.02 µs        |
+| 1875          | 12.1 µs          | 8.90 µs         | 8.51 µs         | 8.77 µs        |
+| 4096          | 55.0 µs          | 37.8 µs         | 38.9 µs         | 37.4 µs        |
+
+"Native" is `-C target-cpu=native` (znver5). It makes `decode_batched` 20–30% faster
+and changes the matrix kernel by at most 2%, so with it `decode_matrix` only ties from
+about 2 KiB. The "batched, default" column is from an earlier run on the same VM: in
+the run with the matrix kernel, default-flags `decode_batched` was 21–31% slower with
+the same instructions. The cause is code placement: the function started 16 bytes past
+a 64-byte boundary, so its 49-byte inner loop crossed into the next line. With
+`-C llvm-args=-align-all-functions=6` it ran at the column's speed again. Whether the
+native builds placed `decode_batched` well was not checked.

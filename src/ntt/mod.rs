@@ -289,10 +289,10 @@ impl Kernels {
 /// Scratch limbs [`mul_with`] needs when no operand is longer than `n` limbs.
 ///
 /// - Transform: four arrays of `L` `i32`s (a result per prime, and one temporary), so
-///   `2 L` limbs, with `L < 4 (a + b) <= 8 n` (or `L = 8`): below `16 n + 64`. The
-///   pieces of a [`Plan`] need fewer: `3 w + L / 2 < 3.5 L` `i32`s, for their total
-///   length `w < L` and the longest, `L / 2`, for the temporary. Squares use no
-///   temporary.
+///   `2 L` limbs, with `L < 4 (a + b) <= 8 n` (or `L = 8`), after at most 7 limbs that
+///   align them ([`as_i32`]): below `16 n + 64`. The pieces of a [`Plan`] need fewer:
+///   `3 w + L / 2 < 3.5 L` `i32`s, for their total length `w < L` and the longest,
+///   `L / 2`, for the temporary. Squares use no temporary.
 /// - Blocks (`2 a <= b`): `2 a` limbs, then products of `a <= n / 2` limbs:
 ///   `2 a + 16 a + 64 <= 9 n + 64`.
 /// - Split (`b / 2 < a <= b`): at most `b + 1` limbs, then products of at most
@@ -419,7 +419,10 @@ fn transform(
 /// of two not above it: `x^t + 1` and a cyclic rest when that rest is shorter than `t`
 /// (`p <= 3 t / 2`); else `x^t + 1`, `x^(t/2) + 1` and a rest shorter than `t / 2`
 /// (`p <= 7 t / 4`); else one cyclic transform of `L = 2 t` points. More pieces cost
-/// more passes than the padding they save (measured).
+/// more passes than the padding they save (measured). The rest is a power of two of at
+/// least 64 points: folding an operand into fewer, and summing the larger piece's blocks
+/// into them in `pair` or [`crt()`], are long chains of dependent additions. An 8-point
+/// rest made products just above a power of two about 10% slower (measured).
 struct Plan {
     nega: [usize; 2],
     k: usize,
@@ -430,7 +433,7 @@ impl Plan {
     fn new(len: usize) -> Self {
         let p = (2 * len).next_multiple_of(8);
         let top = 1 << p.ilog2();
-        let cyc = |r: usize| r.next_power_of_two().max(8);
+        let cyc = |r: usize| r.next_power_of_two().max(64);
         if p > top && cyc(p - top) < top {
             return Plan { nega: [top, 0], k: 1, cyc: cyc(p - top) };
         }
@@ -564,8 +567,11 @@ fn crt(r: &mut [i32], nega: &[usize], p: Prime, k: &Kernels) {
     (k.halves)(lo, rest, p);
 }
 
-/// The scratch limbs as twice as many `i32`s.
+/// The scratch limbs from the first 64-byte boundary, at most 7 limbs in, as twice as
+/// many `i32`s: vector loads and stores that cross a cache line are slower.
 fn as_i32(s: &mut [u64]) -> &mut [i32] {
+    let skip = s.as_ptr().addr().wrapping_neg() % 64 / 8;
+    let s = &mut s[skip..];
     // SAFETY: `u64` is at least as aligned as `i32`, the new slice covers the same
     // bytes, every bit pattern is a valid `i32`, and the borrow of `s` moves into it.
     unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr().cast(), 2 * s.len()) }
@@ -701,6 +707,27 @@ mod tests {
     fn scratch_covers_karatsuba() {
         for n in 0..100_000 {
             assert!(scratch_len(n) >= mul::scratch_len(n), "n {n}");
+        }
+    }
+
+    /// Exactly `scratch_len` limbs serve at any alignment, and [`as_i32`] aligns them:
+    /// one transform of 8 points and one of 512, two pieces and three.
+    #[test]
+    fn scratch_at_any_alignment() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+        let (t, k) = (Tables::new(12), Kernels::best());
+        for n in [1, 128, 129, 200] {
+            let (a, b) = operands(&mut rng, n, n)[0].clone();
+            let mut want = vec![0; 2 * n];
+            mul::mul(&mut want, &a, &b, &mut vec![0; mul::scratch_len(n)]);
+            let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len(n) + 7];
+            for skip in 0..8 {
+                let s = &mut scratch[skip..][..scratch_len(n)];
+                assert_eq!(as_i32(s).as_ptr().addr() % 64, 0);
+                let mut got = vec![0; 2 * n];
+                mul_with(&mut got, &a, &b, s, &t, &k, 1);
+                assert!(got == want, "{n} limbs, scratch {skip} limbs in");
+            }
         }
     }
 
@@ -1014,7 +1041,7 @@ mod tests {
         let shapes = [
             // One cyclic transform of 2^23 points, full.
             (2 * m, 2 * m),
-            // x^(2^22) + 1, and x^8 - 1 or x^(2^21) - 1.
+            // x^(2^22) + 1, and x^64 - 1 or x^(2^21) - 1.
             (m, m + 4),
             (3 * m / 2, 3 * m / 2),
             // x^(2^22) + 1, x^(2^21) + 1 and a cyclic rest; then with `b` wrapping
@@ -1068,14 +1095,40 @@ mod tests {
             let (plan, l) = (Plan::new(len), 1 << log_len(len));
             let w = plan.width();
             assert!(w >= 2 * len && w <= l && (plan.nega().is_empty() || w < l), "len {len}");
-            // Descending powers of two, at least 8, the cyclic one last and smallest.
+            // Descending powers of two, at least 8, the cyclic one last and smallest, and
+            // at least 64 next to negacyclic ones.
             let mut all = plan.nega().to_vec();
             all.push(plan.cyc);
             assert!(all.iter().all(|&x| x.is_power_of_two() && x >= 8), "len {len}");
             assert!(all.windows(2).all(|x| x[0] > x[1]), "len {len}");
+            assert!(plan.nega().is_empty() || plan.cyc >= 64, "len {len}");
             assert!(plan.nega().iter().all(|&m| 2 * m <= l), "len {len}");
-            // Rounding to three bits adds less than a quarter.
-            assert!(4 * w < 5 * (2 * len + 8) || plan.nega().is_empty(), "len {len}");
+            // Rounding to three bits adds less than a quarter. Up to 128 limbs, which only
+            // tests multiply by transforms, the 64-point rest can add more.
+            let pieces = !plan.nega().is_empty() && len > 128;
+            assert!(4 * w < 5 * (2 * len + 8) || !pieces, "len {len}");
+        }
+    }
+
+    /// Products of every length from a few limbs below `2^k` and `1.5·2^k` limbs to 36
+    /// above, and squares of half of each even length: every small cyclic piece, for two
+    /// pieces and three, and the step from the smallest piece to the next.
+    #[test]
+    fn rests_around_powers_of_two() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(43);
+        let (t, k) = (Tables::new(14), Kernels::best());
+        for top in [128, 1024, 4096] {
+            for len in (top - 4..=top + 36).chain(3 * top / 2 - 4..=3 * top / 2 + 36) {
+                let na = len * 11 / 20;
+                for (a, b) in &operands(&mut rng, na, len - na)[..2] {
+                    check(a, b, &t, &k, 1);
+                }
+                if len % 2 == 0 {
+                    for (a, _) in &operands(&mut rng, len / 2, 1)[..2] {
+                        check(a, a, &t, &k, 1);
+                    }
+                }
+            }
         }
     }
 

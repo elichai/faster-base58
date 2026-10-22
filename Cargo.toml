@@ -20,3 +20,8 @@ harness = false
 # builds. Overflow checks and debug assertions stay on.
 [profile.dev]
 opt-level = 3
+
+# The README's numbers use fat LTO, so every machine builds benchmarks alike
+# (`cargo bench` inherits this profile).
+[profile.release]
+lto = "fat"
