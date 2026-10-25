@@ -41,6 +41,13 @@ also serve normal automatic dispatch. The hooks select wrappers, whose small/lar
 contribute to their linked cost.
 `__internals` does not enable `cache`; all library `OnceLock` caches require it.
 
+Comparison/tuning wrappers share gated backend `internals` modules; the root
+facade reexports them directly. Production wrappers are grouped into Matrix
+`entry`, NTT `owned`/`cached` and the Karatsuba encoding profile. Cache storage and
+fixed portable helpers also share module gates. ISA/test/proof boundaries and
+NTT's conditional fields/initializers/reset retain explicit gates to preserve
+their availability and state layout. See the [cfg review](docs/review/cfg-consolidation.md).
+
 | Family | Main use | Boundary behavior |
 | --- | --- | --- |
 | Batched | Small inputs and compact consumers | Quadratic at large sizes; no internal heap allocation |
