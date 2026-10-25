@@ -122,8 +122,10 @@ The `__internals` feature exposes backend selectors and measurement hooks under
 `bench` module are absent. It does not enable `cache`. Normal callers need neither
 named backends nor this feature. See [DESIGN.md](DESIGN.md) for routes and costs.
 
-The tables record frozen measurement snapshots from before this namespace and
-file-layout cleanup. Their source identities and limits are retained in the reports.
+The tables retain earlier measurement snapshots. The
+[allocation report](docs/tradeoffs/2026-10-25/allocation-layout/README.md) records
+the newer storage changes, paired timings and linked-size comparisons. Source
+identities and limits are retained with each report.
 The separate [fixed-table reuse experiment](docs/tradeoffs/2026-10-25/fixed-table-reuse/README.md)
 tests nearby lengths on M5, GCP and Wasm and records why broad padding was rejected.
 

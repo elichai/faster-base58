@@ -63,22 +63,32 @@ impl Table {
     /// The table for size class `k`.
     pub(super) fn new(k: usize) -> Table {
         let panels = class_bytes(k) / PANEL_BYTES;
-        let mut row = vec![1u32];
+        // Since 58^4 > 2^23, this many base-58^4 columns holds every power below
+        // 2^(8 * class_bytes(k)). Reuse eight rows instead of allocating each clone.
+        let stride = (8 * class_bytes(k)).div_ceil(23);
+        let mut rows = vec![0u32; ROWS * stride];
+        let mut lengths = [0; ROWS];
+        rows[0] = 1;
+        lengths[0] = 1;
         let mut meta = Vec::with_capacity(panels);
         let mut data = Vec::with_capacity(DATA_WORDS[k]);
-        for _ in 0..panels {
-            let rows: [Vec<u32>; ROWS] = std::array::from_fn(|_| {
-                let r = row.clone();
-                mul_word(&mut row);
-                r
-            });
+        for p in 0..panels {
+            for r in 0..ROWS {
+                if p != 0 || r != 0 {
+                    let previous = if r == 0 { ROWS - 1 } else { r - 1 };
+                    let len = lengths[previous];
+                    rows.copy_within(previous * stride..previous * stride + len, r * stride);
+                    lengths[r] = mul_word(&mut rows[r * stride..(r + 1) * stride], len);
+                }
+            }
             // The last row is the longest.
-            let nb = rows[ROWS - 1].len().div_ceil(4);
+            let nb = lengths[ROWS - 1].div_ceil(4);
             meta.push(Panel { nb, offset: data.len() });
             for b in 0..nb {
-                for r in &rows {
+                for (r, &len) in lengths.iter().enumerate() {
                     for w in 0..4 {
-                        data.push(r.get(4 * b + w).copied().unwrap_or(0));
+                        let j = 4 * b + w;
+                        data.push(if j < len { rows[r * stride + j] } else { 0 });
                     }
                 }
             }
@@ -100,19 +110,21 @@ impl Table {
     }
 }
 
-/// `x = x * 2^32` in base 58^4.
-fn mul_word(x: &mut Vec<u32>) {
+/// `x[..len] *= 2^32` in base 58^4, returning its length. The slice must hold the product.
+fn mul_word(x: &mut [u32], mut len: usize) -> usize {
     // `v < 58^4 * 2^32 + carry`, so the carry stays below 2^33.
     let mut carry = 0;
-    for c in x.iter_mut() {
+    for c in &mut x[..len] {
         let v = ((*c as u64) << 32) + carry;
         *c = (v % COL_BASE) as u32;
         carry = v / COL_BASE;
     }
     while carry != 0 {
-        x.push((carry % COL_BASE) as u32);
+        x[len] = (carry % COL_BASE) as u32;
+        len += 1;
         carry /= COL_BASE;
     }
+    len
 }
 
 /// Process-wide storage and lookup, omitted when caching is disabled.
@@ -195,6 +207,72 @@ mod tests {
     /// The table of class `k` itself; [`get`] may return a larger one.
     fn class(k: usize) -> Table {
         Table::new(k)
+    }
+
+    // The old builder keeps independent, exact-length row Vecs. This catches stale
+    // workspace words, wrong row rotation and differences at class boundaries.
+    fn reference(k: usize) -> Table {
+        let panels = class_bytes(k) / PANEL_BYTES;
+        let mut row = vec![1u32];
+        let mut meta = Vec::with_capacity(panels);
+        let mut data = Vec::with_capacity(DATA_WORDS[k]);
+        for _ in 0..panels {
+            let rows: [Vec<u32>; ROWS] = std::array::from_fn(|_| {
+                let r = row.clone();
+                reference_mul_word(&mut row);
+                r
+            });
+            let nb = rows[ROWS - 1].len().div_ceil(4);
+            meta.push(Panel { nb, offset: data.len() });
+            for b in 0..nb {
+                for r in &rows {
+                    for w in 0..4 {
+                        data.push(r.get(4 * b + w).copied().unwrap_or(0));
+                    }
+                }
+            }
+        }
+        Table { panels: meta, data }
+    }
+
+    fn reference_mul_word(x: &mut Vec<u32>) {
+        let mut carry = 0;
+        for c in x.iter_mut() {
+            let v = ((*c as u64) << 32) + carry;
+            *c = (v % COL_BASE) as u32;
+            carry = v / COL_BASE;
+        }
+        while carry != 0 {
+            x.push((carry % COL_BASE) as u32);
+            carry /= COL_BASE;
+        }
+    }
+
+    #[test]
+    fn reused_rows_match_reference_for_every_class() {
+        for k in 0..CLASSES {
+            let (got, want) = (class(k), reference(k));
+            assert_eq!(got.panels, want.panels, "class {k}");
+            assert_eq!(got.data, want.data, "class {k}");
+        }
+    }
+
+    #[test]
+    fn row_workspace_bound_and_canaries() {
+        for k in 0..CLASSES {
+            let stride = (8 * class_bytes(k)).div_ceil(23);
+            let mut guarded = vec![u32::MAX; stride + 2];
+            guarded[1..1 + stride].fill(0);
+            guarded[1] = 1;
+            let mut len = 1;
+            for _ in 1..class_bytes(k) / WORD {
+                len = super::mul_word(&mut guarded[1..1 + stride], len);
+                assert!(len <= stride);
+            }
+            assert_eq!(&guarded[1..1 + len], power(class_bytes(k) / WORD - 1));
+            assert_eq!(guarded[0], u32::MAX);
+            assert_eq!(guarded[stride + 1], u32::MAX);
+        }
     }
 
     #[test]

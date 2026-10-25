@@ -14,23 +14,48 @@ fn feature_policy_and_owned_override_select_table_source() {
     ] {
         for log in [5, 12, 8] {
             ntt.prepare(1usize << (log - 1));
-            assert!(ntt.owned.get().is_none(), "{name}: prepare must discard owned tables");
+            assert!(ntt.owned.is_none(), "{name}: prepare must discard owned tables");
             #[cfg(feature = "cache")]
-            assert!(ntt.shared.get().is_none(), "{name}: prepare must discard shared selection");
-            let table = ntt.tables();
-            assert_eq!(ntt.owned.get().is_some(), owned, "{name}, log {log}");
-            if let Some(local) = ntt.owned.get() {
+            assert!(ntt.shared.is_none(), "{name}: prepare must discard shared selection");
+            ntt.ensure_tables();
+            let table = ntt.initialized_tables();
+            assert_eq!(ntt.owned.is_some(), owned, "{name}, log {log}");
+            if let Some(local) = ntt.owned.as_ref() {
                 assert!(std::ptr::eq(table, local), "{name}: table must come from this multiplier");
                 assert_eq!(table.log, log);
             }
             #[cfg(feature = "cache")]
             {
-                assert_eq!(ntt.shared.get().is_some(), !owned, "{name}, log {log}");
-                if let Some(shared) = ntt.shared.get() {
-                    assert!(std::ptr::eq(table, *shared), "{name}: table must come from the cache");
+                assert_eq!(ntt.shared.is_some(), !owned, "{name}, log {log}");
+                if let Some(shared) = ntt.shared {
+                    assert!(std::ptr::eq(table, shared), "{name}: table must come from the cache");
                     assert!(table.log >= log);
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn unprepared_power_fallback_keeps_tables_lazy() {
+    let (a, b) = ([u64::MAX, 1], [17, 23]);
+    let mut want = [0; 4];
+    let mut scratch = vec![0; scratch_len(2)];
+    mul::mul(&mut want, &a, &b, &mut scratch);
+    for cached in [false, true] {
+        let mut ntt = Ntt::with_cache(cached, Kernels::portable());
+        ntt.prepare(4);
+        for index in [7, 0] {
+            if index == 0 {
+                // This power is below the preparation threshold, so it stays unprepared.
+                ntt.prepare_power(0, &b, 4);
+            }
+            let mut out = [0; 4];
+            ntt.mul_power(&mut out, &a, index, &b, &mut scratch);
+            assert_eq!(out, want);
+            assert!(ntt.owned.is_none(), "cached={cached}, index={index}");
+            #[cfg(feature = "cache")]
+            assert!(ntt.shared.is_none(), "cached={cached}, index={index}");
         }
     }
 }
@@ -43,8 +68,10 @@ fn requested_tables_are_owned_without_cache() {
         let mut second = Ntt::new(Kernels::portable());
         first.prepare(1usize << (log - 1));
         second.prepare(1usize << (log - 1));
-        let (a, b) = (first.tables(), second.tables());
-        assert!(first.owned.get().is_some() && second.owned.get().is_some());
+        first.ensure_tables();
+        second.ensure_tables();
+        let (a, b) = (first.initialized_tables(), second.initialized_tables());
+        assert!(first.owned.is_some() && second.owned.is_some());
         assert_eq!(a.log, log);
         assert_eq!(b.log, log);
         assert_eq!(a.tw[0].fw, b.tw[0].fw);
@@ -73,12 +100,13 @@ fn large_tables_are_owned_without_splitting_transforms() {
     let n = 1 << (log - 2);
     let mut ntt = Ntt::new(kernels);
     ntt.prepare(2 * n);
-    assert_eq!(ntt.tables().log, log);
+    ntt.ensure_tables();
+    assert_eq!(ntt.initialized_tables().log, log);
     assert!(
-        ntt.owned.get().is_some(),
+        ntt.owned.is_some(),
         "large twiddles must leave the cache"
     );
-    assert!(ntt.shared.get().is_none());
+    assert!(ntt.shared.is_none());
 
     let a = vec![u64::MAX; n];
     let b = a.clone();
@@ -94,13 +122,14 @@ fn large_tables_are_owned_without_splitting_transforms() {
     assert_eq!(LARGEST.with(Cell::get), 1 << log);
 
     ntt.prepare(64);
-    assert!(ntt.owned.get().is_none() && ntt.shared.get().is_none());
+    assert!(ntt.owned.is_none() && ntt.shared.is_none());
     assert!(
         ntt.powers.is_empty(),
         "prepare must discard old forward transforms"
     );
-    assert!((7..=CACHE_LIMIT).contains(&ntt.tables().log));
-    assert!(ntt.owned.get().is_none() && ntt.shared.get().is_some());
+    ntt.ensure_tables();
+    assert!((7..=CACHE_LIMIT).contains(&ntt.initialized_tables().log));
+    assert!(ntt.owned.is_none() && ntt.shared.is_some());
 }
 
 #[cfg(feature = "cache")]
@@ -110,9 +139,10 @@ fn owned_mode_stays_owned_after_cache_initialization() {
     let mut ntt = Ntt::new_owned(Kernels::portable());
     for log in [12, 8, 13] {
         ntt.prepare(1 << (log - 1));
-        assert!(ntt.owned.get().is_none() && ntt.shared.get().is_none());
-        assert_eq!(ntt.tables().log, log);
-        assert!(ntt.owned.get().is_some() && ntt.shared.get().is_none());
+        assert!(ntt.owned.is_none() && ntt.shared.is_none());
+        ntt.ensure_tables();
+        assert_eq!(ntt.initialized_tables().log, log);
+        assert!(ntt.owned.is_some() && ntt.shared.is_none());
     }
 }
 
@@ -142,10 +172,11 @@ fn retention_is_bounded_across_histories() {
     let touch = |log: u32| {
         let mut ntt = Ntt::new(Kernels::portable());
         ntt.prepare(1usize << (log - 1));
-        let t = ntt.tables();
+        ntt.ensure_tables();
+        let t = ntt.initialized_tables();
         assert!(t.log >= log);
-        assert_eq!(ntt.owned.get().is_some(), log > CACHE_LIMIT);
-        assert_eq!(ntt.shared.get().is_some(), log <= CACHE_LIMIT);
+        assert_eq!(ntt.owned.is_some(), log > CACHE_LIMIT);
+        assert_eq!(ntt.shared.is_some(), log <= CACHE_LIMIT);
         for tw in &t.tw {
             for v in [&tw.fw, &tw.fwq, &tw.iw, &tw.iwq] {
                 assert_eq!(v.len(), 1 << t.log);

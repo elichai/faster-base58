@@ -146,18 +146,24 @@ pub fn encode_tuned(
 
     let x: Vec<u64> = x.rchunks(8).map(|c| c.iter().fold(0, |v, &b| v << 8 | b as u64)).collect();
     let mut table = vec![0; table_len(unit, levels)];
-    let mut scratch = vec![0; m.scratch_len(e) + recip_scratch_len(full(e) + 1, m)];
+    let mut scratch = vec![0; m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m))];
     let powers = powers(unit, levels, &mut table, &mut scratch, m, false);
-    let mut divs: Vec<Divisor> = Vec::with_capacity(levels);
+    let mut storage = vec![0; powers[..levels].iter().map(Divisor::storage_len).sum()];
+    let mut data = &mut storage[..];
+    let mut divs: Vec<Divisor<'_>> = Vec::with_capacity(levels);
     for p in &powers[..levels] {
-        let d = Divisor::new(p, divs.last(), &mut scratch, m);
+        let slot;
+        (slot, data) = data.split_at_mut(Divisor::storage_len(p));
+        let d = Divisor::new(p, divs.last(), slot, &mut scratch, m);
         divs.push(d);
     }
+    drop(table);
+    drop(scratch);
     // The top divisor serves one division; the others at least two, so their products
     // may keep work on them.
     for (i, d) in divs[..levels - 1].iter().enumerate() {
         let (dn, qn) = (d.pn.len(), d.qn());
-        m.prepare_power(2 * i, &d.pn, qn + dn);
+        m.prepare_power(2 * i, d.pn, qn + dn);
         m.prepare_power(2 * i + 1, d.inv(), 2 * qn + 1);
     }
     let mut scratch = vec![0; node_scratch_len(&divs, m)];
@@ -175,31 +181,38 @@ fn full(e: usize) -> usize {
 /// The power `BASE^exp`, ready for division: `pn << (64 shift)` is the power shifted left
 /// by `bits`, so that the top bit of `pn` is set, and [`Divisor::inv`] is a reciprocal for
 /// quotients of up to `qn = pn.len() + shift` limbs.
-struct Divisor {
+struct Divisor<'a> {
     exp: usize,
     shift: usize,
     bits: u32,
-    pn: Vec<u64>,
+    pn: &'a [u64],
     /// A reciprocal of `pn β^(shift + 1)` as [`reciprocal`] gives, in `qn + 2` limbs: one
     /// limb more than divisions need, so that its square can start the next power's.
-    recip: Vec<u64>,
+    recip: &'a [u64],
 }
 
-impl Divisor {
-    /// `below` is the divisor of the power whose square `p` is, if any.
+impl<'a> Divisor<'a> {
+    fn storage_len(p: &Power<'_>) -> usize {
+        2 * p.limbs.len() + p.shift + 2
+    }
+
+    /// `below` is the divisor of the power whose square `p` is, if any. `data` has
+    /// [`Self::storage_len`] limbs; `s` needs [`divisor_scratch_len`]`(qn + 1, m)`.
     fn new(
         p: &Power<'_>,
-        below: Option<&Divisor>,
+        below: Option<&Divisor<'_>>,
+        data: &'a mut [u64],
         s: &mut [u64],
         m: &mut impl Multiplier,
-    ) -> Divisor {
+    ) -> Self {
+        debug_assert_eq!(data.len(), Self::storage_len(p));
         let bits = p.limbs.last().expect("powers are not zero").leading_zeros();
-        let mut pn = vec![0; p.limbs.len()];
-        shl(&mut pn, p.limbs, bits);
+        let (pn, recip) = data.split_at_mut(p.limbs.len());
+        shl(pn, p.limbs, bits);
         let n = pn.len() + p.shift + 1;
-        let mut a = vec![0; n];
-        a[n - pn.len()..].copy_from_slice(&pn);
-        let mut recip = vec![0; n + 1];
+        let (a, s) = s.split_at_mut(n);
+        a[..n - pn.len()].fill(0);
+        a[n - pn.len()..].copy_from_slice(pn);
         let h = n - (n - 1) / 2;
         match below {
             // `qn` doubles from one power to the next, or doubles less one, so `a'` below has
@@ -210,11 +223,11 @@ impl Divisor {
                 // below, `a = a'^2 2^(bits - 2 bits') / β` and `(β^(2h) / a')^2` is
                 // `2^k β^(n+h) / a`.
                 let k = 64 * (3 * h - n - 1) + bits as usize - 2 * b.bits as usize;
-                reciprocal_from_square(&mut recip, &a, &b.recip, k, s, m);
+                reciprocal_from_square(recip, a, b.recip, k, s, m);
             }
             _ => {
                 debug_assert!(below.is_none() || n <= RECIP_BASECASE, "not from the square");
-                reciprocal(&mut recip, &a, s, m)
+                reciprocal(recip, a, s, m)
             }
         }
         Divisor { exp: p.exp, shift: p.shift, bits, pn, recip }
@@ -230,6 +243,11 @@ impl Divisor {
     }
 }
 
+/// Padded divisor plus reciprocal construction scratch, for `n = qn + 1` limbs.
+fn divisor_scratch_len(n: usize, m: &impl Multiplier) -> usize {
+    n + recip_scratch_len(n, m)
+}
+
 /// Splits `x < BASE^(2 exp)` by the power `d` (number `i` of the table): writes
 /// `x / BASE^exp` to `hi` (`qn + 1` limbs) and `x % BASE^exp` to `lo` (`qn` limbs), and
 /// returns their trimmed lengths. Needs [`divide_scratch_len`] limbs of `s`.
@@ -240,7 +258,7 @@ impl Divisor {
 /// an estimate at most 6 below it.
 fn divide(
     x: &[u64],
-    d: &Divisor,
+    d: &Divisor<'_>,
     i: usize,
     hi: &mut [u64],
     lo: &mut [u64],
@@ -267,7 +285,7 @@ fn divide(
             Some(l) if ql > 0 => {
                 let (w, s) = s.split_at_mut(l);
                 let (r, s) = s.split_at_mut(l);
-                m.mul_power_wrapped(w, &hi[..ql], 2 * i, &d.pn, s);
+                m.mul_power_wrapped(w, &hi[..ql], 2 * i, d.pn, s);
                 fold_wrapped(r, a);
                 sub_wrapped(r, w);
                 canonical(r);
@@ -278,7 +296,7 @@ fn divide(
             }
             None if ql > 0 => {
                 let (qp, s) = s.split_at_mut(ql + dn);
-                m.mul_power(qp, &hi[..ql], 2 * i, &d.pn, s);
+                m.mul_power(qp, &hi[..ql], 2 * i, d.pn, s);
                 let borrow = sub_assign(a, qp);
                 debug_assert!(!borrow, "the quotient estimate is too large");
             }
@@ -286,10 +304,10 @@ fn divide(
         }
     }
     let mut fixes = 0;
-    while ge(a, &d.pn) {
+    while ge(a, d.pn) {
         fixes += 1;
         debug_assert!(fixes <= 6, "more than 6 corrections");
-        sub_assign(a, &d.pn);
+        sub_assign(a, d.pn);
         add_assign(hi, &[1]);
     }
     // lo = (A >> bits) β^shift + x mod β^shift. The remainder is below `pn`.
@@ -301,7 +319,7 @@ fn divide(
 }
 
 /// Scratch limbs [`divide`] needs.
-fn divide_scratch_len(d: &Divisor, m: &impl Multiplier) -> usize {
+fn divide_scratch_len(d: &Divisor<'_>, m: &impl Multiplier) -> usize {
     let (dn, qn) = (d.pn.len(), d.qn());
     let full = (qn + dn) + m.scratch_len(qn + 1);
     let wrapped = m.wrap_len(dn + 2, qn + dn).map_or(0, |l| 2 * l + m.wrapped_scratch_len(l, qn));
@@ -341,7 +359,7 @@ impl Out<'_> {
 
 /// What every [`node`] of one encode shares: the divisors by level, and the largest leaf.
 struct Tree<'a> {
-    divs: &'a [Divisor],
+    divs: &'a [Divisor<'a>],
     leaf: usize,
     leaves: Leaves,
 }
@@ -386,7 +404,7 @@ fn node(
 
 /// Scratch limbs [`node`] needs for any node, by induction on the levels: a node at level
 /// `i` holds `hi` and `lo` while it divides or while its children, at lower levels, run.
-fn node_scratch_len(divs: &[Divisor], m: &impl Multiplier) -> usize {
+fn node_scratch_len(divs: &[Divisor<'_>], m: &impl Multiplier) -> usize {
     divs.iter().fold(0, |below, d| 2 * d.qn() + 1 + divide_scratch_len(d, m).max(below))
 }
 
@@ -680,8 +698,9 @@ mod verification {
         kani::assume(value < BASE as u128 * BASE as u128);
         let p = Power { exp: 1, limbs: &[BASE], shift: 0 };
         let mut scratch = [0; 96];
+        let mut data = [0; 4];
         let mut m = Scalar;
-        let d = Divisor::new(&p, None, &mut scratch, &mut m);
+        let d = Divisor::new(&p, None, &mut data, &mut scratch, &mut m);
         let (mut hi, mut lo) = ([0; 2], [0; 1]);
         let (hn, ln) = divide(&x, &d, 0, &mut hi, &mut lo, &mut scratch, &mut m);
         assert!(hn <= 1 && ln <= 1 && hi[1] == 0 && lo[0] < BASE);
@@ -775,34 +794,164 @@ mod tests {
 
     /// The divisors of a table, each from the one below with exactly the scratch it needs,
     /// with the bounds of their reciprocals checked.
-    fn divisors(unit: usize, levels: usize, m: &mut impl Multiplier) -> Vec<Divisor> {
+    fn divisors<'a>(
+        unit: usize,
+        levels: usize,
+        storage: &'a mut Vec<u64>,
+        m: &mut impl Multiplier,
+    ) -> Vec<Divisor<'a>> {
         let mut table = vec![0; table_len(unit, levels)];
         let e = unit << (levels - 1);
-        let mut s = vec![0x5A; m.scratch_len(e) + recip_scratch_len(full(e) + 1, m)];
+        let mut s = vec![0x5A; m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m))];
         let powers = powers(unit, levels, &mut table, &mut s, m, false);
-        let mut divs: Vec<Divisor> = Vec::new();
+        storage.resize(powers[..levels].iter().map(Divisor::storage_len).sum(), 0xA5);
+        let mut data = &mut storage[..];
+        let mut divs: Vec<Divisor<'_>> = Vec::with_capacity(levels);
         for (i, p) in powers[..levels].iter().enumerate() {
-            let s = &mut s[..recip_scratch_len(p.limbs.len() + p.shift + 1, m)];
-            let d = Divisor::new(p, divs.last(), s, m);
+            let s = &mut s[..divisor_scratch_len(p.limbs.len() + p.shift + 1, m)];
+            let slot;
+            (slot, data) = data.split_at_mut(Divisor::storage_len(p));
+            let d = Divisor::new(p, divs.last(), slot, s, m);
             // `pn β^shift`, then with one more zero limb.
             let mut a = vec![0; d.shift];
-            a.extend_from_slice(&d.pn);
+            a.extend_from_slice(d.pn);
             assert_reciprocal(&a, d.inv(), &format!("unit {unit}, level {i}, inv"));
             a.insert(0, 0);
-            assert_reciprocal(&a, &d.recip, &format!("unit {unit}, level {i}"));
+            assert_reciprocal(&a, d.recip, &format!("unit {unit}, level {i}"));
             divs.push(d);
         }
         divs
+    }
+
+    #[test]
+    fn pooled_divisors_use_exact_storage() {
+        const GUARD: u64 = 0xA5A5_A5A5_A5A5_A5A5;
+        for unit in [1, 2, 7, 16, 255, 256, 257] {
+            let levels = 4;
+            let mut m = Karatsuba;
+            let mut table = vec![0; table_len(unit, levels)];
+            let mut s = vec![GUARD; m.scratch_len(unit << (levels - 1))];
+            let powers = powers(unit, levels, &mut table, &mut s, &mut m, false);
+            let len: usize = powers[..levels].iter().map(Divisor::storage_len).sum();
+            let mut storage = vec![GUARD; len + 2];
+            let start = storage.as_ptr().addr() + size_of::<u64>();
+            {
+                let mut data = &mut storage[1..len + 1];
+                let mut divs = Vec::with_capacity(levels);
+                let mut used = 0;
+                for p in &powers[..levels] {
+                    let slot;
+                    (slot, data) = data.split_at_mut(Divisor::storage_len(p));
+                    let n = p.limbs.len() + p.shift + 1;
+                    let count = divisor_scratch_len(n, &m);
+                    let mut scratch = vec![GUARD; count + 2];
+                    let d = Divisor::new(p, divs.last(), slot, &mut scratch[1..count + 1], &mut m);
+                    assert_eq!(d.pn.as_ptr().addr(), start + used * size_of::<u64>());
+                    assert_eq!(d.recip.as_ptr().addr(), start + (used + d.pn.len()) * size_of::<u64>());
+                    assert_eq!(d.recip.len(), n + 1);
+                    assert_ne!(d.pn.last().unwrap() >> 63, 0);
+                    assert_eq!((scratch[0], scratch[count + 1]), (GUARD, GUARD));
+                    let mut a = vec![0; d.shift + 1];
+                    a.extend_from_slice(d.pn);
+                    assert_reciprocal(&a, d.recip, &format!("pooled unit {unit}, exp {}", d.exp));
+                    used += d.pn.len() + d.recip.len();
+                    divs.push(d);
+                }
+                assert!(data.is_empty());
+                assert_eq!(used, len);
+            }
+            assert_eq!((storage[0], storage[len + 1]), (GUARD, GUARD));
+        }
+    }
+
+    /// Owns multiplication scratch, as external backends may, so encoding gets the
+    /// minimum linear scratch contract while prepared slices are checked by address.
+    struct PreparedChecked {
+        len: Option<usize>,
+        prepared: Vec<(usize, usize, usize)>,
+        uses: usize,
+        wrapped: bool,
+    }
+
+    impl PreparedChecked {
+        fn check_power(&mut self, i: usize, b: &[u64], len: usize) {
+            if let Some(&(addr, limbs, bound)) = self.prepared.get(i) {
+                assert_eq!((b.as_ptr().addr(), b.len()), (addr, limbs), "power {i} moved");
+                assert!(len <= bound, "power {i} product exceeds prepared bound");
+                self.uses += 1;
+            }
+        }
+    }
+
+    impl Multiplier for PreparedChecked {
+        fn prepare(&mut self, len: usize) {
+            assert_eq!(self.len.replace(len), None);
+        }
+
+        fn scratch_len(&self, n: usize) -> usize {
+            n
+        }
+
+        fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], s: &mut [u64]) {
+            assert_eq!(out.len(), a.len() + b.len());
+            assert!(out.len() <= self.len.unwrap());
+            assert!(s.len() >= self.scratch_len(a.len().max(b.len())));
+            let mut scratch = vec![0; mul::scratch_len(a.len().max(b.len()))];
+            mul::mul_with(out, a, b, &mut scratch, 0);
+        }
+
+        fn prepare_power(&mut self, i: usize, b: &[u64], len: usize) {
+            assert_eq!(i, self.prepared.len());
+            assert!(b.len() <= len);
+            self.prepared.push((b.as_ptr().addr(), b.len(), len));
+        }
+
+        fn mul_power(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
+            self.check_power(i, b, out.len());
+            self.mul(out, a, b, s);
+        }
+
+        fn wrap_len(&self, n: usize, _full: usize) -> Option<usize> {
+            self.wrapped.then_some(n)
+        }
+
+        fn mul_power_wrapped(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
+            self.check_power(i, b, a.len() + b.len());
+            let (p, s) = s.split_at_mut(a.len() + b.len());
+            self.mul(p, a, b, s);
+            fold_wrapped(out, p);
+        }
+    }
+
+    #[test]
+    fn pooled_divisors_preserve_prepared_operands() {
+        for wrapped in [false, true] {
+            for len in [257, 513, 2049, 8193] {
+                let patterned: Vec<u8> = (0..len).map(|i| (i * 73 + 19) as u8).collect();
+                for mut data in [patterned, vec![0xFF; len]] {
+                    data[..3].fill(0);
+                    data[len / 4..len / 2].fill(0);
+                    let want = bs58::encode(&data).into_string();
+                    let mut output = vec![0xA5; want.len() + 7];
+                    let mut m = PreparedChecked { len: None, prepared: Vec::new(), uses: 0, wrapped };
+                    assert_eq!(encode_tuned(&data, &mut output, &mut m, 0, 7, Leaves::Horner), Ok(want.len()));
+                    assert_eq!(&output[..want.len()], want.as_bytes());
+                    assert!(output[want.len()..].iter().all(|&v| v == 0xA5));
+                    assert!(!m.prepared.is_empty() && m.uses > 0);
+                }
+            }
+        }
     }
 
     /// The reciprocals of tables of many units, so many shifts between levels, where the
     /// square of the one below starts each.
     #[test]
     fn reciprocals_from_squares() {
+        let mut storage = Vec::new();
         for unit in (1..=150).chain([255, 256, 257, 1000]) {
-            divisors(unit, 4, &mut Karatsuba);
+            divisors(unit, 4, &mut storage, &mut Karatsuba);
         }
-        divisors(1000, 4, &mut ntt(1 << 14));
+        divisors(1000, 4, &mut storage, &mut ntt(1 << 14));
     }
 
     /// `x = hi P + lo` with `lo < P`, for every level of a real table and random,
@@ -821,7 +970,9 @@ mod tests {
         let mut table = vec![0; table_len(unit, levels)];
         let mut s = vec![0; m.scratch_len(unit << (levels - 1))];
         let powers = powers(unit, levels, &mut table, &mut s, m, false);
-        for (i, (p, d)) in powers.iter().zip(divisors(unit, levels, m)).enumerate() {
+        let mut storage = Vec::new();
+        let divs = divisors(unit, levels, &mut storage, m);
+        for (i, (p, d)) in powers.iter().zip(&divs).enumerate() {
             let mut power = vec![0; p.shift];
             power.extend_from_slice(p.limbs);
             // Below `β^(2 len - 2) <= P^2`.
@@ -832,8 +983,8 @@ mod tests {
             let max = max[..trimmed_len(&max)].to_vec();
             for x in [random, max, vec![7], vec![], p.limbs.to_vec(), power.clone()] {
                 let (mut hi, mut lo) = (vec![0; d.qn() + 1], vec![0; d.qn()]);
-                let mut ds = vec![0; divide_scratch_len(&d, m)];
-                let (hn, ln) = divide(&x, &d, i, &mut hi, &mut lo, &mut ds, m);
+                let mut ds = vec![0; divide_scratch_len(d, m)];
+                let (hn, ln) = divide(&x, d, i, &mut hi, &mut lo, &mut ds, m);
                 assert!(ln < power.len() || !ge(&lo[..ln], &power), "level {i}: lo >= P");
                 let mut back = product(&hi[..hn], &power);
                 back.resize(back.len().max(ln) + 1, 0);

@@ -206,6 +206,10 @@ recursive matrix leaves do not share those tables. Auto avoids these paths.
 With `cache`, first use builds shared `OnceLock` tables;
 warm matrix calls need no table allocation. Initialized classes remain for the
 process lifetime; larger tables can serve smaller calls, so history matters.
+Construction reuses one eight-row workspace instead of cloning a Vec per row.
+One table needs three allocations: temporary rows, retained panel metadata and
+retained coefficients. Packing all three into one owner would retain temporary
+workspace; the current layout keeps cache capacities unchanged.
 Known coefficient counts are reserved once, avoiding geometric spare capacity.
 Current capacity constants match the recorded 64-bit tables: the largest retain
 11,510,016 encoder bytes / 2,437,248 decoder bytes including heap panel metadata.
@@ -220,9 +224,23 @@ worst-case output capacity; an exact buffer still succeeds. See the
 
 Recursive conversion allocates powers, reciprocal/prepared-transform data and
 workspace. The decoder packs its main result/power/scratch regions into one
-allocation; encoding needs several owned buffers. Karatsuba scratch is bounded
+allocation; encoding needs several owned buffers. All encoder Divisors borrow
+one pre-sized payload for normalized powers and reciprocals. Their temporary
+padded operands reuse construction scratch. Once copied, the original powers
+and construction scratch are released before preparing transforms or allocating
+conversion scratch. A growing Vec::resize was rejected: it can copy/zero dead
+scratch, and measured peak heap and large-encode times were worse. These
+measurements do not isolate copying/zeroing as the cause of the timing change.
+Karatsuba scratch is bounded
 by `5*n + 64` limbs, NTT by `16*n + 64`, for the operand bound used by those
 interfaces. These are scratch formulas, not total conversion-memory bounds.
+
+NTT initializes local tables lazily through Option and mutable access; new does
+not yet know the required transform size. No local OnceCell is needed. Each
+prepared operand still owns one Vec containing all three prime transforms.
+A shared arena saved only metadata-scale peak bytes and regressed native GCP
+encoding, so its batch/replacement machinery was rejected. See the
+[allocation experiments](docs/tradeoffs/2026-10-25/allocation-layout/README.md).
 
 An NTT log-`l` table has `48 * 2^l` twiddle bytes across three primes with four arrays each.
 Without `cache`, all generated twiddle tables are owned. With `cache`, the log-18
@@ -247,10 +265,11 @@ dead stripping can omit unreachable cache families. Fewer initialized classes
 retain less; later calls can add classes. Construction temporaries, prepared
 powers, workspace and concurrent owned tables are additional active costs.
 
-In the current M5 raw Auto calls, cached 1 KiB encoding retains 185,856 table bytes.
-Default 4 MiB encoding retains zero but reaches 284,269,528 extra requested live
-bytes during the call. The [current resource data](docs/tradeoffs/2026-10-25/public-api/README.md)
-exclude allocator overhead/arenas, RSS and stack. Wasm page high-water includes
+The earlier M5 Auto snapshot records cached 1 KiB encoding retaining 185,856 table
+bytes. In the allocation rerun, cache-off 4 MiB NTT encoding retains zero after
+return and reaches 201,582,112 extra requested live bytes, down from 284,269,528.
+The [resource data](docs/tradeoffs/2026-10-25/allocation-layout/README.md)
+exclude allocator overhead/arenas, realloc-copy overlap, RSS and stack. Wasm page high-water includes
 stack/static reservation, caller buffers, allocator state and tables: a different metric.
 
 ## Linked size and selecting a smaller consumer
@@ -260,7 +279,7 @@ direction and scaffold. `.rlib` size is not deployment cost. Fat LTO and dead
 stripping already remove unreachable implementations; deleting an unused public
 function does not recover its source/archive size from a consumer.
 
-Current matched encode+decode consumers, source snapshot `90e71a1a…`:
+Earlier matched encode+decode consumers, source snapshot `90e71a1a…`:
 
 | Entry | M5 executable | AMD EPYC 9B45 VM on GCP (generic) | AMD EPYC 9B45 VM on GCP (native) | Wasm module | Wasm gzip |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -280,6 +299,9 @@ Auto file exceeds cache-on. Cross-host compiler, ABI and link formats differ.
 The earlier [v011 backend comparison](docs/tradeoffs/2026-10-24/resource-dispatch/linked-size-final.md)
 is historical; its Batched probe is not today's `no_alloc` with fixed encoders.
 five8 supports only 32/64-byte values, unlike dynamic-length consumers.
+The [allocation report](docs/tradeoffs/2026-10-25/allocation-layout/README.md)
+has newer matched v000/v011 size measurements, including small native increases
+and Wasm reductions. Keep their separate source identities and scaffolds.
 
 ## Evidence and remaining limits
 

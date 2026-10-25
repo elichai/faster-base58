@@ -27,7 +27,6 @@ mod tables;
 #[cfg(target_arch = "x86_64")]
 mod x86;
 
-use std::cell::OnceCell;
 use std::ptr;
 
 use crate::dc::{self, Leaf, Multiplier};
@@ -110,9 +109,9 @@ pub(crate) struct Ntt {
     prepared_threshold: usize,
     /// Table size selected by `prepare`, without building a table yet.
     log: Option<u32>,
-    owned: OnceCell<Tables>,
+    owned: Option<Tables>,
     #[cfg(feature = "cache")]
-    shared: OnceCell<&'static Tables>,
+    shared: Option<&'static Tables>,
     /// Forward transforms of the prepared powers, by index.
     powers: Vec<Option<Prepared>>,
 }
@@ -132,29 +131,41 @@ impl Ntt {
             threshold,
             prepared_threshold,
             log: None,
-            owned: OnceCell::new(),
+            owned: None,
             #[cfg(feature = "cache")]
-            shared: OnceCell::new(),
+            shared: None,
             powers: Vec::new(),
         }
     }
 
-    fn tables(&self) -> &Tables {
+    /// Initialize tables only when a product will use transforms.
+    fn ensure_tables(&mut self) {
         let log = self.log.expect("prepare runs first");
         #[cfg(all(feature = "cache", any(test, feature = "__internals")))]
         if self.force_owned {
-            return self.owned.get_or_init(|| Tables::new(log));
+            self.owned.get_or_insert_with(|| Tables::new(log));
+            return;
         }
         #[cfg(feature = "cache")]
         if log <= CACHE_MAX_LOG {
-            return self.shared.get_or_init(|| Tables::cached(log));
+            self.shared.get_or_insert_with(|| Tables::cached(log));
+            return;
         }
-        self.owned.get_or_init(|| Tables::new(log))
+        self.owned.get_or_insert_with(|| Tables::new(log));
+    }
+
+    /// Borrow the selected table with kernels and prepared powers after initialization.
+    fn initialized_tables(&self) -> &Tables {
+        #[cfg(feature = "cache")]
+        if let Some(table) = self.shared {
+            return table;
+        }
+        self.owned.as_ref().expect("ensure_tables runs first")
     }
 
     /// `b`'s forward transforms for products of up to `len >= b.len()` limbs. `None` if
     /// `b` is below `prepared_threshold` or the tables are too short.
-    fn prepare_operand(&self, b: &[u64], len: usize) -> Option<Prepared> {
+    fn prepare_operand(&mut self, b: &[u64], len: usize) -> Option<Prepared> {
         if b.len() < self.prepared_threshold {
             return None;
         }
@@ -162,7 +173,8 @@ impl Ntt {
         if log > self.log.expect("prepare runs first") {
             return None;
         }
-        let t = self.tables();
+        self.ensure_tables();
+        let t = self.initialized_tables();
         let n = 1 << log;
         let mut data = vec![0; 3 * n];
         for ((f, p), tw) in data.chunks_exact_mut(n).zip(PRIMES).zip(&t.tw) {
@@ -218,7 +230,8 @@ impl Multiplier for Ntt {
         if a.len().min(b.len()) < self.threshold.max(1) {
             return mul::mul(out, a, b, scratch);
         }
-        mul_with(out, a, b, scratch, self.tables(), &self.kernels, self.threshold);
+        self.ensure_tables();
+        mul_with(out, a, b, scratch, self.initialized_tables(), &self.kernels, self.threshold);
     }
 
     fn prepare_power(&mut self, i: usize, b: &[u64], len: usize) {
@@ -238,7 +251,8 @@ impl Multiplier for Ntt {
                     && a.len() >= self.prepared_threshold
                     && log_len(a.len() + b.len()) <= f.log =>
             {
-                transform(out, a, b, s, self.tables(), &self.kernels, Some(f))
+                // Preparing `f` initialized the tables, and `prepare` clears both.
+                transform(out, a, b, s, self.initialized_tables(), &self.kernels, Some(f))
             }
             _ => self.mul(out, a, b, s),
         }
@@ -263,15 +277,17 @@ impl Multiplier for Ntt {
     }
 
     fn mul_wrapped(&mut self, out: &mut [u64], a: &[u64], b: &[u64], s: &mut [u64]) {
-        wrapped(out, a, b, s, self.tables(), &self.kernels, None);
+        self.ensure_tables();
+        wrapped(out, a, b, s, self.initialized_tables(), &self.kernels, None);
     }
 
     fn mul_power_wrapped(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
+        self.ensure_tables();
         let f = match self.powers.get(i) {
             Some(Some(f)) if f.is(b) && log_len(out.len()) <= f.log => Some(f),
             _ => None,
         };
-        wrapped(out, a, b, s, self.tables(), &self.kernels, f);
+        wrapped(out, a, b, s, self.initialized_tables(), &self.kernels, f);
     }
 }
 
@@ -887,9 +903,9 @@ mod tests {
             let mut out = vec![0; input.len()];
             assert_eq!(dc::decode_with(text, &mut out, &mut ntt), Ok(input.len()));
             assert_eq!(out, input);
-            assert!(ntt.owned.get().is_none(), "decode cached={cached}");
+            assert!(ntt.owned.is_none(), "decode cached={cached}");
             #[cfg(feature = "cache")]
-            assert!(ntt.shared.get().is_none(), "decode cached={cached}");
+            assert!(ntt.shared.is_none(), "decode cached={cached}");
 
             let mut ntt = Ntt {
                 threshold: usize::MAX,
@@ -899,9 +915,9 @@ mod tests {
             let mut out = vec![0; encoded.len()];
             assert_eq!(encode::encode_tuned(&input, &mut out, &mut ntt, 0, 32, Leaves::Horner), Ok(len));
             assert_eq!(out[..len], encoded[..len]);
-            assert!(ntt.owned.get().is_none(), "encode cached={cached}");
+            assert!(ntt.owned.is_none(), "encode cached={cached}");
             #[cfg(feature = "cache")]
-            assert!(ntt.shared.get().is_none(), "encode cached={cached}");
+            assert!(ntt.shared.is_none(), "encode cached={cached}");
         }
     }
 
