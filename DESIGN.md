@@ -42,11 +42,19 @@ contribute to their linked cost.
 `__internals` does not enable `cache`; all library `OnceLock` caches require it.
 
 Comparison/tuning wrappers share gated backend `internals` modules; the root
-facade reexports them directly. Production wrappers are grouped into Matrix
-`entry`, NTT `owned`/`cached` and the Karatsuba encoding profile. Cache storage and
-fixed portable helpers also share module gates. ISA/test/proof boundaries and
-NTT's conditional fields/initializers/reset retain explicit gates to preserve
-their availability and state layout. See the [cfg review](docs/review/cfg-consolidation.md).
+facade reexports them directly. Matrix production wrappers share `entry`;
+production `ntt::{encode, decode}` use `Ntt::new(kernels)`, whose table policy
+follows the `cache` feature. Owned/cached NTT comparison adapters now live under
+`ntt::internals`; only cache-enabled test/internal builds contain a forced-owned
+override. Production has no runtime cache-policy argument. Matrix feature gates
+remain because the feature also changes dispatch. Cache storage and fixed
+portable helpers share module gates; ISA/test/proof and conditional NTT state
+boundaries retain explicit gates. See the [cfg review](docs/review/cfg-consolidation.md).
+
+Four mutually exclusive CPU selectors use standard `std::cfg_select!`, including
+portable fallbacks. Runtime ISA checks and overlapping test/internal/cache gates
+stay separate. The macro requires Rust 1.95+; the checked stable compiler is
+1.99.1 and Kani's is 1.100 nightly. A complete crate MSRV remains undecided.
 
 | Family | Main use | Boundary behavior |
 | --- | --- | --- |
@@ -199,9 +207,12 @@ With `cache`, first use builds shared `OnceLock` tables;
 warm matrix calls need no table allocation. Initialized classes remain for the
 process lifetime; larger tables can serve smaller calls, so history matters.
 Known coefficient counts are reserved once, avoiding geometric spare capacity.
-The historical v011 64-bit capacity snapshot has largest tables of 11,510,016
-encoder bytes / 2,437,248 decoder bytes including panel metadata. Class capacities
-sum to 15,364,736 / 3,253,024 bytes, not a simultaneous active-peak measurement.
+Current capacity constants match the recorded 64-bit tables: the largest retain
+11,510,016 encoder bytes / 2,437,248 decoder bytes including heap panel metadata.
+All five encoder classes sum to 15,364,736 bytes; all four decoder classes sum to
+3,253,024 bytes, or **18,617,760 heap bytes** together. The two static `OnceLock`
+arrays occupy 280 / 224 header bytes in the recorded 64-bit layout; coefficient
+and panel vectors live on the heap. These are retained capacities, not active peaks.
 Matrix entry paths reject provably insufficient output before table setup using
 conservative lower bounds after leading-zero handling. They do not require a
 worst-case output capacity; an exact buffer still succeeds. See the
@@ -216,12 +227,25 @@ interfaces. These are scratch formulas, not total conversion-memory bounds.
 An NTT log-`l` table has `48 * 2^l` twiddle bytes across three primes with four arrays each.
 Without `cache`, all generated twiddle tables are owned. With `cache`, the log-18
 policy retains at most 25,164,288 bytes across production logs 5–18 (~24 MiB);
-larger tables stay owned. The arithmetic log-23 limit is unchanged. This bounds
+larger tables stay owned. This is `48 * (2^19 - 32)` heap bytes; a single log-18
+table uses 12,582,912 bytes. The internal cached-table helper also accepts logs
+1–18, whose full bound is 25,165,728 bytes. The 19 static `OnceLock<Tables>` slots total
+5,776 header bytes in the recorded 64-bit layout, separate from heap twiddles.
+The arithmetic log-23 limit is unchanged. This bounds
 opt-in idle twiddles, not total active memory. Both feature choices can replicate
 large owned twiddles under concurrency: 4 MiB of significant encoder input can
 need 96 MiB per call, where the older unbounded global cache could share one.
 Workspace, prepared powers and matrix caches add further costs. See the
 [historical retention trials](docs/tradeoffs/2026-10-24/ntt-retention-policy.md).
+
+Together, all matrix classes and production NTT slots can retain **43,782,048
+heap bytes (41.8 MiB)**, plus **6,280 static header bytes** in these 64-bit
+layouts. Headers contain lock state and vector descriptors, not table payloads;
+they are compiled out without `cache`. Fixed compile-time tables and other
+constants are separate. These sizes depend on target/toolchain layout, and
+dead stripping can omit unreachable cache families. Fewer initialized classes
+retain less; later calls can add classes. Construction temporaries, prepared
+powers, workspace and concurrent owned tables are additional active costs.
 
 In the current M5 raw Auto calls, cached 1 KiB encoding retains 185,856 table bytes.
 Default 4 MiB encoding retains zero but reaches 284,269,528 extra requested live
@@ -238,7 +262,7 @@ function does not recover its source/archive size from a consumer.
 
 Current matched encode+decode consumers, source snapshot `90e71a1a…`:
 
-| Entry | M5 executable | GCP generic | GCP native | Wasm module | Wasm gzip |
+| Entry | M5 executable | AMD EPYC 9B45 VM on GCP (generic) | AMD EPYC 9B45 VM on GCP (native) | Wasm module | Wasm gzip |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | bs58 0.5.1 | 302,768 | 291,160 | 292,504 | 20,058 | 8,073 |
 | no_alloc | 302,864 | 325,032 | 315,112 | 40,091 | 19,525 |
@@ -247,6 +271,8 @@ Current matched encode+decode consumers, source snapshot `90e71a1a…`:
 
 Bytes, stripped, fat LTO. M5/Wasm use Rust 1.99.1; GCP 1.99.0, all LLVM 23.1.1.
 CPU flags are M5 `apple-m4`, GCP `x86-64` / `native`, Wasm default features.
+The GCP VM is `c4d-highcpu-4`, with 4 vCPUs and 7 GiB RAM; its measured CPU is
+AMD EPYC 9B45. These are frozen cohorts, not new timing runs.
 The [full comparison](docs/tradeoffs/2026-10-25/public-api/README.md) has both feature
 scaffolds, sections and exact bs58 ratios. M5 `no_alloc` adds 112 file bytes but
 13,033 initialized-section bytes. Cache-off is not always smaller: its GCP native

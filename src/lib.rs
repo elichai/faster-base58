@@ -1,67 +1,58 @@
 //! Base58 (Bitcoin alphabet) decoding and encoding on 64-bit limbs. See README.md for the
 //! design.
 //!
-//! The encoders are in `encode/`: [`encode_batched`] (quadratic, in place), [`encode`]
-//! (divide and conquer with Barrett division) and [`encode_matrix`],
-//! [`encode_matrix_portable`] (a matrix of powers, up to 8 KiB); the backend modules below
-//! also hold [`encode_toom3`], [`encode_ntt`], [`encode_ntt_cached`],
-//! [`encode_ntt_portable`] and [`encode_malachite`].
+//! [`encode`] and [`decode`] select a backend by input size and CPU support. Use
+//! [`encode_into`] / [`decode_into`] with arrays or reusable buffers, [`encode_string`]
+//! / [`decode_vec`] for owned results, and [`decode_array`] for an exact decoded size.
+//! Errors can change the contents of a supplied buffer. These algorithms are variable
+//! time and are not designed to hide input values or lengths.
 //!
-//! Each decoding algorithm has its own module:
-//! - [`decode_batched`] (`batched.rs`): quadratic, one limb update per ten characters
-//!   and eight output bytes.
-//! - [`decode`] (`dc.rs`): divide-and-conquer radix conversion for large inputs, with
-//!   Karatsuba multiplication (`mul.rs`).
-//! - [`decode_toom3`] (`toom3.rs`): [`decode`] with Toom-3 for large products.
-//! - [`decode_ntt`], [`decode_ntt_cached`], [`decode_ntt_portable`] (`ntt/`): [`decode`]
-//!   with number-theoretic-transform multiplication and SIMD kernels.
-//! - [`decode_malachite`] (`malachite.rs`): [`decode`] with malachite-nz's
-//!   multiplication.
-//! - [`decode_matrix`], [`decode_matrix_portable`] (`matrix/`): a matrix of powers with
-//!   SIMD multiply-adds, for about 0.4 KiB to 4 KiB on aarch64 (NEON).
+//! [`no_alloc`] guarantees zero internal heap allocation, including first calls.
+//! It accepts caller buffers and supports exact arrays. Large inputs use quadratic
+//! conversion; Auto can allocate workspace for faster algorithms.
 //!
-//! `common.rs` holds what the decoders share; `tests.rs` checks every decoder against
-//! `bs58`.
+//! The optional `cache` feature retains bounded NTT and matrix tables across calls.
+//! It is disabled by default. All named backend selectors require `__internals`;
+//! that feature exposes the unstable `internals` module for tests and measurements.
 
+mod api;
 mod batched;
 mod common;
 mod dc;
 mod encode;
+#[cfg(test)]
+#[path = "../tests/support/malachite.rs"]
 mod malachite;
+#[cfg(test)]
+mod malachite_tests;
 mod matrix;
 mod mul;
-#[cfg(any(target_arch = "x86_64", test))]
+#[cfg(any(target_arch = "x86_64", test, kani))]
 mod mul_ifma;
 mod ntt;
+pub mod no_alloc;
 #[cfg(test)]
 mod tests;
+#[cfg(kani)]
+mod verification;
+#[cfg(any(test, feature = "__internals", kani))]
 mod toom3;
 
-pub use batched::decode_batched;
-pub use dc::decode;
-pub use encode::{encode, encode_batched, encode_matrix, encode_matrix_portable, max_encoded_len};
-pub use malachite::{decode_malachite, encode_malachite};
-pub use matrix::{decode_matrix, decode_matrix_portable};
-pub use ntt::{
-    decode_ntt, decode_ntt_cached, decode_ntt_portable, encode_ntt, encode_ntt_cached,
-    encode_ntt_portable,
-};
-pub use toom3::{decode_toom3, encode_toom3};
+pub use api::{decode, decode_array, decode_into, decode_vec, encode, encode_into, encode_string};
+pub use encode::max_encoded_len;
 
-/// Hooks for benchmarks and A/B harnesses; not part of the API.
-#[doc(hidden)]
-pub mod bench {
-    #[cfg(target_arch = "x86_64")]
-    pub use crate::mul::set_ifma_threshold;
-    pub use crate::mul::{ifma_threshold, mul_with, scratch_len};
-    #[cfg(target_arch = "x86_64")]
-    pub use crate::mul_ifma::{mul as ifma_mul, scratch_len as ifma_scratch_len};
-    pub use crate::encode::{Leaves, encode_karatsuba_with};
-    pub use crate::encode::{encode_matrix_whole, encode_matrix_with};
-    pub use crate::malachite::encode_malachite_with;
-    pub use crate::ntt::{decode_ntt_with, encode_ntt_with};
-    pub use crate::toom3::decode_toom3_with;
-}
+#[cfg(any(test, feature = "__internals"))]
+pub mod internals;
+
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+mod readme_examples {}
+
+#[cfg(test)]
+use malachite::{decode_malachite, encode_malachite};
+
+#[cfg(test)]
+extern crate self as base58_bench;
 
 /// A decoding error. When the input has an invalid character and the output buffer is
 /// also too small for it, which of the two is reported is unspecified.
@@ -70,8 +61,32 @@ pub enum Error {
     /// The byte at `index` is the first that is not in the alphabet.
     InvalidCharacter { index: usize },
     BufferTooSmall,
+    /// An exact-length array was requested, but fewer bytes were decoded.
+    InvalidLength { expected: usize, actual: usize },
 }
 
 /// An encoding error: the output buffer cannot hold the result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BufferTooSmall;
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidCharacter { index } => write!(f, "invalid base58 character at byte {index}"),
+            Self::BufferTooSmall => BufferTooSmall.fmt(f),
+            Self::InvalidLength { expected, actual } => {
+                write!(f, "expected {expected} decoded bytes, got {actual}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for BufferTooSmall {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("output buffer is too small")
+    }
+}
+
+impl std::error::Error for BufferTooSmall {}

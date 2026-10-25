@@ -1,4 +1,4 @@
-//! [`encode_matrix`](super::encode_matrix) for exactly 32 or 64 bytes: the sizes of keys,
+//! [`encode_matrix`](super::entry::encode_matrix) for exactly 32 or 64 bytes: the sizes of keys,
 //! hashes and signatures.
 //!
 //! The same algorithm, fixed at compile time: the table is a constant, the column sums
@@ -12,10 +12,16 @@
 //! The x86_64 (AVX2, AVX-512 VBMI) and NEON paths for 64 bytes cut the chain into four
 //! segments (`carry_split`).
 
-use super::four_digits;
 use super::table::COL_BASE;
 use crate::BufferTooSmall;
 use crate::encode::max_encoded_len;
+
+#[cfg(any(
+    test,
+    feature = "__internals",
+    not(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))
+))]
+pub(super) mod portable;
 
 /// The powers `2^(32k)`, `k < W`, in base 58^4, in `C` columns.
 pub(super) struct Table<const W: usize, const C: usize> {
@@ -99,71 +105,17 @@ pub(super) const TABLE_64: Table<16, 24> = Table::new();
 const _: () = TABLE_32.check(32);
 const _: () = TABLE_64.check(64);
 
-/// [`encode_matrix`](super::encode_matrix) for 32 bytes. On x86_64 with the plain-Rust
-/// kernels, which beat the AVX2 ones on Zen 5 (README, "Fixed sizes").
-pub(super) fn encode_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    #[cfg(target_arch = "x86_64")]
-    return encode_32_portable(x, output);
-    #[cfg(not(target_arch = "x86_64"))]
-    encode_best(x, output, &TABLE_32)
-}
-
-/// [`encode_matrix`](super::encode_matrix) for 64 bytes. With the carry in four segments
-/// (`carry_split`): on x86_64 with AVX-512 VBMI or AVX2 kernels if the CPU has them, and
-/// on aarch64 with NEON kernels.
-pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    #[cfg(target_arch = "x86_64")]
-    {
-        if super::x86::has_vbmi() {
-            // SAFETY: the CPU has the features `has_vbmi` checks.
-            return unsafe { super::x86::encode_64_vbmi(x, output) };
-        }
-        if is_x86_feature_detected!("avx2") {
-            // SAFETY: the CPU has AVX2.
-            return unsafe { super::x86::encode_64(x, output) };
-        }
+// Select the architecture wrappers here; the scalar implementation stays common.
+std::cfg_select! {
+    target_arch = "x86_64" => {
+        pub(super) use super::x86::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
     }
-    #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-    return encode(x, output, |x, o| {
-        let (t, r) = (super::neon::cols(x, &TABLE_64), max_encoded_len(64).div_ceil(4));
-        let c = carry_split::<24, 4>(&t, r).unwrap_or_else(|| carry_cold(&t, r));
-        super::neon::column_digits(&c, o)
-    });
-    #[allow(unreachable_code)]
-    encode_best(x, output, &TABLE_64)
-}
-
-/// [`carry_serial`] out of line, where [`encode_64`]'s `carry_split` falls back.
-#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-#[cold]
-#[inline(never)]
-fn carry_cold(t: &[u64; 24], r: usize) -> [u32; 24] {
-    carry_serial(t, r)
-}
-
-/// [`encode_32`] with the plain-Rust kernels.
-pub(super) fn encode_32_portable(x: &[u8; 32], out: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_32), digits))
-}
-
-/// [`encode_64`] with the plain-Rust kernels.
-pub(super) fn encode_64_portable(x: &[u8; 64], out: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_64), digits))
-}
-
-/// [`encode`] with NEON kernels on aarch64, plain Rust otherwise.
-#[inline(always)]
-fn encode_best<const N: usize, const W: usize, const C: usize>(
-    x: &[u8; N],
-    output: &mut [u8],
-    table: &Table<W, C>,
-) -> Result<usize, BufferTooSmall> {
-    #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-    return encode(x, output, |x, o| {
-        chars(x, o, |x| super::neon::cols(x, table), super::neon::fixed_digits)
-    });
-    #[allow(unreachable_code)]
-    encode(x, output, |x, o| chars(x, o, |x| cols(x, table), digits))
+    all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
+        pub(super) use super::neon::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
+    }
+    _ => {
+        pub(super) use self::portable::{encode_32_portable as encode_32, encode_64_portable as encode_64};
+    }
 }
 
 /// Encodes `x`, whose characters in `4 C` digits `chars` gives (see [`chars`]).
@@ -196,18 +148,8 @@ pub(super) fn words<const N: usize, const W: usize>(x: &[u8; N]) -> [u32; W] {
     std::array::from_fn(|k| u32::from_be_bytes(c[W - 1 - k]))
 }
 
-/// The column sums `Σ w[k] rows[k][j]` of `x`'s words.
-#[inline(always)]
-pub(super) fn cols<const N: usize, const W: usize, const C: usize>(
-    x: &[u8; N],
-    t: &Table<W, C>,
-) -> [u64; C] {
-    let w = words::<N, W>(x);
-    std::array::from_fn(|j| (t.start[j]..W).map(|k| w[k] as u64 * t.rows[k][j] as u64).sum())
-}
-
 /// The characters of `x`'s value in `4 C` digits, top first, from separate kernels: `cols`
-/// for the column sums, then [`carry`], then `digits` (see [`digits`]).
+/// for the column sums, then [`carry`], then `digits`.
 #[inline(always)]
 pub(super) fn chars<const N: usize, const C: usize>(
     x: &[u8; N],
@@ -319,16 +261,6 @@ pub(super) fn carry_split<const C: usize, const K: usize>(
     (!serial).then_some(out)
 }
 
-/// The characters of the carried columns (see [`carry`]), top first: `out[i]` holds those
-/// of column `n - 1 - i`. Requires `t`, `q` and `out` of one length.
-#[inline(always)]
-pub(super) fn digits(t: &[u64], q: &[u32], out: &mut [[u8; 4]]) {
-    assert!(t.len() == q.len() && t.len() == out.len());
-    for ((o, &t), &q) in out.iter_mut().zip(t.iter().rev()).zip(q.iter().rev()) {
-        *o = four_digits(column(t, q) as u64);
-    }
-}
-
 /// The number of leading zero bytes of `x`.
 #[inline(always)]
 pub(super) fn leading_zeros<const N: usize>(x: &[u8; N]) -> usize {
@@ -351,6 +283,56 @@ fn leading_ones(chars: &[u8]) -> usize {
         }
     }
     chars.len()
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    fn bounded_columns() -> ([u64; 4], u128) {
+        let t: [u64; 4] = kani::any();
+        for &v in &t[..3] {
+            kani::assume(v < 1 << 58);
+        }
+        kani::assume(t[3] < COL_BASE);
+        let value = t.iter().rev().fold(0u128, |v, &c| v * COL_BASE as u128 + c as u128);
+        kani::assume(value < (COL_BASE as u128).pow(4));
+        (t, value)
+    }
+
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn fixed_scalar_carry_preserves_value() {
+        let (t, value) = bounded_columns();
+        let want = carry_serial(&t, 4);
+        let mut actual = 0u128;
+        for &c in want.iter().rev() {
+            assert!((c as u64) < COL_BASE);
+            actual = actual * COL_BASE as u128 + c as u128;
+        }
+        assert_eq!(actual, value);
+        let mut carried = t;
+        let q = carry(&mut carried, 4);
+        for i in 0..4 {
+            assert_eq!(column(carried[i], q[i]), want[i]);
+        }
+    }
+
+    #[kani::proof]
+    #[kani::unwind(7)]
+    fn fixed_split_carry_matches_serial() {
+        let mut t: [u64; 6] = kani::any();
+        for &v in &t[..4] {
+            kani::assume(v < 1 << 58);
+        }
+        t[4..].fill(0);
+        if let Some(out) = carry_split::<6, 3>(&t, 6) {
+            let serial = carry_serial(&t, 6);
+            for i in 0..6 {
+                assert_eq!(out[i], serial[i]);
+            }
+        }
+    }
 }
 
 /// `count` random 64-byte inputs for each segment but the first of [`carry_split`] with `k`
@@ -393,8 +375,9 @@ mod tests {
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
     use super::*;
+    use super::portable::{cols, digits, encode_32_portable, encode_64_portable};
     use crate::encode::tests::{Encode, encode_vec, random_bytes};
-    use crate::{encode_batched, encode_matrix, encode_matrix_portable};
+    use crate::internals::{encode_batched, encode_matrix, encode_matrix_portable};
 
     #[test]
     fn tables_hold_the_powers() {

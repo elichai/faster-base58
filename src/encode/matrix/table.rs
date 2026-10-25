@@ -4,8 +4,6 @@
 //! decoder's table. Panel `p` stores `nb` blocks of 4 columns as `[nb][8][4]` words, zero
 //! past each row's top column.
 
-use std::sync::OnceLock;
-
 /// Input bytes per word.
 pub(super) const WORD: usize = 4;
 /// The base of a column. Below 2^24, which leaves headroom in `u64` column sums.
@@ -20,6 +18,8 @@ const CLASSES: usize = 5;
 const fn class_bytes(k: usize) -> usize {
     512 << k
 }
+// Exact padded word counts, checked against every generated class below.
+const DATA_WORDS: [usize; CLASSES] = [11_968, 46_336, 182_144, 722_272, 2_876_480];
 /// Most bytes the table covers.
 pub(super) const MAX_BYTES: usize = class_bytes(CLASSES - 1);
 /// Words for `MAX_BYTES` bytes, a whole number of panels.
@@ -60,11 +60,12 @@ pub(super) struct Table {
 }
 
 impl Table {
-    /// The table for `panels` panels.
-    pub(super) fn new(panels: usize) -> Table {
+    /// The table for size class `k`.
+    pub(super) fn new(k: usize) -> Table {
+        let panels = class_bytes(k) / PANEL_BYTES;
         let mut row = vec![1u32];
         let mut meta = Vec::with_capacity(panels);
-        let mut data = Vec::new();
+        let mut data = Vec::with_capacity(DATA_WORDS[k]);
         for _ in 0..panels {
             let rows: [Vec<u32>; ROWS] = std::array::from_fn(|_| {
                 let r = row.clone();
@@ -114,18 +115,54 @@ fn mul_word(x: &mut Vec<u32>) {
     }
 }
 
-pub(super) static TABLES: [OnceLock<Table>; CLASSES] = [const { OnceLock::new() }; CLASSES];
+/// Process-wide storage and lookup, omitted when caching is disabled.
+#[cfg(feature = "cache")]
+pub(super) mod cached {
+    use super::*;
+    use std::sync::OnceLock;
 
-/// A table that holds `bytes` bytes. A smaller class is a prefix of a larger one, so the
-/// largest class already built serves, which keeps one table in cache; otherwise the
-/// smallest class that holds `bytes` is built and kept. Requires `bytes <= MAX_BYTES`.
-pub(super) fn get(bytes: usize) -> &'static Table {
+    pub(in crate::encode::matrix) static TABLES: [OnceLock<Table>; CLASSES] = [const { OnceLock::new() }; CLASSES];
+
+    /// A table that holds `bytes` bytes. Reuse the largest suitable initialized class;
+    /// otherwise build the smallest class that holds `bytes`. Previously built smaller
+    /// classes stay allocated. Requires `bytes <= MAX_BYTES`.
+    pub(in crate::encode::matrix) fn get(bytes: usize) -> &'static Table {
+        let k = (0..CLASSES).find(|&k| bytes <= class_bytes(k)).expect("too many bytes");
+        TABLES[k..]
+            .iter()
+            .rev()
+            .find_map(OnceLock::get)
+            .unwrap_or_else(|| TABLES[k].get_or_init(|| Table::new(k)))
+    }
+}
+
+#[cfg(feature = "cache")]
+pub(super) use cached::get;
+
+/// Static header bytes and class rows, without initializing a table.
+#[cfg(feature = "__internals")]
+pub fn cache_memory() -> (usize, [crate::internals::MatrixCacheClass; CLASSES]) {
+    #[cfg(feature = "cache")]
+    {
+        let rows = std::array::from_fn(|k| match cached::TABLES[k].get() {
+            Some(t) => (
+                class_bytes(k), true, t.panels.len(),
+                t.panels.capacity() * size_of::<Panel>(), t.data.len(),
+                t.data.capacity() * size_of::<u32>(),
+            ),
+            None => (class_bytes(k), false, 0, 0, 0, 0),
+        });
+        (size_of_val(&cached::TABLES), rows)
+    }
+    #[cfg(not(feature = "cache"))]
+    (0, std::array::from_fn(|k| (class_bytes(k), false, 0, 0, 0, 0)))
+}
+
+/// Without process-wide caching, this conversion owns the smallest suitable table.
+#[cfg(not(feature = "cache"))]
+pub(super) fn get(bytes: usize) -> Table {
     let k = (0..CLASSES).find(|&k| bytes <= class_bytes(k)).expect("too many bytes");
-    TABLES[k..]
-        .iter()
-        .rev()
-        .find_map(OnceLock::get)
-        .unwrap_or_else(|| TABLES[k].get_or_init(|| Table::new(class_bytes(k) / PANEL_BYTES)))
+    Table::new(k)
 }
 
 #[cfg(test)]
@@ -136,6 +173,20 @@ mod tests {
 
     use super::*;
 
+    #[cfg(not(feature = "cache"))]
+    #[test]
+    fn tables_are_owned_without_cache() {
+        let (a, b) = (get(512), get(512));
+        assert_eq!(a.data, b.data);
+        assert_ne!(a.data.as_ptr(), b.data.as_ptr());
+        #[cfg(feature = "__internals")]
+        {
+            let (header, rows) = cache_memory();
+            assert_eq!(header, 0);
+            assert!(rows.iter().all(|r| !r.1 && r.2 == 0 && r.3 == 0 && r.4 == 0 && r.5 == 0));
+        }
+    }
+
     /// `2^(32 i)` in base 58^4, by malachite-nz (independent of the builder).
     fn power(i: usize) -> Vec<u32> {
         Natural::power_of_2(32 * i as u64).to_digits_asc(&(COL_BASE as u32))
@@ -143,7 +194,7 @@ mod tests {
 
     /// The table of class `k` itself; [`get`] may return a larger one.
     fn class(k: usize) -> Table {
-        Table::new(class_bytes(k) / PANEL_BYTES)
+        Table::new(k)
     }
 
     #[test]
@@ -183,6 +234,17 @@ mod tests {
             assert_eq!(t.data.len(), offset);
             assert!(t.cols(t.panels.len()) <= MAX_COLS);
         }
+    }
+
+    #[test]
+    fn storage_has_no_spare_capacity() {
+        let sizes: Vec<_> = (0..CLASSES).map(|k| {
+            let t = class(k);
+            assert_eq!(t.data.len(), DATA_WORDS[k]);
+            assert_eq!(t.panels.capacity(), t.panels.len());
+            (class_bytes(k), t.data.len() * 4, t.data.capacity() * 4)
+        }).collect();
+        assert!(sizes.iter().all(|row| row.1 == row.2), "class/data/capacity bytes: {sizes:?}");
     }
 
     /// [`get`] relies on this to serve a request from a larger class.

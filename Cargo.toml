@@ -3,8 +3,11 @@ name = "base58-bench"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-malachite-nz = "0.14.0"
+[features]
+# Opt in to process-wide matrix tables and bounded NTT twiddle retention.
+cache = []
+# Unstable hooks for this repository's tests and measurement tools.
+__internals = []
 
 [dev-dependencies]
 basexx = "0.2.0"
@@ -12,23 +15,48 @@ bs58 = "0.5.1"
 criterion = "0.8.2"
 five8 = "1.0.0"
 malachite-base = "0.14.0"
+malachite-nz = "0.14.0"
+proptest = "1.9.0"
 rand_xoshiro = "0.8.1"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
+[package.metadata.kani.flags]
+default-unwind = "1"
+
+[[test]]
+name = "properties"
+required-features = ["__internals"]
+
+[[test]]
+name = "miri"
+required-features = ["__internals"]
 
 [[bench]]
 name = "decode"
 harness = false
+required-features = ["__internals"]
 
 [[bench]]
 name = "encode"
 harness = false
+required-features = ["__internals"]
 
 [[bench]]
 name = "encode_tune"
 harness = false
+required-features = ["__internals"]
 
 [[bench]]
 name = "encode_matrix_tune"
 harness = false
+required-features = ["__internals"]
+
+[[bench]]
+name = "dispatch"
+harness = false
+required-features = ["__internals"]
 
 # Unit tests compare against quadratic bs58 at benchmark sizes, so optimize debug
 # builds. Overflow checks and debug assertions stay on.

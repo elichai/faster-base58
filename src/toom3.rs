@@ -5,6 +5,10 @@ use crate::dc::{self, Multiplier};
 use crate::mul::{self, add_assign, sub_assign};
 use crate::{BufferTooSmall, Error, encode};
 
+#[cfg(all(test, miri))]
+#[path = "toom3_miri_tests.rs"]
+mod miri_tests;
+
 /// Operands shorter than this use [`mul::mul`]. Tuned on whole decodes on an M5 Pro.
 const THRESHOLD: usize = 128;
 
@@ -16,7 +20,7 @@ const IFMA_THRESHOLD: usize = 1536;
 const MIN_THRESHOLD: usize = 32;
 const _: () = assert!(THRESHOLD >= MIN_THRESHOLD && IFMA_THRESHOLD >= MIN_THRESHOLD);
 
-/// Like [`crate::decode`], but uses Toom-3 for large products.
+/// Like `decode_karatsuba`, but uses Toom-3 for large products.
 pub fn decode_toom3(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     let ifma = mul::ifma_threshold() != 0;
     decode_toom3_with(input, output, if ifma { IFMA_THRESHOLD } else { THRESHOLD })
@@ -29,10 +33,10 @@ pub fn decode_toom3_with(input: &str, output: &mut [u8], threshold: usize) -> Re
     dc::decode_with(input, output, &mut Toom3 { threshold })
 }
 
-/// Like [`crate::encode`], but uses Toom-3 for large products.
+/// Like `encode_karatsuba`, but uses Toom-3 for large products.
 pub fn encode_toom3(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let threshold = if mul::ifma_threshold() != 0 { IFMA_THRESHOLD } else { THRESHOLD };
-    encode::encode_with(input, output, &mut Toom3 { threshold })
+    encode::dc::karatsuba::encode_with(input, output, &mut Toom3 { threshold })
 }
 
 /// [`mul_with`] as a [`Multiplier`].
@@ -224,12 +228,10 @@ mod tests {
     }
 
     fn check(a: &[u64], b: &[u64], threshold: usize) {
-        let mut want = vec![0; a.len() + b.len()];
+        let want = mul::tests::reference(a, b);
         let mut got = vec![0; a.len() + b.len()];
         // Exactly the documented scratch size, filled with garbage.
         let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; mul::scratch_len(a.len().max(b.len()))];
-        mul::mul(&mut want, a, b, &mut scratch);
-        scratch.fill(0x5A5A_5A5A_5A5A_5A5A);
         mul_with(&mut got, a, b, &mut scratch, threshold);
         assert_eq!(got, want, "{} x {}, threshold {threshold}", a.len(), b.len());
     }
@@ -283,6 +285,29 @@ mod tests {
         }
     }
 
+    /// Zero evaluation at -1 and high zero limbs stress interpolation cancellation;
+    /// sparse operands also force carries across long zero regions and block splits.
+    #[test]
+    fn zero_and_cancellation_patterns() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(72);
+        for n in [32usize, 33, 34, 127, 128, 129, 257, 513] {
+            let k = n.div_ceil(3);
+            let mut cancel = vec![0; n];
+            for i in 0..k {
+                cancel[i] = rng.next_u64();
+                cancel[k + i] = cancel[i];
+            }
+            for nb in [n, n + 1, 2 * n + 1] {
+                let b = vec![u64::MAX; nb];
+                check(&vec![0; n], &b, MIN_THRESHOLD);
+                check(&cancel, &b, MIN_THRESHOLD);
+                let sparse: Vec<_> =
+                    (0..n).map(|i| if i % 17 == 0 { u64::MAX } else { 0 }).collect();
+                check(&sparse, &b, MIN_THRESHOLD);
+            }
+        }
+    }
+
     #[test]
     fn div3_exact() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(5);
@@ -303,6 +328,17 @@ mod tests {
         }
     }
 
+    #[test]
+    fn div3_carry_boundaries() {
+        let third = u64::MAX / 3;
+        for q in [0, 1, 4, third, third + 1, 2 * third, 2 * third + 1, u64::MAX] {
+            let product = 3 * q as u128;
+            let mut x = [product as u64, (product >> 64) as u64];
+            div3(&mut x);
+            assert_eq!(x, [q, 0]);
+        }
+    }
+
     /// Inputs past the sizes `tests.rs` checks against bs58, where Toom-3 recurses, with
     /// the thresholds for CPUs with and without the IFMA leaf.
     #[test]
@@ -315,11 +351,28 @@ mod tests {
         for len in [100_001, 300_000] {
             // 58^len - 1 maximises carries.
             for s in [random_string(&mut rng, len), "z".repeat(len)] {
-                let want = decode_vec(crate::decode, &s);
+                let want = decode_vec(crate::dc::decode, &s);
                 for f in decoders {
                     assert_eq!(decode_vec(f, &s), want, "{len}");
                 }
             }
         }
+    }
+}
+
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+
+    #[kani::proof]
+    #[kani::unwind(3)]
+    #[kani::solver(z3)]
+    fn div3_recovers_quotient_with_carry() {
+        let q: u64 = kani::any();
+        let product = 3 * q as u128;
+        let mut x = [product as u64, (product >> 64) as u64];
+        div3(&mut x);
+        assert_eq!(x[0], q);
+        assert_eq!(x[1], 0);
     }
 }

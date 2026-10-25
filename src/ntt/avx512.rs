@@ -15,7 +15,7 @@ use super::portable;
 use super::tables::{Prime, S, Twiddles};
 
 /// [`super::Kernels`] with the transforms and pointwise products written here, the rest
-/// from [`portable::x86`], when this CPU has AVX-512F.
+/// from [`super::x86::kernels`], when this CPU has AVX-512F.
 #[cfg(target_arch = "x86_64")]
 pub(crate) fn kernels() -> Option<super::Kernels> {
     if !is_x86_feature_detected!("avx512f") {
@@ -27,7 +27,7 @@ pub(crate) fn kernels() -> Option<super::Kernels> {
         inverse: |a, p, t| unsafe { z::inverse(a, p, t) },
         pointwise: |a, b, p| unsafe { z::pointwise(a, b, p) },
         square: |a, p| unsafe { z::square(a, p) },
-        ..portable::x86()?
+        ..super::x86::kernels()?
     })
 }
 

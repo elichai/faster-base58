@@ -6,11 +6,12 @@ use malachite_nz::natural::Natural;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
-use super::dc::DC_THRESHOLD;
+use super::dc::karatsuba::DC_THRESHOLD;
 use super::{max_encoded_len, min_digits};
 use crate::common::ALPHABET;
-use crate::{
-    BufferTooSmall, decode, encode, encode_batched, encode_malachite, encode_ntt,
+use crate::{BufferTooSmall, decode, encode, encode_malachite};
+use crate::internals::{
+    encode_batched, encode_karatsuba, encode_matrix, encode_matrix_portable, encode_ntt,
     encode_ntt_cached, encode_ntt_portable, encode_toom3,
 };
 
@@ -19,14 +20,15 @@ pub(crate) type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 /// Every encoder under test. Add new ones here.
 const ENCODERS: &[(&str, Encode)] = &[
     ("batched", encode_batched),
-    ("dc", encode),
+    ("auto", encode),
+    ("dc", encode_karatsuba),
     ("dc-toom3", encode_toom3),
     ("ntt", encode_ntt),
     ("ntt-cached", encode_ntt_cached),
     ("ntt-portable", encode_ntt_portable),
     ("dc-malachite", encode_malachite),
-    ("matrix", crate::encode_matrix),
-    ("matrix-portable", crate::encode_matrix_portable),
+    ("matrix", encode_matrix),
+    ("matrix-portable", encode_matrix_portable),
 ];
 
 /// Encodes into an ample buffer and checks nothing past the result was written.
@@ -66,7 +68,7 @@ fn matches_bs58() {
     // Those of CPUs with and without the IFMA leaf, whichever runs here.
     let thresholds = [
         DC_THRESHOLD,
-        super::dc::DC_IFMA_THRESHOLD,
+        super::dc::karatsuba::DC_IFMA_THRESHOLD,
         crate::ntt::ENCODE_THRESHOLD,
         crate::ntt::ENCODE_IFMA_THRESHOLD,
         crate::malachite::ENCODE_THRESHOLD,
@@ -217,5 +219,19 @@ fn digit_bounds() {
     for len in 0..=400 {
         assert!(digits(&vec![0xFF; len]) <= max_encoded_len(len), "{len}");
         assert!(len <= max_encoded_len(len), "{len}");
+    }
+}
+
+/// Capacity calculations must not wrap when their result is larger than `usize`.
+#[test]
+fn encoded_length_saturates_without_wrapping() {
+    assert_eq!(max_encoded_len(usize::MAX), usize::MAX);
+    assert_eq!(max_encoded_len(usize::MAX - usize::MAX / 4), usize::MAX);
+    let mut previous = 0;
+    for len in [0, 1, 7, 8, 32, 64, 512, 8192, 1 << 20, usize::MAX / 2, usize::MAX] {
+        let bound = max_encoded_len(len);
+        assert!(bound >= len, "{len} bytes need at least {len} characters");
+        assert!(bound >= previous, "capacity decreased at {len} bytes");
+        previous = bound;
     }
 }

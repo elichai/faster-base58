@@ -1,0 +1,37 @@
+[package]
+name = "base58-bench-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[features]
+cache = ["base58-bench/cache"]
+
+[dependencies]
+base58-bench = { path = "..", features = ["__internals"] }
+bs58 = "0.5.1"
+libfuzzer-sys = "0.4"
+malachite-nz = "0.14.0"
+
+[[bin]]
+name = "encode_all"
+path = "fuzz_targets/encode_all.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_all"
+path = "fuzz_targets/decode_all.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = ["."]
+
+[profile.release]
+overflow-checks = true

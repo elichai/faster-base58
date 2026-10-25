@@ -1,3 +1,6 @@
+#[path = "../tests/support/malachite.rs"]
+mod malachite;
+
 use std::hint::black_box;
 use std::sync::LazyLock;
 
@@ -13,18 +16,19 @@ const DECODERS: &[(&str, DecodeFn, usize)] = &[
     ("bs58", |s, out| bs58::decode(s).onto(out).unwrap(), QUADRATIC_MAX),
     ("basexx", |s, out| copy_out(&BASEXX.decode(s).unwrap(), out), QUADRATIC_MAX),
     ("basexx-b", |s, out| copy_out(&BASEXX_B.decode(s).unwrap(), out), QUADRATIC_MAX),
-    ("batched", |s, out| base58_bench::decode_batched(s, out).unwrap(), QUADRATIC_MAX),
-    ("dc", |s, out| base58_bench::decode(s, out).unwrap(), usize::MAX),
-    ("dc-toom3", |s, out| base58_bench::decode_toom3(s, out).unwrap(), usize::MAX),
-    ("ntt", |s, out| base58_bench::decode_ntt(s, out).unwrap(), usize::MAX),
-    ("ntt-cached", |s, out| base58_bench::decode_ntt_cached(s, out).unwrap(), usize::MAX),
-    ("ntt-portable", |s, out| base58_bench::decode_ntt_portable(s, out).unwrap(), usize::MAX),
-    ("dc-malachite", |s, out| base58_bench::decode_malachite(s, out).unwrap(), usize::MAX),
+    ("batched", |s, out| base58_bench::internals::decode_batched(s, out).unwrap(), QUADRATIC_MAX),
+    ("auto", |s, out| base58_bench::decode(s, out).unwrap(), usize::MAX),
+    ("dc", |s, out| base58_bench::internals::decode_karatsuba(s, out).unwrap(), usize::MAX),
+    ("dc-toom3", |s, out| base58_bench::internals::decode_toom3(s, out).unwrap(), usize::MAX),
+    ("ntt", |s, out| base58_bench::internals::decode_ntt(s, out).unwrap(), usize::MAX),
+    ("ntt-cached", |s, out| base58_bench::internals::decode_ntt_cached(s, out).unwrap(), usize::MAX),
+    ("ntt-portable", |s, out| base58_bench::internals::decode_ntt_portable(s, out).unwrap(), usize::MAX),
+    ("dc-malachite", |s, out| malachite::decode_malachite(s, out).unwrap(), usize::MAX),
     // Above 5632 characters (about 4 KiB) these call `decode`.
-    ("matrix", |s, out| base58_bench::decode_matrix(s, out).unwrap(), MATRIX_MAX),
+    ("matrix", |s, out| base58_bench::internals::decode_matrix(s, out).unwrap(), MATRIX_MAX),
     (
         "matrix-portable",
-        |s, out| base58_bench::decode_matrix_portable(s, out).unwrap(),
+        |s, out| base58_bench::internals::decode_matrix_portable(s, out).unwrap(),
         MATRIX_MAX,
     ),
 ];

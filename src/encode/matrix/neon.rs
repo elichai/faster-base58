@@ -1,13 +1,38 @@
 //! NEON kernels: digits, with the contract of `super::digits`, and the fixed-size column
-//! sums and digits, with those of `fixed::cols` and `fixed::digits`, and digits of carried
-//! columns.
+//! sums and digits, with those of `fixed::portable::cols` and `fixed::portable::digits`,
+//! and digits of carried columns.
 
 use core::arch::aarch64::*;
 
-use super::fixed::{Table, words};
+use super::fixed::{self, Table, words};
 use super::four_digits;
 use super::table::COL_BASE;
 use crate::common::ALPHABET;
+use crate::BufferTooSmall;
+use crate::encode::max_encoded_len;
+
+/// Fixed 32-byte encoding with NEON column sums and digit conversion.
+pub(super) fn encode_fixed_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    fixed::encode(x, output, |x, o| {
+        fixed::chars(x, o, |x| cols(x, &fixed::TABLE_32), fixed_digits)
+    })
+}
+
+/// Fixed 64-byte encoding with the carry in four segments.
+pub(super) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    fixed::encode(x, output, |x, o| {
+        let (t, r) = (cols(x, &fixed::TABLE_64), max_encoded_len(64).div_ceil(4));
+        let c = fixed::carry_split::<24, 4>(&t, r).unwrap_or_else(|| carry_cold(&t, r));
+        column_digits(&c, o)
+    })
+}
+
+/// Serial carry fallback, kept cold and out of line.
+#[cold]
+#[inline(never)]
+fn carry_cold(t: &[u64; 24], r: usize) -> [u32; 24] {
+    fixed::carry_serial(t, r)
+}
 
 /// The column sums of `x`'s words, four columns per block: `umlal` on the low and high
 /// halves of four table entries. A row that is zero in a block's upper two columns adds
@@ -111,7 +136,7 @@ pub(super) fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
     }
 }
 
-/// See `fixed::digits`. Requires whole groups of four columns.
+/// See `fixed::portable::digits`. Requires whole groups of four columns.
 #[inline(always)]
 pub(super) fn fixed_digits(t: &[u64], q: &[u32], out: &mut [[u8; 4]]) {
     let n = t.len();

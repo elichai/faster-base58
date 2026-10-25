@@ -1,1 +1,9 @@
 /target
+__pycache__/
+# Reproducible extraction trees; retain the compressed evidence archives.
+/docs/tradeoffs/2026-10-25/public-api/evidence/local/
+/docs/tradeoffs/2026-10-25/public-api/evidence/gcp/
+/docs/tradeoffs/2026-10-25/ac-power/evidence/ac/
+/docs/tradeoffs/2026-10-25/fixed-table-reuse/evidence/local/
+/docs/tradeoffs/2026-10-25/fixed-table-reuse/evidence/gcp/
+/docs/tradeoffs/2026-10-25/fixed-table-reuse/evidence/replay/

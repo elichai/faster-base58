@@ -3,16 +3,14 @@
 //! IFMA multiplies the low 52 bits of two lanes and adds the low or the high 52 bits of the
 //! product to a 64-bit lane; each add is below 2^52. A column of `a * b` gets at most
 //! `min(ma, mb)` products for `ma`, `mb` digits. The kernel adds a column's low halves and
-//! the previous column's high halves into one sum, below `2 min(ma, mb) 2^52`, so sums
-//! are exact while `min(ma, mb) <= 2048`.
+//! the previous column's high halves into one sum. Low halves are at most `2^52 - 1`,
+//! high halves at most `2^52 - 2`, so with `min(ma, mb) <= 2048` a sum is at most
+//! `2048 (2^53 - 3) = 2^64 - 6144`. This leaves room for `finish`'s carry of at most 4095.
 //!
 //! The code is written against [`V8`]: `__m512i` on x86-64, and an emulation in tests
 //! that checks the arithmetic on any CPU.
 
-#[cfg(target_arch = "x86_64")]
-pub use avx512::{available, mul};
-
-/// Longest `a` [`mul`] takes: `digits(MAX_LEN) = 2048`, the most for exact sums.
+/// Longest `a` native `mul` takes: `digits(MAX_LEN) = 2048`, the most for exact sums.
 pub const MAX_LEN: usize = 1664;
 const _: () = assert!(digits(MAX_LEN) == 2048);
 
@@ -85,136 +83,13 @@ macro_rules! pick {
 }
 
 #[cfg(target_arch = "x86_64")]
-mod avx512 {
-    use super::{Kernel, V8, kernel};
-    use core::arch::x86_64::*;
+pub(crate) mod avx512;
 
-    /// Whether this CPU has AVX-512F and AVX-512 IFMA.
-    pub fn available() -> bool {
-        is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512ifma")
-    }
-
-    /// `out = a * b`. Requires [`available`], `8 <= a.len() <= b.len()`,
-    /// `a.len() <= MAX_LEN`, `out.len() == a.len() + b.len()` and
-    /// `scratch.len() >= scratch_len(a.len(), b.len())`. `scratch` may hold anything.
-    pub fn mul(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
-        assert!(available(), "no AVX-512 IFMA");
-        // SAFETY: the CPU has the features.
-        unsafe { mul_tf(out, a, b, scratch) }
-    }
-
-    #[target_feature(enable = "avx512f,avx512ifma")]
-    fn mul_tf(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
-        // SAFETY: the CPU has the features.
-        unsafe { super::mul_v::<Z>(out, a, b, scratch) }
-    }
-
-    #[target_feature(enable = "avx512f,avx512ifma")]
-    unsafe fn kernel_tf<const NW: usize>(c: *mut u64, a: *const u64, groups: usize, b: *const u64) {
-        // SAFETY: the caller's.
-        unsafe { kernel::<Z, NW>(c, a, groups, b) }
-    }
-
-    /// `finish` on AVX-512, for tests. Safety: [`available`].
-    #[cfg(test)]
-    #[target_feature(enable = "avx512f,avx512ifma")]
-    pub(super) unsafe fn finish_tf(out: &mut [u64], c: &mut [u64]) {
-        // SAFETY: the caller's.
-        unsafe { super::finish::<Z>(out, c) }
-    }
-
-    fn mask(n: usize) -> __mmask8 {
-        ((1u32 << n.min(8)) - 1) as u8
-    }
-
-    #[derive(Clone, Copy)]
-    struct Z(__m512i);
-
-    // SAFETY (each block): a `Z` exists, or the caller promises one may, so the CPU has
-    // AVX-512F and IFMA; pointer contracts are the caller's.
-    impl V8 for Z {
-        #[inline(always)]
-        unsafe fn splat(x: u64) -> Self {
-            Z(unsafe { _mm512_set1_epi64(x as i64) })
-        }
-        #[inline(always)]
-        unsafe fn from_array(x: [u64; 8]) -> Self {
-            Z(unsafe { core::mem::transmute::<[u64; 8], __m512i>(x) })
-        }
-        #[inline(always)]
-        unsafe fn load(p: *const u64) -> Self {
-            Z(unsafe { _mm512_loadu_epi64(p.cast()) })
-        }
-        #[inline(always)]
-        unsafe fn load_n(p: *const u64, n: usize) -> Self {
-            Z(unsafe { _mm512_maskz_loadu_epi64(mask(n), p.cast()) })
-        }
-        #[inline(always)]
-        unsafe fn store(self, p: *mut u64) {
-            unsafe { _mm512_storeu_epi64(p.cast(), self.0) }
-        }
-        #[inline(always)]
-        unsafe fn store_n(self, p: *mut u64, n: usize) {
-            unsafe { _mm512_mask_storeu_epi64(p.cast(), mask(n), self.0) }
-        }
-        #[inline(always)]
-        fn add(self, b: Self) -> Self {
-            Z(unsafe { _mm512_add_epi64(self.0, b.0) })
-        }
-        #[inline(always)]
-        fn and(self, b: Self) -> Self {
-            Z(unsafe { _mm512_and_si512(self.0, b.0) })
-        }
-        #[inline(always)]
-        fn or(self, b: Self) -> Self {
-            Z(unsafe { _mm512_or_si512(self.0, b.0) })
-        }
-        #[inline(always)]
-        fn shr52(self) -> Self {
-            Z(unsafe { _mm512_srli_epi64::<52>(self.0) })
-        }
-        #[inline(always)]
-        fn shrv(self, s: Self) -> Self {
-            Z(unsafe { _mm512_srlv_epi64(self.0, s.0) })
-        }
-        #[inline(always)]
-        fn shlv(self, s: Self) -> Self {
-            Z(unsafe { _mm512_sllv_epi64(self.0, s.0) })
-        }
-        #[inline(always)]
-        fn up(self, prev: Self) -> Self {
-            Z(unsafe { _mm512_alignr_epi64::<7>(self.0, prev.0) })
-        }
-        #[inline(always)]
-        fn permute(self, idx: Self) -> Self {
-            Z(unsafe { _mm512_permutexvar_epi64(idx.0, self.0) })
-        }
-        #[inline(always)]
-        fn permute2(self, idx: Self, hi: Self) -> Self {
-            Z(unsafe { _mm512_permutex2var_epi64(self.0, idx.0, hi.0) })
-        }
-        #[inline(always)]
-        fn madd52lo(self, x: Self, y: Self) -> Self {
-            Z(unsafe { _mm512_madd52lo_epu64(self.0, x.0, y.0) })
-        }
-        #[inline(always)]
-        fn madd52hi(self, x: Self, y: Self) -> Self {
-            Z(unsafe { _mm512_madd52hi_epu64(self.0, x.0, y.0) })
-        }
-        #[inline(always)]
-        fn bit52(self) -> bool {
-            unsafe { _mm512_test_epi64_mask(self.0, _mm512_set1_epi64(1 << 52)) != 0 }
-        }
-        fn kernel(nw: usize) -> Kernel {
-            pick!(kernel_tf, nw)
-        }
-    }
-}
-
-/// Scratch limbs [`mul`] needs for `a.len() == na` and `b.len() == nb`.
+/// Scratch limbs native `mul` needs for `a.len() == na` and `b.len() == nb`.
 ///
 /// With `ma <= mb` digits and `chunks <= mb / 88 + 2`: `blen <= mb + 8 chunks + 14` and
 /// `clen <= ma + mb + 21`, so this is at most `(3 + 1/11) mb + 58 < 3.9 nb + 62`.
+#[cfg(any(test, feature = "__internals"))]
 pub const fn scratch_len(na: usize, nb: usize) -> usize {
     Shape::new(na, nb).scratch()
 }
@@ -265,7 +140,7 @@ impl Shape {
     }
 }
 
-/// [`mul`] on `V`. Safety: `V` values may be created (see [`V8`]).
+/// Multiplication on `V`. Safety: `V` values may be created (see [`V8`]).
 #[inline(always)]
 unsafe fn mul_v<V: V8>(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
     let s = Shape::new(a.len(), b.len());
@@ -407,7 +282,8 @@ unsafe fn kernel<V: V8, const NW: usize>(c: *mut u64, a: *const u64, groups: usi
 }
 
 /// Carries the column sums `c` into 52-bit digits and packs those into `out`. `c` holds
-/// the `16 ceil(out.len() / 13)` columns that covers, each below 2^64; it is clobbered.
+/// the `16 ceil(out.len() / 13)` columns that covers, each at most `2^64 - 6144` (the
+/// kernel's bound); it is clobbered.
 ///
 /// `s_k = (c_k mod 2^52) + (c_{k-1} >> 52) < 2^52 + 2^12`, then
 /// `u_k = (s_k mod 2^52) + (s_{k-1} >> 52) <= 2^52`. Equality needs a sequential pass;
@@ -501,16 +377,13 @@ unsafe fn limbs<V: V8>(u0: V, u1: V, i: [[u64; 8]; 3], s: [[u64; 8]; 3]) -> V {
     d0.or(u0.permute2(v(i[1]), u1).shlv(v(s[1]))).or(u0.permute2(v(i[2]), u1).shlv(v(s[2])))
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(any(test, kani))]
+mod emulation {
     use super::*;
-    use crate::mul::tests::reference;
-    use rand_xoshiro::Xoshiro256PlusPlus;
-    use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
     /// Plain-Rust lanes, to check the arithmetic on any CPU. Additions panic on overflow.
     #[derive(Clone, Copy)]
-    struct Emu([u64; 8]);
+    pub(super) struct Emu([u64; 8]);
 
     impl Emu {
         fn map(self, b: Self, f: impl Fn(u64, u64) -> u64) -> Self {
@@ -591,6 +464,52 @@ mod tests {
             pick!(kernel_emu, nw)
         }
     }
+
+    #[cfg(kani)]
+    #[kani::proof]
+    #[kani::unwind(10)]
+    fn carry_preserves_radix52_columns() {
+        let columns: [u64; 8] = kani::any();
+        let previous: u16 = kani::any();
+        let previous = (previous & 4095) as u64;
+        let mut high = Emu([previous; 8]);
+        let carried = carry(Emu(columns), &mut high, Emu([M52; 8]));
+        for i in 0..8 {
+            let from_below = if i == 0 { previous } else { columns[i - 1] >> 52 };
+            let want = (columns[i] as u128 % (1u128 << 52)) + from_below as u128;
+            assert_eq!(carried.0[i] as u128, want);
+            assert_eq!(high.0[i], columns[i] >> 52);
+        }
+    }
+
+    #[cfg(kani)]
+    #[kani::proof]
+    #[kani::unwind(18)]
+    #[kani::solver(z3)]
+    fn radix52_unpack_pack_roundtrip() {
+        let input: [u64; 13] = kani::any();
+        let mut digits = [0u64; 16];
+        let mut output = [0u64; 13];
+        // SAFETY: Emu has no CPU requirement; both complete eight-digit groups fit.
+        unsafe {
+            to_digits::<Emu>(&mut digits, &input, 0, 2);
+            let lo = Emu(core::array::from_fn(|i| digits[i]));
+            let hi = Emu(core::array::from_fn(|i| digits[8 + i]));
+            pack::<Emu>(&mut output, 0, lo, hi);
+        }
+        for i in 0..13 {
+            assert_eq!(output[i], input[i]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::emulation::Emu;
+    use super::*;
+    use crate::mul::tests::reference;
+    use rand_xoshiro::Xoshiro256PlusPlus;
+    use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
     const GARBAGE: u64 = 0x5A5A_5A5A_5A5A_5A5A;
 
@@ -693,12 +612,12 @@ mod tests {
     #[cfg(target_arch = "x86_64")]
     #[test]
     fn avx512_matches_reference() {
-        if !available() {
+        if !avx512::available() {
             assert!(std::env::var_os("BASE58_REQUIRE_IFMA").is_none(), "no AVX-512 IFMA");
             eprintln!("skipped: no AVX-512 IFMA");
             return;
         }
-        check_shapes(mul);
+        check_shapes(avx512::mul);
     }
 
     /// Columns whose two-step carry ends at 2^52 take the sequential pass (emulated, and on
@@ -708,7 +627,7 @@ mod tests {
         type Finish = unsafe fn(&mut [u64], &mut [u64]);
         let emu: Finish = finish::<Emu>;
         #[cfg(target_arch = "x86_64")]
-        let fs = if available() { vec![emu, avx512::finish_tf] } else { vec![emu] };
+        let fs = if avx512::available() { vec![emu, avx512::finish_tf] } else { vec![emu] };
         #[cfg(not(target_arch = "x86_64"))]
         let fs = [emu];
         for v in [true, false] {
@@ -719,6 +638,8 @@ mod tests {
             let mut c: Vec<u64> =
                 (0..64).map(|k| if k < 56 { rng.next_u64() >> 4 } else { 0 }).collect();
             (c[0], c[1], c[2]) = (1 << 52, M52, M52);
+            // The largest permitted column must also accept the incoming scalar carry.
+            c[3] = u64::MAX - 6143;
             if v {
                 // Plus a carry chain through a whole vector.
                 c[8..24].fill(M52);

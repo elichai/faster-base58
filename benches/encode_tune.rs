@@ -2,15 +2,21 @@
 //! `encode_batched`: interleaved rounds, the minimum time per call of each configuration.
 //! The threshold is 0, so every input of more than one leaf uses divide and conquer.
 //!
-//! `cargo bench --bench encode_tune [-- name...]` runs only the named backends.
+//! `cargo bench --features __internals --bench encode_tune [-- name...]` runs only the named backends.
 //! `LEAVES` and `SIZES` (comma-separated) replace the default lists; `KINDS` picks leaf
 //! conversions (`horner`, `matrix`; default both).
+
+#[path = "../tests/support/malachite.rs"]
+mod malachite;
 
 use std::hint::black_box;
 use std::time::Instant;
 
-use base58_bench::bench::{Leaves, encode_karatsuba_with, encode_malachite_with, encode_ntt_with};
-use base58_bench::{BufferTooSmall, encode_batched, encode_matrix, max_encoded_len};
+use base58_bench::internals::{
+    Leaves, encode_batched, encode_karatsuba_with, encode_matrix, encode_ntt_with,
+};
+use base58_bench::{BufferTooSmall, max_encoded_len};
+use malachite::encode_malachite_with;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 

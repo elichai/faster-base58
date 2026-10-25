@@ -11,6 +11,24 @@ use crate::BufferTooSmall;
 use crate::common::ALPHABET;
 use crate::encode::max_encoded_len;
 
+/// Fixed 32-byte encoding uses scalar kernels: they beat AVX2 on measured Zen 5.
+pub(super) fn encode_fixed_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    fixed::portable::encode_32_portable(x, output)
+}
+
+/// Select VBMI, then AVX2, otherwise the scalar fixed-size encoder.
+pub(super) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    if has_vbmi() {
+        // SAFETY: the CPU has every feature checked by `has_vbmi`.
+        return unsafe { encode_64_vbmi(x, output) };
+    }
+    if is_x86_feature_detected!("avx2") {
+        // SAFETY: the CPU has AVX2.
+        return unsafe { encode_64(x, output) };
+    }
+    fixed::portable::encode_64_portable(x, output)
+}
+
 /// Columns that hold the value at 64 bytes: 88 characters.
 const COLS_64: usize = max_encoded_len(64).div_ceil(4);
 
@@ -23,7 +41,7 @@ pub(super) fn has_vbmi() -> bool {
         && is_x86_feature_detected!("avx512vbmi")
 }
 
-/// [`encode_matrix`](super::encode_matrix) for 64 bytes with AVX2.
+/// [`encode_matrix`](super::entry::encode_matrix) for 64 bytes with AVX2.
 #[target_feature(enable = "avx2")]
 pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let t = cols(x, &TABLE_64);
@@ -242,7 +260,7 @@ fn alphabet(d: __m256i) -> __m256i {
 }
 
 /// The column sums of `x`'s words, four columns per block, with the contract of
-/// `fixed::cols`. Not inlined, as in the Zen 5 runs that chose [`encode_64`]'s kernels.
+/// `fixed::portable::cols`. Not inlined, as in the Zen 5 runs that chose [`encode_64`]'s kernels.
 #[inline(never)]
 #[target_feature(enable = "avx2")]
 fn cols<const N: usize, const W: usize, const C: usize>(x: &[u8; N], t: &Table<W, C>) -> [u64; C] {
@@ -304,10 +322,10 @@ mod tests {
             let half: &[u8; 32] = x[..32].try_into().unwrap();
             // SAFETY: the CPU has AVX2, and AVX-512F where `wide`.
             unsafe {
-                assert_eq!(cols(x, &TABLE_64), fixed::cols(x, &TABLE_64), "{x:?}");
-                assert_eq!(cols(half, &TABLE_32), fixed::cols(half, &TABLE_32), "{x:?}");
+                assert_eq!(cols(x, &TABLE_64), fixed::portable::cols(x, &TABLE_64), "{x:?}");
+                assert_eq!(cols(half, &TABLE_32), fixed::portable::cols(half, &TABLE_32), "{x:?}");
                 if wide {
-                    assert_eq!(cols_512(x, &TABLE_64), fixed::cols(x, &TABLE_64), "{x:?}");
+                    assert_eq!(cols_512(x, &TABLE_64), fixed::portable::cols(x, &TABLE_64), "{x:?}");
                 }
             }
         }

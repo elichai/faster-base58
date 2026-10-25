@@ -7,6 +7,7 @@
 
 use std::arch::aarch64::*;
 
+use super::Kernels;
 use super::crt::GARNER;
 use super::portable;
 use super::tables::{PRIMES, Prime, S, Twiddles};
@@ -454,6 +455,25 @@ fn pair_neon(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
             let s = vld1q_s32(phi);
             vst1q_s32(plo, mont(vaddq_s32(s, x), h, hq, qv));
             vst1q_s32(phi, mont(vsubq_s32(s, x), h, hq, qv));
+        }
+    }
+}
+
+impl Kernels {
+    pub fn neon() -> Self {
+        Kernels {
+            load: self::load,
+            forward: self::forward,
+            inverse: self::inverse,
+            pointwise: self::pointwise,
+            square: self::square,
+            garner: self::garner,
+            load_twist: self::load_twist,
+            load_add: self::load_add,
+            twist: self::twist,
+            fold_sub: self::fold_sub,
+            halves: self::halves,
+            pair: self::pair,
         }
     }
 }

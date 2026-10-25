@@ -6,22 +6,20 @@
 
 use std::mem::MaybeUninit;
 
-use crate::batched::decode_batched;
-use crate::common::{CHUNK, DIGITS, invalid, split_zeros};
-use crate::dc::write_bytes;
-use crate::{Error, decode};
-use table::{CARRY_EVERY, MAX_CHARS, MAX_COLS, MAX_GROUPS, PANEL_CHARS, ROWS};
+use crate::common::{CHUNK, DIGITS};
+use table::{CARRY_EVERY, MAX_COLS, MAX_GROUPS, PANEL_CHARS, ROWS};
 
 #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
 mod neon;
+#[cfg(any(test, feature = "__internals", kani, not(all(
+    target_arch = "aarch64", target_endian = "little", target_feature = "neon"
+))))]
 mod portable;
+#[cfg(kani)]
+mod proofs;
 mod table;
 #[cfg(target_arch = "x86_64")]
 mod x86;
-
-/// Inputs with fewer digits than this use [`decode_batched`], which is faster there.
-/// Tuned by measurement; README.md has the numbers.
-const MATRIX_MIN: usize = 576;
 
 /// A panel kernel: see `portable::panel`.
 pub(crate) type Panel = fn(&mut [u64], &[u32], &[u32; 8]);
@@ -32,40 +30,120 @@ struct Kernels {
     panel: Panel,
 }
 
-const PORTABLE: Kernels = Kernels { parse: portable::parse, panel: portable::panel };
-
-#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-const BEST: Kernels = Kernels { parse: neon::parse, panel: neon::panel };
-#[cfg(target_arch = "x86_64")]
-const BEST: Kernels = Kernels { parse: portable::parse, panel: x86::panel };
-#[cfg(not(any(
+#[cfg(any(test, feature = "__internals", not(any(
     all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
     target_arch = "x86_64"
-)))]
-const BEST: Kernels = PORTABLE;
+))))]
+const PORTABLE: Kernels = Kernels { parse: portable::parse, panel: portable::panel };
+
+const BEST: Kernels = std::cfg_select! {
+    all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
+        Kernels { parse: neon::parse, panel: neon::panel }
+    }
+    target_arch = "x86_64" => {
+        Kernels { parse: portable::parse, panel: x86::panel }
+    }
+    _ => PORTABLE,
+};
 
 /// The panel kernels, for the matrix encoder (`encode/matrix.rs`).
 pub(crate) const PANEL: Panel = BEST.panel;
-pub(crate) const PANEL_PORTABLE: Panel = PORTABLE.panel;
 
-/// Like [`decode_batched`], but faster from about 0.4 KiB to 4 KiB when the table of
-/// powers is in cache. Fewer than `MATRIX_MIN` digits use [`decode_batched`]; more than
-/// 5632 use [`decode`].
-///
-/// The speedup was measured with NEON (aarch64). x86_64 uses AVX2 or SSE4.1 kernels: on
-/// AMD Zen 5 they were faster from about 1 KiB with default flags, but with
-/// `-C target-cpu=native` they only tied [`decode_batched`] at 2–4 KiB. Other targets run
-/// the plain-Rust kernels, which are slower than [`decode_batched`].
-///
-/// No allocation per call. Each size class of the table is built once, on first use, and
-/// kept: 40 KiB, 154 KiB, 601 KiB or 2.3 MiB.
-pub fn decode_matrix(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    decode_with(&BEST, input, output, MATRIX_MIN)
+/// Thresholded entry points and their shared wrappers.
+#[cfg(any(feature = "cache", test, feature = "__internals"))]
+pub(crate) mod entry {
+    use super::*;
+    use super::table::MAX_CHARS;
+    use crate::{
+        Error, batched::decode_batched, common::{invalid, split_zeros}, dc::{decode, write_bytes},
+    };
+
+    /// Inputs with fewer digits than this use [`decode_batched`], which is faster there.
+    /// Tuned by measurement; README.md has the numbers.
+    pub(super) const MATRIX_MIN: usize = 576;
+
+    /// Like [`decode_batched`], but faster from about 0.4 KiB to 4 KiB when the table of
+    /// powers is in cache. Fewer than `MATRIX_MIN` digits use [`decode_batched`]; more than
+    /// 5632 use [`decode`].
+    ///
+    /// The speedup was measured with NEON (aarch64). x86_64 uses AVX2 or SSE4.1 kernels: on
+    /// AMD Zen 5 they were faster from about 1 KiB with default flags, but with
+    /// `-C target-cpu=native` they only tied [`decode_batched`] at 2–4 KiB. Other targets run
+    /// the plain-Rust kernels; their advantage depends on the target and input size.
+    ///
+    /// With `cache`, warm matrix calls allocate no heap; first use builds a retained table.
+    /// Without `cache`, each matrix invocation builds and drops its own table.
+    /// Data is reserved at its final length: about 40 KiB, 154 KiB, 601 KiB or 2.3 MiB, plus
+    /// panel metadata. With `cache`, initialized classes accumulate. The recursive
+    /// fallback can allocate workspace. See `docs/tradeoffs/README.md` for measurements.
+    pub fn decode_matrix(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+        decode_with(&BEST, input, output, MATRIX_MIN)
+    }
+
+    /// [`decode_matrix`] with kernels `k`, using [`decode_batched`] below `min` digits.
+    /// Inlined, so small inputs pay only a length check.
+    #[inline(always)]
+    pub(super) fn decode_with(k: &Kernels, input: &str, output: &mut [u8], min: usize) -> Result<usize, Error> {
+        // The input length bounds the digit count, so small inputs skip `split_zeros` here.
+        if input.len() < min {
+            return decode_batched(input, output);
+        }
+        decode_large(k, input, output, min)
+    }
+
+    /// [`decode_with`] for inputs of at least `min` bytes. Not inlined: its stack frame holds
+    /// [`Scratch`], about 14 KiB, which small inputs should not set up.
+    #[inline(never)]
+    fn decode_large(k: &Kernels, input: &str, output: &mut [u8], min: usize) -> Result<usize, Error> {
+        let (zeros, digits) = split_zeros(input.as_bytes());
+        if digits.len() < min {
+            return decode_batched(input, output);
+        }
+        if digits.len() > MAX_CHARS {
+            return decode(input, output);
+        }
+        // A nonzero first digit gives at least 58^(d - 1), as in the D&C preflight.
+        let min_len = if digits.is_empty() {
+            0
+        } else {
+            ((digits.len() - 1) as u128 * 732 / 1000) as usize + 1
+        };
+        if output.len() < zeros + min_len {
+            return Err(Error::BufferTooSmall);
+        }
+        let mut scratch = Scratch::new();
+        let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input))?;
+        write_bytes(zeros, limbs, output)
+    }
 }
 
-/// [`decode_matrix`] with the plain-Rust kernels, to show what the SIMD ones add.
-pub fn decode_matrix_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    decode_with(&PORTABLE, input, output, MATRIX_MIN)
+/// Comparison hooks; production conversions keep using the core below.
+#[cfg(any(test, feature = "__internals"))]
+pub(crate) mod internals {
+    use super::*;
+    use super::entry::{MATRIX_MIN, decode_with};
+    use crate::Error;
+
+    pub(crate) const PANEL_PORTABLE: Panel = PORTABLE.panel;
+
+    /// [`super::entry::decode_matrix`] with the plain-Rust kernels, to show what the SIMD ones add.
+    pub fn decode_matrix_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+        decode_with(&PORTABLE, input, output, MATRIX_MIN)
+    }
+
+    #[cfg(feature = "__internals")]
+    pub(crate) mod feature_only {
+        use super::super::BEST;
+        use super::super::entry::decode_with;
+        use crate::Error;
+
+        pub use super::super::table::cache_memory as decode_matrix_cache_memory;
+
+        /// Force the general matrix kernel within its size limit, bypassing the small fallback.
+        pub fn decode_matrix_forced(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+            decode_with(&BEST, input, output, 0)
+        }
+    }
 }
 
 /// Writes the value of `digits` to `out` as little-endian limbs and returns its trimmed
@@ -80,33 +158,6 @@ pub(crate) fn leaf(out: &mut [u64], digits: &[u8]) -> Option<usize> {
     let limbs = convert(&BEST, digits, &mut scratch)?;
     out[..limbs.len()].copy_from_slice(limbs);
     Some(limbs.len())
-}
-
-/// [`decode_matrix`] with kernels `k`, using [`decode_batched`] below `min` digits.
-/// Inlined, so small inputs pay only a length check.
-#[inline(always)]
-fn decode_with(k: &Kernels, input: &str, output: &mut [u8], min: usize) -> Result<usize, Error> {
-    // The input length bounds the digit count, so small inputs skip `split_zeros` here.
-    if input.len() < min {
-        return decode_batched(input, output);
-    }
-    decode_large(k, input, output, min)
-}
-
-/// [`decode_with`] for inputs of at least `min` bytes. Not inlined: its stack frame holds
-/// [`Scratch`], about 14 KiB, which small inputs should not set up.
-#[inline(never)]
-fn decode_large(k: &Kernels, input: &str, output: &mut [u8], min: usize) -> Result<usize, Error> {
-    let (zeros, digits) = split_zeros(input.as_bytes());
-    if digits.len() < min {
-        return decode_batched(input, output);
-    }
-    if digits.len() > MAX_CHARS {
-        return decode(input, output);
-    }
-    let mut scratch = Scratch::new();
-    let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input))?;
-    write_bytes(zeros, limbs, output)
 }
 
 /// Stack space for one conversion, about 14 KiB. Only the part an input needs is written.
@@ -200,6 +251,10 @@ const _: () = assert!(58u128.pow(CHUNK as u32) < 1u128 << 64);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::entry::{MATRIX_MIN, decode_matrix, decode_with};
+    use super::internals::decode_matrix_portable;
+    use super::table::MAX_CHARS;
+    use crate::{Error, batched::decode_batched};
     use crate::common::{ALPHABET, BASE, chunks};
     use crate::tests::{Decode, decode_vec, random_string};
     use rand_xoshiro::Xoshiro256PlusPlus;
@@ -279,6 +334,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "cache"), ignore = "exhaustive identical kernels run with cache in CI; cache-off ownership and boundary tests remain active")]
     fn leaf_matches_horner() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(7);
         let all_z = ["z".repeat(MAX_CHARS), "z".repeat(2816), "z".repeat(2560)];
@@ -336,6 +392,7 @@ mod tests {
 
     /// Invalid input builds no table. A table is built once per process, so the test runs
     /// itself again in a child process, where none is built yet.
+    #[cfg(feature = "cache")]
     #[test]
     fn invalid_input_builds_no_table() {
         const FRESH: &str = "MATRIX_FRESH_PROCESS";
@@ -350,7 +407,7 @@ mod tests {
             assert!(child.status.success() && ran, "{child:?}");
             return;
         }
-        let built = || table::TABLES.iter().filter(|t| t.get().is_some()).count();
+        let built = || table::cached::TABLES.iter().filter(|t| t.get().is_some()).count();
         for n in [MATRIX_MIN, 705, 1409, 2817, MAX_CHARS] {
             let s = format!("{}0", "z".repeat(n - 1));
             let index = n - 1;

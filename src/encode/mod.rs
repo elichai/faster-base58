@@ -2,35 +2,35 @@
 //!
 //! - [`encode_batched`] (`batched.rs`): quadratic, one base-58^10 limb update per seven
 //!   input bytes, in place in the output.
-//! - [`encode`] (`dc.rs`): divide and conquer by powers of 58^10, each division Barrett's
-//!   with a Newton reciprocal, over any `Multiplier`.
+//! - `dc.rs`: divide and conquer by powers of 58^10,
+//!   each division Barrett's with a Newton reciprocal, over any `Multiplier`.
 //! - [`encode_matrix`] (`matrix.rs`): a matrix of powers with the decoder's SIMD
 //!   multiply-adds, up to 8 KiB, and a fixed-size path for 32 and 64 bytes
 //!   (`matrix/fixed.rs`).
 
 mod batched;
-mod dc;
-mod matrix;
+pub(crate) mod dc;
+pub(crate) mod matrix;
 #[cfg(test)]
 mod tests;
 
 pub use batched::encode_batched;
-pub use dc::{Leaves, encode, encode_karatsuba_with};
-pub use matrix::{
-    encode_matrix, encode_matrix_portable, encode_matrix_with, encode_whole as encode_matrix_whole,
-};
-pub(crate) use dc::{encode_tuned, encode_with};
+pub use dc::Leaves;
+pub(crate) use matrix::encode_fixed;
+pub use dc::encode_tuned;
 
 use crate::common::{ALPHABET, BASE};
 
 /// `floor(log_58(2) * 2^64)`.
 const LOG58_2: u128 = 3148993499475808360;
 
-/// An upper bound on the encoded length of `len` bytes.
+/// An upper bound on the encoded length of `len` bytes, saturating at `usize::MAX`.
 pub const fn max_encoded_len(len: usize) -> usize {
     // Leading zero bytes take one character each, fewer than any other byte, so `len`
     // bytes encode to at most the digits of 2^(8 len) - 1.
-    ((8 * len as u128 * (LOG58_2 + 1)) >> 64) as usize + 1
+    // Shift by 61 instead of multiplying by 8, so even `usize::MAX` fits in `u128`.
+    let bound = ((len as u128 * (LOG58_2 + 1)) >> 61) + 1;
+    if bound > usize::MAX as u128 { usize::MAX } else { bound as usize }
 }
 
 /// A lower bound on the digits of a value of `bits` significant bits, at most two below
@@ -67,5 +67,138 @@ fn five_digits(d: &mut [u8], mut x: u32) {
     for c in d.iter_mut().rev() {
         *c = ALPHABET[(x % 58) as usize];
         x /= 58;
+    }
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::max_encoded_len;
+
+    #[kani::proof]
+    fn encoded_capacity_never_panics() {
+        let len: usize = kani::any();
+        let _ = max_encoded_len(len);
+    }
+
+    #[kani::proof]
+    fn encoded_capacity_is_monotone_and_saturating() {
+        let len: usize = kani::any();
+        let bound = max_encoded_len(len);
+        assert!(bound >= len);
+        if let Some(next) = len.checked_add(1) {
+            assert!(max_encoded_len(next) >= bound);
+        }
+        assert_eq!(max_encoded_len(usize::MAX), usize::MAX);
+    }
+
+    // These conjuncts have exactly the domain and claims of the monolithic
+    // capacity harness above. Splitting them gives each its own solver query.
+    #[kani::proof]
+    fn encoded_capacity_covers_input() {
+        let len: usize = kani::any();
+        assert!(max_encoded_len(len) >= len);
+    }
+
+    #[kani::proof]
+    fn encoded_capacity_adjacent_monotonicity() {
+        let len: usize = kani::any();
+        kani::assume(len < usize::MAX);
+        assert!(max_encoded_len(len + 1) >= max_encoded_len(len));
+    }
+
+    #[kani::proof]
+    fn encoded_capacity_endpoint_saturates() {
+        assert_eq!(max_encoded_len(usize::MAX), usize::MAX);
+    }
+
+    // A mathematical lemma, proved for every usize before it is used as a
+    // verified stub. It does not replace max_encoded_len or its multiplication.
+    #[kani::ensures(|_: &()|
+        (len as u128 + 1) * (super::LOG58_2 + 1)
+            == len as u128 * (super::LOG58_2 + 1) + (super::LOG58_2 + 1))]
+    #[kani::ensures(|_: &()| len == usize::MAX
+        || (len + 1) as u128 * (super::LOG58_2 + 1)
+            == len as u128 * (super::LOG58_2 + 1) + (super::LOG58_2 + 1))]
+    fn capacity_affine_step(len: usize) {
+        let _ = len;
+    }
+
+    #[kani::proof_for_contract(capacity_affine_step)]
+    fn capacity_affine_step_lemma() {
+        capacity_affine_step(kani::any());
+    }
+
+    fn capacity_clamp(product: u128) -> usize {
+        let bound = (product >> 61) + 1;
+        if bound > usize::MAX as u128 {
+            usize::MAX
+        } else {
+            bound as usize
+        }
+    }
+
+    #[kani::ensures(|result: &usize|
+        *result == capacity_clamp(len as u128 * (super::LOG58_2 + 1)))]
+    fn capacity_formula(len: usize) -> usize {
+        max_encoded_len(len)
+    }
+
+    #[kani::proof_for_contract(capacity_formula)]
+    fn capacity_formula_lemma() {
+        let _ = capacity_formula(kani::any());
+    }
+
+    #[kani::requires(product <= u128::MAX - (super::LOG58_2 + 1))]
+    #[kani::ensures(|_: &()|
+        capacity_clamp(product + (super::LOG58_2 + 1)) >= capacity_clamp(product))]
+    fn capacity_shift_clamp_step(product: u128) {
+        let _ = product;
+    }
+
+    #[kani::proof_for_contract(capacity_shift_clamp_step)]
+    fn capacity_shift_clamp_step_lemma() {
+        capacity_shift_clamp_step(kani::any());
+    }
+
+    #[kani::proof]
+    #[kani::stub_verified(capacity_affine_step)]
+    #[kani::stub_verified(capacity_shift_clamp_step)]
+    #[kani::stub_verified(capacity_formula)]
+    fn encoded_capacity_adjacent_monotonicity_composed() {
+        let len: usize = kani::any();
+        kani::assume(len < usize::MAX);
+        capacity_affine_step(len);
+        capacity_shift_clamp_step(len as u128 * (super::LOG58_2 + 1));
+        assert!(capacity_formula(len + 1) >= capacity_formula(len));
+    }
+
+    #[kani::proof]
+    #[kani::unwind(12)]
+    fn one_byte_borrowed_api_preserves_exact_array_contracts() {
+        let byte: u8 = kani::any();
+        let capacity: usize = kani::any();
+        kani::assume(capacity <= 3);
+        let mut output = [0xA5; 5];
+        let result = crate::encode_into([byte], &mut output[1..1 + capacity]);
+        let digits = if byte < 58 { 1 } else { 2 };
+        if capacity < digits {
+            assert!(matches!(result, Err(crate::BufferTooSmall)));
+        } else {
+            let text = result.unwrap();
+            assert_eq!(text.len(), digits);
+            assert_eq!(text.as_bytes()[digits - 1], crate::common::ALPHABET[(byte % 58) as usize]);
+            if digits == 2 {
+                assert_eq!(text.as_bytes()[0], crate::common::ALPHABET[(byte / 58) as usize]);
+            }
+            assert_eq!(crate::decode_array::<1>(text).unwrap()[0], byte);
+            assert!(matches!(crate::decode_array::<0>(text), Err(crate::Error::BufferTooSmall)));
+            assert!(matches!(crate::decode_array::<2>(text),
+                Err(crate::Error::InvalidLength { expected: 2, actual: 1 })));
+        }
+        assert_eq!(output[0], 0xA5);
+        assert!(output[1 + capacity..].iter().all(|&c| c == 0xA5));
+        if capacity >= digits {
+            assert!(output[1 + digits..].iter().all(|&c| c == 0xA5));
+        }
     }
 }

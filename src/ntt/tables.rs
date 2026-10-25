@@ -4,7 +4,8 @@
 //! state the inputs they accept and the outputs they guarantee. The transforms keep
 //! every stored value in `(-q, q)`.
 
-use std::sync::OnceLock;
+#[cfg(feature = "cache")]
+pub(super) mod cache;
 
 /// Every prime is `1 mod 2^MAX_LOG`, so transforms have at most `2^MAX_LOG` points.
 pub(crate) const MAX_LOG: u32 = 23;
@@ -83,6 +84,9 @@ impl Prime {
     }
 
     /// Maps `(-q, q)` to `[0, q)`.
+    #[cfg(any(test, feature = "__internals", kani, not(all(
+        target_arch = "aarch64", target_endian = "little", target_feature = "neon"
+    ))))]
     #[inline(always)]
     pub fn normalize(self, x: i32) -> i32 {
         x + ((x >> 31) & self.q)
@@ -193,19 +197,6 @@ impl Tables {
         assert!((1..=MAX_LOG).contains(&log), "log = {log}");
         let tw = std::array::from_fn(|i| Twiddles::new(PRIMES[i], PRIMES_AND_ROOTS[i].1, log));
         Tables { log, tw }
-    }
-
-    /// Tables serving at least `2^log` points, from a process-wide cache. A smaller table
-    /// is a prefix of a larger one, so any larger cached table serves; a size is built
-    /// only when none is cached yet, and then kept.
-    pub fn cached(log: u32) -> &'static Tables {
-        static CACHE: [OnceLock<Tables>; MAX_LOG as usize + 1] =
-            [const { OnceLock::new() }; MAX_LOG as usize + 1];
-        let log = log as usize;
-        CACHE[log..]
-            .iter()
-            .find_map(OnceLock::get)
-            .unwrap_or_else(|| CACHE[log].get_or_init(|| Tables::new(log as u32)))
     }
 }
 
@@ -347,6 +338,7 @@ pub(crate) mod tests {
     /// A cached table serves at least the size asked for, and stays: asking for its own
     /// size returns it. Other tests may have cached larger tables first, so the sizes
     /// returned depend on test order; these properties do not.
+    #[cfg(feature = "cache")]
     #[test]
     fn cache_builds_once() {
         for log in [3, 12, 6, 9, 12] {

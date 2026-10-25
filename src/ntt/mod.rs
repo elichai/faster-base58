@@ -8,20 +8,34 @@
 //! polynomials instead, negacyclic and cyclic, and put together by polynomial Chinese
 //! remaindering ([`Plan`], [`crt()`]).
 
+#[cfg(any(test, feature = "__internals"))]
+pub(crate) mod internals;
+
 #[cfg(any(target_arch = "x86_64", test))]
 mod avx512;
+#[cfg(test)]
+mod cache_policy_tests;
 mod crt;
+#[cfg(all(test, miri))]
+mod miri_tests;
 #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
 mod neon;
 mod portable;
+#[cfg(kani)]
+mod proofs;
 mod tables;
+#[cfg(target_arch = "x86_64")]
+mod x86;
 
+use std::cell::OnceCell;
 use std::ptr;
 
 use crate::dc::{self, Leaf, Multiplier};
 use crate::encode::Leaves;
-use crate::{BufferTooSmall, Error, encode, mul};
+use crate::mul;
 use tables::{MAX_LOG, PRIMES, Prime, Tables, Twiddles};
+#[cfg(feature = "cache")]
+use tables::cache::CACHE_MAX_LOG;
 
 /// Products whose shorter operand has fewer limbs than this use Karatsuba.
 const THRESHOLD: usize = 128;
@@ -35,41 +49,6 @@ const PREPARED_THRESHOLD: usize = 96;
 /// limbs and transforms win from 3430.
 const IFMA_THRESHOLD: usize = 3072;
 const IFMA_PREPARED_THRESHOLD: usize = 2048;
-
-/// Like [`crate::decode`], but multiplies with NTTs. Builds twiddle tables for each call.
-pub fn decode_ntt(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with(input, output, &mut Ntt::new(false, Kernels::best()))
-}
-
-/// [`decode_ntt`], with twiddle tables from a process-wide cache. On aarch64 its leaves
-/// use the matrix kernel, whose table is cached in the same way.
-pub fn decode_ntt_cached(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with_leaf(input, output, &mut Ntt::new(true, Kernels::best()), Leaf::BEST)
-}
-
-/// [`decode_ntt`], or with `cached` [`decode_ntt_cached`], with `threshold` and
-/// `prepared` in place of [`THRESHOLD`] and [`PREPARED_THRESHOLD`].
-pub fn decode_ntt_with(
-    input: &str,
-    output: &mut [u8],
-    cached: bool,
-    threshold: usize,
-    prepared: usize,
-) -> Result<usize, Error> {
-    let ntt = Ntt::new(cached, Kernels::best());
-    let mut ntt = Ntt { threshold, prepared_threshold: prepared, ..ntt };
-    // The leaves of the decoder it stands in for.
-    let leaf = if cached { Leaf::BEST } else { Leaf::Horner };
-    dc::decode_with_leaf(input, output, &mut ntt, leaf)
-}
-
-/// [`decode_ntt_cached`] with the portable kernels, compared with hand-written SIMD.
-/// On aarch64 LLVM vectorizes the portable kernels with NEON itself, so this measures
-/// hand-written against compiler-generated NEON, not SIMD against scalar code. The leaves
-/// are those of [`decode_ntt_cached`].
-pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with_leaf(input, output, &mut Ntt::new(true, Kernels::portable()), Leaf::BEST)
-}
 
 /// The encoders' divide-and-conquer threshold in bytes and leaf size in chunks, tuned on
 /// an M5 Pro against `encode_batched` in one binary. Smaller leaves were up to 4% faster
@@ -100,79 +79,90 @@ fn encode_params() -> (usize, usize) {
     }
 }
 
-/// Like [`crate::encode`], but multiplies with NTTs. Builds twiddle tables for each call.
-pub fn encode_ntt(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    let m = &mut Ntt::new(false, Kernels::best());
-    encode::encode_tuned(input, output, m, encode_params().0, ENCODE_LEAF, Leaves::Horner)
+/// Divide-and-conquer decoding with NTT multiplication and the feature-selected leaves.
+/// With `cache`, twiddles through log18 and selected matrix-leaf tables are retained;
+/// larger twiddles live for this call. Without `cache`, tables are owned and leaves
+/// use Horner. Tables are built only when a product uses transforms.
+pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, crate::Error> {
+    dc::decode_with_leaf(input, output, &mut Ntt::new(Kernels::best()), Leaf::BEST)
 }
 
-/// [`encode_ntt`], with twiddle tables from the process-wide cache.
-pub fn encode_ntt_cached(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    let m = &mut Ntt::new(true, Kernels::best());
+/// Divide-and-conquer encoding with NTT multiplication and the feature-selected leaves.
+/// With `cache`, twiddles through log18 and selected matrix-leaf tables are retained;
+/// larger twiddles live for this call. Without `cache`, tables are owned and leaves
+/// use Horner. Tables are built only when a product uses transforms.
+pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, crate::BufferTooSmall> {
+    let m = &mut Ntt::new(Kernels::best());
     let (threshold, leaf) = encode_params();
-    encode::encode_tuned(input, output, m, threshold, leaf, Leaves::BEST)
-}
-
-/// [`encode_ntt_cached`] with the portable kernels, as [`decode_ntt_portable`] is for
-/// decoding: on aarch64 this compares hand-written with compiler-generated NEON.
-pub fn encode_ntt_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    let m = &mut Ntt::new(true, Kernels::portable());
-    let (threshold, leaf) = encode_params();
-    encode::encode_tuned(input, output, m, threshold, leaf, Leaves::BEST)
-}
-
-/// [`encode_ntt_cached`] with divide and conquer above `threshold` bytes and leaves of at
-/// most `leaf` chunks, converted by `leaves`.
-pub fn encode_ntt_with(
-    input: &[u8],
-    output: &mut [u8],
-    threshold: usize,
-    leaf: usize,
-    leaves: Leaves,
-) -> Result<usize, BufferTooSmall> {
-    let m = &mut Ntt::new(true, Kernels::best());
-    encode::encode_tuned(input, output, m, threshold, leaf, leaves)
+    crate::encode::encode_tuned(input, output, m, threshold, leaf, Leaves::BEST)
 }
 
 /// The [`Multiplier`] of the NTT decoders.
 pub(crate) struct Ntt {
-    /// Take tables from [`Tables::cached`] rather than building them.
-    cached: bool,
+    /// Bypass the cache for owned-table comparisons in tests and benchmarks.
+    #[cfg(all(feature = "cache", any(test, feature = "__internals")))]
+    force_owned: bool,
     kernels: Kernels,
     /// Largest tables to use: longer products are split. [`MAX_LOG`] except in tests.
     max_log: u32,
     /// [`THRESHOLD`] and [`PREPARED_THRESHOLD`], or their IFMA values.
     threshold: usize,
     prepared_threshold: usize,
-    owned: Option<Tables>,
-    shared: Option<&'static Tables>,
+    /// Table size selected by `prepare`, without building a table yet.
+    log: Option<u32>,
+    owned: OnceCell<Tables>,
+    #[cfg(feature = "cache")]
+    shared: OnceCell<&'static Tables>,
     /// Forward transforms of the prepared powers, by index.
     powers: Vec<Option<Prepared>>,
 }
 
 impl Ntt {
-    /// With the thresholds for this CPU.
-    pub(crate) fn new(cached: bool, kernels: Kernels) -> Self {
+    /// With the thresholds for this CPU and the table policy selected by `cache`.
+    pub(crate) fn new(kernels: Kernels) -> Self {
         let (threshold, prepared_threshold) = match mul::ifma_threshold() {
             0 => (THRESHOLD, PREPARED_THRESHOLD),
             _ => (IFMA_THRESHOLD, IFMA_PREPARED_THRESHOLD),
         };
-        let (owned, shared, powers) = (None, None, Vec::new());
-        let max_log = MAX_LOG;
-        Ntt { cached, kernels, max_log, threshold, prepared_threshold, owned, shared, powers }
+        Ntt {
+            #[cfg(all(feature = "cache", any(test, feature = "__internals")))]
+            force_owned: false,
+            kernels,
+            max_log: MAX_LOG,
+            threshold,
+            prepared_threshold,
+            log: None,
+            owned: OnceCell::new(),
+            #[cfg(feature = "cache")]
+            shared: OnceCell::new(),
+            powers: Vec::new(),
+        }
     }
 
     fn tables(&self) -> &Tables {
-        self.shared.or(self.owned.as_ref()).expect("prepare runs first")
+        let log = self.log.expect("prepare runs first");
+        #[cfg(all(feature = "cache", any(test, feature = "__internals")))]
+        if self.force_owned {
+            return self.owned.get_or_init(|| Tables::new(log));
+        }
+        #[cfg(feature = "cache")]
+        if log <= CACHE_MAX_LOG {
+            return self.shared.get_or_init(|| Tables::cached(log));
+        }
+        self.owned.get_or_init(|| Tables::new(log))
     }
 
     /// `b`'s forward transforms for products of up to `len >= b.len()` limbs. `None` if
     /// `b` is below `prepared_threshold` or the tables are too short.
     fn prepare_operand(&self, b: &[u64], len: usize) -> Option<Prepared> {
-        let (t, log) = (self.tables(), log_len(len));
-        if b.len() < self.prepared_threshold || log > t.log {
+        if b.len() < self.prepared_threshold {
             return None;
         }
+        let log = log_len(len);
+        if log > self.log.expect("prepare runs first") {
+            return None;
+        }
+        let t = self.tables();
         let n = 1 << log;
         let mut data = vec![0; 3 * n];
         for ((f, p), tw) in data.chunks_exact_mut(n).zip(PRIMES).zip(&t.tw) {
@@ -213,12 +203,11 @@ impl Prepared {
 impl Multiplier for Ntt {
     fn prepare(&mut self, len: usize) {
         // Products longer than the tables serve would be split.
-        let log = log_len(len).clamp(5, self.max_log);
-        if self.cached {
-            self.shared = Some(Tables::cached(log));
-        } else {
-            self.owned = Some(Tables::new(log));
-        }
+        self.log = Some(log_len(len).clamp(5, self.max_log));
+        self.owned.take();
+        #[cfg(feature = "cache")]
+        self.shared.take();
+        self.powers.clear();
     }
 
     fn scratch_len(&self, n: usize) -> usize {
@@ -226,6 +215,9 @@ impl Multiplier for Ntt {
     }
 
     fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
+        if a.len().min(b.len()) < self.threshold.max(1) {
+            return mul::mul(out, a, b, scratch);
+        }
         mul_with(out, a, b, scratch, self.tables(), &self.kernels, self.threshold);
     }
 
@@ -256,9 +248,12 @@ impl Multiplier for Ntt {
     /// must serve, is shorter than the pieces of a full product, and the operands are long
     /// enough for transforms at all.
     fn wrap_len(&self, n: usize, full: usize) -> Option<usize> {
+        if n < self.threshold {
+            return None;
+        }
         let l = n.next_power_of_two().max(4);
-        let fits = log_len(l) <= self.tables().log;
-        (n >= self.threshold && fits && 2 * l < Plan::new(full).width()).then_some(l)
+        let fits = log_len(l) <= self.log.expect("prepare runs first");
+        (fits && 2 * l < Plan::new(full).width()).then_some(l)
     }
 
     fn wrapped_scratch_len(&self, l: usize, _n: usize) -> usize {
@@ -377,59 +372,18 @@ pub(crate) struct Kernels {
 }
 
 impl Kernels {
-    pub fn portable() -> Self {
-        Kernels {
-            load: portable::load,
-            forward: portable::forward,
-            inverse: portable::inverse,
-            pointwise: portable::pointwise,
-            square: portable::square,
-            garner: portable::garner,
-            load_twist: portable::load_twist,
-            load_add: portable::load_add,
-            twist: portable::twist,
-            fold_sub: portable::fold_sub,
-            halves: portable::halves,
-            pair: portable::pair,
-        }
-    }
-
-    #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-    pub fn neon() -> Self {
-        Kernels {
-            load: neon::load,
-            forward: neon::forward,
-            inverse: neon::inverse,
-            pointwise: neon::pointwise,
-            square: neon::square,
-            garner: neon::garner,
-            load_twist: neon::load_twist,
-            load_add: neon::load_add,
-            twist: neon::twist,
-            fold_sub: neon::fold_sub,
-            halves: neon::halves,
-            pair: neon::pair,
-        }
-    }
-
     /// The fastest kernels for this CPU: NEON on aarch64; on x86_64 those of `avx512.rs`
     /// with AVX-512F, the rest the portable ones compiled for AVX-512 or AVX2 when
     /// available.
     pub fn best() -> Self {
-        #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
-        {
-            Kernels::neon()
-        }
-        #[cfg(target_arch = "x86_64")]
-        {
-            avx512::kernels().or_else(portable::x86).unwrap_or_else(Kernels::portable)
-        }
-        #[cfg(not(any(
-            all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
-            target_arch = "x86_64"
-        )))]
-        {
-            Kernels::portable()
+        std::cfg_select! {
+            all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
+                Kernels::neon()
+            }
+            target_arch = "x86_64" => {
+                avx512::kernels().or_else(x86::kernels).unwrap_or_else(Kernels::portable)
+            }
+            _ => Kernels::portable(),
         }
     }
 }
@@ -781,6 +735,10 @@ fn as_i32(s: &mut [u64]) -> &mut [i32] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::internals::{
+        cached::decode_ntt_cached, owned::decode_ntt, decode_ntt_portable, decode_ntt_with,
+    };
+    use crate::{dc, encode};
     use crate::common::CHUNK;
     use crate::dc::DC_THRESHOLD;
     use crate::tests::{Decode, decode_vec, random_string};
@@ -791,7 +749,7 @@ mod tests {
     /// which the shapes in the tests below are chosen around.
     fn scalar_ntt(kernels: Kernels) -> Ntt {
         let (threshold, prepared_threshold) = (THRESHOLD, PREPARED_THRESHOLD);
-        Ntt { threshold, prepared_threshold, ..Ntt::new(false, kernels) }
+        Ntt { threshold, prepared_threshold, ..Ntt::new_owned(kernels) }
     }
 
     /// [`mul_with`] against Karatsuba, with exactly `scratch_len` garbage-filled scratch.
@@ -903,7 +861,7 @@ mod tests {
         let mut ntt = Ntt { max_log: 10, ..scalar_ntt(Kernels::best()) };
         let mut out = vec![0; s.len()];
         let n = dc::decode_with(&s, &mut out, &mut ntt).unwrap();
-        assert!(Ok(out[..n].to_vec()) == decode_vec(crate::decode, &s));
+        assert!(Ok(out[..n].to_vec()) == decode_vec(crate::dc::decode, &s));
     }
 
     /// The threshold path hands the scratch to Karatsuba.
@@ -911,6 +869,51 @@ mod tests {
     fn scratch_covers_karatsuba() {
         for n in 0..100_000 {
             assert!(scratch_len(n) >= mul::scratch_len(n), "n {n}");
+        }
+    }
+
+    #[test]
+    fn no_tables_below_transform_thresholds() {
+        let input = vec![0xA5; 8192];
+        let mut encoded = vec![0; crate::max_encoded_len(input.len())];
+        let len = crate::encode_malachite(&input, &mut encoded).unwrap();
+        let text = std::str::from_utf8(&encoded[..len]).unwrap();
+        for cached in [false, true] {
+            let mut ntt = Ntt {
+                threshold: usize::MAX,
+                prepared_threshold: usize::MAX,
+                ..Ntt::with_cache(cached, Kernels::best())
+            };
+            let mut out = vec![0; input.len()];
+            assert_eq!(dc::decode_with(text, &mut out, &mut ntt), Ok(input.len()));
+            assert_eq!(out, input);
+            assert!(ntt.owned.get().is_none(), "decode cached={cached}");
+            #[cfg(feature = "cache")]
+            assert!(ntt.shared.get().is_none(), "decode cached={cached}");
+
+            let mut ntt = Ntt {
+                threshold: usize::MAX,
+                prepared_threshold: usize::MAX,
+                ..Ntt::with_cache(cached, Kernels::best())
+            };
+            let mut out = vec![0; encoded.len()];
+            assert_eq!(encode::encode_tuned(&input, &mut out, &mut ntt, 0, 32, Leaves::Horner), Ok(len));
+            assert_eq!(out[..len], encoded[..len]);
+            assert!(ntt.owned.get().is_none(), "encode cached={cached}");
+            #[cfg(feature = "cache")]
+            assert!(ntt.shared.get().is_none(), "encode cached={cached}");
+        }
+    }
+
+    #[test]
+    fn reused_multiplier_grows_tables() {
+        let mut ntt = scalar_ntt(Kernels::best());
+        for len in [6000, 30_000] {
+            let input = "z".repeat(len);
+            let want = decode_vec(crate::decode_malachite, &input).unwrap();
+            let mut out = vec![0; want.len()];
+            assert_eq!(dc::decode_with(&input, &mut out, &mut ntt), Ok(want.len()));
+            assert_eq!(out, want);
         }
     }
 
@@ -1219,7 +1222,7 @@ mod tests {
             let min = format!("2{}", "1".repeat(len - 1));
             let zeros = format!("111{max}");
             for s in [random_string(&mut rng, len), max, min, zeros] {
-                let want = decode_vec(crate::decode, &s);
+                let want = decode_vec(crate::dc::decode, &s);
                 for (name, f) in decoders {
                     assert!(decode_vec(f, &s) == want, "{name}, len {len}");
                 }
@@ -1243,7 +1246,7 @@ mod tests {
         impl Multiplier for Recording {
             fn prepare(&mut self, len: usize) {
                 self.ntt.prepare(len);
-                self.prepared = self.ntt.shared.or(self.ntt.owned.as_ref()).unwrap().log;
+                self.prepared = self.ntt.log.unwrap();
             }
 
             fn scratch_len(&self, n: usize) -> usize {
@@ -1283,7 +1286,7 @@ mod tests {
         let others = (0..24).map(|i| (5_200.0 * 1.25f64.powi(i)) as usize);
         for len in exact.into_iter().chain(others) {
             let s = random_string(&mut rng, len);
-            let ntt = Ntt::new(false, Kernels::best());
+            let ntt = Ntt::new_owned(Kernels::best());
             let mut m = Recording { ntt, prepared: 0, used: 0, power_points: 0 };
             dc::decode_with(&s, &mut vec![0; len], &mut m).unwrap();
             assert!(m.prepared >= m.used, "len {len}: tables too small");
@@ -1296,12 +1299,11 @@ mod tests {
         }
     }
 
-    /// Threads racing to build the same cached tables all get one correct table. Other
-    /// tests cache at most 2^18 points (a 1M-character decode), and `cached` serves any
-    /// larger table it holds, so only a size above theirs is sure to be built here.
+    /// Threads racing to use the largest cacheable table all get one correct table.
+    #[cfg(feature = "cache")]
     #[test]
     fn cached_tables_across_threads() {
-        const LOG: u32 = 19;
+        const LOG: u32 = CACHE_MAX_LOG;
         let start = std::sync::Barrier::new(8);
         let got: Vec<&Tables> = std::thread::scope(|scope| {
             let threads: Vec<_> = (0..8)
@@ -1315,7 +1317,6 @@ mod tests {
             threads.into_iter().map(|t| t.join().unwrap()).collect()
         });
         assert!(got.iter().all(|&t| std::ptr::eq(t, got[0])), "two tables built");
-        // A larger table here means another test cached one first: raise `LOG`.
         assert_eq!(got[0].log, LOG);
         for (g, w) in got[0].tw.iter().zip(&Tables::new(LOG).tw) {
             assert!(g.fw == w.fw && g.fwq == w.fwq && g.iw == w.iw && g.iwq == w.iwq);

@@ -1,3 +1,6 @@
+#[path = "../tests/support/malachite.rs"]
+mod malachite;
+
 use std::hint::black_box;
 use std::sync::LazyLock;
 
@@ -17,22 +20,23 @@ const ENCODERS: &[(&str, EncodeFn, fn(usize) -> bool)] = &[
     ("basexx-b", |d, out| copy_out(BASEXX_B.encode(d).unwrap().as_bytes(), out), quadratic),
     ("five8", five8, |size| size == 32 || size == 64),
     ("malachite", malachite, all),
-    ("batched", |d, out| base58_bench::encode_batched(d, out).unwrap(), quadratic),
-    ("dc", |d, out| base58_bench::encode(d, out).unwrap(), dc),
-    ("dc-toom3", |d, out| base58_bench::encode_toom3(d, out).unwrap(), dc),
-    ("ntt", |d, out| base58_bench::encode_ntt(d, out).unwrap(), dc),
-    ("ntt-cached", |d, out| base58_bench::encode_ntt_cached(d, out).unwrap(), dc),
-    ("ntt-portable", |d, out| base58_bench::encode_ntt_portable(d, out).unwrap(), dc),
-    ("dc-malachite", |d, out| base58_bench::encode_malachite(d, out).unwrap(), dc),
-    ("matrix", |d, out| base58_bench::encode_matrix(d, out).unwrap(), |size| size <= 8192),
-    ("matrix-portable", |d, out| base58_bench::encode_matrix_portable(d, out).unwrap(), |size| size <= 8192),
+    ("batched", |d, out| base58_bench::internals::encode_batched(d, out).unwrap(), quadratic),
+    ("auto", |d, out| base58_bench::encode(d, out).unwrap(), all),
+    ("dc", |d, out| base58_bench::internals::encode_karatsuba(d, out).unwrap(), dc),
+    ("dc-toom3", |d, out| base58_bench::internals::encode_toom3(d, out).unwrap(), dc),
+    ("ntt", |d, out| base58_bench::internals::encode_ntt(d, out).unwrap(), dc),
+    ("ntt-cached", |d, out| base58_bench::internals::encode_ntt_cached(d, out).unwrap(), dc),
+    ("ntt-portable", |d, out| base58_bench::internals::encode_ntt_portable(d, out).unwrap(), dc),
+    ("dc-malachite", |d, out| malachite::encode_malachite(d, out).unwrap(), dc),
+    ("matrix", |d, out| base58_bench::internals::encode_matrix(d, out).unwrap(), |size| size <= 8192),
+    ("matrix-portable", |d, out| base58_bench::internals::encode_matrix_portable(d, out).unwrap(), |size| size <= 8192),
     ("matrix-general", matrix_general, |size| size == 32 || size == 64),
 ];
 
 /// `encode_matrix` without its fixed-size path for 32 and 64 bytes (22 is its
 /// `MATRIX_MIN`).
 fn matrix_general(d: &[u8], out: &mut [u8]) -> usize {
-    base58_bench::bench::encode_matrix_with(d, out, 22).unwrap()
+    base58_bench::internals::encode_matrix_with(d, out, 22).unwrap()
 }
 
 /// The divide-and-conquer encoders run `encode_batched` below about 3.7 KiB.

@@ -5,8 +5,9 @@ use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
 use crate::common::{ALPHABET, CHUNK, DIGITS, all_valid};
 use crate::dc::DC_THRESHOLD;
-use crate::{
-    Error, decode, decode_batched, decode_malachite, decode_matrix, decode_matrix_portable,
+use crate::{Error, decode, decode_malachite};
+use crate::internals::{
+    decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable,
     decode_ntt, decode_ntt_cached, decode_ntt_portable, decode_toom3,
 };
 
@@ -15,7 +16,8 @@ pub(crate) type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 /// Every decoder under test. Add new ones here.
 const DECODERS: &[(&str, Decode)] = &[
     ("batched", decode_batched),
-    ("dc", decode),
+    ("auto", decode),
+    ("dc", decode_karatsuba),
     ("dc-toom3", decode_toom3),
     ("ntt", decode_ntt),
     ("ntt-cached", decode_ntt_cached),

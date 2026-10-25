@@ -2,7 +2,7 @@
 
 use super::{bits, min_digits, split_zeros, ten_digits};
 use crate::BufferTooSmall;
-use crate::common::BASE;
+use crate::common::{ALPHABET, BASE};
 
 /// Input bytes per limb update. `2^56 < BASE`, which [`Limbs::step`] relies on.
 const STEP: usize = 7;
@@ -15,6 +15,22 @@ const RECIP: u64 = ((1u128 << 120) / BASE as u128) as u64;
 ///
 /// Works in place in `output`: no allocation. Writes nothing past the result.
 pub fn encode_batched(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    match input {
+        [] => return Ok(0),
+        [byte] => {
+            let value = *byte as usize;
+            let len = 1 + usize::from(value >= 58);
+            let out = output.get_mut(..len).ok_or(BufferTooSmall)?;
+            if value < 58 {
+                out[0] = ALPHABET[value];
+            } else {
+                out[0] = ALPHABET[value / 58];
+                out[1] = ALPHABET[value % 58];
+            }
+            return Ok(len);
+        }
+        _ => {}
+    }
     let (zeros, x) = split_zeros(input);
     if x.is_empty() {
         output.get_mut(..zeros).ok_or(BufferTooSmall)?.fill(b'1');
@@ -25,7 +41,11 @@ pub fn encode_batched(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTo
     let anchor = min_digits(bits(x));
     let (ones, rest) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
     let region = rest.get_mut(..anchor).ok_or(BufferTooSmall)?;
-    let mut limbs = Limbs { slots: region.as_rchunks_mut::<8>().1, len: 0, top: 0 };
+    let mut limbs = Limbs {
+        slots: region.as_rchunks_mut::<8>().1,
+        len: 0,
+        top: 0,
+    };
     limbs.feed(x);
     let Limbs { len, top, .. } = limbs;
     let n = write(rest, anchor, len, top)?;
@@ -184,4 +204,39 @@ fn step_limb(y: u64, c: u64) -> (u64, u64) {
     let (q, r) = split(y);
     let (t, k) = reduce(r + c);
     (t, q + k)
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    #[kani::proof]
+    fn encode_batched_split_is_exact() {
+        let y: u64 = kani::any();
+        kani::assume(y < BASE);
+        let (q, r) = split(y);
+        assert!(r < BASE);
+        assert_eq!(q as u128 * BASE as u128 + r as u128, (y as u128) << 56);
+    }
+
+    #[kani::proof]
+    fn encode_batched_reduce_is_exact() {
+        let t: u64 = kani::any();
+        kani::assume(t < 2 * BASE);
+        let (r, q) = reduce(t);
+        assert!(r < BASE && q <= 1);
+        assert_eq!(q * BASE + r, t);
+    }
+
+    #[kani::proof]
+    fn encode_batched_step_limb_is_exact() {
+        let (y, c): (u64, u64) = kani::any();
+        kani::assume(y < BASE && c < 1 << 56);
+        let (r, q) = step_limb(y, c);
+        assert!(r < BASE && q < 1 << 56);
+        assert_eq!(
+            q as u128 * BASE as u128 + r as u128,
+            ((y as u128) << 56) + c as u128
+        );
+    }
 }

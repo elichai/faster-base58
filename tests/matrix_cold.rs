@@ -2,11 +2,13 @@
 //!
 //! In its own file, so it runs in a fresh process where no table is built yet. Through the
 //! public API it can check only the bytes, not that each table is built once.
+#![cfg(feature = "__internals")]
 
 use std::sync::Barrier;
 use std::thread;
 
-use base58_bench::{Error, decode_batched, decode_matrix};
+use base58_bench::internals::{decode_batched, decode_matrix};
+use base58_bench::Error;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 

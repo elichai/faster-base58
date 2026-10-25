@@ -21,13 +21,13 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 }
 
 /// A multiplication for [`decode_with`].
-pub(crate) trait Multiplier {
+pub trait Multiplier {
     /// Called once per decode, before any [`Multiplier::mul`]. No product will be longer
     /// than `len` limbs: `a.len() + b.len() <= len`.
     fn prepare(&mut self, _len: usize) {}
 
     /// Scratch limbs [`Multiplier::mul`] needs when no operand is longer than `n` limbs.
-    /// [`dc_scratch_len`] relies on `n / 2 + scratch_len(n / 2) <= scratch_len(n)`,
+    /// `dc_scratch_len` relies on `n / 2 + scratch_len(n / 2) <= scratch_len(n)`,
     /// which holds for any `c * n + d` with `c >= 1`.
     fn scratch_len(&self, n: usize) -> usize;
 
@@ -95,15 +95,16 @@ impl Multiplier for Karatsuba {
 pub(crate) enum Leaf {
     /// Chunk parse and [`mul_add_chunks`].
     Horner,
-    /// [`matrix::leaf`]. Faster with its table in cache, but the table is built on first
-    /// use and kept for the life of the process, so only decoders that cache anyway use it.
+    /// [`matrix::leaf`]. The `cache` feature retains its table; explicit use without
+    /// that feature builds an owned table for each leaf invocation.
     Matrix,
 }
 
 impl Leaf {
-    /// [`Leaf::Matrix`] where it was measured faster: NEON. x86_64 is not measured yet.
+    /// With `cache`, [`Leaf::Matrix`] where it was measured faster: NEON.
+    /// Without `cache`, Horner avoids rebuilding a matrix table at every leaf.
     pub(crate) const BEST: Leaf =
-        if cfg!(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon")) {
+        if cfg!(all(feature = "cache", target_arch = "aarch64", target_endian = "little", target_feature = "neon")) {
             Leaf::Matrix
         } else {
             Leaf::Horner
@@ -111,7 +112,7 @@ impl Leaf {
 }
 
 /// [`decode`], multiplying with `m`.
-pub(crate) fn decode_with(
+pub fn decode_with(
     input: &str,
     output: &mut [u8],
     m: &mut impl Multiplier,
@@ -502,5 +503,50 @@ mod tests {
             assert_eq!(decode(&s, &mut out), Ok(want.len()), "{d} digits");
             assert_eq!(out, want);
         }
+    }
+}
+
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+
+    // Open obligation: Z3 hit a CBMC SMT-lowering error (see review).
+    #[kani::proof]
+    #[kani::unwind(6)]
+    #[kani::solver(z3)]
+    fn paired_limb_update_matches_sequential() {
+        let low: u64 = kani::any();
+        let top: u64 = kani::any();
+        let c1: u64 = kani::any();
+        let c2: u64 = kani::any();
+        kani::assume(top != 0 && c1 < BASE && c2 < BASE);
+        let mut paired = [low, top, 0xA5A5_A5A5_A5A5_A5A5, 0xA5A5_A5A5_A5A5_A5A5];
+        let mut sequential = paired;
+        let pn = mul_add_base2(&mut paired, 2, c1, c2);
+        let sn = mul_add_base(&mut sequential, 2, c1);
+        let sn = mul_add_base(&mut sequential, sn, c2);
+        assert_eq!(pn, sn);
+        for i in 0..4 {
+            assert_eq!(paired[i], sequential[i]);
+        }
+    }
+
+    #[kani::proof]
+    #[kani::unwind(4)]
+    #[kani::solver(z3)]
+    fn single_limb_update_matches_wide_reference() {
+        let low: u64 = kani::any();
+        let top: u64 = kani::any();
+        let c: u64 = kani::any();
+        kani::assume(top != 0 && c < BASE);
+        let first = low as u128 * BASE as u128 + c as u128;
+        let last = top as u128 * BASE as u128 + (first >> 64);
+        let mut limbs = [low, top, 0xA5A5_A5A5_A5A5_A5A5];
+        let len = mul_add_base(&mut limbs, 2, c);
+        let carry = (last >> 64) as u64;
+        assert_eq!(len, if carry == 0 { 2 } else { 3 });
+        assert_eq!(limbs[0], first as u64);
+        assert_eq!(limbs[1], last as u64);
+        assert_eq!(limbs[2], if carry == 0 { 0xA5A5_A5A5_A5A5_A5A5 } else { carry });
     }
 }

@@ -2,8 +2,6 @@
 
 #[cfg(target_arch = "x86_64")]
 use crate::mul_ifma;
-#[cfg(target_arch = "x86_64")]
-use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 /// Operands shorter than this use schoolbook multiplication.
 const KARATSUBA_THRESHOLD: usize = 32;
@@ -14,26 +12,40 @@ const KARATSUBA_THRESHOLD: usize = 32;
 const IFMA_MIN: usize = 12;
 const _: () = assert!(8 <= IFMA_MIN && IFMA_MIN <= KARATSUBA_THRESHOLD);
 
-/// Tuned on whole decodes on Zen 5.
 #[cfg(target_arch = "x86_64")]
-static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(384);
+pub(crate) mod ifma {
+    use crate::mul_ifma::avx512 as mul_ifma;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
-/// The IFMA leaf threshold [`mul`] uses: 0 (none) without AVX-512 IFMA.
-pub fn ifma_threshold() -> usize {
-    #[cfg(target_arch = "x86_64")]
-    if mul_ifma::available() {
-        return IFMA_THRESHOLD.load(Relaxed);
+    /// Tuned on whole decodes on Zen 5.
+    static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(384);
+
+    /// The IFMA leaf threshold `mul` uses: 0 (none) without AVX-512 IFMA.
+    pub fn ifma_threshold() -> usize {
+        if mul_ifma::available() {
+            return IFMA_THRESHOLD.load(Relaxed);
+        }
+        0
     }
-    0
+
+    /// Sets the IFMA leaf threshold of [`super::mul`], for benchmarks; 0 turns the leaf off.
+    #[cfg(any(test, feature = "__internals"))]
+    pub fn set_ifma_threshold(t: usize) {
+        IFMA_THRESHOLD.store(t, Relaxed);
+    }
 }
 
-/// Sets the IFMA leaf threshold of [`mul`], for benchmarks; 0 turns the leaf off.
-#[cfg(target_arch = "x86_64")]
-pub fn set_ifma_threshold(t: usize) {
-    IFMA_THRESHOLD.store(t, Relaxed);
+#[cfg(not(target_arch = "x86_64"))]
+mod ifma {
+    /// The IFMA leaf threshold: this target has no native IFMA leaf.
+    pub fn ifma_threshold() -> usize {
+        0
+    }
 }
 
-/// Scratch limbs [`mul`] needs when neither operand is longer than `n` limbs.
+pub use ifma::ifma_threshold;
+
+/// Scratch limbs `mul` needs when neither operand is longer than `n` limbs.
 ///
 /// By induction: a Karatsuba step on `n` limbs uses at most `2n + 6` limbs, then
 /// recurses on at most `n/2 + 3/2` limbs, which fits when `n >= 27`. Cutting blocks of
@@ -50,7 +62,7 @@ pub fn mul(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
     mul_with(out, a, b, scratch, ifma_threshold());
 }
 
-/// [`mul`] with the IFMA leaf for a shorter operand of `IFMA_MIN..t` limbs (at most
+/// Multiplication with the IFMA leaf for a shorter operand of `IFMA_MIN..t` limbs (at most
 /// `mul_ifma::MAX_LEN`); `t = 0` never uses it. Panics if that range is used on an x86-64
 /// CPU without AVX-512 IFMA; other targets ignore `t`.
 pub fn mul_with(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64], t: usize) {
@@ -58,7 +70,7 @@ pub fn mul_with(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64], t: u
     let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
     #[cfg(target_arch = "x86_64")]
     if (IFMA_MIN..t.min(mul_ifma::MAX_LEN + 1)).contains(&a.len()) {
-        return mul_ifma::mul(out, a, b, scratch);
+        return mul_ifma::avx512::mul(out, a, b, scratch);
     }
     if a.len() < KARATSUBA_THRESHOLD {
         schoolbook(out, a, b);

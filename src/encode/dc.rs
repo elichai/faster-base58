@@ -14,24 +14,11 @@ use super::batched::Limbs;
 use super::{bits, matrix, min_digits, split_zeros, ten_digits};
 use crate::common::CHUNK;
 use crate::dc::{
-    Karatsuba, LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len,
+    LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len,
 };
 use crate::mul::{add_assign, fold_wrapped, sub_assign};
-use crate::{BufferTooSmall, encode_batched};
-
-/// Inputs of more than this many bytes use divide and conquer, with leaves of at most
-/// [`DC_LEAF`] chunks, when multiplying with Karatsuba or Toom-3. Tuned on an M5 Pro
-/// against [`encode_batched`], in one binary; the NTT and malachite have their own.
-pub(crate) const DC_THRESHOLD: usize = 5120;
-pub(crate) const DC_LEAF: usize = 96;
-
-/// [`DC_LEAF`] when Karatsuba has the AVX-512 IFMA leaf, which makes products cheaper and
-/// so favours smaller leaves: on Zen 5, 96 took 13-29% longer than 32 at 2-8 KiB.
-const DC_IFMA_LEAF: usize = 32;
-
-/// [`DC_THRESHOLD`] with the IFMA leaf. On Zen 5 divide and conquer with 32-chunk leaves
-/// tied [`encode_batched`] at 512 bytes and took 28% less time at 768.
-pub(crate) const DC_IFMA_THRESHOLD: usize = 512;
+use crate::BufferTooSmall;
+use super::encode_batched;
 
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;
@@ -40,34 +27,60 @@ const RECIP_BASECASE: usize = 16;
 /// cap. Horner leaves keep `LEAF`, which sizes their stack buffers.
 pub(super) const MATRIX_LEAF: usize = 1024;
 
-/// Like [`crate::encode_batched`], but subquadratic for large inputs.
-pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    encode_with(input, output, &mut Karatsuba)
+#[cfg(any(not(feature = "cache"), test, feature = "__internals", kani))]
+pub(crate) mod karatsuba {
+    use super::*;
+    use crate::dc::Karatsuba;
+
+    /// Inputs of more than this many bytes use divide and conquer, with leaves of at most
+    /// [`DC_LEAF`] chunks, when multiplying with Karatsuba or Toom-3. Tuned on an M5 Pro
+    /// against [`encode_batched`], in one binary; the NTT and malachite have their own.
+    pub(crate) const DC_THRESHOLD: usize = 5120;
+    pub(crate) const DC_LEAF: usize = 96;
+
+    /// [`DC_LEAF`] when Karatsuba has the AVX-512 IFMA leaf, which makes products cheaper and
+    /// so favours smaller leaves: on Zen 5, 96 took 13-29% longer than 32 at 2-8 KiB.
+    const DC_IFMA_LEAF: usize = 32;
+
+    /// [`DC_THRESHOLD`] with the IFMA leaf. On Zen 5 divide and conquer with 32-chunk leaves
+    /// tied [`encode_batched`] at 512 bytes and took 28% less time at 768.
+    pub(crate) const DC_IFMA_THRESHOLD: usize = 512;
+
+    /// Like [`encode_batched`], but subquadratic for large inputs.
+    pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        encode_with(input, output, &mut Karatsuba)
+    }
+
+    /// [`encode`], multiplying with `m`.
+    pub(crate) fn encode_with(
+        input: &[u8],
+        output: &mut [u8],
+        m: &mut impl Multiplier,
+    ) -> Result<usize, BufferTooSmall> {
+        let (threshold, leaf) = match crate::mul::ifma_threshold() {
+            0 => (DC_THRESHOLD, DC_LEAF),
+            _ => (DC_IFMA_THRESHOLD, DC_IFMA_LEAF),
+        };
+        encode_tuned(input, output, m, threshold, leaf, Leaves::Horner)
+    }
 }
 
-/// [`encode`] with `threshold` and `leaf` in place of [`DC_THRESHOLD`] and [`DC_LEAF`],
-/// and leaves converted by `leaves`.
-pub fn encode_karatsuba_with(
-    input: &[u8],
-    output: &mut [u8],
-    threshold: usize,
-    leaf: usize,
-    leaves: Leaves,
-) -> Result<usize, BufferTooSmall> {
-    encode_tuned(input, output, &mut Karatsuba, threshold, leaf, leaves)
-}
+#[cfg(any(test, feature = "__internals"))]
+pub(crate) mod internals {
+    use super::*;
+    use crate::dc::Karatsuba;
 
-/// [`encode`], multiplying with `m`.
-pub(crate) fn encode_with(
-    input: &[u8],
-    output: &mut [u8],
-    m: &mut impl Multiplier,
-) -> Result<usize, BufferTooSmall> {
-    let (threshold, leaf) = match crate::mul::ifma_threshold() {
-        0 => (DC_THRESHOLD, DC_LEAF),
-        _ => (DC_IFMA_THRESHOLD, DC_IFMA_LEAF),
-    };
-    encode_tuned(input, output, m, threshold, leaf, Leaves::Horner)
+    /// `encode_karatsuba` with `threshold` and `leaf` in place of `DC_THRESHOLD`
+    /// and `DC_LEAF`, and leaves converted by `leaves`.
+    pub fn encode_karatsuba_with(
+        input: &[u8],
+        output: &mut [u8],
+        threshold: usize,
+        leaf: usize,
+        leaves: Leaves,
+    ) -> Result<usize, BufferTooSmall> {
+        encode_tuned(input, output, &mut Karatsuba, threshold, leaf, leaves)
+    }
 }
 
 /// How the divide-and-conquer encoders convert their leaves.
@@ -75,29 +88,29 @@ pub(crate) fn encode_with(
 pub enum Leaves {
     /// [`encode_batched`]'s kernel.
     Horner,
-    /// `encode_matrix`'s conversion. Faster with its table in cache, but the table is
-    /// built on first use and kept for the life of the process, so only encoders that
-    /// cache anyway use it.
+    /// `encode_matrix`'s conversion. The `cache` feature retains its table;
+    /// explicit use without that feature builds an owned table per leaf invocation.
     Matrix,
 }
 
 impl Leaves {
     /// [`Leaves::Matrix`] where `encode_matrix` has SIMD kernels: NEON, and AVX2 or SSE4.1
-    /// on x86_64, where matrix leaves took 2-59% less time than Horner leaves for every
-    /// backend and leaf size measured (Zen 5). Elsewhere [`Leaves::Horner`].
-    pub(crate) const BEST: Leaves = if cfg!(any(
+    /// on x86_64, where cached matrix leaves took 2-59% less time than Horner leaves
+    /// in the measured Zen 5 cells. Without `cache`, use Horner so recursive leaves
+    /// do not rebuild general matrix tables.
+    pub(crate) const BEST: Leaves = if cfg!(all(feature = "cache", any(
         all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
         target_arch = "x86_64"
-    )) {
+    ))) {
         Leaves::Matrix
     } else {
         Leaves::Horner
     };
 }
 
-/// [`encode_with`] with divide and conquer above `threshold` bytes, leaves of at most
-/// `leaf <= LEAF` chunks, converted by `leaves`.
-pub(crate) fn encode_tuned(
+/// Divide and conquer above `threshold` bytes, with leaves converted by `leaves`.
+/// Panics unless `leaf` is in `1..=256` for Horner or `1..=1024` for Matrix.
+pub fn encode_tuned(
     input: &[u8],
     output: &mut [u8],
     m: &mut impl Multiplier,
@@ -448,7 +461,7 @@ fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferT
         o[..10 - skip].copy_from_slice(&top_digits[skip..]);
         &mut o[10 - skip..]
     };
-    for (o, s) in o.chunks_exact_mut(10).zip(stored) {
+    for (o, s) in o.as_chunks_mut::<10>().0.iter_mut().zip(stored) {
         o.copy_from_slice(&ten_digits(u64::from_ne_bytes(*s)));
     }
     Ok(())
@@ -642,9 +655,45 @@ fn negate(t: &mut [u64]) {
     }
 }
 
+#[cfg(kani)]
+mod verification {
+    use super::*;
+    use crate::common::BASE;
+
+    struct Scalar;
+
+    impl Multiplier for Scalar {
+        fn scratch_len(&self, n: usize) -> usize {
+            crate::mul::scratch_len(n)
+        }
+
+        fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
+            crate::mul::mul_with(out, a, b, scratch, 0);
+        }
+    }
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn barrett_divide_one_base_power_is_exact() {
+        let x: [u64; 2] = kani::any();
+        let value = x[0] as u128 | (x[1] as u128) << 64;
+        kani::assume(value < BASE as u128 * BASE as u128);
+        let p = Power { exp: 1, limbs: &[BASE], shift: 0 };
+        let mut scratch = [0; 96];
+        let mut m = Scalar;
+        let d = Divisor::new(&p, None, &mut scratch, &mut m);
+        let (mut hi, mut lo) = ([0; 2], [0; 1]);
+        let (hn, ln) = divide(&x, &d, 0, &mut hi, &mut lo, &mut scratch, &mut m);
+        assert!(hn <= 1 && ln <= 1 && hi[1] == 0 && lo[0] < BASE);
+        assert_eq!(hi[0] as u128 * BASE as u128 + lo[0] as u128, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::karatsuba::encode;
+    use crate::dc::Karatsuba;
     use crate::mul;
     use crate::ntt::{Kernels, Ntt};
     use rand_xoshiro::Xoshiro256PlusPlus;
@@ -678,7 +727,7 @@ mod tests {
     /// The NTT with tables for products of up to `len` limbs. It wraps the products
     /// where a power-of-two cyclic transform is shorter.
     fn ntt(len: usize) -> Ntt {
-        let mut m = Ntt::new(false, Kernels::best());
+        let mut m = Ntt::new_owned(Kernels::best());
         m.prepare(len);
         m
     }

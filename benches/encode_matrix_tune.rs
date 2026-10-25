@@ -1,28 +1,32 @@
 //! `encode_matrix` against the other encoders in one binary.
 //!
-//! - `cargo bench --bench encode_matrix_tune`: the matrix path at every size (threshold
+//! - `cargo bench --features __internals --bench encode_matrix_tune`: the matrix path at every size (threshold
 //!   0), interleaved rounds, the minimum time per call. For tuning `MATRIX_MIN`, and, with
 //!   `SIZES` from 4 KiB, the cap.
-//! - `cargo bench --bench encode_matrix_tune -- cold`: single calls after touching every
+//! - `cargo bench --features __internals --bench encode_matrix_tune -- cold`: single calls after touching every
 //!   line of 64 MiB to evict the caches, the median of 31 calls. The table is built
 //!   before. The timer ticks every 41.7 ns on Apple Silicon.
-//! - `cargo bench --bench encode_matrix_tune -- first`: the first call in each table size
+//! - `cargo bench --features __internals --bench encode_matrix_tune -- first`: the first call in each table size
 //!   class, which builds the table, against the second.
-//! - `cargo bench --bench encode_matrix_tune -- cap`: the matrix conversion without the
+//! - `cargo bench --features __internals --bench encode_matrix_tune -- cap`: the matrix conversion without the
 //!   cap against `encode_ntt_cached`, warm, from 1.5 to 4.5 KiB: for tuning `IFMA_CAP`.
 //!   Without the IFMA leaf `ntt-cached` runs `encode_batched` up to 4 KiB.
 //!
 //! `SIZES` (comma-separated) replaces the default list. Above its cap, `matrix` times
 //! `encode_matrix`'s fallback (but not with `cap`).
 
+#[path = "../tests/support/malachite.rs"]
+mod malachite;
+
 use std::hint::black_box;
 use std::time::Instant;
 
-use base58_bench::bench::{encode_matrix_whole, encode_matrix_with, ifma_threshold};
-use base58_bench::{
-    encode, encode_batched, encode_malachite, encode_matrix, encode_ntt_cached, encode_toom3,
-    max_encoded_len,
+use base58_bench::internals::{
+    encode_batched, encode_karatsuba, encode_matrix, encode_matrix_whole, encode_matrix_with,
+    encode_ntt_cached, encode_toom3, ifma_threshold,
 };
+use base58_bench::max_encoded_len;
+use malachite::encode_malachite;
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
 use malachite_nz::natural::Natural;
 use rand_xoshiro::Xoshiro256PlusPlus;
@@ -35,7 +39,7 @@ type Config = (&'static str, Encode, fn(usize) -> bool);
 /// `matrix` is last.
 const CONFIGS: [Config; 7] = [
     ("batched", |d, o| encode_batched(d, o).unwrap(), |size| size <= 8192),
-    ("dc", |d, o| encode(d, o).unwrap(), large),
+    ("dc", |d, o| encode_karatsuba(d, o).unwrap(), large),
     ("dc-toom3", |d, o| encode_toom3(d, o).unwrap(), large),
     ("ntt-cached", |d, o| encode_ntt_cached(d, o).unwrap(), large),
     ("dc-malachite", |d, o| encode_malachite(d, o).unwrap(), large),
