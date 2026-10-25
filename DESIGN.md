@@ -9,6 +9,8 @@ This map complements [the user guide](README.md), [historical derivations](docs/
 [the tradeoff evidence](docs/tradeoffs/README.md). The
 [public API report](docs/tradeoffs/2026-10-25/public-api/README.md) records current feature choices;
 the earlier [resource/dispatch follow-up](docs/tradeoffs/2026-10-24/resource-dispatch/) preserves their precursors.
+The [AC-power rerun](docs/tradeoffs/2026-10-25/ac-power/README.md) adds fresh laptop
+timings, fixed-encoder controls and graphs using the retained public artifacts.
 
 ## Contract and representation
 
