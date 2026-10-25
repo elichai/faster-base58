@@ -33,19 +33,29 @@ Matrix and transform kernels use narrower coefficients with bounded accumulation
 ## Entry points and dispatch
 
 Named backend selectors require `__internals`; they are hidden, unstable test and
-measurement hooks. Their kernels also serve normal automatic dispatch. The hooks
-select wrappers, whose small/large fallbacks contribute to their linked cost.
+measurement hooks. Batched, Karatsuba, matrix and NTT kernels also serve normal
+automatic dispatch. The hooks select wrappers, whose small/large fallbacks
+contribute to their linked cost.
 `__internals` does not enable `cache`; all library `OnceLock` caches require it.
 
 | Family | Main use | Boundary behavior |
 | --- | --- | --- |
 | Batched | Small inputs and compact consumers | Quadratic at large sizes; no internal heap allocation |
 | Karatsuba | General divide-and-conquer conversion | Batched leaves; shared schoolbook/IFMA multiplication below its recursive threshold |
-| Toom-3 | Faster large products than Karatsuba on some hosts | Same conversion tree; falls back to Karatsuba for smaller products |
+| Toom-3, experimental | Benchmark, test and proof comparison | Excluded from normal builds; falls back to Karatsuba for smaller products |
 | NTT | Large inputs | Karatsuba/IFMA below transform thresholds; owned or cached twiddles |
 | Matrix | Fixed and medium inputs | Batched below its minimum; encoder falls back to NTT, decoder to Karatsuba above its cap |
 | Portable variants | Kernel comparisons and differential controls | Plain-Rust matrix/NTT kernels; wrapper fallbacks still apply |
 | Malachite, dev only | Multiplication comparison | Shared conversion tree; operand copies into reused `Natural` staging, with product and internal scratch allocations |
+
+Toom-3 is compiled only with `__internals`, unit tests or `cfg(kani)`. Auto and
+`no_alloc` never select it, including with `cache`. It can beat Karatsuba, but the
+[earlier large-input measurements](docs/tradeoffs/2026-10-24/benchmark-results/m5-native-decode.md)
+favor NTT throughput. Retain it as an experimental speed/heap/linked-size
+comparison. The existing gate already removes it from normal compilation;
+a separate experimental feature would not reduce normal binary size.
+The older [resource comparison](docs/tradeoffs/backend-comparison.md) records
+its lower-heap/smaller-link tradeoff against NTT.
 
 Without `cache`, Auto encoding uses batched conversion below 22 input bytes and
 fixed matrices at exactly 32/64 bytes. Other sizes through 4096 bytes use the
