@@ -34,9 +34,10 @@ Matrix and transform kernels use narrower coefficients with bounded accumulation
 
 ## Entry points and dispatch
 
-Named backend selectors require `__internals`; they are hidden, unstable test and
-measurement hooks. Batched, Karatsuba, matrix and NTT kernels also serve normal
-automatic dispatch. The hooks select wrappers, whose small/large fallbacks
+Named backend selectors and tuning/resource hooks live in `internals`, enabled
+by `__internals`. The root has no backend aliases or `bench` module. These are
+unstable test and measurement APIs. Batched, Karatsuba, matrix and NTT kernels
+also serve normal automatic dispatch. The hooks select wrappers, whose small/large fallbacks
 contribute to their linked cost.
 `__internals` does not enable `cache`; all library `OnceLock` caches require it.
 
@@ -110,6 +111,13 @@ Fixed 32/64-byte encoders use compile-time tables, local sums and no general-tab
 setup. [Firedancer's Rust port, five8](https://docs.rs/five8/1.0.0/five8/) uses a related approach;
 here columns use `58^4`. Optimized 64-byte kernels split carry into segments;
 correction/fallback preserves exact results at carry boundaries.
+This is the same power-matrix algorithm as general Matrix. Fixed dimensions
+remove setup/dimension handling and strengthen overflow bounds: at most 16
+products per column, versus general Matrix's scheduled carry passes. Auto,
+`no_alloc` and ordinary Matrix already share these exact-size specializations.
+The short serial/segmented carry schedule cannot replace the general schedule
+without new bounds. General Matrix already shares SIMD panel multiplication
+with decoding and NEON character emission with fixed encoding.
 
 ## Multiplication and CPU-specific work
 
@@ -140,10 +148,18 @@ maximum accepted input length. The coefficient/CRT bounds depend on this cap.
 Runtime feature checks guard x86 instructions. Compile-time target features also
 affect dispatch and LLVM optimization, so a generic x86 build may still select
 SIMD at runtime. The recorded native flag sets are not interchangeable controls.
+Matrix target code lives in `matrix/{neon,x86}.rs` and
+`encode/matrix/{neon,x86}.rs`; `encode/matrix/fixed.rs` owns common tables/carries
+and selects those adapters. `ntt/neon.rs` and `ntt/avx512.rs` hold SIMD kernels;
+`ntt/x86.rs` holds runtime-selected target-feature wrappers for LLVM-generated
+vector code. `mul_ifma/avx512.rs` holds IFMA's native vector adapter; its parent
+keeps shared radix arithmetic and emulation. `ntt/portable.rs` keeps scalar
+helpers used by NEON tails; `ntt/portable/kernels.rs` groups full portable kernels,
+compiled only for production fallbacks, internal comparisons, tests or proofs.
 [Hoisting the relaxed atomic IFMA threshold lookup](docs/review/threshold-snapshot.md) once per conversion was tested and rejected;
 the existing lookup remains, and emitted loads depend on compiler folding.
 
-`*_portable` selectors require `__internals` and are hidden from API docs. They
+`internals::*_portable` selectors require `__internals`. They
 measure hand-written kernels against plain Rust and provide differential controls.
 The kernels remain available internally for normal target fallbacks. This does
 **not** promise scalar machine code:
