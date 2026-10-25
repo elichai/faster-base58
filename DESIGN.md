@@ -119,6 +119,12 @@ The short serial/segmented carry schedule cannot replace the general schedule
 without new bounds. General Matrix already shares SIMD panel multiplication
 with decoding and NEON character emission with fixed encoding.
 
+Padding nearby lengths into the fixed kernels preserves those arithmetic bounds,
+but adds local buffers/copies and bypasses cheap leading-zero handling. The
+[M5, GCP and Wasm experiment](docs/tradeoffs/2026-10-25/fixed-table-reuse/README.md)
+rejects that broad extension: some normal inputs improve, while zero-heavy inputs
+regress substantially. The report records linked-size and cache-allocation costs.
+
 ## Multiplication and CPU-specific work
 
 [Schoolbook multiplication](src/mul.rs) overlaps two rows' carry chains.
