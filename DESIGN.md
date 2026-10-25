@@ -1,13 +1,14 @@
 # Design and resource costs
 
-This crate converts the Bitcoin Base58 alphabet through several caller-buffer
-backends. Auto favors throughput on the measured M5 and Zen 5 systems; explicit
-backends expose size, setup and memory tradeoffs. None wins every workload.
-The library requires `std` and has no external dependencies.
+This crate converts the Bitcoin Base58 alphabet. The root API selects kernels by
+size and CPU; `no_alloc` provides conversion without internal heap allocation.
+Generated-table retention is an opt-in `cache` feature, off by default.
+The library requires `std` and has no normal dependencies.
 
-This map complements [the derivations](README.md) and
+This map complements [the user guide](README.md), [historical derivations](docs/historical-readme.md) and
 [the tradeoff evidence](docs/tradeoffs/README.md). The
-[resource/dispatch follow-up](docs/tradeoffs/2026-10-24/resource-dispatch/) records current policy decisions.
+[public API report](docs/tradeoffs/2026-10-25/public-api/README.md) records current feature choices;
+the earlier [resource/dispatch follow-up](docs/tradeoffs/2026-10-24/resource-dispatch/) preserves their precursors.
 
 ## Contract and representation
 
@@ -19,7 +20,9 @@ input and insufficient capacity apply are unspecified.
 
 `encode_into` / `decode_into` borrow caller storage; `encode_string` /
 `decode_vec` allocate the result. `decode_array::<N>` requires exactly `N` decoded
-bytes. Supplying output storage does not prevent internal workspace allocation.
+bytes. Auto can allocate internal workspace despite caller-supplied storage.
+`no_alloc` has the length/borrowed/array helpers, without owned-result helpers;
+its cold and warm calls allocate no internal heap, including with `cache` enabled.
 Allocation failure is not represented by these conversion error types.
 All algorithms have input-dependent timing; they do not hide values or lengths.
 
@@ -29,8 +32,10 @@ Matrix and transform kernels use narrower coefficients with bounded accumulation
 
 ## Entry points and dispatch
 
-Public backend names select wrappers, not an unconditional arithmetic kernel.
-Their small-input and large-input fallbacks are part of their linked cost.
+Named backend selectors require `__internals`; they are hidden, unstable test and
+measurement hooks. Their kernels also serve normal automatic dispatch. The hooks
+select wrappers, whose small/large fallbacks contribute to their linked cost.
+`__internals` does not enable `cache`; all library `OnceLock` caches require it.
 
 | Family | Main use | Boundary behavior |
 | --- | --- | --- |
@@ -38,24 +43,28 @@ Their small-input and large-input fallbacks are part of their linked cost.
 | Karatsuba | General divide-and-conquer conversion | Batched leaves; shared schoolbook/IFMA multiplication below its recursive threshold |
 | Toom-3 | Faster large products than Karatsuba on some hosts | Same conversion tree; falls back to Karatsuba for smaller products |
 | NTT | Large inputs | Karatsuba/IFMA below transform thresholds; owned or cached twiddles |
-| Matrix | Fixed and medium inputs | Batched below its minimum; encoder falls back to cached NTT, decoder to Karatsuba above its cap |
+| Matrix | Fixed and medium inputs | Batched below its minimum; encoder falls back to NTT, decoder to Karatsuba above its cap |
 | Portable variants | Kernel comparisons and differential controls | Plain-Rust matrix/NTT kernels; wrapper fallbacks still apply |
 | Malachite, dev only | Multiplication comparison | Shared conversion tree; operand copies into reused `Natural` staging, with product and internal scratch allocations |
 
-Automatic encoding uses batched conversion below 22 input bytes. Exactly 32/64
-bytes use fixed matrix encoders. General matrix conversion handles up to 8192
-significant bytes, reduced to 3584 when the IFMA leaf is available; larger inputs
-use cached NTT. Leading zeros can move a general call to a smaller route.
+Without `cache`, Auto encoding uses batched conversion below 22 input bytes and
+fixed matrices at exactly 32/64 bytes. Other sizes through 4096 bytes use the
+Karatsuba encoder (including its batched fallback); larger sizes use owned NTT.
+Decoding uses the tiny helper through two text bytes, batched through 5120,
+Karatsuba through 5632, then owned NTT. Recursive leaves use Horner conversion.
 
-Automatic decoding starts with batched conversion: below 576 text bytes on
-little-endian AArch64 with NEON or Wasm, or 1024 elsewhere. Medium inputs use
-matrix on those targets and x86 with SSE4.1, then cached NTT above 5632 text bytes.
+With `cache`, encoding instead uses general matrix conversion through 8192
+significant bytes, reduced to 3584 with IFMA, then NTT; tiny/fixed routes remain.
+Decoding starts with batched conversion below 576 text bytes on little-endian
+AArch64 with NEON or Wasm, or 1024 elsewhere. Medium inputs use matrix on those
+targets and x86 with SSE4.1, then NTT above 5632 text bytes.
 IFMA hosts switch above 5120; IFMA hosts compiled with AVX2 keep the remaining
 medium range on batched decoding. Other targets keep batched decoding there.
 The matrix wrapper itself applies its limits after stripping leading `'1'`s.
-Thresholds are tuning choices, not format limits or universal CPU guarantees.
-Earlier v007 Wasm dispatch trials cut M5/V8 warm elapsed time 47–62%; first calls take 4–8× baseline time.
-That v007 change adds cached matrix heap and 4579 Wasm bytes; reservations reduce cold setup ([evidence](docs/tradeoffs/2026-10-24/resource-dispatch/performance.md)).
+These conservative crossovers are not format limits or optimality guarantees.
+`no_alloc` encoding uses the fixed 32/64-byte matrices and batched conversion
+elsewhere; decoding uses tiny/batched conversion. It never builds general tables
+or recursive workspace. Its general-size work remains quadratic.
 
 ## Conversion families
 
@@ -64,11 +73,10 @@ That v007 change adds cached matrix heap and 4579 Wasm bytes; reservations reduc
 Two updates overlap carry chains. The encoder uses reciprocal splitting by
 `58^10` and stores limbs inside the eventual output; the decoder keeps its top
 limb separate for exact buffers. Work is quadratic, with no heap workspace.
-Shared batched encoding bypasses Horner for empty/one-byte inputs. Only Auto
-decoding uses the internal at-most-two-byte text helper; explicit backends keep
-the Batched core. For empty/one-byte payloads, v011/v008 Auto decode time falls
-11–19% on native CPU and 33–47% in V8 warm elapsed; GCP native 22-byte CPU time falls 18.1%. M5 Auto 32-byte CPU costs 3.54%
-(~0.59 ns between side medians); explicit backends restore their earlier tiny costs.
+Shared batched encoding bypasses Horner for empty/one-byte inputs. Auto and
+`no_alloc` decoding use the internal at-most-two-byte text helper; named backend
+hooks keep the Batched core. Earlier tiny/medium dispatch experiments and their
+costs remain in the [historical report](docs/tradeoffs/2026-10-24/resource-dispatch/performance.md).
 
 **Divide and conquer** uses balanced subproblems. [Decoding](src/dc.rs) combines
 `high * (58^10)^e + low`; [encoding](src/encode/dc.rs) divides by those powers,
@@ -123,13 +131,15 @@ SIMD at runtime. The recorded native flag sets are not interchangeable controls.
 [Hoisting the relaxed atomic IFMA threshold lookup](docs/review/threshold-snapshot.md) once per conversion was tested and rejected;
 the existing lookup remains, and emitted loads depend on compiler folding.
 
-`*_portable` exists to measure hand-written kernels against plain Rust and to
-provide differential controls. It does **not** promise scalar machine code:
+`*_portable` selectors require `__internals` and are hidden from API docs. They
+measure hand-written kernels against plain Rust and provide differential controls.
+The kernels remain available internally for normal target fallbacks. This does
+**not** promise scalar machine code:
 [LLVM can vectorize loops and scalar operations](https://llvm.org/docs/Vectorizers.html).
-The selector replaces its named kernel family. Portable NTT keeps cached-backend
-leaves and shared multiplication fallbacks, which can use hand-written SIMD.
-Portable matrix can fall back to normal cached NTT encoding or Karatsuba decoding.
-These public selectors are retained while API/release work is deferred.
+The selector replaces its named kernel family. Portable NTT keeps shared wrapper
+leaves and multiplication fallbacks, which can use hand-written SIMD.
+Portable matrix can fall back to normal NTT encoding or Karatsuba decoding.
+They are unstable test/measurement hooks, outside the normal public API.
 
 ## Heap, stack and cache costs
 
@@ -140,14 +150,17 @@ General matrix calls use roughly 30 KiB of encoder stack or 14 KiB of decoder
 stack; recursive encoder matrix leaves add 8 KiB of bytes, about 38 KiB total.
 Only used prefixes are initialized; encoder scratch is 64-byte aligned. Out-of-line
 paths isolate these frames. These are source estimates, not stack high-water tests.
+`decode_array::<N>` also constructs an `N`-byte local array.
 
-Warm general matrix calls allocate no heap. First use builds a shared `OnceLock`
-table; initialized size classes remain for the process lifetime. Larger tables
-can serve smaller calls, so retained memory depends on call history. Known final
-coefficient counts are reserved once, avoiding geometric spare capacity. Largest
-classes retain 11,510,016 encoder bytes or 2,437,248 decoder bytes including panel
-metadata on 64-bit targets. Individual class capacities sum to 15,364,736 /
-3,253,024 bytes; this is not a simultaneous active-peak measurement.
+Without `cache`, explicit general-matrix hooks own one table per invocation;
+recursive matrix leaves do not share those tables. Auto avoids these paths.
+With `cache`, first use builds shared `OnceLock` tables;
+warm matrix calls need no table allocation. Initialized classes remain for the
+process lifetime; larger tables can serve smaller calls, so history matters.
+Known coefficient counts are reserved once, avoiding geometric spare capacity.
+The historical v011 64-bit capacity snapshot has largest tables of 11,510,016
+encoder bytes / 2,437,248 decoder bytes including panel metadata. Class capacities
+sum to 15,364,736 / 3,253,024 bytes, not a simultaneous active-peak measurement.
 Matrix entry paths reject provably insufficient output before table setup using
 conservative lower bounds after leading-zero handling. They do not require a
 worst-case output capacity; an exact buffer still succeeds. See the
@@ -160,20 +173,20 @@ by `5*n + 64` limbs, NTT by `16*n + 64`, for the operand bound used by those
 interfaces. These are scratch formulas, not total conversion-memory bounds.
 
 An NTT log-`l` table has `48 * 2^l` twiddle bytes across three primes with four arrays each.
-Tables are lazy. The selected log-18 policy retains at most 25,164,288 bytes
-across production logs 5–18 (~24 MiB); cap 16 would retain ~6 MiB.
-In cache-only trials, cap 16 costs 4–5% encode CPU at 256 KiB and 10–11% decode at 1 MiB on GCP,
-where cap 18 is near baseline. Above-cap calls have observed 4–9% warm CPU costs
-at selected large GCP cells and twelve extra allocations. Larger tables belong to each
-conversion; the arithmetic log-23 limit is unchanged. Idle retention is bounded,
-but active memory can grow with concurrency: each 4 MiB encoder owns 96 MiB of
-twiddles where the old cache could share one. Workspace, prepared powers and
-matrix caches add further costs. [Policy](docs/tradeoffs/2026-10-24/ntt-retention-policy.md), [measurements](docs/tradeoffs/2026-10-24/resource-dispatch/performance.md).
+Without `cache`, all generated twiddle tables are owned. With `cache`, the log-18
+policy retains at most 25,164,288 bytes across production logs 5–18 (~24 MiB);
+larger tables stay owned. The arithmetic log-23 limit is unchanged. This bounds
+opt-in idle twiddles, not total active memory. Both feature choices can replicate
+large owned twiddles under concurrency: 4 MiB of significant encoder input can
+need 96 MiB per call, where the older unbounded global cache could share one.
+Workspace, prepared powers and matrix caches add further costs. See the
+[historical retention trials](docs/tradeoffs/2026-10-24/ntt-retention-policy.md).
 
-The [resource measurements](docs/tradeoffs/2026-10-24/resource-dispatch/performance.md) record requested Rust allocation
-layouts and actual vector capacities. It excludes allocator overhead/arenas,
-RSS and stack. Wasm linear-memory high-water includes stack/static reservation,
-caller buffers, allocator state and tables; it is a different metric.
+In the current M5 raw Auto calls, cached 1 KiB encoding retains 185,856 table bytes.
+Default 4 MiB encoding retains zero but reaches 284,269,528 extra requested live
+bytes during the call. The [current resource data](docs/tradeoffs/2026-10-25/public-api/README.md)
+exclude allocator overhead/arenas, RSS and stack. Wasm page high-water includes
+stack/static reservation, caller buffers, allocator state and tables: a different metric.
 
 ## Linked size and selecting a smaller consumer
 
@@ -182,31 +195,24 @@ direction and scaffold. `.rlib` size is not deployment cost. Fat LTO and dead
 stripping already remove unreachable implementations; deleting an unused public
 function does not recover its source/archive size from a consumer.
 
-Matched encode+decode sizes for final source `v011`:
+Current matched encode+decode consumers, source snapshot `90e71a1a…`:
 
 | Entry | M5 executable | GCP generic | GCP native | Wasm module | Wasm gzip |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Empty scaffold | 302,752 | 288,280 | 289,032 | 16,452 | 6,480 |
-| bs58 0.5.1 | 302,768 | 291,176 | 292,520 | 20,058 | 8,073 |
-| Batched | 302,864 | 296,784 | 298,912 | 26,345 | 10,576 |
-| Karatsuba | 335,936 | 493,944 | 503,808 | 65,093 | 29,548 |
-| Cached NTT | 369,040 | 587,992 | 575,488 | 95,218 | 41,158 |
-| Auto | 385,568 | 614,688 | 585,680 | 108,552 | 46,254 |
+| bs58 0.5.1 | 302,768 | 291,160 | 292,504 | 20,058 | 8,073 |
+| no_alloc | 302,864 | 325,032 | 315,112 | 40,091 | 19,525 |
+| Auto, default | 369,024 | 616,440 | 596,736 | 105,752 | 45,208 |
+| Auto + cache | 385,584 | 613,968 | 585,104 | 108,412 | 46,370 |
 
 Bytes, stripped, fat LTO. M5/Wasm use Rust 1.99.1; GCP 1.99.0, all LLVM 23.1.1.
 CPU flags are M5 `apple-m4`, GCP `x86-64` / `native`, Wasm default features.
-Within each configuration, source/compiler/directions/scaffold match.
-The [final comparison](docs/tradeoffs/2026-10-24/resource-dispatch/linked-size-final.md)
-has all 13 entries, empty-scaffold deltas, sections and exact bs58 ratios.
-Native padding/runtime data make sections essential: on M5, bs58 adds 16 file bytes but
-1814 code/read-only/data bytes. Cross-host compiler, ABI and link formats differ.
-
-An explicit batched consumer is small but quadratic. Explicit Karatsuba cuts
-Wasm size substantially and is much slower at multi-MiB sizes. Automatic helpers
-still select auto; calling them can bring its reachable paths into a compact
-link. Malachite is development support, not a normal dependency: its reachable
-adapter costs about 1.1 MiB of Wasm in this snapshot. five8 only supports
-32/64-byte values and is not a dynamic-length replacement.
+The [full comparison](docs/tradeoffs/2026-10-25/public-api/README.md) has both feature
+scaffolds, sections and exact bs58 ratios. M5 `no_alloc` adds 112 file bytes but
+13,033 initialized-section bytes. Cache-off is not always smaller: its GCP native
+Auto file exceeds cache-on. Cross-host compiler, ABI and link formats differ.
+The earlier [v011 backend comparison](docs/tradeoffs/2026-10-24/resource-dispatch/linked-size-final.md)
+is historical; its Batched probe is not today's `no_alloc` with fixed encoders.
+five8 supports only 32/64-byte values, unlike dynamic-length consumers.
 
 ## Evidence and remaining limits
 
@@ -214,12 +220,13 @@ Use the earlier [29-size baseline grids](docs/tradeoffs/2026-10-24/benchmark-res
 for warmed throughput and support limits before these resource changes. Matrix/NTT wrapper wins at large sizes
 often measure the same fallback. Cold setup, retained bytes and binary size need
 their own comparisons. Cache-only claims require matched leaves and thresholds;
-public owned/cached NTT selectors can also differ in leaf policy.
+internal owned/cached NTT selectors can also differ in leaf policy.
 
 [Verification](docs/review/verification.md) combines differential/property tests,
 independent large radix conversion, arithmetic references, sanitizer fuzzing,
 supported Miri paths and scoped Kani obligations. It is not a proof of complete
 backends or SIMD instruction semantics. Open solver obligations and missing Miri
 intrinsics remain; short fuzz campaigns do not establish exhaustive coverage.
-The maximum-transform test is separate from ordinary tests. Hosted CI and
-downstream ergonomic-API/release validation remain distinct completion gates.
+The maximum-transform test is separate from ordinary tests. Public API examples
+and downstream compiler fixtures are tested. Hosted CI, application-specific
+performance and release validation remain distinct completion gates.
