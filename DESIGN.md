@@ -4,10 +4,13 @@ This crate converts the Bitcoin Base58 alphabet. The root API selects kernels by
 size and CPU; `no_alloc` provides conversion without internal heap allocation.
 Generated-table retention is an opt-in `cache` feature, off by default.
 The default library uses `core` and `alloc`, with no `std` dependency. `std` is
-an explicit feature, and `cache` enables it. On x86-64, the small `cpufeatures`
-dependency provides OS-aware runtime SIMD detection; other architectures need
-no normal dependencies. Its five cached detection booleans are atomic bytes,
+an explicit feature, and `cache` enables it. On x86-64, OS-aware runtime SIMD
+detection uses `std::is_x86_feature_detected!` with `std`, and `cpufeatures`
+otherwise. The latter's five cached detection booleans are atomic bytes,
 separate from generated table retention, and allocate no heap memory.
+Cargo's additive features keep the x86-only dependency resolved with `std`, but
+its detectors are not compiled into the crate. Other architectures need no
+normal dependencies.
 
 This map complements [the user guide](README.md), [historical derivations](docs/historical-readme.md) and
 [the tradeoff evidence](docs/tradeoffs/README.md). The
@@ -55,9 +58,10 @@ remain because the feature also changes dispatch. Cache storage and fixed
 portable helpers share module gates; ISA/test/proof and conditional NTT state
 boundaries retain explicit gates. See the [cfg review](docs/review/cfg-consolidation.md).
 
-Four mutually exclusive CPU selectors use standard `core::cfg_select!`, including
-portable fallbacks. Runtime ISA checks and overlapping test/internal/cache gates
-stay separate. The crate's MSRV is Rust 1.95; a dedicated CI job checks it.
+Mutually exclusive CPU selectors and the x86 detector implementation use standard
+`core::cfg_select!`, including portable fallbacks. Runtime ISA checks and
+overlapping test/internal/cache gates stay separate. The crate's MSRV is Rust
+1.95; a dedicated CI job checks it.
 Kani uses its separate bundled nightly compiler.
 
 | Family | Main use | Boundary behavior |

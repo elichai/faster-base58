@@ -24,7 +24,7 @@ cache = ["std"]
 __internals = []
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
-# OS-aware runtime detection without std or handwritten CPUID/XGETBV code.
+# Used only without std; Cargo's additive features keep this dependency resolved.
 cpufeatures = "0.3.1"
 
 [dev-dependencies]

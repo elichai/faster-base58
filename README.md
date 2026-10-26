@@ -2,7 +2,8 @@
 
 Bitcoin Base58 encoding and decoding in Rust. The default API selects algorithms
 by input size and CPU support. It is `no_std` by default, using `alloc` for its
-faster general conversions. On x86-64, `cpufeatures` provides runtime SIMD detection.
+faster general conversions. On x86-64, runtime SIMD detection uses the standard
+library when `std` is enabled, and `cpufeatures` otherwise.
 
 ```toml
 [dependencies]
