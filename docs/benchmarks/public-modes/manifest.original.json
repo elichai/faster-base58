@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "snapshot_scope": {
+    "m5_native_and_wasm_timing": "new machine-recorded AC-qualified cohorts; power audit required",
+    "gcp_timing": "prior public-api snapshot; not rerun",
+    "sizes_and_allocations": "prior public-api snapshots; not rerun on AC"
+  },
+  "path_maps": {
+    "/dev/shm/base58-public-api-4VWtwx3f": "../public-api/evidence/gcp",
+    "/private/tmp/base58-public-api-EpRoyxzJ": "../public-api/evidence/local",
+    "/private/tmp/base58-ac-cfoB8sqN": "evidence/ac"
+  },
+  "profiles": [
+    {
+      "id": "m5-native",
+      "label": "AC M5 Pro (apple-m4)",
+      "kind": "native",
+      "timing": "evidence/ac/native-public",
+      "scripts": "../public-api/evidence/local/source-final/scripts",
+      "allocations": {
+        "default": "../public-api/evidence/local/m5-final/allocations-default",
+        "cache": "../public-api/evidence/local/m5-final/allocations-cache"
+      },
+      "sizes": {
+        "default": "../public-api/evidence/local/m5-final/sizes-default",
+        "cache": "../public-api/evidence/local/m5-final/sizes-cache"
+      }
+    },
+    {
+      "id": "gcp-default",
+      "label": "Prior GCP generic snapshot",
+      "kind": "native",
+      "timing": "../public-api/evidence/gcp/gcp-default/timing",
+      "allocations": {
+        "default": "../public-api/evidence/gcp/gcp-default/allocations-default",
+        "cache": "../public-api/evidence/gcp/gcp-default/allocations-cache"
+      },
+      "sizes": {
+        "default": "../public-api/evidence/gcp/gcp-default/sizes-default",
+        "cache": "../public-api/evidence/gcp/gcp-default/sizes-cache"
+      }
+    },
+    {
+      "id": "gcp-native",
+      "label": "Prior GCP native snapshot",
+      "kind": "native",
+      "timing": "../public-api/evidence/gcp/gcp-native/timing",
+      "allocations": {
+        "default": "../public-api/evidence/gcp/gcp-native/allocations-default",
+        "cache": "../public-api/evidence/gcp/gcp-native/allocations-cache"
+      },
+      "sizes": {
+        "default": "../public-api/evidence/gcp/gcp-native/sizes-default",
+        "cache": "../public-api/evidence/gcp/gcp-native/sizes-cache"
+      }
+    },
+    {
+      "id": "m5-wasm",
+      "label": "AC M5 Pro Wasm/V8",
+      "kind": "wasm",
+      "timing": {
+        "default": "evidence/ac/wasm-public-default",
+        "cache": "evidence/ac/wasm-public-cache"
+      },
+      "allocations": {},
+      "sizes": {
+        "default": "../public-api/evidence/local/wasm-default",
+        "cache": "../public-api/evidence/local/wasm-cache"
+      },
+      "scripts": "../public-api/evidence/local/source-final/scripts"
+    }
+  ],
+  "power_history": {
+    "earlier_condition": "user-reported unplugged for the earlier laptop comparison",
+    "limit": "historical per-run telemetry absent; not every old campaign is identified; no controlled causal attribution"
+  },
+  "power": {
+    "directory": "/private/tmp/base58-ac-cfoB8sqN",
+    "guard_sha256": "cae1b520677e3b4c0bef31fe9f96856f5e2582d1f42a1529f3eb3dd7d096dc5e"
+  },
+  "fixed_cohorts": {
+    "native": "evidence/ac/native-fixed",
+    "wasm": "evidence/ac/wasm-fixed-timing"
+  },
+  "supporting_inputs": [
+    "fixed-comparison.csv",
+    "fixed-comparison.md",
+    "prior-vs-ac-public.csv",
+    "prior-vs-ac-public.md",
+    "independent-findings.md",
+    "independent-findings.json",
+    "evidence/independent-raw-receipt.json",
+    "evidence/independent-raw-receipt.txt",
+    "evidence/independent-validate.py",
+    "evidence/independent-power-audit.json",
+    "evidence/independent-power-relocated.json",
+    "plot.py",
+    "plot-inputs.json",
+    "native-ac.png",
+    "native-ac.svg",
+    "wasm-ac.png",
+    "wasm-ac.svg"
+  ]
+}

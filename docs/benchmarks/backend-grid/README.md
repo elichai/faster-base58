@@ -4,17 +4,17 @@ Historical 2026-10-24 source; all 29 decoded payload sizes through 4 MiB, four e
 
 Native uses process CPU; Wasm uses elapsed time. There are three process medians per measured cell. The native worker links all backends through __internals; Wasm selects one entry per module. Native fixtures use the independent Natural oracle at all sizes. The large Wasm fixture generator is not independent. FNV fixture fingerprints are consistency checks, not cryptographic proofs.
 
-Original CSV files are copied byte for byte. Files ending `.original.json.gz`
-are lossless, timestamp-free compression of the original metadata. Their
-old paths are historical locators, not active documentation links. Source
-and destination hashes are in the [retention manifest](../retention.json).
+Original CSV and `.original.json` files retain the original bytes. Their
+embedded paths, commit IDs and archive references are historical identifiers,
+not active documentation links. Original and current paths and hashes are
+recorded in the [retention manifest](../retention.json).
 
 | Data | Role |
 | --- | --- |
 | [observations.csv](observations.csv) | Complete 29-size / four-environment backend grid and support limits |
 | [processes.csv](processes.csv) | Complete 29-size / four-environment backend grid and support limits |
 | [skipped.csv](skipped.csv) | Complete 29-size / four-environment backend grid and support limits |
-| [provenance.original.json.gz](provenance.original.json.gz) | Lossless source/build/runtime/fixture and input-hash provenance |
+| [provenance.original.json](provenance.original.json) | Lossless source/build/runtime/fixture and input-hash provenance |
 | [completion.original.json](completion.original.json) | Original rendered-grid completion and output hashes |
 
 ## Readable timing tables

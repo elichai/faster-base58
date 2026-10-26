@@ -12,7 +12,7 @@ different quantities. No cells are extrapolated.
 | [Published public-mode comparison](public-modes/README.md) | 2026-10-25 snapshot before allocation-layout changes, no_std and rename. These exact inputs feed the README timing graphs. |
 | [Accepted allocation-layout refactor](allocation-layout/README.md) | v000→v011 before no_std and rename. Sizes.csv final v011 rows feed the README linked-size table. |
 | [Source-migration and load-context controls](production/README.md) | Earlier production no_std/rename source comparison and follow-up controls; distinct from current17ab assembly/SIMD snapshots. |
-| [Rejected optimization decisions](decisions/README.md) | Retained small results for rejected IFMA threshold-state plumbing and nearby-length fixed-table reuse. Full raw experiments remain in private backup and Git history. |
+| [Rejected optimization decisions](decisions/README.md) | Retained small results for rejected IFMA threshold-state plumbing and nearby-length fixed-table reuse. Full raw experiments remain only in the local backup. |
 | [Current-source assembly experiment](assembly/README.md) | Frozen baseline7c6ffa3 / resource17ab and its rejected six-loop candidate. Current-stable local/GCP A/B data are separated from the initial MSRV inventory. |
 | [Current-source Wasm SIMD experiment](simd/README.md) | Frozen7c/17ab modules and bounded panel prototypes; identical modules were run on M5 and GCP with recorded Node/runtime identities. |
 
@@ -22,13 +22,14 @@ input is [allocation-layout/sizes.csv](allocation-layout/sizes.csv). The
 renderer and receipt must be updated together when moving those paths.
 
 [The retention manifest](retention.json) maps original paths and hashes to these
-files. Original tracked records can be recovered from commit
-[`b5a6428`](https://github.com/elichai/faster-base58/tree/b5a64281037b0dff003a81e7945c8dc6b59e42e8/docs).
-Raw benchmark datasets are maintained in the repository; they are excluded from
+files. The [history map](history-map.json) maps recorded Git commit IDs to the
+rewritten history. Removed archives and development records remain only in the
+local backup; they cannot be recovered from the rewritten repository.
+The selected benchmark datasets are maintained in the repository; they are excluded from
 the distributable crate. Packaged copies of the narrative documentation should
 be read alongside [the online data index](https://github.com/elichai/faster-base58/blob/main/docs/benchmarks/README.md).
 
 Large raw archives, binary payloads, agent plans and chronological run logs
-are preserved in the private documentation backup and Git history. They
-are not installed in this data tree. This directory retains the complete
-selected grids, process medians, meaningful controls and source bindings.
+remain only in the local backup. They are absent from the rewritten repository
+and this data tree. This directory retains the complete selected grids, process
+medians, meaningful controls and source bindings.

@@ -1,7 +1,7 @@
 {
   "scope": "Historical corrected all-backend grid before cache-feature/no_std/rename changes",
   "original_provenance_sha256": "aea73069395f90b7b4df2c23ca9ba5c70e830c48fbe5ab93497fa16277f3359c",
-  "original_full_provenance": "provenance.original.json.gz",
+  "original_full_provenance": "provenance.original.json",
   "timing_protocol": "base58-timing-20261024-v1",
   "decoded_sizes": [
     0,

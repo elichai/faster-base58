@@ -1,22 +1,22 @@
 # Rejected optimization decisions
 
-Retained small results for rejected IFMA threshold-state plumbing and nearby-length fixed-table reuse. Full raw experiments remain in private backup and Git history.
+Retained small results for rejected IFMA threshold-state plumbing and nearby-length fixed-table reuse. Full raw experiments remain only in the local backup.
 
 The historical threshold snapshot had different internal-worker and normal-consumer no-LTO outcomes. The ordinary consumer already folded the tuning atomic and did not establish a broad gain. Fixed tables remain useful at their exact supported sizes; broad nearby-size padding was rejected. These historical decisions do not establish current-source benchmark values.
 
-Original CSV files are copied byte for byte. Files ending `.original.json.gz`
-are lossless, timestamp-free compression of the original metadata. Their
-old paths are historical locators, not active documentation links. Source
-and destination hashes are in the [retention manifest](../retention.json).
+Original CSV and `.original.json` files retain the original bytes. Their
+embedded paths, commit IDs and archive references are historical identifiers,
+not active documentation links. Original and current paths and hashes are
+recorded in the [retention manifest](../retention.json).
 
 | Data | Role |
 | --- | --- |
 | [threshold-snapshot/observations.csv](threshold-snapshot/observations.csv) | Rejected state-plumbing experiment: all observed summaries and linked-size deltas |
 | [threshold-snapshot/size-deltas.csv](threshold-snapshot/size-deltas.csv) | Rejected state-plumbing experiment: all observed summaries and linked-size deltas |
-| [threshold-snapshot/manifest.original.json.gz](threshold-snapshot/manifest.original.json.gz) | Original source/archive hashes and full input manifest |
-| [threshold-snapshot/validation.original.json.gz](threshold-snapshot/validation.original.json.gz) | Original source/archive hashes and full input manifest |
+| [threshold-snapshot/manifest.original.json](threshold-snapshot/manifest.original.json) | Original source/archive hashes and full input manifest |
+| [threshold-snapshot/validation.original.json](threshold-snapshot/validation.original.json) | Original source/archive hashes and full input manifest |
 | [threshold-snapshot/ordinary-no-lto-summary.csv](threshold-snapshot/ordinary-no-lto-summary.csv) | Distinct default-consumer attribution check |
-| [threshold-snapshot/ordinary-no-lto-metadata.original.json.gz](threshold-snapshot/ordinary-no-lto-metadata.original.json.gz) | Original ordinary-consumer compiler/profile/source and artifact identities |
+| [threshold-snapshot/ordinary-no-lto-metadata.original.json](threshold-snapshot/ordinary-no-lto-metadata.original.json) | Original ordinary-consumer compiler/profile/source and artifact identities |
 | [fixed-table-reuse-controls.csv](fixed-table-reuse-controls.csv) | Anchors for rejected nearby-length padding: fixed and shared-route controls |
 | [fixed-table-reuse-size-deltas.csv](fixed-table-reuse-size-deltas.csv) | Rejected adapter linked-size deltas |
 

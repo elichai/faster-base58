@@ -4,10 +4,10 @@ Frozen baseline7c6ffa3 / resource17ab and its rejected six-loop candidate. Curre
 
 No runtime change was adopted. Static instruction/call counts are not time estimates. Native and M5 compilers differ by patch version; each pair is matched within its host. Normal Auto/no_alloc observers omit __internals. The private tuning atomic folds under inspected fat LTO; non-LTO current consumers were not inspected. Literal-copy controls and mixed timings prevent a universal speed claim.
 
-Original CSV files are copied byte for byte. Files ending `.original.json.gz`
-are lossless, timestamp-free compression of the original metadata. Their
-old paths are historical locators, not active documentation links. Source
-and destination hashes are in the [retention manifest](../retention.json).
+Original CSV and `.original.json` files retain the original bytes. Their
+embedded paths, commit IDs and archive references are historical identifiers,
+not active documentation links. Original and current paths and hashes are
+recorded in the [retention manifest](../retention.json).
 
 | Data | Role |
 | --- | --- |

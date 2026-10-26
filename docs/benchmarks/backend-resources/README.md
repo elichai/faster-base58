@@ -4,10 +4,10 @@ Historical 2026-10-23 source. This is the complete earlier allocation/code-size 
 
 Native allocation metrics are requested Rust layout bytes, excluding caller buffers and allocator overhead. zeroed_calls/bytes are subsets of alloc_calls/bytes; requests are alloc_calls + realloc_calls. Wasm pages include stack/static/caller/allocator space and are not live heap. The historical unbounded table cache was later replaced. Do not combine its timing values with the corrected backend grid.
 
-Original CSV files are copied byte for byte. Files ending `.original.json.gz`
-are lossless, timestamp-free compression of the original metadata. Their
-old paths are historical locators, not active documentation links. Source
-and destination hashes are in the [retention manifest](../retention.json).
+Original CSV and `.original.json` files retain the original bytes. Their
+embedded paths, commit IDs and archive references are historical identifiers,
+not active documentation links. Original and current paths and hashes are
+recorded in the [retention manifest](../retention.json).
 
 | Data | Role |
 | --- | --- |

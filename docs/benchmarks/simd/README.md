@@ -4,10 +4,10 @@ Frozen7c/17ab modules and bounded panel prototypes; identical modules were run o
 
 Times are elapsed, with separate warm/cold/second metrics. Compare matched module/control rows; enabling simd128 changes compilation and JIT behavior. The receipt binds exact source, profiles, module bytes and raw replay counts. Full binaries/raw events remain private. No new default target-feature policy is implied.
 
-Original CSV files are copied byte for byte. Files ending `.original.json.gz`
-are lossless, timestamp-free compression of the original metadata. Their
-old paths are historical locators, not active documentation links. Source
-and destination hashes are in the [retention manifest](../retention.json).
+Original CSV and `.original.json` files retain the original bytes. Their
+embedded paths, commit IDs and archive references are historical identifiers,
+not active documentation links. Original and current paths and hashes are
+recorded in the [retention manifest](../retention.json).
 
 | Data | Role |
 | --- | --- |
