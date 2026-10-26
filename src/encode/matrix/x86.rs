@@ -1,8 +1,7 @@
 //! AVX2 and AVX-512 VBMI kernels for the fixed size of 64 bytes, which `fixed.rs` picks at
 //! run time: column sums, the carry in four segments (`fixed::carry_split`), and digits that
 //! stay in registers until three stores write the result. With VBMI the sums take eight
-//! columns per vector and `vpermb` maps and shifts the characters. README, "Fixed sizes",
-//! has the numbers.
+//! columns per vector and `vpermb` maps and shifts the characters.
 
 use core::arch::x86_64::*;
 
@@ -160,7 +159,7 @@ fn cols_512<const N: usize, const W: usize, const C: usize>(
 
 /// The leading zero digits of the 96 digits of the carried columns `r`. Counted here and
 /// not from the digit vectors (movemasks): with native flags on Zen 5 that took 66 ns
-/// against 53 (README).
+/// against 53 in the historical kernel comparison.
 #[inline(always)]
 fn zero_digits(r: &[u32; 24]) -> usize {
     let Some(j) = r.iter().rposition(|&c| c != 0) else {

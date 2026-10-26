@@ -1,0 +1,307 @@
+[
+  {
+    "cohort": "native-baseline-default-no-alloc",
+    "artifact_sha256": "5b257deb90881c77784f64c7e5aa99bf4a4c0af489113cbd4fa6d2a3ad721c88",
+    "function": "faster_base58::batched::decode_batched",
+    "call": {
+      "address": 86038,
+      "mnemonic": "callq",
+      "operands": "*%rax"
+    },
+    "adjacent_rax_definition": {
+      "address": 86017,
+      "mnemonic": "movq",
+      "operands": "0x34b48(%rip), %rax     # 0x49b50 <write+0x49b50>"
+    },
+    "got_relocation": {
+      "kind": "R_X86_64_GLOB_DAT",
+      "value": "memcpy"
+    },
+    "excerpt": [
+      {
+        "address": 86006,
+        "mnemonic": "jae",
+        "operands": "0x1526c <faster_base58::batched::decode_batched+0xd1c>"
+      },
+      {
+        "address": 86012,
+        "mnemonic": "movq",
+        "operands": "0x8(%rsp), %rdi"
+      },
+      {
+        "address": 86017,
+        "mnemonic": "movq",
+        "operands": "0x34b48(%rip), %rax     # 0x49b50 <write+0x49b50>"
+      },
+      {
+        "address": 86024,
+        "mnemonic": "movq",
+        "operands": "%rsi, %r14"
+      },
+      {
+        "address": 86027,
+        "mnemonic": "addq",
+        "operands": "%rsi, %rdi"
+      },
+      {
+        "address": 86030,
+        "mnemonic": "leaq",
+        "operands": "0xa0(%rsp), %rsi"
+      },
+      {
+        "address": 86038,
+        "mnemonic": "callq",
+        "operands": "*%rax"
+      },
+      {
+        "address": 86040,
+        "mnemonic": "movq",
+        "operands": "%r15, %rax"
+      }
+    ]
+  },
+  {
+    "cohort": "native-baseline-default-no-alloc",
+    "artifact_sha256": "5b257deb90881c77784f64c7e5aa99bf4a4c0af489113cbd4fa6d2a3ad721c88",
+    "function": "faster_base58::batched::decode_batched",
+    "call": {
+      "address": 86447,
+      "mnemonic": "callq",
+      "operands": "*%rax"
+    },
+    "adjacent_rax_definition": {
+      "address": 86432,
+      "mnemonic": "movq",
+      "operands": "0x349d1(%rip), %rax     # 0x49b78 <write+0x49b78>"
+    },
+    "got_relocation": {
+      "kind": "R_X86_64_GLOB_DAT",
+      "value": "memset"
+    },
+    "excerpt": [
+      {
+        "address": 86425,
+        "mnemonic": "jne",
+        "operands": "0x15180 <faster_base58::batched::decode_batched+0xc30>"
+      },
+      {
+        "address": 86427,
+        "mnemonic": "movq",
+        "operands": "0x38(%rsp), %rbx"
+      },
+      {
+        "address": 86432,
+        "mnemonic": "movq",
+        "operands": "0x349d1(%rip), %rax     # 0x49b78 <write+0x49b78>"
+      },
+      {
+        "address": 86439,
+        "mnemonic": "xorl",
+        "operands": "%esi, %esi"
+      },
+      {
+        "address": 86441,
+        "mnemonic": "movq",
+        "operands": "%rbx, %rdx"
+      },
+      {
+        "address": 86444,
+        "mnemonic": "vzeroupper",
+        "operands": ""
+      },
+      {
+        "address": 86447,
+        "mnemonic": "callq",
+        "operands": "*%rax"
+      },
+      {
+        "address": 86449,
+        "mnemonic": "addq",
+        "operands": "%rbx, %r15"
+      }
+    ]
+  },
+  {
+    "cohort": "native-baseline-default-no-alloc",
+    "artifact_sha256": "5b257deb90881c77784f64c7e5aa99bf4a4c0af489113cbd4fa6d2a3ad721c88",
+    "function": "faster_base58::encode::batched::encode_batched",
+    "call": {
+      "address": 91800,
+      "mnemonic": "callq",
+      "operands": "*%rax"
+    },
+    "adjacent_rax_definition": {
+      "address": 91782,
+      "mnemonic": "movq",
+      "operands": "0x334eb(%rip), %rax     # 0x49b78 <write+0x49b78>"
+    },
+    "got_relocation": {
+      "kind": "R_X86_64_GLOB_DAT",
+      "value": "memset"
+    },
+    "excerpt": [
+      {
+        "address": 91772,
+        "mnemonic": "movl",
+        "operands": "$0x1, %eax"
+      },
+      {
+        "address": 91777,
+        "mnemonic": "jmp",
+        "operands": "0x16dfe <faster_base58::encode::batched::encode_batched+0x82e>"
+      },
+      {
+        "address": 91782,
+        "mnemonic": "movq",
+        "operands": "0x334eb(%rip), %rax     # 0x49b78 <write+0x49b78>"
+      },
+      {
+        "address": 91789,
+        "mnemonic": "movl",
+        "operands": "$0x31, %esi"
+      },
+      {
+        "address": 91794,
+        "mnemonic": "movq",
+        "operands": "%rdx, %rdi"
+      },
+      {
+        "address": 91797,
+        "mnemonic": "movq",
+        "operands": "%r12, %rdx"
+      },
+      {
+        "address": 91800,
+        "mnemonic": "callq",
+        "operands": "*%rax"
+      },
+      {
+        "address": 91802,
+        "mnemonic": "jmp",
+        "operands": "0x16dfc <faster_base58::encode::batched::encode_batched+0x82c>"
+      }
+    ]
+  },
+  {
+    "cohort": "native-baseline-default-no-alloc",
+    "artifact_sha256": "5b257deb90881c77784f64c7e5aa99bf4a4c0af489113cbd4fa6d2a3ad721c88",
+    "function": "faster_base58::encode::batched::encode_batched",
+    "call": {
+      "address": 94570,
+      "mnemonic": "callq",
+      "operands": "*%rax"
+    },
+    "adjacent_rax_definition": {
+      "address": 94555,
+      "mnemonic": "movq",
+      "operands": "0x329ee(%rip), %rax     # 0x49b50 <write+0x49b50>"
+    },
+    "got_relocation": {
+      "kind": "R_X86_64_GLOB_DAT",
+      "value": "memcpy"
+    },
+    "excerpt": [
+      {
+        "address": 94541,
+        "mnemonic": "jmp",
+        "operands": "0x16dfe <faster_base58::encode::batched::encode_batched+0x82e>"
+      },
+      {
+        "address": 94546,
+        "mnemonic": "cmpq",
+        "operands": "%r12, %rbx"
+      },
+      {
+        "address": 94549,
+        "mnemonic": "ja",
+        "operands": "0x173fa <faster_base58::encode::batched::encode_batched+0xe2a>"
+      },
+      {
+        "address": 94555,
+        "mnemonic": "movq",
+        "operands": "0x329ee(%rip), %rax     # 0x49b50 <write+0x49b50>"
+      },
+      {
+        "address": 94562,
+        "mnemonic": "movq",
+        "operands": "0x50(%rsp), %rdi"
+      },
+      {
+        "address": 94567,
+        "mnemonic": "movq",
+        "operands": "%rbx, %rdx"
+      },
+      {
+        "address": 94570,
+        "mnemonic": "callq",
+        "operands": "*%rax"
+      },
+      {
+        "address": 94572,
+        "mnemonic": "testq",
+        "operands": "%rbp, %rbp"
+      }
+    ]
+  },
+  {
+    "cohort": "native-baseline-default-no-alloc",
+    "artifact_sha256": "5b257deb90881c77784f64c7e5aa99bf4a4c0af489113cbd4fa6d2a3ad721c88",
+    "function": "faster_base58::encode::batched::encode_batched",
+    "call": {
+      "address": 95156,
+      "mnemonic": "callq",
+      "operands": "*%rax"
+    },
+    "adjacent_rax_definition": {
+      "address": 95133,
+      "mnemonic": "movq",
+      "operands": "0x327d4(%rip), %rax     # 0x49b78 <write+0x49b78>"
+    },
+    "got_relocation": {
+      "kind": "R_X86_64_GLOB_DAT",
+      "value": "memset"
+    },
+    "excerpt": [
+      {
+        "address": 95124,
+        "mnemonic": "testq",
+        "operands": "%rbp, %rbp"
+      },
+      {
+        "address": 95127,
+        "mnemonic": "jne",
+        "operands": "0x171b4 <faster_base58::encode::batched::encode_batched+0xbe4>"
+      },
+      {
+        "address": 95133,
+        "mnemonic": "movq",
+        "operands": "0x327d4(%rip), %rax     # 0x49b78 <write+0x49b78>"
+      },
+      {
+        "address": 95140,
+        "mnemonic": "movq",
+        "operands": "0x90(%rsp), %rdi"
+      },
+      {
+        "address": 95148,
+        "mnemonic": "movl",
+        "operands": "$0x31, %esi"
+      },
+      {
+        "address": 95153,
+        "mnemonic": "movq",
+        "operands": "%r14, %rdx"
+      },
+      {
+        "address": 95156,
+        "mnemonic": "callq",
+        "operands": "*%rax"
+      },
+      {
+        "address": 95158,
+        "mnemonic": "addq",
+        "operands": "%r14, %r12"
+      }
+    ]
+  }
+]

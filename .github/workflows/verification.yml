@@ -2,10 +2,6 @@ name: Verification
 
 on:
   push:
-    paths-ignore:
-      - 'docs/review/**'
-      - 'docs/superpowers/**'
-      - '.optimization-log/**'
   pull_request:
   workflow_dispatch:
     inputs:
@@ -178,11 +174,13 @@ jobs:
       - run: python3 scripts/cache_tradeoffs.py --self-test
       - run: python3 scripts/code_size.py --self-test
       - run: python3 scripts/backend_summary.py --self-test
+      - run: python3 scripts/setup_clang23.py --self-test
+      - run: python3 scripts/run_native_sanitizer.py --self-test
       - run: python3 scripts/benchmark_graphs.py --self-test
       - run: python3 scripts/compare_threshold.py --self-test
       - run: python3 scripts/ac_power_run.py --self-test
       - run: python3 assets/graphs/render.py --check
-      - run: python3 docs/tradeoffs/2026-10-25/ac-power/verify_power.py --self-test
+      - run: python3 scripts/verify_power.py --self-test
       - run: python3 -m py_compile scripts/validate_wasm_tradeoffs.py
       - run: node --check scripts/code_size_wasm.mjs
       - run: node --check scripts/wasm_tradeoffs.mjs
@@ -262,23 +260,80 @@ jobs:
       - run: sh scripts/miri-extended.sh ${{ matrix.arch }}
 
   fuzz:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+      CXXFLAGS: -fsanitize=${{ matrix.sanitizer }} -fno-omit-frame-pointer
+      ASAN_OPTIONS: abort_on_error=1:detect_stack_use_after_return=1:detect_leaks=1
+      LSAN_OPTIONS: exitcode=23
     strategy:
       fail-fast: false
       matrix:
+        sanitizer: [address, leak]
         cache_args: ['', '--features cache']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: rustup toolchain install nightly --profile minimal
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - name: Matching LLVM toolchain
+        run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: |
           python3 fuzz/test_seed_corpus.py
           python3 fuzz/seed_corpus.py
-      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} encode_all fuzz/corpus/encode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} decode_all fuzz/corpus/decode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - name: Careful build with instrumented standard library
+        run: >-
+          cargo +nightly-2026-10-26 fuzz build --careful --build-std
+          --sanitizer ${{ matrix.sanitizer }} --target x86_64-unknown-linux-gnu
+          --no-default-features ${{ matrix.cache_args }}
+      - name: Runtime bootstrap
+        run: |
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all fuzz/corpus/encode_all/pattern-32 -- -runs=1 -timeout=120 -rss_limit_mb=4096
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} decode_all fuzz/corpus/decode_all/carry-32 -- -runs=1 -timeout=120 -rss_limit_mb=4096
+      - name: Mutations
+        run: |
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all fuzz/corpus/encode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} decode_all fuzz/corpus/decode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
+      - name: Complete boundary corpus replay
+        run: |
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - name: Retain corpus and failures
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-${{ matrix.sanitizer }}-${{ matrix.cache_args == '' && 'default' || 'cache' }}
+          path: |
+            fuzz/corpus
+            fuzz/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
+  native_sanitizers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [thread, memory]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --log-dir "$RUNNER_TEMP/native-${{ matrix.sanitizer }}/logs"
+      - name: Retain sanitizer records
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-${{ matrix.sanitizer }}
+          path: ${{ runner.temp }}/native-${{ matrix.sanitizer }}/logs
+          if-no-files-found: ignore
+          retention-days: 14
 
   proofs:
     runs-on: ubuntu-latest

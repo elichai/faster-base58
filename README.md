@@ -99,8 +99,7 @@ on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-co
 
 ## Performance
 
-**2026-10-25 snapshot**, before the later allocation changes, `no_std`, and package
-rename. Warm raw conversions reuse caller buffers; owned helpers are excluded.
+**Measured build: 2026-10-25.** Warm raw conversions reuse caller buffers; owned helpers are excluded.
 Native uses process CPU time; Wasm uses elapsed time. Bold marks the lowest
 observed median, not a statistical result. [Methods, ranges and newer measurements](docs/performance.md).
 
@@ -121,7 +120,7 @@ observed median, not a statistical result. [Methods, ranges and newer measuremen
 
 ## Linked size
 
-Later **2026-10-25 allocation snapshot**, still before `no_std` and the rename.
+**Measured build: 2026-10-25, after the allocation-layout changes.**
 Stripped encode+decode consumers, **KiB**, including scaffolding/runtime. Native
 rows are executables; Wasm is a module. Padding and link choices affect totals.
 
@@ -132,16 +131,20 @@ rows are executables; Wasm is a module. Padding and link choices affect totals.
 | GCP AMD EPYC 9B45 (native) | 584.1 | 572.3 | 307.8 | 285.6 |
 | Wasm / V8 on M5 Pro | 101.4 | 103.5 | 39.2 | 19.6 |
 
-[Exact sections, empty-scaffold deltas and hashes](docs/tradeoffs/2026-10-25/allocation-layout/README.md#matched-linked-size)
-are retained with the measurements. These numbers do not measure the renamed release.
+[Exact sections, empty-scaffold deltas and hashes](docs/benchmarks/allocation-layout/README.md)
+are retained with the measurements. Timing and size tables use distinct recorded
+source snapshots; see [methodology and scope](docs/performance.md).
 
 ## Development and license
 
 Run `cargo test` and `cargo test --features cache`. The `__internals` feature
 exposes unstable backend controls for tests and benchmarks; applications need neither.
 Benchmark targets include bs58, fixed-length five8, and a development-only Malachite adapter.
-[Verification and its limits](docs/review/production.md) cover differential/property
-tests, sanitizer fuzzing, Miri and bounded proofs. [Historical research](docs/historical-readme.md)
-preserves the earlier derivations and experiments.
+[CORRECTNESS.md](CORRECTNESS.md) describes differential/property tests, sanitizer
+fuzzing, Miri, scoped proofs and remaining coverage gaps.
+[DESIGN.md](DESIGN.md) explains algorithms, dispatch and resource costs.
+
+Implementation influences, algorithm references and upstream licenses are listed
+in [REFERENCES.md](REFERENCES.md).
 
 Licensed under [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE), at your option.

@@ -11,8 +11,9 @@ keywords = ["base58", "encoding", "no-std", "serialization"]
 categories = ["encoding", "no-std"]
 include = [
     "/src/**", "/tests/**/*.rs", "/benches/*.rs",
-    "/README.md", "/DESIGN.md", "/LICENSE-*",
-    "/assets/graphs/*.svg", "/docs/performance.md", "/docs/review/production*.md",
+    "/README.md", "/DESIGN.md", "/CORRECTNESS.md", "/REFERENCES.md", "/LICENSE-*",
+    "/assets/graphs/*.svg", "/docs/*.md", "/docs/verification/*.md",
+    "/docs/verification/*.json", "/docs/references/*.json", "/docs/references/*.txt",
 ]
 
 [features]

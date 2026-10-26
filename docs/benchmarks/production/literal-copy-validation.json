@@ -1,0 +1,12 @@
+{
+  "status": "pass",
+  "archive_sha256": "054eb5610df131de857aed079fbb7e8694a438db411ba2973c6b1feb8cccaccb",
+  "payload_files": 25,
+  "processes": 48,
+  "replayed_csvs": 3,
+  "artifact_sha256": "4c1d7f5f4457f05b6c576080027b97571391deb82b186ba4b1532a801466e350",
+  "metadata_profile_harness": "byte-identical to original C",
+  "inode_identity": "different, preserved before/after",
+  "pmu_profiles": 0,
+  "reason": "perf executable unavailable; perf_event_paranoid=3"
+}

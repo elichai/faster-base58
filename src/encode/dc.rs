@@ -238,6 +238,7 @@ impl<'a> Divisor<'a> {
         let bits = p.limbs.last().expect("powers are not zero").leading_zeros();
         let (pn, recip) = data.split_at_mut(p.limbs.len());
         shl(pn, p.limbs, bits);
+        debug_assert_eq!(pn.last().copied().unwrap() >> 63, 1);
         let n = pn.len() + p.shift + 1;
         let (a, s) = s.split_at_mut(n);
         a[..n - pn.len()].fill(0);

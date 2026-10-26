@@ -113,6 +113,7 @@ impl Prime {
     /// `k = 2^64 / n mod q` and its companion: `mont(mont(a, b, bq), k, kq) = a b / n`.
     /// Requires `n` to be a power of two dividing `2^23`.
     pub fn scale(self, n: usize) -> (i32, i32) {
+        debug_assert!(n.is_power_of_two() && n <= 1usize << MAX_LOG);
         let q = self.q as u64;
         // `n` divides `q - 1`, so `n * (q - (q - 1) / n) = 1 mod q`.
         let inv = q - (q - 1) / n as u64;
@@ -275,6 +276,60 @@ pub(crate) mod tests {
                 );
             }
         }
+    }
+
+    /// Covers the complete legal length domain, including 1 and `2^MAX_LOG`.
+    #[test]
+    fn scale_matches_integer_division() {
+        for p in PRIMES {
+            let q = p.q as u128;
+            for log in 0..=MAX_LOG {
+                let n = 1usize << log;
+                let (k, kq) = p.scale(n);
+                let residue = ((1u128 << 64) / n as u128) % q;
+                let want = if 2 * residue > q {
+                    residue as i128 - q as i128
+                } else {
+                    residue as i128
+                };
+                assert_eq!(k as i128, want, "q {q}, log {log}");
+                assert!((k as i64).abs() <= (p.q / 2) as i64);
+                assert_eq!((kq as u32).wrapping_mul(p.q as u32), k as u32);
+
+                let edges = [0, 1, -1, p.q - 1, 1 - p.q, p.q / 2, -(p.q / 2)];
+                for a in edges {
+                    for b in edges {
+                        let product = p.mont(p.mont(a, b, p.wq(b)), k, kq);
+                        assert_eq!(
+                            modq(product as i128 * n as i128, p.q),
+                            modq(a as i128 * b as i128, p.q),
+                            "q {q}, log {log}, a {a}, b {b}"
+                        );
+                        assert!((product as i64).abs() < p.q as i64);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn scale_rejects_zero() {
+        PRIMES[0].scale(0);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic]
+    fn scale_rejects_non_power_of_two() {
+        PRIMES[0].scale(3);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic]
+    fn scale_rejects_length_above_max_log() {
+        PRIMES[0].scale(1usize << (MAX_LOG + 1));
     }
 
     /// A smaller table is a prefix of a larger one, which [`Tables::cached`] relies on.

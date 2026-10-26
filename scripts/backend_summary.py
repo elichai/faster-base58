@@ -46,6 +46,11 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def source_path(path):
+    path = path.resolve()
+    return str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
+
+
 def rows(path):
     with path.open(newline="") as stream:
         return list(csv.DictReader(stream))
@@ -151,7 +156,7 @@ def metric_rows(config, directory, kind, inputs):
         require(float(row["minimum"]) <= float(row["median"]) <= float(row["maximum"]),
                 f"invalid summary range: {row}")
         result.append({"configuration": config, "kind": kind, **row,
-                       "source_csv": str(path.relative_to(ROOT))})
+                       "source_csv": source_path(path)})
     index(result, [*KEY, "phase", "metric"])
     return result
 
@@ -228,8 +233,8 @@ def load_native(snapshot, config, prefix, size_dir, inputs, sizes, metrics, camp
                 output.append(out)
     campaigns.append({"configuration": config, "kind": "native timing + separate allocations",
                       "source_sha256": tm["build"]["source"]["sha256"],
-                      "metadata": str((time_dir / "metadata.json").relative_to(ROOT)),
-                      "allocation_metadata": str((alloc_dir / "metadata.json").relative_to(ROOT)),
+                      "metadata": source_path(time_dir / "metadata.json"),
+                      "allocation_metadata": source_path(alloc_dir / "metadata.json"),
                       "ifma_threshold": tm["build"]["worker"]["ifma_threshold"]})
     return output
 
@@ -304,10 +309,10 @@ def load_wasm(snapshot, config, directory_name, inputs, sizes, metrics, campaign
                                             "metric": field, "count": 7 if field.startswith("warm") else 1,
                                             "median": value if field.endswith("_pages") or field in ("cold_ns", "second_ns", "warm_median_ns") else "",
                                             "minimum": "", "maximum": "", "value": value,
-                                            "source_csv": str((directory / "summary.csv").relative_to(ROOT))})
+                                            "source_csv": source_path(directory / "summary.csv")})
                 output.append(out)
     campaigns.append({"configuration": config, "kind": "V8 Wasm elapsed + page high water",
-                      "metadata": str((directory / "metadata.json").relative_to(ROOT)),
+                      "metadata": source_path(directory / "metadata.json"),
                       "node": metadata["node"], "v8": metadata["versions"]["v8"],
                       "driver_sha256": metadata["driver_sha256"], "helper_sha256": metadata["helper_sha256"]})
     return output
@@ -439,25 +444,25 @@ def linked_grids(size_rows):
     return "\n".join(text)
 
 
-def historical(inputs):
+def historical(inputs, directory):
     data, inventory, text = [], [], ["# Historical campaigns (kept separate)", "",
         "These Criterion elapsed-time confidence intervals and fresh-process cold runs are older source/build campaigns.",
         "They are not pooled with the matched resource-worker or V8 results and have no joined allocation/size claims.",
         "Earlier `gcp-candidate-native` auto rows precede the final dispatch correction. Empty cells mean unmeasured.", ""]
-    for path in sorted((ROOT / "docs/review/benchmarks").glob("*.csv")):
+    for path in sorted(Path(directory).resolve().glob("*.csv")):
         inputs.add(path)
         original = rows(path)
         cold = "first_ns" in original[0]
         campaign = path.stem
         for serial, row in enumerate(original):
             data.append({"campaign": campaign, "method": "fresh-process elapsed" if cold else "Criterion elapsed",
-                         "record": serial, "source_csv": str(path.relative_to(ROOT)), **row})
+                         "record": serial, "source_csv": source_path(path), **row})
         measured_sizes = sorted({int(r["bytes"]) for r in original})
         inventory.append({"campaign": campaign, "method": "fresh-process elapsed" if cold else "Criterion elapsed",
                           "rows": len(original), "sizes": ";".join(map(str, measured_sizes)),
-                          "source_csv": str(path.relative_to(ROOT)),
+                          "source_csv": source_path(path),
                           "source_status": "historical; exact per-file source digest not retained in this CSV"})
-        text += [f"## {campaign}", "", f"Source: [{path.name}](../../../review/benchmarks/{path.name}).", ""]
+        text += [f"## {campaign}", "", f"Source: [{path.name}](<{path.resolve()}>).", ""]
         if cold:
             by = {}
             for row in original:
@@ -495,7 +500,7 @@ def build(args):
         for row in rows(directory / "sizes.csv"):
             size_rows.append({"size_configuration": name,
                               "snapshot_role": "before-dependency" if name.startswith("before") else "baseline",
-                              "source_csv": str((directory / "sizes.csv").relative_to(ROOT)), **row})
+                              "source_csv": source_path(directory / "sizes.csv"), **row})
     sizes = index(size_rows, ("size_configuration", "backend", "direction", "kind"))
     for row in size_rows:
         empty = sizes.get((row["size_configuration"], "empty", row["direction"], row["kind"]))
@@ -507,7 +512,7 @@ def build(args):
     require(campaigns[-1]["driver_sha256"] == campaigns[-2]["driver_sha256"], "Wasm driver mismatch")
     require(campaigns[-1]["v8"] == campaigns[-2]["v8"], "Wasm engine mismatch")
     leaders, pareto = frontiers(observations)
-    history, history_inventory, history_text = historical(inputs)
+    history, history_inventory, history_text = historical(inputs, args.historical_benchmarks)
     # Pin every archived Rust source byte shared by the size/runtime source manifests.
     archive = snapshot / "measured-source.tgz"
     inputs.add(archive)
@@ -521,7 +526,7 @@ def build(args):
     for _, prefix, _ in NATIVE:
         inputs.update(snapshot / f"{prefix}-timings" / name for name in ("raw.jsonl", "timings.csv", "caches.csv"))
         inputs.update(snapshot / f"{prefix}-allocations" / name for name in ("raw.jsonl", "allocations.csv", "caches.csv"))
-    provenance = [{"path": str(path.relative_to(ROOT)), "sha256": sha(path)} for path in sorted(inputs)]
+    provenance = [{"path": source_path(path), "sha256": sha(path)} for path in sorted(inputs)]
     metric_sources = {}
     for row in metrics:
         key = row["configuration"], row["kind"], row["source_csv"]
@@ -543,7 +548,7 @@ def build(args):
         stream.write(history_text)
     with (output / "linked-grids.md").open("x") as stream:
         stream.write(linked_grids(size_rows))
-    report = {"schema": 1, "snapshot": str(snapshot.relative_to(ROOT)),
+    report = {"schema": 1, "snapshot": source_path(snapshot),
               "scope": "frozen baseline only; no optimization A/B data",
               "campaigns": campaigns, "inputs": provenance,
               "counts": {"observations": len(observations), "measured": sum(r["status"] == "measured" for r in observations),
@@ -579,6 +584,13 @@ def self_test():
             raise AssertionError("bad data accepted")
     with tempfile.TemporaryDirectory(prefix="base58-summary-self-test-") as directory:
         path = Path(directory)
+        require(source_path(ROOT / "scripts/../README.md") == "README.md", "relative locator")
+        require(source_path(path) == str(path.resolve()), "external locator")
+        write_csv(path / "cold.csv", [{"operation": "encode", "bytes": 1,
+                                      "first_ns": 2, "second_ns": 1}])
+        data, inventory, _ = historical(set(), path)
+        require(len(data) == len(inventory) == 1, "external archive load")
+        require(data[0]["source_csv"] == str((path / "cold.csv").resolve()), "archive source locator")
         marker = path / "manual.txt"
         marker.write_text("preserve\n")
         try:
@@ -592,7 +604,8 @@ def self_test():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--snapshot", default=str(ROOT / "docs/tradeoffs/2026-10-23"))
+    parser.add_argument("--snapshot", help="archived full raw snapshot; curated summaries are not raw inputs")
+    parser.add_argument("--historical-benchmarks", help="archived Criterion CSV directory for a historical rebuild")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -601,6 +614,8 @@ def main():
     else:
         if not args.output:
             parser.error("--output is required")
+        if not args.snapshot or not args.historical_benchmarks:
+            parser.error("archive rebuild requires --snapshot and --historical-benchmarks; retained summaries are in docs/benchmarks")
         try:
             build(args)
         except ValueError as error:

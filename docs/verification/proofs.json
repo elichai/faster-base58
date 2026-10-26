@@ -1,0 +1,304 @@
+{
+  "status": "PASS",
+  "distinct_harnesses": 40,
+  "groups": [
+    {
+      "group": "tiny-production",
+      "command": [
+        "rtk",
+        "proxy",
+        "sh",
+        "scripts/kani-production.sh"
+      ],
+      "exit_code": 0,
+      "harness_count": 4,
+      "log_sha256": "0340baf12bb0e4e24923a5f828bf48f97867f7f77ee8f66b65fb0080e0d9fa11",
+      "env_overrides": {
+        "RUSTUP_TOOLCHAIN": "1.99.1",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_TARGET_DIR": "/private/tmp/base58-kani-final-6IU8sQbI/target",
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_PROFILE_DEV_OPT_LEVEL": null,
+        "RUSTFLAGS": null,
+        "CARGO_ENCODED_RUSTFLAGS": null
+      },
+      "check_summaries": [
+        " ** 0 of 491 failed (12 unreachable)",
+        " ** 0 of 13 failed",
+        " ** 0 of 856 failed (72 unreachable)",
+        " ** 0 of 12 failed"
+      ]
+    },
+    {
+      "group": "main-selected",
+      "command": [
+        "rtk",
+        "proxy",
+        "cargo",
+        "kani",
+        "--lib",
+        "--harness",
+        "ntt::proofs::",
+        "--harness",
+        "matrix::proofs::",
+        "--harness",
+        "validity_matches_digit_table",
+        "--harness",
+        "leading_zero_split_is_exact",
+        "--harness",
+        "partial_chunk_matches_horner",
+        "--harness",
+        "two_limb_",
+        "--harness",
+        "wrapped_fold_preserves_residue",
+        "--harness",
+        "one_limb_production_multiply",
+        "--harness",
+        "carry_preserves_radix52_columns",
+        "--harness",
+        "encode_batched_reduce_is_exact",
+        "--harness",
+        "radix52_unpack_pack_roundtrip",
+        "--harness",
+        "div3_recovers_quotient_with_carry",
+        "--harness",
+        "single_update_matches_wide_reference",
+        "--harness",
+        "single_limb_update_matches_wide_reference",
+        "--harness",
+        "encoded_capacity_never_panics",
+        "--harness",
+        "full_chunk_invalid_rejection",
+        "--harness",
+        "digit_table_has_only_valid_values_or_sentinel",
+        "-Z",
+        "function-contracts",
+        "-Z",
+        "stubbing",
+        "-Z",
+        "unstable-options",
+        "--harness-timeout",
+        "180s",
+        "--jobs",
+        "2",
+        "--output-format",
+        "terse"
+      ],
+      "exit_code": 0,
+      "harness_count": 31,
+      "log_sha256": "df54b6681c3fde5f71add3da19876baf0af29c4adde876f3d9f6159eb6efbf43",
+      "env_overrides": {
+        "RUSTUP_TOOLCHAIN": "1.99.1",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_TARGET_DIR": "/private/tmp/base58-kani-final-6IU8sQbI/target",
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_PROFILE_DEV_OPT_LEVEL": null,
+        "RUSTFLAGS": null,
+        "CARGO_ENCODED_RUSTFLAGS": null
+      },
+      "check_summaries": [
+        " ** 0 of 4 failed",
+        " ** 0 of 4 failed",
+        " ** 0 of 4 failed",
+        " ** 0 of 62 failed",
+        " ** 0 of 62 failed",
+        " ** 0 of 164 failed (1 unreachable)",
+        " ** 0 of 62 failed",
+        " ** 0 of 80 failed (1 unreachable)",
+        " ** 0 of 99 failed (1 unreachable)",
+        " ** 0 of 4 failed",
+        " ** 0 of 2 failed",
+        " ** 0 of 173 failed (2 unreachable)",
+        " ** 0 of 94 failed (1 unreachable)",
+        " ** 0 of 1050 failed (7 unreachable)",
+        " ** 0 of 231 failed (1 unreachable)",
+        " ** 0 of 618 failed (40 unreachable)",
+        " ** 0 of 273 failed (5 unreachable)",
+        " ** 0 of 162 failed (1 unreachable)",
+        " ** 0 of 25 failed",
+        " ** 0 of 234 failed (5 unreachable)",
+        " ** 0 of 25 failed",
+        " ** 0 of 234 failed (5 unreachable)",
+        " ** 0 of 25 failed",
+        " ** 0 of 7 failed",
+        " ** 0 of 7 failed",
+        " ** 0 of 7 failed",
+        " ** 0 of 550 failed (20 unreachable)",
+        " ** 0 of 151 failed (1 unreachable)",
+        " ** 0 of 106 failed (1 unreachable)",
+        " ** 0 of 3 failed",
+        " ** 0 of 533 failed (12 unreachable)"
+      ]
+    },
+    {
+      "group": "capacity",
+      "command": [
+        "rtk",
+        "proxy",
+        "cargo",
+        "kani",
+        "--lib",
+        "--solver",
+        "z3",
+        "--harness",
+        "encoded_capacity_covers_input",
+        "--harness",
+        "encoded_capacity_endpoint_saturates",
+        "--harness",
+        "capacity_affine_step_lemma",
+        "--harness",
+        "capacity_shift_clamp_step_lemma",
+        "--harness",
+        "capacity_formula_lemma",
+        "-Z",
+        "function-contracts",
+        "-Z",
+        "stubbing",
+        "-Z",
+        "unstable-options",
+        "--harness-timeout",
+        "180s",
+        "--jobs",
+        "2",
+        "--output-format",
+        "terse",
+        "--cbmc-args",
+        "--external-smt2-solver",
+        "scripts/kani-z3-polynomial.sh"
+      ],
+      "exit_code": 0,
+      "harness_count": 5,
+      "log_sha256": "617f653825209ea059f63cfbbbd317e7305554bd07747bd7422aa9536a478b92",
+      "env_overrides": {
+        "RUSTUP_TOOLCHAIN": "1.99.1",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_TARGET_DIR": "/private/tmp/base58-kani-final-6IU8sQbI/target",
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+        "RUSTFLAGS": null,
+        "CARGO_ENCODED_RUSTFLAGS": null
+      },
+      "check_summaries": [
+        " ** 0 of 96 failed",
+        " ** 0 of 129 failed",
+        " ** 0 of 5 failed",
+        " ** 0 of 92 failed",
+        " ** 0 of 5 failed"
+      ]
+    }
+  ],
+  "solver_counts": {
+    "cadical": 31,
+    "z3": 4,
+    "z3-polynomial": 5
+  },
+  "source_sha256": "bb4aa60d286cb3c1c333973b0eac2d45f22f4a2c436d56de03fe6e84c809ecc7",
+  "source_manifest_sha256": "2b1c71c255cc8f6666ada5dd604ac3c9f1c278797b2d02d34e56f24b07393c49",
+  "current_source_comparison": {
+    "snapshot": "bb4aa60d286cb3c1c333973b0eac2d45f22f4a2c436d56de03fe6e84c809ecc7",
+    "current": "c72acc099c513a1cbbe09ae6c29ff47411c4702673b1b99253fca3f9485fddb6",
+    "changed_files": [
+      "Cargo.toml"
+    ],
+    "cargo_manifests_equal_except_package_include": true,
+    "rust_files_identical": true,
+    "package_include_before": [
+      "/src/**",
+      "/tests/**/*.rs",
+      "/benches/*.rs",
+      "/README.md",
+      "/DESIGN.md",
+      "/REFERENCES.md",
+      "/LICENSE-*",
+      "/assets/graphs/*.svg",
+      "/docs/performance.md",
+      "/docs/review/production*.md"
+    ],
+    "package_include_after": [
+      "/src/**",
+      "/tests/**/*.rs",
+      "/benches/*.rs",
+      "/README.md",
+      "/DESIGN.md",
+      "/CORRECTNESS.md",
+      "/REFERENCES.md",
+      "/LICENSE-*",
+      "/assets/graphs/*.svg",
+      "/docs/*.md",
+      "/docs/verification/*.md",
+      "/docs/verification/*.json",
+      "/docs/references/*.json"
+    ]
+  },
+  "tools": [
+    {
+      "name": "kani",
+      "path": "/Users/eturkel/.cargo/bin/cargo-kani",
+      "resolved_path": "/Users/eturkel/.cargo/bin/cargo-kani",
+      "sha256": "6de7745c7bf2ff8503e4954a1d47c0e7dff12c288f50c0ddc183f5b1a424d1d7",
+      "version": "Kani Rust Verifier 0.68.0 (cargo plugin)\nCBMC 6.11.0\n"
+    },
+    {
+      "name": "kani-compiler",
+      "path": "/Users/eturkel/.kani/kani-0.68.0/bin/kani-compiler",
+      "resolved_path": "/Users/eturkel/.kani/kani-0.68.0/bin/kani-compiler",
+      "sha256": "88c115b843454b7b16b53955b31c6bc81c0168e7bfc6fbf97d9b688e53c67154",
+      "version": "rustc 1.100.0-nightly (8925ea358 2026-08-20)\nbinary: rustc\ncommit-hash: 8925ea358a0f265ca61026aadc7ecc506c545cbe\ncommit-date: 2026-08-20\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.0\n"
+    },
+    {
+      "name": "cbmc",
+      "path": "/Users/eturkel/.kani/kani-0.68.0/bin/cbmc",
+      "resolved_path": "/Users/eturkel/.kani/kani-0.68.0/bin/cbmc",
+      "sha256": "db1a99dc5187df6f67be351555aa7951d10f37700eccc7ea726d441594675e77",
+      "version": "6.11.0 (cbmc-6.11.0)\n"
+    },
+    {
+      "name": "z3",
+      "path": "/opt/homebrew/bin/z3",
+      "resolved_path": "/opt/homebrew/Cellar/z3/5.3.2/bin/z3",
+      "sha256": "85c69451111aa4659fa61ae0c021c8f7682175d826f6a208fc04075bd465cf25",
+      "version": "Z3 version 5.3.2 - 64 bit\n"
+    }
+  ],
+  "cargo_configs": [
+    {
+      "path": "/Users/eturkel/.cargo/config.toml",
+      "sha256": "63559864090645d067f880fdbf045d20b9ad014c30312ca61879e656fba1cc5e",
+      "settings": {
+        "build": {},
+        "target": {
+          "aarch64-apple-darwin": {
+            "rustflags": [
+              "-C",
+              "target-cpu=apple-m4"
+            ]
+          }
+        },
+        "profile": {
+          "release": {
+            "lto": true
+          },
+          "perf": {
+            "inherits": "release",
+            "debug": true,
+            "strip": false
+          }
+        }
+      }
+    }
+  ],
+  "recipe_files": {
+    "scripts/kani-production.sh": "0e2d66533debfc59eb5d2eb39fad059c3545405203000b44988b371e01a605f8",
+    "scripts/kani-z3-polynomial.sh": "b0f9c5f53ecc796c4085aa52925860175fb628553c35fbde6b77aacb742509e5"
+  },
+  "selected_workflow_block_sha256": "b470c118acf6ae4c2d3773c34aa0b6ac99f15f59868f1aa752cf49d05ed6628c",
+  "workflow_proof_block_still_matches_main": true,
+  "harnesses_csv_sha256": "b4efa4ec298437181315386cb058305a66003d7fc724af0cc16ba628d0f3e013",
+  "warning_sites_csv_sha256": "15b33c25ba84ca4a71381fbd5c54ce5fbee513acdec3c0a60d03887779607681",
+  "default_checks_disabled": false,
+  "warning_scope": "Ordinary source assert! invocations in const/expression contexts; diagnostics identify macro assert, which Kani overrides by default. No source-local assert macro definition found. Verifier expansion is the inferred cause; no macro edits or warning suppression performed.",
+  "limits": "Selected 40 bounded CI harnesses only, on aarch64-apple-darwin. Existing function-contract/stubbing flags and source annotations are preserved. Open-proof jobs and arbitrary configurations are not claimed verified."
+}

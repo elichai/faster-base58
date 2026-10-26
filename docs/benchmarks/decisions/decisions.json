@@ -1,0 +1,121 @@
+{
+  "scope": "Implementation and measurement decisions; source generations are explicit in each dataset. No universal fastest claim.",
+  "decisions": [
+    {
+      "id": "public-api",
+      "status": "accepted",
+      "summary": "Expose automatic conversion and a separate no_alloc mode; keep direct backend controls under internals.",
+      "reason": "A small public API permits dispatch changes while tests/benchmarks retain explicit backend comparisons.",
+      "evidence": [
+        "../public-modes/README.md"
+      ]
+    },
+    {
+      "id": "cache-policy",
+      "status": "accepted",
+      "summary": "Table retention is opt-in; larger NTT tables remain conversion-owned.",
+      "reason": "Cold setup and retained heap are distinct tradeoffs. Earlier unbounded resource data is historical.",
+      "evidence": [
+        "../public-modes/README.md",
+        "../allocation-layout/README.md"
+      ]
+    },
+    {
+      "id": "storage-layout",
+      "status": "accepted",
+      "summary": "Keep the final v011 matrix/Divisor storage changes and early temporary drops.",
+      "reason": "Requested allocation and peak-heap reductions are retained with source-bound controls; paired timing changes are mixed.",
+      "evidence": [
+        "../allocation-layout/resources.csv",
+        "../allocation-layout/public-allocations/comparisons.csv"
+      ]
+    },
+    {
+      "id": "exact-fixed-paths",
+      "status": "accepted",
+      "summary": "Keep specialized 32/64-byte matrix paths for their exact sizes.",
+      "reason": "Exact-size and general matrix paths have separate measurements; nearby-length padding is a separate decision.",
+      "evidence": [
+        "../public-modes/fixed-paths.csv"
+      ]
+    },
+    {
+      "id": "toom3",
+      "status": "experimental",
+      "summary": "Keep Toom-3 outside the normal production dispatch.",
+      "reason": "Historical complete grids do not establish a broad production win and code-size/other-backend tradeoffs remain.",
+      "evidence": [
+        "../backend-grid/README.md",
+        "../backend-resources/linked-sizes.csv"
+      ]
+    },
+    {
+      "id": "threshold-snapshot",
+      "status": "rejected",
+      "summary": "Do not reintroduce broader IFMA threshold-state plumbing without a new hypothesis.",
+      "reason": "Older matched worker and ordinary-consumer no-LTO results differ; the ordinary consumer already folds the tuning atomic and has decoder regressions.",
+      "evidence": [
+        "threshold-snapshot/observations.csv",
+        "threshold-snapshot/ordinary-no-lto-summary.csv",
+        "threshold-snapshot/size-deltas.csv"
+      ]
+    },
+    {
+      "id": "nearby-fixed-padding",
+      "status": "rejected",
+      "summary": "Do not broadly pad other lengths to the fixed 32/64-byte paths.",
+      "reason": "Pattern, wrapper, setup and size controls did not support a general replacement. Full experiment remains archived.",
+      "evidence": [
+        "fixed-table-reuse-controls.csv",
+        "fixed-table-reuse-size-deltas.csv"
+      ]
+    },
+    {
+      "id": "source-migration-attribution",
+      "status": "unresolved-cause",
+      "summary": "Do not attribute the retained native/cache slowdown to no_std, rename or const tables.",
+      "reason": "A literal unchanged ELF copy at a different inode/path recovered performance; no PMU evidence established a cause.",
+      "evidence": [
+        "../production/layout-controls.csv",
+        "../production/literal-copy-controls.csv"
+      ]
+    },
+    {
+      "id": "simd-stage-loops",
+      "status": "rejected",
+      "summary": "Keep the original variable-step NTT loops.",
+      "reason": "The six-loop prototype has mixed timings and grows linked native x86 sections despite a small M5 reduction.",
+      "evidence": [
+        "../assembly/candidate-sizes.csv",
+        "../assembly/candidate-warm-cpu.csv"
+      ]
+    },
+    {
+      "id": "ntt-inverse-scale",
+      "status": "rejected-after-local-size-screen",
+      "summary": "Keep the original inverse-scale arithmetic; retain the new independent tests and scalar proofs.",
+      "reason": "Two equivalent formula variants did not improve the joint local code/read-only footprint. No timing or GCP result is claimed.",
+      "evidence": [
+        "scale.md",
+        "scale-sizes.csv"
+      ]
+    },
+    {
+      "id": "simd-panel",
+      "status": "retain-existing-default",
+      "summary": "Treat the bounded Wasm panel prototypes as experiments; no new default target policy follows.",
+      "reason": "The exact modules, clocks, code-size changes and source controls must be assessed together.",
+      "evidence": [
+        "../simd/README.md",
+        "../simd/receipts.json"
+      ]
+    }
+  ],
+  "shared_limits": [
+    "One deterministic fixture per primary size is not every input distribution.",
+    "Process ranges are descriptive, not confidence intervals.",
+    "Source-matched associations do not make instrumented workers identical to public consumer binaries.",
+    "Requested Rust heap, allocator overhead, RSS and Wasm pages are different metrics.",
+    "Historical input and archive locators are not active documentation paths."
+  ]
+}

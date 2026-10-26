@@ -1,0 +1,9 @@
+configuration,kind,source_summary_rows,referenced_metric_cells,source_csv,source_sha256
+m5-native,timing,1674,1674,docs/tradeoffs/2026-10-23/local-timings/summary.csv,d69a3f544998d0cac11cedce620dfd797ee5bab32deef7bdbd117fce68627c20
+m5-native,allocation,25110,25110,docs/tradeoffs/2026-10-23/local-allocations/summary.csv,a961dd716e58504cc3cdd0a0361f0947f0defcabef702a0d817b7978cc72755d
+zen5-generic,timing,1674,1674,docs/tradeoffs/2026-10-23/gcp-default-timings/summary.csv,597756f0a0fcdc07bc56aa7f50ebba71ab1a1d78317fa3e34ca1e2a3365aceb2
+zen5-generic,allocation,25110,25110,docs/tradeoffs/2026-10-23/gcp-default-allocations/summary.csv,f753b937df857feaaa45275e599843b24af5101492602f84b94ffa93cdf88fd8
+zen5-native,timing,1674,1674,docs/tradeoffs/2026-10-23/gcp-native-timings/summary.csv,1935679415ab191cd1a23f746cfaf40e5a797d9f8ce98b31fb5a0677d494450c
+zen5-native,allocation,25110,25110,docs/tradeoffs/2026-10-23/gcp-native-allocations/summary.csv,7fda2a22ba24051ed30cdee04593f7c38e69cce15796aa688c00ceb5f868c67a
+m5-v8,wasm_summary,218,1962,docs/tradeoffs/2026-10-23/wasm-performance/summary.csv,903e27576afa8acb4e815d99e16a5624f6b16e7ae59041acfee36890f04636f8
+zen5-v8,wasm_summary,218,1962,docs/tradeoffs/2026-10-23/gcp-wasm-performance/summary.csv,3e73e527b1bc86c16b12d8fecde8f8ee95b3f4c31be422a4c9f825a85ef7691c

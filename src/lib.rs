@@ -1,4 +1,4 @@
-//! Base58 (Bitcoin alphabet) decoding and encoding on 64-bit limbs. See README.md for the
+//! Base58 (Bitcoin alphabet) decoding and encoding on 64-bit limbs. See DESIGN.md for the
 //! design.
 //!
 //! [`encode`] and [`decode`] select a backend by input size and CPU support. Use

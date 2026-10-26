@@ -1,338 +1,161 @@
-# Design and resource costs
+# Algorithms and resource costs
 
-This crate converts the Bitcoin Base58 alphabet. The root API selects kernels by
-size and CPU; `no_alloc` provides conversion without internal heap allocation.
-Generated-table retention is an opt-in `cache` feature, off by default.
-The default library uses `core` and `alloc`, with no `std` dependency. `std` is
-an explicit feature, and `cache` enables it. On x86-64, OS-aware runtime SIMD
-detection uses `std::is_x86_feature_detected!` with `std`, and `cpufeatures`
-otherwise. The latter's five cached detection booleans are atomic bytes,
-separate from generated table retention, and allocate no heap memory.
-Cargo's additive features keep the x86-only dependency resolved with `std`, but
-its detectors are not compiled into the crate. Other architectures need no
-normal dependencies.
-
-This map complements [the user guide](README.md), [historical derivations](docs/historical-readme.md) and
-[the tradeoff evidence](docs/tradeoffs/README.md). The
-[public API report](docs/tradeoffs/2026-10-25/public-api/README.md) records current feature choices;
-the earlier [resource/dispatch follow-up](docs/tradeoffs/2026-10-24/resource-dispatch/) preserves their precursors.
-The [AC-power rerun](docs/tradeoffs/2026-10-25/ac-power/README.md) adds fresh laptop
-timings, fixed-encoder controls and graphs using the retained public artifacts.
-
-## Contract and representation
-
-Leading zero bytes become leading `'1'` characters and are preserved on decode.
-Decoders accept `&str`; invalid-character positions are UTF-8 **byte** offsets.
-An exactly sized output buffer suffices. Successful calls leave its remaining
-tail untouched. Error-buffer contents and error precedence when both invalid
-input and insufficient capacity apply are unspecified.
-
-`encode_into` / `decode_into` borrow caller storage; `encode_string` /
-`decode_vec` allocate the result. `decode_array::<N>` requires exactly `N` decoded
-bytes. Auto can allocate internal workspace despite caller-supplied storage.
-`no_alloc` has the length/borrowed/array helpers, without owned-result helpers;
-its cold and warm calls allocate no internal heap, including with `cache` enabled.
-Allocation failure is not represented by these conversion error types.
-All algorithms have input-dependent timing; they do not hide values or lengths.
-
-Internal integers use little-endian `u64` limbs; ten text digits fit in one limb.
-Powers omit low zero limbs using `58^k = 2^k * 29^k`, shortening products.
-Matrix and transform kernels use narrower coefficients with bounded accumulation.
-
-## Entry points and dispatch
-
-Named backend selectors and tuning/resource hooks live in `internals`, enabled
-by `__internals`. The root has no backend aliases or `bench` module. These are
-unstable test and measurement APIs. Batched, Karatsuba, matrix and NTT kernels
-also serve normal automatic dispatch. The hooks select wrappers, whose small/large fallbacks
-contribute to their linked cost.
-`__internals` does not enable `cache`; all library `OnceLock` caches require it.
-
-Comparison/tuning wrappers share gated backend `internals` modules; the root
-facade reexports them directly. Matrix production wrappers share `entry`;
-production `ntt::{encode, decode}` use `Ntt::new(kernels)`, whose table policy
-follows the `cache` feature. Owned/cached NTT comparison adapters now live under
-`ntt::internals`; only cache-enabled test/internal builds contain a forced-owned
-override. Production has no runtime cache-policy argument. Matrix feature gates
-remain because the feature also changes dispatch. Cache storage and fixed
-portable helpers share module gates; ISA/test/proof and conditional NTT state
-boundaries retain explicit gates. See the [cfg review](docs/review/cfg-consolidation.md).
-
-Mutually exclusive CPU selectors and the x86 detector implementation use standard
-`core::cfg_select!`, including portable fallbacks. Runtime ISA checks and
-overlapping test/internal/cache gates stay separate. The crate's MSRV is Rust
-1.95; a dedicated CI job checks it.
-Kani uses its separate bundled nightly compiler.
-
-| Family | Main use | Boundary behavior |
-| --- | --- | --- |
-| Batched | Small inputs and compact consumers | Quadratic at large sizes; no internal heap allocation |
-| Karatsuba | General divide-and-conquer conversion | Batched leaves; shared schoolbook/IFMA multiplication below its recursive threshold |
-| Toom-3, experimental | Benchmark, test and proof comparison | Excluded from normal builds; falls back to Karatsuba for smaller products |
-| NTT | Large inputs | Karatsuba/IFMA below transform thresholds; owned or cached twiddles |
-| Matrix | Fixed and medium inputs | Batched below its minimum; encoder falls back to NTT, decoder to Karatsuba above its cap |
-| Portable variants | Kernel comparisons and differential controls | Plain-Rust matrix/NTT kernels; wrapper fallbacks still apply |
-| Malachite, dev only | Multiplication comparison | Shared conversion tree; operand copies into reused `Natural` staging, with product and internal scratch allocations |
-
-Toom-3 is compiled only with `__internals`, unit tests or `cfg(kani)`. Auto and
-`no_alloc` never select it, including with `cache`. It can beat Karatsuba, but the
-[earlier large-input measurements](docs/tradeoffs/2026-10-24/benchmark-results/m5-native-decode.md)
-favor NTT throughput. Retain it as an experimental speed/heap/linked-size
-comparison. The existing gate already removes it from normal compilation;
-a separate experimental feature would not reduce normal binary size.
-The older [resource comparison](docs/tradeoffs/backend-comparison.md) records
-its lower-heap/smaller-link tradeoff against NTT.
-
-Without `cache`, Auto encoding uses batched conversion below 22 input bytes and
-fixed matrices at exactly 32/64 bytes. Other sizes through 4096 bytes use the
-Karatsuba encoder (including its batched fallback); larger sizes use owned NTT.
-Decoding uses the tiny helper through two text bytes, batched through 5120,
-Karatsuba through 5632, then owned NTT. Recursive leaves use Horner conversion.
-
-With `cache`, encoding instead uses general matrix conversion through 8192
-significant bytes, reduced to 3584 with IFMA, then NTT; tiny/fixed routes remain.
-Decoding starts with batched conversion below 576 text bytes on little-endian
-AArch64 with NEON or Wasm, or 1024 elsewhere. Medium inputs use matrix on those
-targets and x86 with SSE4.1, then NTT above 5632 text bytes.
-IFMA hosts switch above 5120; IFMA hosts compiled with AVX2 keep the remaining
-medium range on batched decoding. Other targets keep batched decoding there.
-The matrix wrapper itself applies its limits after stripping leading `'1'`s.
-These conservative crossovers are not format limits or optimality guarantees.
-`no_alloc` encoding uses the fixed 32/64-byte matrices and batched conversion
-elsewhere; decoding uses tiny/batched conversion. It never builds general tables
-or recursive workspace. Its general-size work remains quadratic.
+The public API has two modes: automatic selection and `no_alloc`. Named backends,
+portable controls and tuning hooks require `__internals` and are unstable.
+The library uses `core` and `alloc` by default. `cache` enables `std` and retains
+generated tables. See [correctness and verification](CORRECTNESS.md),
+[measurements](docs/performance.md), and [implementation references](REFERENCES.md).
 
 ## Conversion families
 
-**Batched Horner conversion** updates a whole limb for each
-[ten text digits](src/batched.rs) or [seven binary bytes](src/encode/batched.rs).
-Two updates overlap carry chains. The encoder uses reciprocal splitting by
-`58^10` and stores limbs inside the eventual output; the decoder keeps its top
-limb separate for exact buffers. Work is quadratic, with no heap workspace.
-Shared batched encoding bypasses Horner for empty/one-byte inputs. Auto and
-`no_alloc` decoding use the internal at-most-two-byte text helper; named backend
-hooks keep the Batched core. Earlier tiny/medium dispatch experiments and their
-costs remain in the [historical report](docs/tradeoffs/2026-10-24/resource-dispatch/performance.md).
+| Family | Method and role | Main cost |
+| --- | --- | --- |
+| Batched | Horner conversion, seven binary bytes or ten Base58 digits per step; paired updates overlap carry chains | Quadratic work, no heap allocation |
+| Karatsuba | Balanced radix conversion with Karatsuba multiplication and batched leaves | Per-call powers, reciprocals and scratch |
+| Matrix | Independent multiply-adds against a power table, followed by bounded carry passes | Quadratic table size and work; setup can dominate small calls |
+| NTT | Balanced radix conversion with transform multiplication and prepared powers | Subquadratic large-input work, substantial scratch and twiddle storage |
+| Toom-3 | Experimental multiplier using five third-size products | Test/benchmark/proof builds only; Auto never selects it |
+| Malachite | Development-only multiplier adapter and separate radix oracle | Not a normal dependency; its multiplier shares our conversion tree |
 
-**Divide and conquer** uses balanced subproblems. [Decoding](src/dc.rs) combines
-`high * (58^10)^e + low`; [encoding](src/encode/dc.rs) divides by those powers,
-then recursively emits the quotient and padded remainder. Barrett estimates use
-reciprocals refined by Newton steps; powers and reciprocals are reused within one call.
-Karatsuba, Toom-3 and NTT share this tree. See [radix-conversion background](https://gmplib.org/manual/Binary-to-Radix).
-The [Malachite adapter](tests/support/malachite.rs) also shares it; the independent
-`Natural` radix oracle uses a separate conversion implementation.
+Integers use little-endian `u64` limbs. A radix chunk is `58^10`. Powers omit low
+zero limbs using `58^k = 2^k * 29^k`, reducing multiplication work.
 
-**Matrix conversion** replaces a long carry chain with independent multiply-adds
-against powers of the source radix. [Encoding](src/encode/matrix.rs) maps 32-bit
-words into base `58^4`; [decoding](src/matrix/mod.rs) maps four-character groups
-into base `2^32`. Tables store eight-row, four-column panels suited to the same
-SIMD multiply-add kernels. Scheduled carry
-passes keep sums within `u64`; checked constant bounds constrain that schedule.
-Tables cover bounded size classes because storage and work grow quadratically.
+[Batched decoding](src/batched.rs) keeps its top limb separate so an exactly
+sized output buffer suffices. [Encoding](src/encode/batched.rs) stores temporary
+limbs inside the eventual output and uses reciprocal splitting by `58^10`.
+The public paths handle empty and tiny inputs before the general loops.
 
-Fixed 32/64-byte encoders use compile-time tables, local sums and no general-table
-setup. [Firedancer's Rust port, five8](https://docs.rs/five8/1.0.0/five8/) uses a related approach;
-here columns use `58^4`. Optimized 64-byte kernels split carry into segments;
-correction/fallback preserves exact results at carry boundaries.
-This is the same power-matrix algorithm as general Matrix. Fixed dimensions
-remove setup/dimension handling and strengthen overflow bounds: at most 16
-products per column, versus general Matrix's scheduled carry passes. Auto,
-`no_alloc` and ordinary Matrix already share these exact-size specializations.
-The short serial/segmented carry schedule cannot replace the general schedule
-without new bounds. General Matrix already shares SIMD panel multiplication
-with decoding and NEON character emission with fixed encoding.
+[Divide-and-conquer decoding](src/dc.rs) combines `high * (58^10)^e + low`.
+[Encoding](src/encode/dc.rs) divides by the same powers, then emits quotient and
+padded remainder recursively. Barrett estimates use reciprocals refined by Newton
+steps; each power and reciprocal is reused within one conversion. Karatsuba,
+Toom-3 and NTT share this conversion tree. Unbalanced products use blocks.
 
-Padding nearby lengths into the fixed kernels preserves those arithmetic bounds,
-but adds local buffers/copies and bypasses cheap leading-zero handling. The
-[M5, GCP and Wasm experiment](docs/tradeoffs/2026-10-25/fixed-table-reuse/README.md)
-rejects that broad extension: some normal inputs improve, while zero-heavy inputs
-regress substantially. The report records linked-size and cache-allocation costs.
+[Matrix encoding](src/encode/matrix.rs) maps 32-bit words to base `58^4`;
+[decoding](src/matrix/mod.rs) maps four-character groups to base `2^32`.
+Eight-row, four-column panels share SIMD multiply-add kernels. Scheduled carry
+passes and compile-time bounds keep accumulations within `u64`.
 
-## Multiplication and CPU-specific work
+Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
+local sums. Fixed dimensions remove table construction and dimension handling;
+64-byte kernels also segment the carry chain. Auto, `no_alloc` and the Matrix
+wrapper already share these specializations. Their short carry schedule needs
+fixed-size bounds and cannot replace the general schedule directly. Padding
+nearby lengths into these kernels was [rejected](docs/benchmarks/decisions/README.md):
+zero-heavy inputs regressed despite some ordinary-input gains.
 
-[Schoolbook multiplication](src/mul.rs) overlaps two rows' carry chains.
-Karatsuba replaces four half-size products with three; [Toom-3](src/toom3.rs)
-replaces nine third-size products with five and exact small divisions. Unbalanced
-operands are cut into blocks. Both reuse scratch rather than allocate recursively.
-Background: [Karatsuba](https://gmplib.org/manual/Karatsuba-Multiplication) and
-[Toom-3](https://gmplib.org/manual/Toom-3_002dWay-Multiplication) in the GMP manual.
+[NTT multiplication](src/ntt/mod.rs) uses two 32-bit coefficients per limb,
+three primes below `2^30`, Montgomery products and exact CRT reconstruction.
+Forward/inverse orderings avoid a separate bit-reversal pass. Squares and
+prepared radix powers save transforms; cyclic/negacyclic pieces reduce padding.
+Wrapped products shorten some reciprocal work. The `2^23`-point transform cap
+supports the coefficient bounds; larger products split. It is not an input limit.
 
-[NTT multiplication](src/ntt/mod.rs) splits each limb into two 32-bit coefficients, transforms
-modulo three primes below `2^30`, and reconstructs exact coefficients with CRT
-before carrying into limbs. Montgomery products and bounded lazy reductions
-reduce division/reduction overhead. Forward/inverse orderings avoid a separate
-bit-reversal permutation. Squares and prepared radix-power transforms save
-forward transforms. Cyclic/negacyclic pieces reduce padding near transform-size
-boundaries; wrapped products also shorten some reciprocal/division work.
-The largest transform has `2^23` points. Larger products split; this is not a
-maximum accepted input length. The coefficient/CRT bounds depend on this cap.
+## Automatic selection
 
-| Target | Hand-written or selected work |
-| --- | --- |
-| Little-endian AArch64 + NEON | Matrix parsing/panels and digit packing; fixed encoders; NTT butterflies, pointwise products and CRT |
-| x86-64 | Runtime AVX2/SSE4.1 matrix panels; AVX2 or AVX-512 VBMI fixed 64-byte encoding; AVX-512 NTT plus target-feature plain-Rust kernels |
-| x86-64 + AVX-512 IFMA | Radix-`2^52` schoolbook leaves with exact bounded column sums; changes whole-conversion crossover thresholds |
-| Other targets, including default Wasm | Plain-Rust kernels and shared fallbacks |
+These are tuned crossovers, not format limits or guarantees of optimality for
+every input. Leading zeros can reduce the significant input seen by a wrapper.
 
-Runtime feature checks guard x86 instructions. Compile-time target features also
-affect dispatch and LLVM optimization, so a generic x86 build may still select
-SIMD at runtime. The recorded native flag sets are not interchangeable controls.
-Matrix target code lives in `matrix/{neon,x86}.rs` and
-`encode/matrix/{neon,x86}.rs`; `encode/matrix/fixed.rs` owns common tables/carries
-and selects those adapters. `ntt/neon.rs` and `ntt/avx512.rs` hold SIMD kernels;
-`ntt/x86.rs` holds runtime-selected target-feature wrappers for LLVM-generated
-vector code. `mul_ifma/avx512.rs` holds IFMA's native vector adapter; its parent
-keeps shared radix arithmetic and emulation. `ntt/portable.rs` keeps scalar
-helpers used by NEON tails; `ntt/portable/kernels.rs` groups full portable kernels,
-compiled only for production fallbacks, internal comparisons, tests or proofs.
-[Hoisting the relaxed atomic IFMA threshold lookup](docs/review/threshold-snapshot.md) once per conversion was tested and rejected;
-the existing lookup remains, and emitted loads depend on compiler folding.
+| Mode | Encode | Decode |
+| --- | --- | --- |
+| Auto, default | Batched below 22 bytes; fixed matrices at exactly 32/64 bytes; Karatsuba through 4096 bytes; then owned NTT | Tiny through two text bytes; batched through 5120; Karatsuba through 5632; then owned NTT |
+| Auto + `cache` | Tiny/fixed routes first; general Matrix through 8192 significant bytes, or 3584 with IFMA; then NTT | Batched below 576 text bytes on NEON/Wasm, 1024 elsewhere; supported medium-size Matrix; then NTT |
+| `no_alloc` | Fixed 32/64-byte matrices; batched elsewhere | Tiny/batched |
 
-`internals::*_portable` selectors require `__internals`. They
-measure hand-written kernels against plain Rust and provide differential controls.
-The kernels remain available internally for normal target fallbacks. This does
-**not** promise scalar machine code:
-[LLVM can vectorize loops and scalar operations](https://llvm.org/docs/Vectorizers.html).
-The selector replaces its named kernel family. Portable NTT keeps shared wrapper
-leaves and multiplication fallbacks, which can use hand-written SIMD.
-Portable matrix can fall back to normal NTT encoding or Karatsuba decoding.
-They are unstable test/measurement hooks, outside the normal public API.
+Cached decoding uses Matrix only on NEON, Wasm or x86 with SSE4.1. Its upper
+boundary is 5632 text bytes, reduced to 5120 with IFMA. IFMA hosts compiled with
+AVX2 keep the remaining medium range on batched decoding. Other targets retain
+batched decoding there. Recursive leaves also have independent thresholds.
+
+The `cache` feature is an implementation policy, not a runtime API parameter.
+`Ntt::new` owns optional per-call tables and initializes them through mutable
+access once the transform size is known. Only cache-enabled builds contain the
+shared `OnceLock` stores. `__internals` does not enable them.
+
+## Architecture-specific work
+
+| Target | Selected operations | Source layout |
+| --- | --- | --- |
+| Little-endian AArch64 + NEON | Matrix parsing/panels and character packing; fixed encoders; NTT butterflies, pointwise products and CRT | `matrix/neon.rs`, `encode/matrix/neon.rs`, `ntt/neon.rs` |
+| x86-64 SSE4.1 / AVX2 | Matrix panels; AVX2 fixed 64-byte encoding; target-feature Rust NTT wrappers | `matrix/x86.rs`, `encode/matrix/x86.rs`, `ntt/x86.rs` |
+| x86-64 AVX-512 | Native NTT; VBMI fixed 64-byte encoding; IFMA radix-`2^52` schoolbook leaves | `ntt/avx512.rs`, `encode/matrix/x86.rs`, `mul_ifma/avx512.rs` |
+| Wasm and other targets | Portable kernels; LLVM may vectorize them when the target permits it | Shared portable modules |
+
+On x86, runtime checks guard the required ISA combinations. With `std`, detection
+uses `std::is_x86_feature_detected!`; otherwise it uses `cpufeatures`. The latter
+caches five atomic-byte detection results without heap allocation. Cargo still
+resolves that x86 dependency with `std`, but those detector expansions are excluded.
+Selectors use `core::cfg_select!`; the MSRV is Rust 1.95.
+
+SIMD applies beyond fixed lengths. Fixed 32-byte x86 encoding deliberately uses
+plain Rust; fixed 64-byte encoding has explicit vector kernels. AVX2 NTT wrappers
+allow LLVM vectorization, while AVX-512 kernels are hand-written. `*_portable`
+hooks replace a kernel family, not every downstream fallback, and do not promise
+scalar assembly. [SIMD results](docs/simd.md) include the mixed Wasm `+simd128`
+tradeoff. [Assembly review](docs/assembly.md) covers callbacks, detector loads,
+panic paths and size; the IFMA tuning atomic already folds in ordinary consumers.
 
 ## Heap, stack and cache costs
 
-Batched calls use only caller output and small local state. Fixed encoding uses
-small local arrays and constant tables: their two reference layouts total 2208
-bytes on 64-bit targets, not necessarily 2208 emitted binary bytes.
-General matrix calls use roughly 30 KiB of encoder stack or 14 KiB of decoder
-stack; recursive encoder matrix leaves add 8 KiB of bytes, about 38 KiB total.
-Only used prefixes are initialized; encoder scratch is 64-byte aligned. Out-of-line
-paths isolate these frames. These are source estimates, not stack high-water tests.
-`decode_array::<N>` also constructs an `N`-byte local array.
+`no_alloc` makes no allocator calls on cold, warm, success or error paths. Its
+general-size conversion remains quadratic. Fixed tables have a combined
+reference layout of 2208 bytes on 64-bit targets; emitted binary bytes can differ.
+`decode_array::<N>` constructs an `N`-byte local result. General Matrix uses about
+30 KiB encoder / 14 KiB decoder stack; recursive encoder leaves add about 8 KiB.
+These are source estimates, not measured stack high-water marks.
 
-Without `cache`, explicit general-matrix hooks own one table per invocation;
-recursive matrix leaves do not share those tables. Auto avoids these paths.
-With `cache`, first use builds shared `OnceLock` tables;
-warm matrix calls need no table allocation. Initialized classes remain for the
-process lifetime; larger tables can serve smaller calls, so history matters.
-Construction reuses one eight-row workspace instead of cloning a Vec per row.
-One table needs three allocations: temporary rows, retained panel metadata and
-retained coefficients. Packing all three into one owner would retain temporary
-workspace; the current layout keeps cache capacities unchanged.
-Known coefficient counts are reserved once, avoiding geometric spare capacity.
-Current capacity constants match the recorded 64-bit tables: the largest retain
-11,510,016 encoder bytes / 2,437,248 decoder bytes including heap panel metadata.
-All five encoder classes sum to 15,364,736 bytes; all four decoder classes sum to
-3,253,024 bytes, or **18,617,760 heap bytes** together. The two static `OnceLock`
-arrays occupy 280 / 224 header bytes in the recorded 64-bit layout; coefficient
-and panel vectors live on the heap. These are retained capacities, not active peaks.
-Matrix entry paths reject provably insufficient output before table setup using
-conservative lower bounds after leading-zero handling. They do not require a
-worst-case output capacity; an exact buffer still succeeds. See the
-[resource-hardening evidence](docs/tradeoffs/2026-10-24/resource-dispatch/resource-hardening.md).
+Matrix construction reuses eight scratch rows. One table has three allocations:
+temporary rows, retained panel metadata and retained coefficients. Combining all
+three into one retained owner would keep dead scratch alive. Final coefficient
+counts are reserved once. Provably insufficient buffers are rejected before
+table setup without requiring worst-case output capacity.
 
-Recursive conversion allocates powers, reciprocal/prepared-transform data and
-workspace. The decoder packs its main result/power/scratch regions into one
-allocation; encoding needs several owned buffers. All encoder Divisors borrow
-one pre-sized payload for normalized powers and reciprocals. Their temporary
-padded operands reuse construction scratch. Once copied, the original powers
-and construction scratch are released before preparing transforms or allocating
-conversion scratch. A growing Vec::resize was rejected: it can copy/zero dead
-scratch, and measured peak heap and large-encode times were worse. These
-measurements do not isolate copying/zeroing as the cause of the timing change.
-Karatsuba scratch is bounded
-by `5*n + 64` limbs, NTT by `16*n + 64`, for the operand bound used by those
-interfaces. These are scratch formulas, not total conversion-memory bounds.
+The divide-and-conquer decoder packs result, powers and scratch into one arena.
+Encoder divisors borrow one pre-sized payload for normalized powers and
+reciprocals; construction scratch and original powers are dropped before
+prepared transforms and conversion scratch. Each prepared NTT operand owns one
+vector containing all three prime transforms. A shared prepared-power arena
+saved little peak memory and regressed GCP encoding, so it was rejected.
+Karatsuba scratch is `5*n + 64` limbs; NTT scratch is `16*n + 64` for the operand
+bound of those interfaces. Neither formula bounds total conversion memory.
 
-NTT initializes local tables lazily through Option and mutable access; new does
-not yet know the required transform size. No local OnceCell is needed. Each
-prepared operand still owns one Vec containing all three prime transforms.
-A shared arena saved only metadata-scale peak bytes and regressed native GCP
-encoding, so its batch/replacement machinery was rejected. See the
-[allocation experiments](docs/tradeoffs/2026-10-25/allocation-layout/README.md).
+| Retained with `cache` | Heap payload capacities | Static headers, 64-bit layout |
+| --- | ---: | ---: |
+| All five encoder + four decoder Matrix classes | 18,617,760 bytes | 504 bytes |
+| Production NTT logs 5–18 | 25,164,288 bytes | 5776 bytes |
+| Combined maximum after using every production class | **43,782,048 bytes (41.8 MiB)** | **6280 bytes** |
 
-An NTT log-`l` table has `48 * 2^l` twiddle bytes across three primes with four arrays each.
-Without `cache`, all generated twiddle tables are owned. With `cache`, the log-18
-policy retains at most 25,164,288 bytes across production logs 5–18 (~24 MiB);
-larger tables stay owned. This is `48 * (2^19 - 32)` heap bytes; a single log-18
-table uses 12,582,912 bytes. The internal cached-table helper also accepts logs
-1–18, whose full bound is 25,165,728 bytes. The 19 static `OnceLock<Tables>` slots total
-5,776 header bytes in the recorded 64-bit layout, separate from heap twiddles.
-The arithmetic log-23 limit is unchanged. This bounds
-opt-in idle twiddles, not total active memory. Both feature choices can replicate
-large owned twiddles under concurrency: 4 MiB of significant encoder input can
-need 96 MiB per call, where the older unbounded global cache could share one.
-Workspace, prepared powers and matrix caches add further costs. See the
-[historical retention trials](docs/tradeoffs/2026-10-24/ntt-retention-policy.md).
+These stores are absent by default. Initialized classes remain for the process
+lifetime, and history affects reuse. The largest Matrix tables retain 11,510,016
+encoder / 2,437,248 decoder bytes. NTT log `l` needs `48 * 2^l` twiddle bytes;
+logs above 18 remain owned even with `cache`. The internal cache helper also
+accepts logs 1–4; filling those would raise its NTT bound to 25,165,728 bytes.
 
-Together, all matrix classes and production NTT slots can retain **43,782,048
-heap bytes (41.8 MiB)**, plus **6,280 static header bytes** in these 64-bit
-layouts. Headers contain lock state and vector descriptors, not table payloads;
-they are compiled out without `cache`. Fixed compile-time tables and other
-constants are separate. These sizes depend on target/toolchain layout, and
-dead stripping can omit unreachable cache families. Fewer initialized classes
-retain less; later calls can add classes. Construction temporaries, prepared
-powers, workspace and concurrent owned tables are additional active costs.
+Retained capacities exclude allocator overhead, construction scratch, prepared
+powers, stack and concurrent conversions. A 4 MiB significant encode can require
+96 MiB of owned twiddles per call. The allocation-layout measurement reduced
+its extra requested live heap from 284,269,528 to 201,582,112 bytes, with zero
+retention in the cache-off build. Realloc-copy overlap and RSS are not measured.
+Wasm page high-water is a separate metric. [Allocation data](docs/benchmarks/allocation-layout/README.md)
+retain exact source and measurement identities.
 
-Precomputing every general cache class would move up to about 41.8 MiB of table
-payload into static binary data before dead stripping, rather than generating
-only the classes a process actually uses. That is a poor default for small or
-Wasm consumers. The fixed 32/64-byte tables are already compile-time constants;
-general retention remains lazy and opt-in through `cache`/`std`. A smaller
-selected static-table policy is a separate, unmeasured option, not implemented
-as part of the no_std port. Changing a generated constant initializer from
-`static` to `const` does not itself turn a lazy heap table into static storage.
+Precomputing every general cache table would embed roughly 41.8 MiB before dead
+stripping, including classes a process may never use. That is unsuitable as the
+default for small/Wasm consumers. The small fixed tables are already compile-time.
 
-The earlier M5 Auto snapshot records cached 1 KiB encoding retaining 185,856 table
-bytes. In the allocation rerun, cache-off 4 MiB NTT encoding retains zero after
-return and reaches 201,582,112 extra requested live bytes, down from 284,269,528.
-The [resource data](docs/tradeoffs/2026-10-25/allocation-layout/README.md)
-exclude allocator overhead/arenas, realloc-copy overlap, RSS and stack. Wasm page high-water includes
-stack/static reservation, caller buffers, allocator state and tables: a different metric.
+## Linked code size
 
-## Linked size and selecting a smaller consumer
+Measure a stripped consumer with matched compiler, target features, direction,
+scaffold and LTO. An `.rlib` is not deployment size. Dead stripping removes
+unreachable implementations, so deleting an unused backend does not recover its
+source size from a consumer. Auto links more code than `no_alloc`, which supplies
+the compact path without another feature. Fixed-only five8 has a narrower contract.
 
-Compare linked executables/modules with the same compiler, source, flags,
-direction and scaffold. `.rlib` size is not deployment cost. Fat LTO and dead
-stripping already remove unreachable implementations; deleting an unused public
-function does not recover its source/archive size from a consumer.
-
-Earlier matched encode+decode consumers, source snapshot `90e71a1a…`:
-
-| Entry | M5 executable | AMD EPYC 9B45 VM on GCP (generic) | AMD EPYC 9B45 VM on GCP (native) | Wasm module | Wasm gzip |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| bs58 0.5.1 | 302,768 | 291,160 | 292,504 | 20,058 | 8,073 |
-| no_alloc | 302,864 | 325,032 | 315,112 | 40,091 | 19,525 |
-| Auto, default | 369,024 | 616,440 | 596,736 | 105,752 | 45,208 |
-| Auto + cache | 385,584 | 613,968 | 585,104 | 108,412 | 46,370 |
-
-Bytes, stripped, fat LTO. M5/Wasm use Rust 1.99.1; GCP 1.99.0, all LLVM 23.1.1.
-CPU flags are M5 `apple-m4`, GCP `x86-64` / `native`, Wasm default features.
-The GCP VM is `c4d-highcpu-4`, with 4 vCPUs and 7 GiB RAM; its measured CPU is
-AMD EPYC 9B45. These are frozen cohorts, not new timing runs.
-The [full comparison](docs/tradeoffs/2026-10-25/public-api/README.md) has both feature
-scaffolds, sections and exact bs58 ratios. M5 `no_alloc` adds 112 file bytes but
-13,033 initialized-section bytes. Cache-off is not always smaller: its GCP native
-Auto file exceeds cache-on. Cross-host compiler, ABI and link formats differ.
-The earlier [v011 backend comparison](docs/tradeoffs/2026-10-24/resource-dispatch/linked-size-final.md)
-is historical; its Batched probe is not today's `no_alloc` with fixed encoders.
-five8 supports only 32/64-byte values, unlike dynamic-length consumers.
-The [allocation report](docs/tradeoffs/2026-10-25/allocation-layout/README.md)
-has newer matched v000/v011 size measurements, including small native increases
-and Wasm reductions. Keep their separate source identities and scaffolds.
-
-## Evidence and remaining limits
-
-Use the earlier [29-size baseline grids](docs/tradeoffs/2026-10-24/benchmark-results/README.md)
-for warmed throughput and support limits before these resource changes. Matrix/NTT wrapper wins at large sizes
-often measure the same fallback. Cold setup, retained bytes and binary size need
-their own comparisons. Cache-only claims require matched leaves and thresholds;
-internal owned/cached NTT selectors can also differ in leaf policy.
-
-[Verification](docs/review/verification.md) combines differential/property tests,
-independent large radix conversion, arithmetic references, sanitizer fuzzing,
-supported Miri paths and scoped Kani obligations. It is not a proof of complete
-backends or SIMD instruction semantics. Open solver obligations and missing Miri
-intrinsics remain; short fuzz campaigns do not establish exhaustive coverage.
-The maximum-transform test is separate from ordinary tests. Public API examples
-and downstream compiler fixtures are tested. Hosted CI, application-specific
-performance and release validation remain distinct completion gates.
+[Per-platform backend sizes](docs/benchmarks/backend-resources/README.md),
+[public-mode sizes](docs/benchmarks/public-modes/README.md) and
+[later allocation-layout sizes](docs/benchmarks/allocation-layout/README.md)
+preserve distinct source generations. Use their section deltas as well as total
+file bytes. The [README](README.md#linked-size) has the short bs58 comparison.
+No further size feature is justified by the rejected loop or explicit Wasm-panel
+experiments. See [verification limits](CORRECTNESS.md#remaining-work) before making
+claims about all inputs or architectures.

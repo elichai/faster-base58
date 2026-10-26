@@ -219,6 +219,8 @@ impl Prepared {
 
     /// The transforms for prime `j`.
     fn prime(&self, j: usize) -> &[i32] {
+        debug_assert!(j < PRIMES.len());
+        debug_assert_eq!(self.data.len(), PRIMES.len() << self.log);
         &self.data[j << self.log..(j + 1) << self.log]
     }
 }
@@ -1419,8 +1421,8 @@ mod tests {
             };
             dc::decode_with(&s, &mut vec![0; len], &mut m).unwrap();
             assert!(m.prepared >= m.used, "len {len}: tables too small");
-            // The README's bound: prepared powers take less than 12 L bytes while the
-            // longest product fits the tables.
+            // Prepared powers take less than 12 L bytes while the longest product
+            // fits the tables.
             assert!(
                 m.power_points < 1 << m.prepared,
                 "len {len}: prepared powers too large"

@@ -53,8 +53,7 @@ pub(super) fn cols<const N: usize, const W: usize, const C: usize>(
         // 4 table words, and the stores write the 4 columns of `o`.
         unsafe {
             let (mut lo, mut hi) = (vdupq_n_u64(0), vdupq_n_u64(0));
-            // Indexed on purpose: with zipped iterators 64 bytes ran 1.6x slower (README,
-            // "Fixed sizes").
+            // Zipped iterators made the historical 64-byte kernel probe 1.6x slower.
             for k in low..full {
                 lo = vmlal_n_u32(lo, vld1_u32(rows[k][4 * b..][..2].as_ptr()), w[k]);
             }

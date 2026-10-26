@@ -8,8 +8,15 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 EXACT = {'Cargo.toml', 'Cargo.toml.orig', 'Cargo.lock', '.cargo_vcs_info.json',
-         'README.md', 'DESIGN.md', 'LICENSE-MIT', 'LICENSE-APACHE', 'docs/performance.md'}
-REQUIRED = {'Cargo.toml', 'src/lib.rs', 'README.md', 'LICENSE-MIT', 'LICENSE-APACHE'}
+         'README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md',
+         'LICENSE-MIT', 'LICENSE-APACHE', 'docs/README.md', 'docs/performance.md',
+         'docs/assembly.md', 'docs/simd.md', 'docs/verification/README.md',
+         'docs/verification/proofs.json', 'docs/verification/sanitizers.json',
+         'docs/verification/status.json', 'docs/references/consultations.json',
+         'docs/references/firedancer-LICENSE.txt', 'docs/references/firedancer-NOTICE.txt',
+         'docs/references/five8-LICENSE.txt'}
+REQUIRED = {'Cargo.toml', 'src/lib.rs', 'README.md', 'DESIGN.md', 'CORRECTNESS.md',
+            'REFERENCES.md', 'LICENSE-MIT', 'LICENSE-APACHE'}
 
 def require(condition, message):
     if not condition:
@@ -25,13 +32,15 @@ def allowed(name):
         return path.suffix == '.rs'
     if path.parent == PurePosixPath('assets/graphs'):
         return path.suffix == '.svg'
-    return path.parent == PurePosixPath('docs/review') and path.name.startswith('production') and path.suffix == '.md'
+    return False
 
 def self_test():
-    for name in ['src/lib.rs', 'tests/support/scalar.rs', 'assets/graphs/encode.svg', 'docs/review/production.md']:
+    for name in ['src/lib.rs', 'tests/support/scalar.rs', 'REFERENCES.md', 'CORRECTNESS.md',
+                 'assets/graphs/encode.svg', 'docs/verification/proofs.json']:
         require(allowed(name), 'Expected package source: ' + name)
     for name in ['', '../secret.rs', '/src/lib.rs', 'src/key.pem', 'fuzz/corpus/input',
-                 'docs/tradeoffs/source.tgz', 'target/release/lib.rlib', '.git/config']:
+                 'docs/benchmarks/source.tgz', 'docs/verification/run.log',
+                 'target/release/lib.rlib', '.git/config']:
         require(not allowed(name), 'Unexpected package input accepted: ' + name)
 
 def main():

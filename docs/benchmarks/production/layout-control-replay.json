@@ -1,0 +1,13 @@
+{
+  "status": "pass",
+  "processes": {
+    "retained-repeat": 48,
+    "unchanged-binary": 48,
+    "baseline-path": 48,
+    "candidate-path": 48,
+    "rename": 48,
+    "static": 48
+  },
+  "replayed_csvs": 18,
+  "summary_scope": "All six cohorts, CPU and wall clocks kept separate."
+}

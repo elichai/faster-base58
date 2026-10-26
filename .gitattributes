@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+# Preserve source-bound evidence bytes, including original CSV line endings.
+docs/benchmarks/** -text
+docs/verification/** -text
+docs/references/** -text
+assets/graphs/** -text
+*.csv whitespace=cr-at-eol

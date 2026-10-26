@@ -1,0 +1,51 @@
+{
+  "baseline_commit": "7c6ffa325164fc38652d3927b3172c267eaa38cd",
+  "baseline_resource": "17ab5f264ed4104513e78f8cde41210e2d294332e2c99ce266b888fa0e9dd9cc",
+  "changes": [
+    {
+      "path": "src/ntt/neon.rs",
+      "before_sha256": "af6baf67ac1da7cc59a7b5184926c7c2f86c9203320fe048eed1200b2d8e43ba",
+      "after_sha256": "477040f83fbf22104afcab2c305406e5be544c02b65501949178d53518a0d3e0",
+      "loops": [
+        {
+          "old_line": 161,
+          "factor": 2,
+          "unchanged_body_sha256": "859069fb02cb2e32add6b42f90e3b4d8ea363a942aa527da0fa8b4f9497fa1e2"
+        },
+        {
+          "old_line": 251,
+          "factor": 2,
+          "unchanged_body_sha256": "38498e71f18c0e18ef7e8bc4be03eca464a4d8c9c748bfe2f63a71777fdbb3a1"
+        }
+      ]
+    },
+    {
+      "path": "src/ntt/avx512.rs",
+      "before_sha256": "6672c51afaa4d3999e5cd73854388e1f50aa879823017de217104485bce9cf9a",
+      "after_sha256": "ecad8148ce5afdd445d9db5735a7dec737188b58e7c5a67c841dbf10a189f7dc",
+      "loops": [
+        {
+          "old_line": 357,
+          "factor": 2,
+          "unchanged_body_sha256": "73f1b7e8752a7cea124d13acf65b4885fbdee29cdac3815ed576edd69ca02cbb"
+        },
+        {
+          "old_line": 378,
+          "factor": 2,
+          "unchanged_body_sha256": "c761e1afe3f8da93ec204b237c488fd07ffd88811d1eb34d5fbb33457822aa4b"
+        },
+        {
+          "old_line": 475,
+          "factor": 4,
+          "unchanged_body_sha256": "c0329b96714efacf74b51be0630318b50ef6dc415abbe42a0b7e227582b35248"
+        },
+        {
+          "old_line": 508,
+          "factor": 2,
+          "unchanged_body_sha256": "cd534d9433fe8d7387014c66136e1e3762603f3907940c4c1f41059209019d5a"
+        }
+      ]
+    }
+  ],
+  "constraints": "No vector-body, ISA, API or entry-check changes. Explicit step!=0 rejection retained."
+}

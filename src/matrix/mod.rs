@@ -1,8 +1,7 @@
 //! Decoding by a matrix of powers (Firedancer's decode, for any length): group the digits
 //! in base 58^4, multiply the group vector by a table of `58^(4i)` in base 2^32, sum
 //! columns in `u64`, then carry once. The products are independent, so this runs at SIMD
-//! multiply-add throughput instead of along a carry chain. See the spec,
-//! `docs/superpowers/specs/2026-10-14-simd-front-end-design.md`.
+//! multiply-add throughput instead of along a carry chain. See `DESIGN.md`.
 
 use core::mem::MaybeUninit;
 
@@ -84,7 +83,7 @@ pub(crate) mod entry {
     };
 
     /// Inputs with fewer digits than this use [`decode_batched`], which is faster there.
-    /// Tuned by measurement; README.md has the numbers.
+    /// Tuned by measurement; see `docs/performance.md`.
     pub(super) const MATRIX_MIN: usize = 576;
 
     /// Like [`decode_batched`], but faster from about 0.4 KiB to 4 KiB when the table of
@@ -100,7 +99,7 @@ pub(crate) mod entry {
     /// Without `cache`, each matrix invocation builds and drops its own table.
     /// Data is reserved at its final length: about 40 KiB, 154 KiB, 601 KiB or 2.3 MiB, plus
     /// panel metadata. With `cache`, initialized classes accumulate. The recursive
-    /// fallback can allocate workspace. See `docs/tradeoffs/README.md` for measurements.
+    /// fallback can allocate workspace. See `docs/performance.md` for measurements.
     pub fn decode_matrix(input: &str, output: &mut [u8]) -> Result<usize, Error> {
         decode_with(&BEST, input, output, MATRIX_MIN)
     }

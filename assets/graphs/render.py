@@ -13,8 +13,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-TIMINGS = ROOT / "docs/tradeoffs/2026-10-25/ac-power/timings.csv"
-SIZES = ROOT / "docs/tradeoffs/2026-10-25/allocation-layout/sizes.csv"
+TIMINGS = ROOT / "docs/benchmarks/public-modes/timings.csv"
+SIZES = ROOT / "docs/benchmarks/allocation-layout/sizes.csv"
 PAYLOADS = [32, 64, 256, 1024, 4096, 65536]
 PROFILES = [
     ("m5-native", "M5 Pro", "warm_cpu_ns", "m5"),

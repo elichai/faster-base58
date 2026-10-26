@@ -1,0 +1,265 @@
+{
+  "checked_date": "2026-10-26",
+  "scope": {
+    "project_directories": 5,
+    "log_files": 35,
+    "bytes": 129673179,
+    "scope_expansion": "Only repository worktree sessions explicitly linked by inspected records.",
+    "raw_transcripts_published": false
+  },
+  "logs": {
+    "research": {
+      "project": "-Users-eturkel-gits-base58-bench",
+      "log": "bada14c3-600c-48e5-ba6a-0465e82b1070/subagents/agent-a8fc1d2170073c66e.jsonl",
+      "sha256": "ab513ebc969c4c3051b4c8dfa6ef7e08e7996e1bba2bef23e60cdbf79a106005"
+    },
+    "encoder": {
+      "project": "-Users-eturkel-gits-base58-bench--claude-worktrees-encode-functionality-research-0002a9",
+      "log": "673ec7cc-d8ba-49fb-8ce5-be6ebeda9f65.jsonl",
+      "sha256": "9e4a105522563026bbc8c514a3128d2a0813ceebfd81181c127d65becc9f7140"
+    },
+    "fixed": {
+      "project": "-Users-eturkel-gits-base58-bench--claude-worktrees-mystifying-hertz-53fd1f",
+      "log": "ad1bfc5b-bde6-4668-b265-a32fbd652d4e.jsonl",
+      "sha256": "42ab05e0f6db419e2fc22c233dbddf1726e1581ec6dc9cad13eed71eca75eb92"
+    }
+  },
+  "events": [
+    {
+      "log": "research",
+      "line": 41,
+      "purpose": "Firedancer template response",
+      "timestamp": "2026-10-14T16:34:21.678Z",
+      "record_uuid": "2e36d645-0f2f-4c5f-99cf-d356a959bc8c",
+      "tool_ids": [
+        "toolu_011C7Nkg3Xm5DBor4Ud9XPiu"
+      ],
+      "line_sha256": "a980aef66b75ee0081007dcb21b70a09ccd3b25830de7d82442a44c6b8146525"
+    },
+    {
+      "log": "research",
+      "line": 47,
+      "purpose": "Firedancer AVX response",
+      "timestamp": "2026-10-14T16:34:26.149Z",
+      "record_uuid": "99f79879-666a-4f94-975d-f340e6475d33",
+      "tool_ids": [
+        "toolu_01UCqbBx8Wdnpp93ASjuLvDH"
+      ],
+      "line_sha256": "323834385596a81dc2471394b1e07331de5ab17143841015056ab3241bcaacf3"
+    },
+    {
+      "log": "research",
+      "line": 53,
+      "purpose": "Zig saved source read",
+      "timestamp": "2026-10-14T16:34:30.837Z",
+      "record_uuid": "cc41f0b3-a02b-4c1e-b7a1-e3fccc5db63a",
+      "tool_ids": [
+        "toolu_014MrK1w7bMgVsiytt6cASPK"
+      ],
+      "line_sha256": "ba788ab7676989af98870a4fc565715bd2d3019c7726157de4d24f4bb98d519c"
+    },
+    {
+      "log": "research",
+      "line": 87,
+      "purpose": "Firedancer main ls-remote response",
+      "timestamp": "2026-10-14T16:35:46.601Z",
+      "record_uuid": "90713d5e-8ee3-46a0-8ebb-2a59d6d34522",
+      "tool_ids": [
+        "toolu_01Mc7cV7kPrtuZ8vcjbAPyuY"
+      ],
+      "line_sha256": "3db6fd4790a783337a333ecc9b7db9d108f18779fcfe3dd42598dbb172fb4967"
+    },
+    {
+      "log": "research",
+      "line": 89,
+      "purpose": "Zig master ls-remote response",
+      "timestamp": "2026-10-14T16:35:48.347Z",
+      "record_uuid": "77e5e371-3074-490e-af0f-5c25f4235901",
+      "tool_ids": [
+        "toolu_01Mv8mLEZ3dKDV8pKdHAhsdn"
+      ],
+      "line_sha256": "b8984f50dba4c3d76979ae8ca5da2b6a4a06b3bf56a5104db4425ef71fa23ecd"
+    },
+    {
+      "log": "encoder",
+      "line": 158,
+      "purpose": "Malachite radix-conversion source response",
+      "timestamp": "2026-10-19T11:23:03.142Z",
+      "record_uuid": "d227a268-339d-48b4-a6f6-27c15fa84dd9",
+      "tool_ids": [
+        "toolu_019JmTcL4tguh9nQYnJVtrGQ"
+      ],
+      "line_sha256": "350fb5301459f1f89d65ca4e31a087d45367c7b48b03e014689b12b5053ea1ec"
+    },
+    {
+      "log": "encoder",
+      "line": 208,
+      "purpose": "MCA 0.5.2 citation in original plan",
+      "timestamp": "2026-10-19T11:28:33.599Z",
+      "record_uuid": "d2abb87c-0f10-4062-bae6-56aa25bacc1e",
+      "tool_ids": [],
+      "line_sha256": "cd3730efa6d79c90c699b424943c390b342f717d1e58c26191d137b801cf8a48"
+    },
+    {
+      "log": "encoder",
+      "line": 229,
+      "purpose": "Malachite preinverted division source response",
+      "timestamp": "2026-10-19T11:34:39.131Z",
+      "record_uuid": "c4e592f1-1a9e-4a62-aae8-66243f173f26",
+      "tool_ids": [
+        "toolu_01Bt2ZGknCzfurzCF4BQiHrU"
+      ],
+      "line_sha256": "b43d6165f571285d461665203890c5f960d619da4cd5610045d3f10a1d0fe15e"
+    },
+    {
+      "log": "encoder",
+      "line": 552,
+      "purpose": "Full dc.rs write with MCA Algorithm 3.5 citation",
+      "timestamp": "2026-10-19T11:57:31.334Z",
+      "record_uuid": "32d93db9-6cc1-42a1-ada5-cf4ca30e0192",
+      "tool_ids": [
+        "toolu_01Yb6eLVbK99P26NyxHBiBDg"
+      ],
+      "line_sha256": "1482e98a89cde9fa418d0cd9ec0d0d74003e5a9375c332ee14164bcf1266b964"
+    },
+    {
+      "log": "fixed",
+      "line": 126,
+      "purpose": "five8 encode.rs source response",
+      "timestamp": "2026-10-20T12:26:19.100Z",
+      "record_uuid": "327d5971-06d1-4689-87ed-f4486207fee8",
+      "tool_ids": [
+        "toolu_01GNRNcAKVTstyyZBBzAoujK"
+      ],
+      "line_sha256": "b969ba39953955199f642a56c68d44cbaf758b694ce26682cdf859bd169160fd"
+    },
+    {
+      "log": "fixed",
+      "line": 135,
+      "purpose": "five8 avx.rs source response",
+      "timestamp": "2026-10-20T12:26:22.252Z",
+      "record_uuid": "6073d0cd-d2ab-4845-bf0d-1e36b2e0431f",
+      "tool_ids": [
+        "toolu_015RwpUpeMFmuRox4tj4cYYa"
+      ],
+      "line_sha256": "11ba297081701ef45c5bb526a178077bcf9aaa91fdecd65cf67ecf4bcffd5545"
+    },
+    {
+      "log": "fixed",
+      "line": 246,
+      "purpose": "Initial fixed.rs write",
+      "timestamp": "2026-10-20T12:38:21.440Z",
+      "record_uuid": "61a48c31-71b2-46b4-859a-ffa2e24b4bd1",
+      "tool_ids": [
+        "toolu_01Fe37oRsNcGceT2HLdcnqck"
+      ],
+      "line_sha256": "97ca21feafb3ec302360df365df15474c71a69bac3c36249e45a128a2aef81a7"
+    },
+    {
+      "log": "fixed",
+      "line": 318,
+      "purpose": "Initial x86 write containing alphabet",
+      "timestamp": "2026-10-20T12:40:05.959Z",
+      "record_uuid": "b73ede2e-c668-49a0-84ac-677f7202b18c",
+      "tool_ids": [
+        "toolu_01ACPDKX1Kk7gT87b3GTBZQW"
+      ],
+      "line_sha256": "671b2e93378b193d2e6bb89549e96c2a5ead82d04bffe7b025e95486b3e2554b"
+    }
+  ],
+  "upstream_files": [
+    {
+      "repository": "firedancer-io/firedancer",
+      "revision": "486a8abb17f8b4b7528e0fa4062f7aab8a5b6055",
+      "path": "LICENSE",
+      "blob_sha1": "d5b65181137a10b3edeef1df0520c2b2eb1253d4",
+      "sha256": "f9f4f61331e4f89cc00ce26a93e40d6e7e19168320b7b1214d4108ade0455b62",
+      "url": "https://github.com/firedancer-io/firedancer/blob/486a8abb17f8b4b7528e0fa4062f7aab8a5b6055/LICENSE"
+    },
+    {
+      "repository": "firedancer-io/firedancer",
+      "revision": "486a8abb17f8b4b7528e0fa4062f7aab8a5b6055",
+      "path": "NOTICE",
+      "blob_sha1": "b2a52a484a34172993a45f98f7bea9c3b6f974a0",
+      "sha256": "dc0e330d3b43fc95ed7173c338eaf59430c9931b3dd1dde920307b70313c499f",
+      "url": "https://github.com/firedancer-io/firedancer/blob/486a8abb17f8b4b7528e0fa4062f7aab8a5b6055/NOTICE"
+    },
+    {
+      "repository": "firedancer-io/firedancer",
+      "revision": "486a8abb17f8b4b7528e0fa4062f7aab8a5b6055",
+      "path": "src/ballet/base58/fd_base58.h",
+      "blob_sha1": "62dd1de09f71f5419419d3d175d58bc3ea4d1932",
+      "sha256": "c1a90501863474adf940fb84ad09b373fa9981df8e05b83eccc7c4a598d27f06",
+      "url": "https://github.com/firedancer-io/firedancer/blob/486a8abb17f8b4b7528e0fa4062f7aab8a5b6055/src/ballet/base58/fd_base58.h"
+    },
+    {
+      "repository": "firedancer-io/firedancer",
+      "revision": "486a8abb17f8b4b7528e0fa4062f7aab8a5b6055",
+      "path": "src/ballet/base58/fd_base58.c",
+      "blob_sha1": "d5d493c403b296c20462abce8c1e5232b08e6faa",
+      "sha256": "185dcbfb6ba9f8bcce13fc95bc10f56165d11023531388d87f324864b75360d3",
+      "url": "https://github.com/firedancer-io/firedancer/blob/486a8abb17f8b4b7528e0fa4062f7aab8a5b6055/src/ballet/base58/fd_base58.c"
+    },
+    {
+      "repository": "firedancer-io/firedancer",
+      "revision": "486a8abb17f8b4b7528e0fa4062f7aab8a5b6055",
+      "path": "src/ballet/base58/fd_base58_tmpl.c",
+      "blob_sha1": "c9405786753afff5fc979ee069160fc9cf61a6e0",
+      "sha256": "062334c3b8576db55bfa054f2ea3230352db9d89d2c51ecf52771fc67c2d5e1d",
+      "url": "https://github.com/firedancer-io/firedancer/blob/486a8abb17f8b4b7528e0fa4062f7aab8a5b6055/src/ballet/base58/fd_base58_tmpl.c"
+    },
+    {
+      "repository": "firedancer-io/firedancer",
+      "revision": "486a8abb17f8b4b7528e0fa4062f7aab8a5b6055",
+      "path": "src/ballet/base58/fd_base58_avx.h",
+      "blob_sha1": "65ebfb2269736e41291ba0989a7153f03f135ac4",
+      "sha256": "6ce8952be7d1fe00028521565d01275d791463fe41f3b94573ef088f2243b81d",
+      "url": "https://github.com/firedancer-io/firedancer/blob/486a8abb17f8b4b7528e0fa4062f7aab8a5b6055/src/ballet/base58/fd_base58_avx.h"
+    },
+    {
+      "repository": "Gealber/zig-base58",
+      "revision": "48f48026cccd6aece04afc5e2c5ace7b2b20f6b4",
+      "path": "src/root.zig",
+      "blob_sha1": "95a33555e6ce54da78f32ac1449da6401ca97077",
+      "sha256": "238677452a9c0f4a066a4d820633e2ae5558004ea00ac6dcbcc40a7ad82644b2",
+      "url": "https://github.com/Gealber/zig-base58/blob/48f48026cccd6aece04afc5e2c5ace7b2b20f6b4/src/root.zig"
+    },
+    {
+      "repository": "kevinheavey/five8",
+      "revision": "311279fb81461df36e730458a0463a6a322042d7",
+      "path": "crates/five8/src/encode.rs",
+      "sha256": "6b407cc69152e0798228735ec4cc38793e225be4ceaf7d2504cdcba56b1f6870",
+      "url": "https://github.com/kevinheavey/five8/blob/311279fb81461df36e730458a0463a6a322042d7/crates/five8/src/encode.rs"
+    },
+    {
+      "repository": "kevinheavey/five8",
+      "revision": "311279fb81461df36e730458a0463a6a322042d7",
+      "path": "crates/five8/src/avx.rs",
+      "sha256": "d8d1e0eea7794de0516360f5bc81b80c7ba0a007012106a2dcd618589cae4bdc",
+      "url": "https://github.com/kevinheavey/five8/blob/311279fb81461df36e730458a0463a6a322042d7/crates/five8/src/avx.rs"
+    },
+    {
+      "repository": "mhogrefe/malachite",
+      "revision": "734f546826d20ddfe3678ab0d0d4739b8df75e03",
+      "path": "malachite-nz/src/natural/conversion/digits/general_digits.rs",
+      "sha256": "eafa3036f963431d8af8a1de15030ed4d6f7adb51e65a34ceaf4b530522f42ab",
+      "url": "https://github.com/mhogrefe/malachite/blob/734f546826d20ddfe3678ab0d0d4739b8df75e03/malachite-nz/src/natural/conversion/digits/general_digits.rs"
+    }
+  ],
+  "checks": {
+    "firedancer_and_zig_recovered_source_matches_ignoring_terminal_newlines": true,
+    "five8_full_reads_match_verified_published_source_after_display_normalization": true,
+    "malachite_source_excerpts_match_verified_published_source": {
+      "158": true,
+      "229": true
+    },
+    "firedancer_license": "Apache-2.0; Copyright 2022 Firedancer Contributors",
+    "firedancer_notice": "Inspected at recovered revision; no Base58-specific exception found.",
+    "mca_citation_url": "https://maths-people.anu.edu.au/~brent/pd/mca-0.5.2.pdf",
+    "mca_document_check": "Author-hosted PDF version 0.5.2, 263 pages; CC BY-NC-ND 3.0 on PDF page 2.",
+    "mca_direct_fetch_recovered": false,
+    "explicit_small_routine_translation_statement_recovered": false
+  },
+  "normalization": "Remove cat -n / Read display line numbers; compare terminal-newline-insensitive bytes. The Firedancer template matched exactly after removing display numbering.",
+  "limit": "Consultation and similar techniques do not establish copying, independent authorship, or legal clearance."
+}

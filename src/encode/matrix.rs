@@ -43,7 +43,7 @@ pub(crate) mod entry {
     use crate::ntt::encode as encode_ntt;
 
     /// Inputs with fewer bytes than this, after leading zeros, use [`encode_batched`], which
-    /// is faster there. Tuned by measurement; README.md has the numbers.
+    /// is faster there. Tuned by measurement; see `docs/performance.md`.
     pub(super) const MATRIX_MIN: usize = 22;
 
     /// Like [`encode_batched`], but faster from 22 bytes to 8 KiB when the table of powers is
@@ -63,7 +63,7 @@ pub(crate) mod entry {
     /// builds and drops its own table. Data is reserved at its final length:
     /// about 47 KiB, 181 KiB, 712 KiB, 2.8 MiB or 11 MiB, plus panel metadata.
     /// With `cache`, initialized classes accumulate. Recursive fallbacks can allocate workspace.
-    /// See `docs/tradeoffs/README.md` for setup, retained-memory and CPU measurements.
+    /// See `docs/performance.md` for setup, retained-memory and CPU measurements.
     pub fn encode_matrix(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
         if let Ok(x) = input.try_into() {
             return fixed::encode_32(x, output);
@@ -121,7 +121,7 @@ pub(crate) mod entry {
     /// The largest input `encode_matrix` converts itself when Karatsuba has the AVX-512 IFMA
     /// leaf. On Zen 5, in one binary, the NTT encoder with matrix leaves took 3% more time
     /// than the matrix at 3584 bytes with default flags and 3.5–6% less at 3840 and 4096
-    /// (7–11% less from 3584 with native flags). README.md has the numbers.
+    /// (historically 7–11% less from 3584 with native flags).
     pub(super) const IFMA_CAP: usize = 3584;
 }
 

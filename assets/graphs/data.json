@@ -1,7 +1,7 @@
 {
   "snapshot": "2026-10-25, before package rename and no_std",
-  "timing_source": "docs/tradeoffs/2026-10-25/ac-power/timings.csv",
-  "size_source": "docs/tradeoffs/2026-10-25/allocation-layout/sizes.csv",
+  "timing_source": "docs/benchmarks/public-modes/timings.csv",
+  "size_source": "docs/benchmarks/allocation-layout/sizes.csv",
   "timing_points": [
     {
       "profile": "m5-native",

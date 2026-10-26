@@ -1,0 +1,94 @@
+[
+  {
+    "cohort": "baseline-default-auto",
+    "function": "faster_base58::ntt::mul_with",
+    "threshold_named_symbol_present": false,
+    "detector_references": [],
+    "threshold384_constants": [],
+    "functions_sha256": "61940a8ffa4f714d71af8286eac5d8f5831c92e3ec9f882e0d990d6bddfaf557"
+  },
+  {
+    "cohort": "baseline-cache-auto",
+    "function": "faster_base58::ntt::mul_with",
+    "threshold_named_symbol_present": false,
+    "detector_references": [],
+    "threshold384_constants": [],
+    "functions_sha256": "7bcd2a18051a21f9f2e4066d7769900b22dcbc4076d1ecfda566085d933a1f18"
+  },
+  {
+    "cohort": "generic-baseline-default-auto",
+    "function": "faster_base58::ntt::mul_with",
+    "threshold_named_symbol_present": false,
+    "detector_references": [
+      {
+        "address": 289796,
+        "mnemonic": "movzbl",
+        "operands": "0x4d1d5(%rip), %eax     # 0x93de0 <faster_base58::cpu::detect_ifma::STORAGE (.0)>"
+      },
+      {
+        "address": 291717,
+        "mnemonic": "callq",
+        "operands": "0x5af40 <faster_base58::cpu::detect_ifma::init_get::init_inner>"
+      }
+    ],
+    "threshold384_constants": [
+      {
+        "address": 291747,
+        "mnemonic": "movl",
+        "operands": "$0x180, %eax            # imm = 0x180"
+      }
+    ],
+    "functions_sha256": "502d60d9fb476dc09bef654ebef5084b92a7ac7288f12628a8ef6ea0f1dabfdd"
+  },
+  {
+    "cohort": "generic-baseline-cache-auto",
+    "function": "faster_base58::ntt::mul_with",
+    "threshold_named_symbol_present": false,
+    "detector_references": [
+      {
+        "address": 264580,
+        "mnemonic": "movq",
+        "operands": "0x54035(%rip), %rax     # 0x949c0 <std_detect::detect::cache::CACHE (.0)>"
+      },
+      {
+        "address": 264603,
+        "mnemonic": "movq",
+        "operands": "0x5401e(%rip), %rax     # 0x949c0 <std_detect::detect::cache::CACHE (.0)>"
+      },
+      {
+        "address": 266517,
+        "mnemonic": "callq",
+        "operands": "0x8d020 <std_detect::detect::cache::detect_and_initialize>"
+      },
+      {
+        "address": 266567,
+        "mnemonic": "callq",
+        "operands": "0x8d020 <std_detect::detect::cache::detect_and_initialize>"
+      }
+    ],
+    "threshold384_constants": [
+      {
+        "address": 266600,
+        "mnemonic": "movl",
+        "operands": "$0x180, %eax            # imm = 0x180"
+      }
+    ],
+    "functions_sha256": "8cebce4eeb5bcb8be27a5cb223a4e565debd03d996f4e1bef6ae34690b4214c1"
+  },
+  {
+    "cohort": "native-baseline-default-auto",
+    "function": "faster_base58::ntt::mul_with",
+    "threshold_named_symbol_present": false,
+    "detector_references": [],
+    "threshold384_constants": [],
+    "functions_sha256": "44b49e6cc3f54fd2a0fb9e4c1853f0b1b315f072376522c25cce6ad61de2fcb3"
+  },
+  {
+    "cohort": "native-baseline-cache-auto",
+    "function": "faster_base58::ntt::mul_with",
+    "threshold_named_symbol_present": false,
+    "detector_references": [],
+    "threshold384_constants": [],
+    "functions_sha256": "006563d4d4232e7b16f20a5ee86007831fdfdaed9aece677c88c1c605afb5c98"
+  }
+]

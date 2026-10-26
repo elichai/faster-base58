@@ -1,4 +1,4 @@
-//! Base58 (Bitcoin alphabet) encoding. See README.md for the design.
+//! Base58 (Bitcoin alphabet) encoding. See DESIGN.md for the design.
 //!
 //! - [`encode_batched`] (`batched.rs`): quadratic, one base-58^10 limb update per seven
 //!   input bytes, in place in the output.

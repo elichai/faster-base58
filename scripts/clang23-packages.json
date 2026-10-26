@@ -1,0 +1,66 @@
+{
+  "clang_version": "23.1.5",
+  "llvm_major": 23,
+  "rust_nightly": "nightly-2026-10-26",
+  "cargo_fuzz_version": "0.13.2",
+  "metadata_url": "https://apt.llvm.org/bookworm/dists/llvm-toolchain-bookworm-23/main/binary-amd64/Packages.gz",
+  "metadata_sha256": "48bf28b570e54379d8cab030b9c176ab237ac2cd9b498d912ce16aa29279a447",
+  "packages": [
+    {
+      "Package": "clang-23",
+      "Version": "1:23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91",
+      "Filename": "pool/main/l/llvm-toolchain-23/clang-23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb",
+      "Size": "176724",
+      "SHA256": "82ef379f61cbac06fe9166e060f6ce9fe4f769ccd41a9440b2d032c5a901389e",
+      "URL": "https://apt.llvm.org/bookworm/pool/main/l/llvm-toolchain-23/clang-23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb"
+    },
+    {
+      "Package": "libclang-common-23-dev",
+      "Version": "1:23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91",
+      "Filename": "pool/main/l/llvm-toolchain-23/libclang-common-23-dev_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb",
+      "Size": "824500",
+      "SHA256": "b8f3e55e597e97f1ba7553764b85ab4de69064d7620536af3fd094e289222562",
+      "URL": "https://apt.llvm.org/bookworm/pool/main/l/llvm-toolchain-23/libclang-common-23-dev_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb"
+    },
+    {
+      "Package": "libclang-cpp23",
+      "Version": "1:23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91",
+      "Filename": "pool/main/l/llvm-toolchain-23/libclang-cpp23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb",
+      "Size": "13700764",
+      "SHA256": "ed3694861b96ff7d13759d3f0cd044cf30437e53a8e425cd1d495d84c7d3862e",
+      "URL": "https://apt.llvm.org/bookworm/pool/main/l/llvm-toolchain-23/libclang-cpp23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb"
+    },
+    {
+      "Package": "libclang-rt-23-dev",
+      "Version": "1:23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91",
+      "Filename": "pool/main/l/llvm-toolchain-23/libclang-rt-23-dev_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb",
+      "Size": "4223520",
+      "SHA256": "333c2972f6c72ddc58af85e90ce40a3c49601eb978b7faf02d95b8c5b3a0e6c4",
+      "URL": "https://apt.llvm.org/bookworm/pool/main/l/llvm-toolchain-23/libclang-rt-23-dev_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb"
+    },
+    {
+      "Package": "libclang1-23",
+      "Version": "1:23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91",
+      "Filename": "pool/main/l/llvm-toolchain-23/libclang1-23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb",
+      "Size": "8522328",
+      "SHA256": "0eae998e4a6e4979bfc19d5e81e9512006c04536ca6887fb35f10d34d9871215",
+      "URL": "https://apt.llvm.org/bookworm/pool/main/l/llvm-toolchain-23/libclang1-23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb"
+    },
+    {
+      "Package": "libllvm23",
+      "Version": "1:23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91",
+      "Filename": "pool/main/l/llvm-toolchain-23/libllvm23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb",
+      "Size": "30595572",
+      "SHA256": "00ab2b561a61da6a957f2338462851e20f97f36e775d017e763b4d4a3246fc93",
+      "URL": "https://apt.llvm.org/bookworm/pool/main/l/llvm-toolchain-23/libllvm23_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb"
+    },
+    {
+      "Package": "llvm-23-linker-tools",
+      "Version": "1:23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91",
+      "Filename": "pool/main/l/llvm-toolchain-23/llvm-23-linker-tools_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb",
+      "Size": "1249304",
+      "SHA256": "fc973e0a852f09196ecc1b3a38583caee7bee1ca3576475e35640a9f5a875b3e",
+      "URL": "https://apt.llvm.org/bookworm/pool/main/l/llvm-toolchain-23/llvm-23-linker-tools_23.1.5~++20261023063907+b2a8cf23b941-1~exp1~20261023064025.91_amd64.deb"
+    }
+  ]
+}
