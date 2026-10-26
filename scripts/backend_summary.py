@@ -424,14 +424,14 @@ def grids(observations, leaders):
     return "\n".join(text)
 
 
-def linked_grids(size_rows):
+def linked_grids(size_rows, snapshot):
     text = ["# Complete linked artifact grids", "", "All numbers are bytes. Raw, stripped and compressed files are distinct metrics.",
             "Native code/readonly/data/BSS follow the existing platform section parser. BSS is virtual storage.",
             "Wasm CODE/DATA are section payloads; memory is the initial declaration, including stack/static/page padding.",
             "Empty scaffolds have the same direction and artifact kind. File/section sums need not agree.", ""]
     for config in SIZE_DIRS:
         selected = [r for r in size_rows if r["size_configuration"] == config]
-        text += [f"## {config}", "", f"Source: [sizes.csv](../{config}/sizes.csv).", ""]
+        text += [f"## {config}", "", f"Source: [sizes.csv](<{snapshot / config / 'sizes.csv'}>).", ""]
         for direction in ("encode", "decode", "both"):
             for kind in sorted({r["kind"] for r in selected}):
                 rs = [r for r in selected if r["direction"] == direction and r["kind"] == kind]
@@ -547,7 +547,7 @@ def build(args):
     with (output / "historical-grids.md").open("x") as stream:
         stream.write(history_text)
     with (output / "linked-grids.md").open("x") as stream:
-        stream.write(linked_grids(size_rows))
+        stream.write(linked_grids(size_rows, snapshot))
     report = {"schema": 1, "snapshot": source_path(snapshot),
               "scope": "frozen baseline only; no optimization A/B data",
               "campaigns": campaigns, "inputs": provenance,
@@ -591,6 +591,8 @@ def self_test():
         data, inventory, _ = historical(set(), path)
         require(len(data) == len(inventory) == 1, "external archive load")
         require(data[0]["source_csv"] == str((path / "cold.csv").resolve()), "archive source locator")
+        require(f"[sizes.csv](<{path / SIZE_DIRS[0] / 'sizes.csv'}>)" in linked_grids([], path),
+                "external archive report link")
         marker = path / "manual.txt"
         marker.write_text("preserve\n")
         try:
