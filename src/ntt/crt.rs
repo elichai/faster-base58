@@ -27,7 +27,14 @@ pub(crate) const GARNER: Garner = {
     let c12 = p2.to_mont(inv(q1 % q2, q2));
     let c13 = p3.to_mont(inv(q1 % q3, q3));
     let c23 = p3.to_mont(inv(q2 % q3, q3));
-    Garner { c12, c12q: p2.wq(c12), c13, c13q: p3.wq(c13), c23, c23q: p3.wq(c23) }
+    Garner {
+        c12,
+        c12q: p2.wq(c12),
+        c13,
+        c13q: p3.wq(c13),
+        c23,
+        c23q: p3.wq(c23),
+    }
 };
 
 /// `1 / a mod q` for prime `q < 2^32`, as `a^(q - 2)`.
@@ -119,7 +126,7 @@ mod tests {
         // An even count, plus a zero top coefficient so the product fits `out`.
         coefs.truncate(coefs.len() / 4 * 4 - 2);
         coefs.extend([0, 0]);
-        let mut r: [Vec<i32>; 3] = std::array::from_fn(|i| {
+        let mut r: [Vec<i32>; 3] = core::array::from_fn(|i| {
             let q = PRIMES[i].q;
             // Alternate representatives in (0, q) and (-q, 0].
             let residue = |(j, &c): (usize, &u128)| (c % q as u128) as i32 - (j % 2) as i32 * q;

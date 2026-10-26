@@ -12,10 +12,10 @@ use std::{mem, ptr};
 
 use malachite_nz::{natural::Natural, platform::Limb};
 
-use base58_bench::internals::{Leaves, Multiplier, decode_with, encode_tuned, ifma_threshold};
-use base58_bench::{BufferTooSmall, Error};
+use faster_base58::internals::{Leaves, Multiplier, decode_with, encode_tuned, ifma_threshold};
+use faster_base58::{BufferTooSmall, Error};
 
-/// Like [`base58_bench::internals::decode_karatsuba`], but multiplies with malachite-nz.
+/// Like [`faster_base58::internals::decode_karatsuba`], but multiplies with malachite-nz.
 pub fn decode_malachite(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     decode_with(input, output, &mut Malachite::default())
 }
@@ -30,7 +30,7 @@ const ENCODE_LEAF: usize = 96;
 /// `encode_batched` at 1 KiB and 15% less time at 1.5 KiB.
 pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 1280;
 
-/// Like [`base58_bench::internals::encode_karatsuba`], but multiplies with malachite-nz.
+/// Like [`faster_base58::internals::encode_karatsuba`], but multiplies with malachite-nz.
 pub fn encode_malachite(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Malachite::default();
     let threshold = match ifma_threshold() {
@@ -49,7 +49,14 @@ pub fn encode_malachite_with(
     leaf: usize,
     leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    encode_tuned(input, output, &mut Malachite::default(), threshold, leaf, leaves)
+    encode_tuned(
+        input,
+        output,
+        &mut Malachite::default(),
+        threshold,
+        leaf,
+        leaves,
+    )
 }
 
 /// The [`Multiplier`] of [`decode_malachite`].

@@ -7,8 +7,8 @@ use core::arch::aarch64::*;
 use super::fixed::{self, Table, words};
 use super::four_digits;
 use super::table::COL_BASE;
-use crate::common::ALPHABET;
 use crate::BufferTooSmall;
+use crate::common::ALPHABET;
 use crate::encode::max_encoded_len;
 
 /// Fixed 32-byte encoding with NEON column sums and digit conversion.
@@ -45,7 +45,7 @@ pub(super) fn cols<const N: usize, const W: usize, const C: usize>(
     let w = words::<N, W>(x);
     // Opaque, so that the entries are loaded 4 at a time: as constants, each pair of them
     // took its own load.
-    let rows = std::hint::black_box(&t.rows);
+    let rows = core::hint::black_box(&t.rows);
     let mut out = [0; C];
     for (b, o) in out.as_chunks_mut::<4>().0.iter_mut().enumerate() {
         let (low, full) = (t.start[4 * b], t.start[4 * b + 2]);

@@ -12,10 +12,10 @@ mod malachite;
 use std::hint::black_box;
 use std::time::Instant;
 
-use base58_bench::internals::{
+use faster_base58::internals::{
     Leaves, encode_batched, encode_karatsuba_with, encode_matrix, encode_ntt_with,
 };
-use base58_bench::{BufferTooSmall, max_encoded_len};
+use faster_base58::{BufferTooSmall, max_encoded_len};
 use malachite::encode_malachite_with;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
@@ -35,7 +35,9 @@ const BLOCK_NS: u128 = 10_000_000;
 
 /// The comma-separated list in environment variable `var`, or `default`.
 fn list(var: &str, default: &[usize]) -> Vec<usize> {
-    std::env::var(var).map_or(default.to_vec(), |s| s.split(',').map(|v| v.parse().unwrap()).collect())
+    std::env::var(var).map_or(default.to_vec(), |s| {
+        s.split(',').map(|v| v.parse().unwrap()).collect()
+    })
 }
 
 fn main() {
@@ -49,12 +51,22 @@ fn main() {
             _ => panic!("unknown leaf kind {k}"),
         })
         .collect();
-    let names: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
-    let backends: Vec<_> =
-        BACKENDS.iter().filter(|(n, _)| names.is_empty() || names.iter().any(|a| a == n)).collect();
-    let mut configs: Vec<(String, Box<dyn Fn(&[u8], &mut [u8]) -> usize>)> =
-        vec![("batched".into(), Box::new(|d, o| encode_batched(d, o).unwrap()))];
-    configs.push(("matrix".into(), Box::new(|d, o| encode_matrix(d, o).unwrap())));
+    let names: Vec<String> = std::env::args()
+        .skip(1)
+        .filter(|a| !a.starts_with('-'))
+        .collect();
+    let backends: Vec<_> = BACKENDS
+        .iter()
+        .filter(|(n, _)| names.is_empty() || names.iter().any(|a| a == n))
+        .collect();
+    let mut configs: Vec<(String, Box<dyn Fn(&[u8], &mut [u8]) -> usize>)> = vec![(
+        "batched".into(),
+        Box::new(|d, o| encode_batched(d, o).unwrap()),
+    )];
+    configs.push((
+        "matrix".into(),
+        Box::new(|d, o| encode_matrix(d, o).unwrap()),
+    ));
     for &&(name, f) in &backends {
         for &leaf in &leaves {
             for &kind in &kinds {
@@ -64,7 +76,14 @@ fn main() {
             }
         }
     }
-    println!("| bytes | {} |", configs.iter().map(|c| c.0.as_str()).collect::<Vec<_>>().join(" | "));
+    println!(
+        "| bytes | {} |",
+        configs
+            .iter()
+            .map(|c| c.0.as_str())
+            .collect::<Vec<_>>()
+            .join(" | ")
+    );
     println!("|---:|{}", "---:|".repeat(configs.len()));
     for &size in &sizes {
         let mut data = vec![0u8; size];

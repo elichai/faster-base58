@@ -206,14 +206,14 @@ def main():
     output.mkdir(parents=True, exist_ok=False)
     work = output / "probe"
     (work / "src").mkdir(parents=True, exist_ok=True)
-    feature = ', "base58-bench/__internals"' if external else ""
+    feature = ', "faster-base58/__internals"' if external else ""
     manifest = f'''[package]
 name = "base58-code-size"
 version = "0.0.0"
 edition = "2024"
 [workspace]
 [dependencies]
-base58-bench = {{ path = {json.dumps(str(source))} }}
+faster-base58 = {{ path = {json.dumps(str(source))} }}
 malachite-nz = {{ version = "=0.14.0", optional = true }}
 bs58 = {{ version = "=0.5.1", optional = true }}
 five8 = {{ version = "=1.0.0", optional = true }}
@@ -221,8 +221,8 @@ five8 = {{ version = "=1.0.0", optional = true }}
 malachite = ["dep:malachite-nz"{feature}]
 bs58 = ["dep:bs58"]
 five8 = ["dep:five8"]
-benchmark-controls = ["base58-bench/__internals"]
-cache = ["base58-bench/cache"]
+benchmark-controls = ["faster-base58/__internals"]
+cache = ["faster-base58/cache"]
 [lib]
 crate-type = ["cdylib"]
 [[bin]]

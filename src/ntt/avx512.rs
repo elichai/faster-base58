@@ -18,7 +18,7 @@ use super::tables::{Prime, S, Twiddles};
 /// from [`super::x86::kernels`], when this CPU has AVX-512F.
 #[cfg(target_arch = "x86_64")]
 pub(crate) fn kernels() -> Option<super::Kernels> {
-    if !is_x86_feature_detected!("avx512f") {
+    if !crate::cpu::avx512f() {
         return None;
     }
     // SAFETY (each call): the CPU has AVX-512F.
@@ -85,7 +85,7 @@ impl<V: V16, const L: usize> V16 for [V; L] {
     /// `L` vectors one after the other.
     #[inline(always)]
     unsafe fn load(p: *const i32) -> Self {
-        std::array::from_fn(|i| unsafe { V::load(p.add(16 * i)) })
+        core::array::from_fn(|i| unsafe { V::load(p.add(16 * i)) })
     }
     #[inline(always)]
     unsafe fn store(self, p: *mut i32) {
@@ -135,14 +135,14 @@ impl<V: V16, const L: usize> V16 for [V; L] {
     }
     #[inline(always)]
     fn permute2(self, idx: Self, b: Self) -> Self {
-        std::array::from_fn(|i| self[i].permute2(idx[i], b[i]))
+        core::array::from_fn(|i| self[i].permute2(idx[i], b[i]))
     }
 }
 
 /// `f` on the elements of `a` and `b` in turn.
 #[inline(always)]
 fn each<V: Copy, const L: usize>(a: [V; L], b: [V; L], f: impl Fn(V, V) -> V) -> [V; L] {
-    std::array::from_fn(|i| f(a[i], b[i]))
+    core::array::from_fn(|i| f(a[i], b[i]))
 }
 
 /// The constants of one prime.
@@ -158,7 +158,13 @@ impl<V: V16> Consts<V> {
     /// Safety: `V` values may be created.
     #[inline(always)]
     unsafe fn new(p: Prime) -> Self {
-        unsafe { Consts { q: V::splat(p.q), v: V::splat(p.v), round: V::splat64(1 << (30 + S)) } }
+        unsafe {
+            Consts {
+                q: V::splat(p.q),
+                v: V::splat(p.v),
+                round: V::splat64(1 << (30 + S)),
+            }
+        }
     }
 }
 
@@ -169,7 +175,11 @@ impl<V: V16> Consts<V> {
 #[inline(always)]
 fn reduce<V: V16>(x: V, c: &Consts<V>) -> V {
     let even = x.mul_even(c.v).add64(c.round).sra64::<{ 31 + S as u32 }>();
-    let odd = x.odd().mul_even(c.v).add64(c.round).sra64::<{ S as u32 - 1 }>();
+    let odd = x
+        .odd()
+        .mul_even(c.v)
+        .add64(c.round)
+        .sra64::<{ S as u32 - 1 }>();
     x.sub(even.blend(odd).mullo(c.q))
 }
 
@@ -194,7 +204,11 @@ fn dif<V: V16>((x, y): (V, V), (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
 fn dit<V: V16, const LAZY: bool>((x, y): (V, V), (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
     let t = mont(y, w, wq, c.q);
     let (s, d) = (x.add(t), x.sub(t));
-    if LAZY { (s, d) } else { (reduce(s, c), reduce(d, c)) }
+    if LAZY {
+        (s, d)
+    } else {
+        (reduce(s, c), reduce(d, c))
+    }
 }
 
 /// The `h = 1` stage, whose twiddle is 1.
@@ -231,13 +245,23 @@ const fn regroup(from: usize, to: usize) -> [[i32; 16]; 2] {
 
 /// The forward block's regroupings: after the stages `h = 16, 8, 4, 2`, then back to the
 /// natural order after `h = 1`.
-const FORWARD: [[[i32; 16]; 2]; 5] =
-    [regroup(16, 8), regroup(8, 4), regroup(4, 2), regroup(2, 1), regroup(1, 16)];
+const FORWARD: [[[i32; 16]; 2]; 5] = [
+    regroup(16, 8),
+    regroup(8, 4),
+    regroup(4, 2),
+    regroup(2, 1),
+    regroup(1, 16),
+];
 
 /// The inverse block's: from the natural order to layout 1, then after the stages
 /// `h = 1, 2, 4, 8`.
-const INVERSE: [[[i32; 16]; 2]; 5] =
-    [regroup(16, 1), regroup(1, 2), regroup(2, 4), regroup(4, 8), regroup(8, 16)];
+const INVERSE: [[[i32; 16]; 2]; 5] = [
+    regroup(16, 1),
+    regroup(1, 2),
+    regroup(2, 4),
+    regroup(4, 8),
+    regroup(8, 16),
+];
 
 /// What every block of a transform takes: the twiddles of the stages `h = 16, 8, 4, 2` in
 /// their layouts, and the regroupings.
@@ -253,10 +277,13 @@ impl<V: V16> Block<V> {
     unsafe fn new(w: &[i32], wq: &[i32], idx: &[[[i32; 16]; 2]; 5]) -> Self {
         // In layout `h` the second register's lane `i` holds a position that is `i` modulo
         // `h`.
-        let at = |t: &[i32], h: usize| std::array::from_fn(|i| t[h + (i & (h - 1))]);
+        let at = |t: &[i32], h: usize| core::array::from_fn(|i| t[h + (i & (h - 1))]);
         let tw = |h| unsafe { (V::from_array(at(w, h)), V::from_array(at(wq, h))) };
         let idx = idx.map(|[a, b]| unsafe { (V::from_array(a), V::from_array(b)) });
-        Block { w: [16, 8, 4, 2].map(tw), idx }
+        Block {
+            w: [16, 8, 4, 2].map(tw),
+            idx,
+        }
     }
 }
 
@@ -527,7 +554,7 @@ unsafe fn square_v<V: V16>(a: &mut [i32], p: Prime) {
 #[cfg(target_arch = "x86_64")]
 mod z {
     use super::{Prime, Twiddles, V16};
-    use std::arch::x86_64::*;
+    use core::arch::x86_64::*;
 
     // Safety (each): the CPU has AVX-512F.
 
@@ -638,20 +665,24 @@ mod tests {
 
     impl Emu {
         fn map(self, b: Self, f: impl Fn(i32, i32) -> i32) -> Self {
-            Emu(std::array::from_fn(|i| f(self.0[i], b.0[i])))
+            Emu(core::array::from_fn(|i| f(self.0[i], b.0[i])))
         }
 
         fn wide(self) -> [i64; 8] {
-            std::array::from_fn(|i| (self.0[2 * i] as u32 as i64) | ((self.0[2 * i + 1] as i64) << 32))
+            core::array::from_fn(|i| {
+                (self.0[2 * i] as u32 as i64) | ((self.0[2 * i + 1] as i64) << 32)
+            })
         }
 
         fn narrow(x: [i64; 8]) -> Self {
-            Emu(std::array::from_fn(|i| (x[i / 2] >> (32 * (i % 2))) as i32))
+            Emu(core::array::from_fn(|i| {
+                (x[i / 2] >> (32 * (i % 2))) as i32
+            }))
         }
 
         fn map64(self, b: Self, f: impl Fn(i64, i64) -> i64) -> Self {
             let (x, y) = (self.wide(), b.wide());
-            Emu::narrow(std::array::from_fn(|i| f(x[i], y[i])))
+            Emu::narrow(core::array::from_fn(|i| f(x[i], y[i])))
         }
     }
 
@@ -666,7 +697,7 @@ mod tests {
             Emu(x)
         }
         unsafe fn load(p: *const i32) -> Self {
-            Emu(std::array::from_fn(|i| unsafe { *p.add(i) }))
+            Emu(core::array::from_fn(|i| unsafe { *p.add(i) }))
         }
         unsafe fn store(self, p: *mut i32) {
             for (i, &x) in self.0.iter().enumerate() {
@@ -683,7 +714,9 @@ mod tests {
             self.map(b, i32::wrapping_mul)
         }
         fn mul_even(self, b: Self) -> Self {
-            Emu::narrow(std::array::from_fn(|i| self.0[2 * i] as i64 * b.0[2 * i] as i64))
+            Emu::narrow(core::array::from_fn(|i| {
+                self.0[2 * i] as i64 * b.0[2 * i] as i64
+            }))
         }
         fn add64(self, b: Self) -> Self {
             self.map64(b, i64::wrapping_add)
@@ -698,10 +731,14 @@ mod tests {
             self.map64(self, |x, _| (x as u64 >> 32) as i64)
         }
         fn blend(self, odd: Self) -> Self {
-            Emu(std::array::from_fn(|i| if i % 2 == 0 { self.0[i] } else { odd.0[i] }))
+            Emu(core::array::from_fn(|i| {
+                if i % 2 == 0 { self.0[i] } else { odd.0[i] }
+            }))
         }
         fn highs(self, odd: Self) -> Self {
-            Emu(std::array::from_fn(|i| if i % 2 == 0 { self.0[i + 1] } else { odd.0[i] }))
+            Emu(core::array::from_fn(|i| {
+                if i % 2 == 0 { self.0[i + 1] } else { odd.0[i] }
+            }))
         }
         fn permute2(self, idx: Self, b: Self) -> Self {
             Emu(idx.0.map(|j| match j as usize % 32 {
@@ -716,7 +753,17 @@ mod tests {
     #[test]
     fn reduce_and_mont_match_scalar() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(44);
-        let mut x = vec![i32::MIN, i32::MIN + 1, -2, -1, 0, 1, 2, i32::MAX - 1, i32::MAX];
+        let mut x = vec![
+            i32::MIN,
+            i32::MIN + 1,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            i32::MAX - 1,
+            i32::MAX,
+        ];
         x.extend((0..4000).map(|_| rng.next_u32() as i32));
         x.extend(samples(&mut rng, 1 << 30, 4000));
         let x = x.as_chunks::<16>().0;
@@ -725,8 +772,13 @@ mod tests {
             for (&a, &w) in x.iter().zip(x.iter().rev()) {
                 let (a, w) = (Emu(a), Emu(w));
                 let wq = Emu(w.0.map(|w| p.wq(w)));
-                assert_eq!(reduce(a, &c).0, a.0.map(|a| p.reduce(a)), "reduce {:?}", a.0);
-                let want: [i32; 16] = std::array::from_fn(|i| p.mont(a.0[i], w.0[i], wq.0[i]));
+                assert_eq!(
+                    reduce(a, &c).0,
+                    a.0.map(|a| p.reduce(a)),
+                    "reduce {:?}",
+                    a.0
+                );
+                let want: [i32; 16] = core::array::from_fn(|i| p.mont(a.0[i], w.0[i], wq.0[i]));
                 assert_eq!(mont(a, w, wq, c.q).0, want, "mont {:?} {:?}", a.0, w.0);
             }
         }
@@ -736,7 +788,18 @@ mod tests {
     /// layout `to` does.
     #[test]
     fn regroup_moves_positions() {
-        let all = [(16, 8), (8, 4), (4, 2), (2, 1), (1, 16), (16, 1), (1, 2), (2, 4), (4, 8), (8, 16)];
+        let all = [
+            (16, 8),
+            (8, 4),
+            (4, 2),
+            (2, 1),
+            (1, 16),
+            (16, 1),
+            (1, 2),
+            (2, 4),
+            (4, 8),
+            (8, 16),
+        ];
         for (from, to) in all {
             // The registers of layout `from`, holding their positions.
             let mut held = [0; 32];
@@ -745,7 +808,11 @@ mod tests {
             }
             for (r, idx) in regroup(from, to).iter().enumerate() {
                 for (i, &j) in idx.iter().enumerate() {
-                    assert_eq!(held[j as usize], first(i, to) + r * to, "{from} -> {to}, lane {i}");
+                    assert_eq!(
+                        held[j as usize],
+                        first(i, to) + r * to,
+                        "{from} -> {to}, lane {i}"
+                    );
                 }
             }
         }
@@ -791,15 +858,23 @@ mod tests {
 
     #[test]
     fn emulation_matches_portable() {
-        matches_portable(forward_v::<Emu>, inverse_v::<Emu>, pointwise_v::<Emu>, square_v::<Emu>);
+        matches_portable(
+            forward_v::<Emu>,
+            inverse_v::<Emu>,
+            pointwise_v::<Emu>,
+            square_v::<Emu>,
+        );
     }
 
     /// Set `BASE58_REQUIRE_IFMA` to fail instead of skipping on CPUs without AVX-512.
     #[cfg(target_arch = "x86_64")]
     #[test]
     fn avx512_matches_portable() {
-        if !is_x86_feature_detected!("avx512f") {
-            assert!(std::env::var_os("BASE58_REQUIRE_IFMA").is_none(), "no AVX-512F");
+        if !crate::cpu::avx512f() {
+            assert!(
+                std::env::var_os("BASE58_REQUIRE_IFMA").is_none(),
+                "no AVX-512F"
+            );
             eprintln!("skipped: no AVX-512F");
             return;
         }

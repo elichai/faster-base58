@@ -16,8 +16,8 @@ mod tests;
 
 pub use batched::encode_batched;
 pub use dc::Leaves;
-pub(crate) use matrix::encode_fixed;
 pub use dc::encode_tuned;
+pub(crate) use matrix::encode_fixed;
 
 use crate::common::{ALPHABET, BASE};
 
@@ -30,7 +30,11 @@ pub const fn max_encoded_len(len: usize) -> usize {
     // bytes encode to at most the digits of 2^(8 len) - 1.
     // Shift by 61 instead of multiplying by 8, so even `usize::MAX` fits in `u128`.
     let bound = ((len as u128 * (LOG58_2 + 1)) >> 61) + 1;
-    if bound > usize::MAX as u128 { usize::MAX } else { bound as usize }
+    if bound > usize::MAX as u128 {
+        usize::MAX
+    } else {
+        bound as usize
+    }
 }
 
 /// A lower bound on the digits of a value of `bits` significant bits, at most two below
@@ -186,14 +190,28 @@ mod verification {
         } else {
             let text = result.unwrap();
             assert_eq!(text.len(), digits);
-            assert_eq!(text.as_bytes()[digits - 1], crate::common::ALPHABET[(byte % 58) as usize]);
+            assert_eq!(
+                text.as_bytes()[digits - 1],
+                crate::common::ALPHABET[(byte % 58) as usize]
+            );
             if digits == 2 {
-                assert_eq!(text.as_bytes()[0], crate::common::ALPHABET[(byte / 58) as usize]);
+                assert_eq!(
+                    text.as_bytes()[0],
+                    crate::common::ALPHABET[(byte / 58) as usize]
+                );
             }
             assert_eq!(crate::decode_array::<1>(text).unwrap()[0], byte);
-            assert!(matches!(crate::decode_array::<0>(text), Err(crate::Error::BufferTooSmall)));
-            assert!(matches!(crate::decode_array::<2>(text),
-                Err(crate::Error::InvalidLength { expected: 2, actual: 1 })));
+            assert!(matches!(
+                crate::decode_array::<0>(text),
+                Err(crate::Error::BufferTooSmall)
+            ));
+            assert!(matches!(
+                crate::decode_array::<2>(text),
+                Err(crate::Error::InvalidLength {
+                    expected: 2,
+                    actual: 1
+                })
+            ));
         }
         assert_eq!(output[0], 0xA5);
         assert!(output[1 + capacity..].iter().all(|&c| c == 0xA5));

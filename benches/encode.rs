@@ -4,7 +4,9 @@ mod malachite;
 use std::hint::black_box;
 use std::sync::LazyLock;
 
-use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
+use criterion::{
+    BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main,
+};
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
 use malachite_nz::natural::Natural;
 use rand_xoshiro::Xoshiro256PlusPlus;
@@ -15,28 +17,78 @@ type EncodeFn = fn(&[u8], &mut [u8]) -> usize;
 
 /// Add new implementations here, with the sizes to time them at.
 const ENCODERS: &[(&str, EncodeFn, fn(usize) -> bool)] = &[
-    ("bs58", |d, out| bs58::encode(d).onto(out).unwrap(), quadratic),
-    ("basexx", |d, out| copy_out(BASEXX.encode(d).unwrap().as_bytes(), out), quadratic),
-    ("basexx-b", |d, out| copy_out(BASEXX_B.encode(d).unwrap().as_bytes(), out), quadratic),
+    (
+        "bs58",
+        |d, out| bs58::encode(d).onto(out).unwrap(),
+        quadratic,
+    ),
+    (
+        "basexx",
+        |d, out| copy_out(BASEXX.encode(d).unwrap().as_bytes(), out),
+        quadratic,
+    ),
+    (
+        "basexx-b",
+        |d, out| copy_out(BASEXX_B.encode(d).unwrap().as_bytes(), out),
+        quadratic,
+    ),
     ("five8", five8, |size| size == 32 || size == 64),
     ("malachite", malachite, all),
-    ("batched", |d, out| base58_bench::internals::encode_batched(d, out).unwrap(), quadratic),
-    ("auto", |d, out| base58_bench::encode(d, out).unwrap(), all),
-    ("dc", |d, out| base58_bench::internals::encode_karatsuba(d, out).unwrap(), dc),
-    ("dc-toom3", |d, out| base58_bench::internals::encode_toom3(d, out).unwrap(), dc),
-    ("ntt", |d, out| base58_bench::internals::encode_ntt(d, out).unwrap(), dc),
-    ("ntt-cached", |d, out| base58_bench::internals::encode_ntt_cached(d, out).unwrap(), dc),
-    ("ntt-portable", |d, out| base58_bench::internals::encode_ntt_portable(d, out).unwrap(), dc),
-    ("dc-malachite", |d, out| malachite::encode_malachite(d, out).unwrap(), dc),
-    ("matrix", |d, out| base58_bench::internals::encode_matrix(d, out).unwrap(), |size| size <= 8192),
-    ("matrix-portable", |d, out| base58_bench::internals::encode_matrix_portable(d, out).unwrap(), |size| size <= 8192),
-    ("matrix-general", matrix_general, |size| size == 32 || size == 64),
+    (
+        "batched",
+        |d, out| faster_base58::internals::encode_batched(d, out).unwrap(),
+        quadratic,
+    ),
+    ("auto", |d, out| faster_base58::encode(d, out).unwrap(), all),
+    (
+        "dc",
+        |d, out| faster_base58::internals::encode_karatsuba(d, out).unwrap(),
+        dc,
+    ),
+    (
+        "dc-toom3",
+        |d, out| faster_base58::internals::encode_toom3(d, out).unwrap(),
+        dc,
+    ),
+    (
+        "ntt",
+        |d, out| faster_base58::internals::encode_ntt(d, out).unwrap(),
+        dc,
+    ),
+    (
+        "ntt-cached",
+        |d, out| faster_base58::internals::encode_ntt_cached(d, out).unwrap(),
+        dc,
+    ),
+    (
+        "ntt-portable",
+        |d, out| faster_base58::internals::encode_ntt_portable(d, out).unwrap(),
+        dc,
+    ),
+    (
+        "dc-malachite",
+        |d, out| malachite::encode_malachite(d, out).unwrap(),
+        dc,
+    ),
+    (
+        "matrix",
+        |d, out| faster_base58::internals::encode_matrix(d, out).unwrap(),
+        |size| size <= 8192,
+    ),
+    (
+        "matrix-portable",
+        |d, out| faster_base58::internals::encode_matrix_portable(d, out).unwrap(),
+        |size| size <= 8192,
+    ),
+    ("matrix-general", matrix_general, |size| {
+        size == 32 || size == 64
+    }),
 ];
 
 /// `encode_matrix` without its fixed-size path for 32 and 64 bytes (22 is its
 /// `MATRIX_MIN`).
 fn matrix_general(d: &[u8], out: &mut [u8]) -> usize {
-    base58_bench::internals::encode_matrix_with(d, out, 22).unwrap()
+    faster_base58::internals::encode_matrix_with(d, out, 22).unwrap()
 }
 
 /// The divide-and-conquer encoders run `encode_batched` below about 3.7 KiB.
@@ -129,7 +181,7 @@ fn encode(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
     for size in SIZES {
         let data = random_bytes(size, size as u64);
-        let mut out = vec![0u8; base58_bench::max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::max_encoded_len(size)];
         let encoders = || ENCODERS.iter().filter(|&&(_, _, at)| at(size));
 
         // Sanity check every encoder against malachite before timing it.

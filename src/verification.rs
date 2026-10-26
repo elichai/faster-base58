@@ -54,6 +54,16 @@ fn digit_table_has_only_valid_values_or_sentinel() {
     assert!(digit < 58 || digit == u8::MAX);
 }
 
+// Prove the table definitions separately from parser control flow.
+#[kani::proof]
+fn alphabet_character_roundtrips() {
+    let digit: u8 = kani::any();
+    kani::assume(digit < 58);
+    let character = common::ALPHABET[digit as usize];
+    assert_eq!(DIGITS[character as usize], digit);
+    assert!(character < 128);
+}
+
 #[kani::proof]
 #[kani::unwind(12)]
 fn full_chunk_valid_numeric_identity() {
@@ -185,7 +195,7 @@ fn two_digit_batched_decoding_matches_radix_and_capacity() {
         common::ALPHABET[digits[0] as usize],
         common::ALPHABET[digits[1] as usize],
     ];
-    let input = std::str::from_utf8(&text).unwrap();
+    let input = core::str::from_utf8(&text).unwrap();
     let capacity: usize = kani::any();
     kani::assume(capacity <= 3);
     let mut out = [0xA5; 5];
@@ -216,6 +226,63 @@ fn two_digit_batched_decoding_matches_radix_and_capacity() {
         }
         if value != 0 {
             assert_eq!(out[bytes], value as u8);
+        }
+        assert!(out[1 + bytes..].iter().all(|&byte| byte == 0xA5));
+    }
+}
+
+#[kani::proof]
+fn valid_digit_table_entries_roundtrip_to_character() {
+    let byte: u8 = kani::any();
+    let digit = DIGITS[byte as usize];
+    if digit != u8::MAX {
+        assert!(digit < 58);
+        assert_eq!(common::ALPHABET[digit as usize], byte);
+        assert!(byte < 128);
+    }
+}
+
+// Actual tiny-input decoder used by the public API. Every valid two-byte UTF-8
+// string is covered, including invalid base58 characters and byte error offsets.
+#[kani::proof]
+#[kani::unwind(6)]
+fn two_byte_short_decode_preserves_radix_errors_and_canaries() {
+    let text: [u8; 2] = kani::any();
+    let Ok(input) = core::str::from_utf8(&text) else {
+        return;
+    };
+    let capacity: usize = kani::any();
+    kani::assume(capacity <= 3);
+    let mut out = [0xA5; 5];
+    let result = crate::batched::decode_short(input, &mut out[1..1 + capacity]);
+    assert_eq!(out[0], 0xA5);
+    assert!(out[1 + capacity..].iter().all(|&byte| byte == 0xA5));
+    let first = DIGITS[text[0] as usize];
+    let second = DIGITS[text[1] as usize];
+    if first == u8::MAX || second == u8::MAX {
+        let index = usize::from(first != u8::MAX);
+        assert_eq!(result, Err(crate::Error::InvalidCharacter { index }));
+        return;
+    }
+    assert!(first < 58 && second < 58);
+    let value = first as u16 * 58 + second as u16;
+    let bytes = if first == 0 {
+        2
+    } else {
+        1 + usize::from(value >= 256)
+    };
+    if capacity < bytes {
+        assert_eq!(result, Err(crate::Error::BufferTooSmall));
+    } else {
+        assert_eq!(result, Ok(bytes));
+        if first == 0 {
+            assert_eq!(out[1], 0);
+            assert_eq!(out[2], second);
+        } else if value >= 256 {
+            assert_eq!(out[1], (value >> 8) as u8);
+            assert_eq!(out[2], value as u8);
+        } else {
+            assert_eq!(out[1], value as u8);
         }
         assert!(out[1 + bytes..].iter().all(|&byte| byte == 0xA5));
     }

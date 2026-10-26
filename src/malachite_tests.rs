@@ -9,7 +9,12 @@ use rand_xoshiro::rand_core::{Rng, SeedableRng};
 /// `m.mul(a, b)` against Karatsuba, with garbage in `out` and no scratch at all.
 fn check(m: &mut Malachite, a: &[u64], b: &[u64]) {
     let mut want = vec![0; a.len() + b.len()];
-    mul::mul(&mut want, a, b, &mut vec![0; mul::scratch_len(a.len().max(b.len()))]);
+    mul::mul(
+        &mut want,
+        a,
+        b,
+        &mut vec![0; mul::scratch_len(a.len().max(b.len()))],
+    );
     let mut got = vec![0x5A5A_5A5A_5A5A_5A5A; want.len()];
     m.mul(&mut got, a, b, &mut []);
     assert!(got == want, "{} x {}", a.len(), b.len());
@@ -22,7 +27,9 @@ fn check(m: &mut Malachite, a: &[u64], b: &[u64]) {
 fn mul_matches_karatsuba() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(40);
     let mut m = Malachite::default();
-    let lens = [0, 1, 2, 15, 16, 17, 104, 105, 300, 389, 390, 999, 1000, 1001, 2500];
+    let lens = [
+        0, 1, 2, 15, 16, 17, 104, 105, 300, 389, 390, 999, 1000, 1001, 2500,
+    ];
     let random = |rng: &mut Xoshiro256PlusPlus, n| (0..n).map(|_| rng.next_u64()).collect();
     for na in lens {
         let a: Vec<u64> = random(&mut rng, na);

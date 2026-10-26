@@ -9,10 +9,30 @@ use super::tables::Prime;
 #[cfg(test)]
 use super::tables::{PRIMES, Twiddles};
 
-#[cfg(any(test, feature = "__internals", kani, not(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))))]
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
 mod kernels;
-#[cfg(any(test, feature = "__internals", kani, not(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))))]
-pub(crate) use kernels::{load, forward, inverse, pointwise, square, twist, fold_sub, halves, pair, garner};
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
+pub(crate) use kernels::{
+    fold_sub, forward, garner, halves, inverse, load, pair, pointwise, square, twist,
+};
 
 /// A 32-bit coefficient mod `q`, in `(-q, q)`.
 #[inline(always)]
@@ -38,7 +58,10 @@ pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq
     let pairs = head.as_chunks_mut::<2>().0.iter_mut().zip(limbs);
     for ((d, &l), (w, wq)) in pairs.zip(w.as_chunks::<2>().0.iter().zip(wq.as_chunks::<2>().0)) {
         // `|lift| < 2^31` and `|w| <= q / 2`: `mont` gives below `0.75 q`.
-        *d = [p.mont(lift(l as u32, p), w[0], wq[0]), p.mont(lift((l >> 32) as u32, p), w[1], wq[1])];
+        *d = [
+            p.mont(lift(l as u32, p), w[0], wq[0]),
+            p.mont(lift((l >> 32) as u32, p), w[1], wq[1]),
+        ];
     }
     rest.fill(0);
 }
@@ -111,8 +134,10 @@ mod tests {
                 let q = p.q as u64;
                 for (j, &got) in a.iter().enumerate() {
                     let wk = pow(w, bitrev(j, log) as u64, q);
-                    let want =
-                        x.iter().rev().fold(0, |acc, &v| (acc * wk + modq(v as i128, p.q)) % q);
+                    let want = x
+                        .iter()
+                        .rev()
+                        .fold(0, |acc, &v| (acc * wk + modq(v as i128, p.q)) % q);
                     assert_eq!(modq(got as i128, p.q), want, "n {n}, j {j}");
                     assert!(got.abs() < p.q);
                 }
@@ -132,7 +157,11 @@ mod tests {
                 forward(&mut a, p, tw);
                 inverse(&mut a, p, tw);
                 for (&got, &x) in a.iter().zip(&x) {
-                    assert_eq!(modq(got as i128, p.q), modq(x as i128 * n as i128, p.q), "n {n}");
+                    assert_eq!(
+                        modq(got as i128, p.q),
+                        modq(x as i128 * n as i128, p.q),
+                        "n {n}"
+                    );
                     assert!(got.abs() < p.q);
                 }
             }
@@ -151,7 +180,10 @@ mod tests {
                 let q = p.q as u64;
                 let ninv = pow(n as u64, q - 2, q) as i128;
                 for ((&got, &x), &y) in a.iter().zip(&x).zip(&y) {
-                    assert_eq!(modq(got as i128, p.q), modq(x as i128 * y as i128 * ninv, p.q));
+                    assert_eq!(
+                        modq(got as i128, p.q),
+                        modq(x as i128 * y as i128 * ninv, p.q)
+                    );
                     assert!(got.abs() < p.q);
                 }
                 let (mut a, mut b) = (x.clone(), x.clone());
@@ -171,7 +203,9 @@ mod tests {
             let mut dst = vec![0x5A5A_5A5A; 2 * limbs.len() + 7];
             load(&mut dst, &limbs, p);
             for (i, &got) in dst.iter().enumerate() {
-                let c = limbs.get(i / 2).map_or(0, |&l| (l >> (32 * (i % 2))) as u32);
+                let c = limbs
+                    .get(i / 2)
+                    .map_or(0, |&l| (l >> (32 * (i % 2))) as u32);
                 assert_eq!(modq(got as i128, p.q), c as u64 % p.q as u64, "{i}");
                 assert!(got.abs() < p.q);
             }
@@ -189,7 +223,9 @@ mod tests {
             let mut dst = vec![0x5A5A_5A5A; 2 * limbs.len() + 7];
             load_twist(&mut dst, &limbs, p, &tw.fw[64..], &tw.fwq[64..]);
             for (i, &got) in dst.iter().enumerate() {
-                let c = limbs.get(i / 2).map_or(0, |&l| (l >> (32 * (i % 2))) as u32);
+                let c = limbs
+                    .get(i / 2)
+                    .map_or(0, |&l| (l >> (32 * (i % 2))) as u32);
                 let want = c as u64 % q * pow(w, i as u64, q) % q;
                 assert_eq!(modq(got as i128, p.q), want, "{i}");
                 assert!(got.abs() < p.q);

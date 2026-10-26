@@ -1,5 +1,7 @@
 //! Automatic dispatch and output conveniences. Process-wide caches are opt-in.
 
+use alloc::{string::String, vec::Vec};
+
 use crate::batched::decode_batched;
 use crate::{BufferTooSmall, Error};
 
@@ -102,7 +104,7 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
                 return crate::matrix::entry::decode_matrix(input, output);
             }
             #[cfg(target_arch = "x86_64")]
-            if std::is_x86_feature_detected!("sse4.1") {
+            if crate::cpu::sse41() {
                 return crate::matrix::entry::decode_matrix(input, output);
             }
             return decode_batched(input, output);
@@ -120,13 +122,13 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 /// ```
 /// let input = [42; 32];
 /// let mut buffer = [0; 44];
-/// let text = base58_bench::encode_into(input, &mut buffer)?;
-/// assert_eq!(base58_bench::decode_array::<32>(text)?, input);
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// let text = faster_base58::encode_into(input, &mut buffer)?;
+/// assert_eq!(faster_base58::decode_array::<32>(text)?, input);
+/// # Ok::<(), Box<dyn core::error::Error>>(())
 /// ```
 pub fn encode_into(input: impl AsRef<[u8]>, output: &mut [u8]) -> Result<&str, BufferTooSmall> {
     let len = encode(input.as_ref(), output)?;
-    Ok(std::str::from_utf8(&output[..len]).expect("base58 output is ASCII"))
+    Ok(core::str::from_utf8(&output[..len]).expect("base58 output is ASCII"))
 }
 
 /// Encodes an array or byte slice into an owned string.

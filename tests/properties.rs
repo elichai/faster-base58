@@ -1,11 +1,11 @@
 mod support;
 
-use base58_bench::internals::{self, Leaves};
+use faster_base58::internals::{self, Leaves};
 use proptest::prelude::*;
 use support::{ALPHABET, check_decode, check_encode};
 
 type TunedEncode =
-    fn(&[u8], &mut [u8], usize, usize, Leaves) -> Result<usize, base58_bench::BufferTooSmall>;
+    fn(&[u8], &mut [u8], usize, usize, Leaves) -> Result<usize, faster_base58::BufferTooSmall>;
 const TUNED_ENCODERS: &[(&str, TunedEncode)] = &[
     ("dc-tuned", internals::encode_karatsuba_with),
     ("ntt-tuned", internals::encode_ntt_with),
@@ -174,7 +174,8 @@ fn tuning_preconditions_reject_invalid_values() {
     }
     for threshold in [0, 1, 31] {
         assert!(
-            std::panic::catch_unwind(|| internals::decode_toom3_with("", &mut [], threshold)).is_err()
+            std::panic::catch_unwind(|| internals::decode_toom3_with("", &mut [], threshold))
+                .is_err()
         );
     }
 }

@@ -3,16 +3,20 @@
 //! columns in `u64`, then carry. The multiply-adds use the decoder's panel kernels
 //! (`crate::matrix`).
 
-use std::mem::MaybeUninit;
+use core::mem::MaybeUninit;
 
 use super::{bits, max_encoded_len, min_digits, split_zeros};
-use crate::common::ALPHABET;
 use crate::BufferTooSmall;
+use crate::common::ALPHABET;
 use crate::matrix::{PANEL, Panel, zeroed};
 use table::{CARRY_EVERY, COL_BASE, MAX_BYTES, MAX_COLS, MAX_WORDS, PANEL_BYTES, ROWS, WORD};
 
 mod fixed;
-#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
+#[cfg(all(
+    target_arch = "aarch64",
+    target_endian = "little",
+    target_feature = "neon"
+))]
 mod neon;
 mod table;
 #[cfg(target_arch = "x86_64")]
@@ -24,7 +28,7 @@ struct Kernels {
     digits: fn(&[u64], &mut [[u8; 4]]),
 }
 
-const BEST: Kernels = std::cfg_select! {
+const BEST: Kernels = core::cfg_select! {
     all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
         Kernels { panel: PANEL, digits: neon::digits }
     }
@@ -34,8 +38,8 @@ const BEST: Kernels = std::cfg_select! {
 /// Thresholded entry points and their shared wrappers.
 #[cfg(any(feature = "cache", test, feature = "__internals"))]
 pub(crate) mod entry {
-    use super::*;
     use super::super::encode_batched;
+    use super::*;
     use crate::ntt::encode as encode_ntt;
 
     /// Inputs with fewer bytes than this, after leading zeros, use [`encode_batched`], which
@@ -99,13 +103,15 @@ pub(crate) mod entry {
         if x.len() < min {
             return encode_batched(input, output);
         }
-        let cap = if crate::mul::ifma_threshold() != 0 { IFMA_CAP } else { MAX_BYTES };
+        let cap = if crate::mul::ifma_threshold() != 0 {
+            IFMA_CAP
+        } else {
+            MAX_BYTES
+        };
         if x.len() > cap {
             return encode_ntt(input, output);
         }
-        if zeros > output.len()
-            || (!x.is_empty() && output.len() - zeros < min_digits(bits(x)))
-        {
+        if zeros > output.len() || (!x.is_empty() && output.len() - zeros < min_digits(bits(x))) {
             return Err(BufferTooSmall);
         }
         let mut scratch = Scratch::new();
@@ -122,14 +128,20 @@ pub(crate) mod entry {
 /// Comparison and tuning hooks; production conversions keep using the core below.
 #[cfg(any(test, feature = "__internals"))]
 pub(crate) mod internals {
-    use super::*;
     use super::entry::{MATRIX_MIN, encode_with};
+    use super::*;
     use crate::matrix::internals::PANEL_PORTABLE;
 
-    pub(super) const PORTABLE: Kernels = Kernels { panel: PANEL_PORTABLE, digits };
+    pub(super) const PORTABLE: Kernels = Kernels {
+        panel: PANEL_PORTABLE,
+        digits,
+    };
 
     /// [`super::entry::encode_matrix`] with the plain-Rust kernels, to show what the SIMD ones add.
-    pub fn encode_matrix_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    pub fn encode_matrix_portable(
+        input: &[u8],
+        output: &mut [u8],
+    ) -> Result<usize, BufferTooSmall> {
         if let Ok(x) = input.try_into() {
             return fixed::portable::encode_32_portable(x, output);
         }
@@ -157,14 +169,18 @@ pub(crate) mod internals {
 
         /// Type-layout bytes for the two fixed tables, not an emitted-binary size.
         pub fn fixed_matrix_table_bytes() -> [usize; 2] {
-            [size_of::<fixed::Table<8, 12>>(), size_of::<fixed::Table<16, 24>>()]
+            [
+                size_of::<fixed::Table<8, 12>>(),
+                size_of::<fixed::Table<16, 24>>(),
+            ]
         }
     }
 }
 
 /// Fixed tables only; other input lengths need a different encoder.
 pub(crate) fn encode_fixed(
-    input: &[u8], output: &mut [u8],
+    input: &[u8],
+    output: &mut [u8],
 ) -> Option<Result<usize, BufferTooSmall>> {
     if let Ok(x) = input.try_into() {
         return Some(fixed::encode_32(x, output));
@@ -182,9 +198,7 @@ pub(crate) fn encode_fixed(
 pub fn encode_whole(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let (zeros, x) = split_zeros(input);
     assert!(x.len() <= MAX_BYTES, "{} bytes for one matrix", x.len());
-    if zeros > output.len()
-        || (!x.is_empty() && output.len() - zeros < min_digits(bits(x)))
-    {
+    if zeros > output.len() || (!x.is_empty() && output.len() - zeros < min_digits(bits(x))) {
         return Err(BufferTooSmall);
     }
     let mut scratch = Scratch::new();
@@ -201,7 +215,7 @@ pub(super) struct Scratch {
     words: [MaybeUninit<u32>; MAX_WORDS],
     cols: [MaybeUninit<u64>; MAX_COLS],
 }
-const _: () = assert!(std::mem::offset_of!(Scratch, cols) % 64 == 0);
+const _: () = assert!(core::mem::offset_of!(Scratch, cols) % 64 == 0);
 
 impl Scratch {
     pub(super) fn new() -> Scratch {
@@ -322,9 +336,15 @@ fn write(
 
 /// The characters of `cols`, each below 58^4, top column first:
 /// `out[i] = four_digits(cols[cols.len() - 1 - i])`. Requires `out.len() == cols.len()`.
-#[cfg(any(test, feature = "__internals", not(all(
-    target_arch = "aarch64", target_endian = "little", target_feature = "neon"
-))))]
+#[cfg(any(
+    test,
+    feature = "__internals",
+    not(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
 fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
     assert_eq!(cols.len(), out.len());
     for (o, &c) in out.iter_mut().zip(cols.iter().rev()) {
@@ -342,7 +362,7 @@ pub(super) fn four_digits(c: u64) -> [u8; 4] {
 }
 
 /// The two characters of each value below 58^2, most significant first.
-static CHAR_PAIRS: [[u8; 2]; 3364] = {
+const CHAR_PAIRS: [[u8; 2]; 3364] = {
     let mut t = [[0; 2]; 3364];
     let mut i = 0;
     while i < t.len() {
@@ -360,8 +380,8 @@ mod tests {
     use super::entry::{IFMA_CAP, MATRIX_MIN, encode_matrix, encode_with};
     use super::internals::{PORTABLE, encode_matrix_portable};
     use super::table::{MAX_AFTER_CARRY, MAX_CARRY};
-    use crate::encode::batched::encode_batched;
     use super::*;
+    use crate::encode::batched::encode_batched;
     use crate::encode::tests::{Encode, encode_vec, random_bytes};
 
     /// The matrix path at every size up to `MAX_BYTES`.
@@ -380,9 +400,18 @@ mod tests {
     fn check(data: &[u8]) {
         let want = encode_vec(encode_batched, data);
         for (name, f) in FORCED {
-            assert!(encode_vec(f, data) == want, "{name} on {} bytes", data.len());
+            assert!(
+                encode_vec(f, data) == want,
+                "{name} on {} bytes",
+                data.len()
+            );
             let mut exact = vec![0xAA; want.len()];
-            assert_eq!(f(data, &mut exact), Ok(want.len()), "{name}: exact, {} bytes", data.len());
+            assert_eq!(
+                f(data, &mut exact),
+                Ok(want.len()),
+                "{name}: exact, {} bytes",
+                data.len()
+            );
             assert!(exact == want, "{name}: exact, {} bytes", data.len());
             if let Some(short) = exact.get_mut(1..) {
                 assert_eq!(f(data, short), Err(BufferTooSmall), "{name}: short");
@@ -392,7 +421,10 @@ mod tests {
 
     /// Random bytes at every size up to `MAX_BYTES`, some with leading zeros.
     #[test]
-    #[cfg_attr(not(feature = "cache"), ignore = "exhaustive identical kernels run with cache in CI; cache-off ownership and boundary tests remain active")]
+    #[cfg_attr(
+        not(feature = "cache"),
+        ignore = "exhaustive identical kernels run with cache in CI; cache-off ownership and boundary tests remain active"
+    )]
     fn every_size() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(30);
         for len in 0..=MAX_BYTES {
@@ -409,9 +441,12 @@ mod tests {
     #[test]
     fn patterns() {
         // Class edges, and every 47 panels (1504 bytes) a carry pass.
-        let edges = [1, 31, 32, 33, 512, 1024, 1504, 2048, 3008, 4096, 4512, 6016, 7520, MAX_BYTES];
-        let around =
-            edges.iter().flat_map(|&e| e.saturating_sub(4).max(1)..=(e + 4).min(MAX_BYTES));
+        let edges = [
+            1, 31, 32, 33, 512, 1024, 1504, 2048, 3008, 4096, 4512, 6016, 7520, MAX_BYTES,
+        ];
+        let around = edges
+            .iter()
+            .flat_map(|&e| e.saturating_sub(4).max(1)..=(e + 4).min(MAX_BYTES));
         for n in around.chain([MATRIX_MIN]) {
             check(&vec![0xFF; n]);
             let mut pow2 = vec![0; n];
@@ -482,16 +517,26 @@ mod tests {
         let len = cols.iter().rposition(|&c| c != 0).map_or(0, |i| i + 1);
         let want: Vec<u64> = cols[..len].iter().map(|&c| c as u64).collect();
         for k in [&BEST, &PORTABLE] {
-            assert_eq!(convert(k, &vec![0xFF; MAX_BYTES], &mut Scratch::new()), want);
+            assert_eq!(
+                convert(k, &vec![0xFF; MAX_BYTES], &mut Scratch::new()),
+                want
+            );
         }
         // The bound has room: the peak is about 2^63.
         let room = (u64::MAX as u128 - peak) as f64;
-        eprintln!("peak column sum 2^{:.2}, room 2^{:.2}", (peak as f64).log2(), room.log2());
+        eprintln!(
+            "peak column sum 2^{:.2}, room 2^{:.2}",
+            (peak as f64).log2(),
+            room.log2()
+        );
     }
 
     #[test]
     fn four_digits_matches_division() {
-        for c in (0..COL_BASE).step_by(997).chain([0, 57, 58, 3363, 3364, COL_BASE - 1]) {
+        for c in (0..COL_BASE)
+            .step_by(997)
+            .chain([0, 57, 58, 3363, 3364, COL_BASE - 1])
+        {
             let mut want = [0; 4];
             let mut v = c;
             for d in want.iter_mut().rev() {
@@ -506,10 +551,15 @@ mod tests {
     #[test]
     fn leading_zeros_around_threshold() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(32);
-        let real: [(&str, Encode); 2] =
-            [("best", encode_matrix), ("portable", encode_matrix_portable)];
+        let real: [(&str, Encode); 2] = [
+            ("best", encode_matrix),
+            ("portable", encode_matrix_portable),
+        ];
         let caps = [IFMA_CAP, IFMA_CAP + 1, MAX_BYTES, MAX_BYTES + 1];
-        for bytes in [MATRIX_MIN - 1, MATRIX_MIN, MATRIX_MIN + 1].into_iter().chain(caps) {
+        for bytes in [MATRIX_MIN - 1, MATRIX_MIN, MATRIX_MIN + 1]
+            .into_iter()
+            .chain(caps)
+        {
             for zeros in [0, 1, 2, 100, MATRIX_MIN] {
                 let mut x = random_bytes(&mut rng, bytes);
                 x[0] |= 1;
@@ -530,9 +580,14 @@ mod tests {
     /// Several threads encode in every size class at once.
     #[test]
     fn threads() {
-        let inputs: Vec<Vec<u8>> =
-            [500, 1000, 2000, 4000, 8000].iter().map(|&n| vec![0xFF; n]).collect();
-        let want: Vec<_> = inputs.iter().map(|d| encode_vec(encode_batched, d)).collect();
+        let inputs: Vec<Vec<u8>> = [500, 1000, 2000, 4000, 8000]
+            .iter()
+            .map(|&n| vec![0xFF; n])
+            .collect();
+        let want: Vec<_> = inputs
+            .iter()
+            .map(|d| encode_vec(encode_batched, d))
+            .collect();
         std::thread::scope(|scope| {
             for _ in 0..8 {
                 scope.spawn(|| {

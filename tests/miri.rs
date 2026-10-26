@@ -24,7 +24,7 @@ fn all_backends_malformed() {
 
 #[test]
 fn forced_encoder_leaves() {
-    use base58_bench::internals::{Leaves, encode_karatsuba_with};
+    use faster_base58::internals::{Leaves, encode_karatsuba_with};
     use support::malachite::encode_malachite_with;
     for leaves in [Leaves::Horner, Leaves::Matrix] {
         let encode = |input: &[u8], out: &mut [u8]| encode_karatsuba_with(input, out, 0, 1, leaves);
@@ -49,7 +49,9 @@ fn forced_encoder_leaves() {
 #[cfg(all(target_arch = "x86_64", target_feature = "avx512ifma"))]
 #[test]
 fn actual_ifma_shapes() {
-    use base58_bench::internals::{ifma_mul, ifma_scratch_len, ifma_threshold, mul_with, scratch_len};
+    use faster_base58::internals::{
+        ifma_mul, ifma_scratch_len, ifma_threshold, mul_with, scratch_len,
+    };
     assert_ne!(ifma_threshold(), 0, "the requested IFMA path must execute");
     for (na, nb) in [(8, 13), (13, 17), (17, 97)] {
         let a = vec![u64::MAX; na];

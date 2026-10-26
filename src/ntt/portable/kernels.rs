@@ -1,9 +1,9 @@
 //! Full plain-Rust kernels, also used as comparisons and by x86 wrappers.
 
-use super::{half, lazy, load_one};
-use super::super::{Kernels, portable};
 use super::super::crt::GARNER;
 use super::super::tables::{PRIMES, Prime, Twiddles};
+use super::super::{Kernels, portable};
+use super::{half, lazy, load_one};
 
 #[inline(always)]
 pub(crate) fn load(dst: &mut [i32], limbs: &[u64], p: Prime) {
@@ -61,7 +61,11 @@ fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, t: &Twiddl
         for (((x, y), &w), &wq) in x.iter_mut().zip(y).zip(w).zip(wq) {
             let t = p.mont(*y, w, wq);
             let (s, d) = (*x + t, *x - t);
-            (*x, *y) = if LAZY { (s, d) } else { (p.reduce(s), p.reduce(d)) };
+            (*x, *y) = if LAZY {
+                (s, d)
+            } else {
+                (p.reduce(s), p.reduce(d))
+            };
         }
     }
 }

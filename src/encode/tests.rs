@@ -9,11 +9,11 @@ use rand_xoshiro::rand_core::{Rng, SeedableRng};
 use super::dc::karatsuba::DC_THRESHOLD;
 use super::{max_encoded_len, min_digits};
 use crate::common::ALPHABET;
-use crate::{BufferTooSmall, decode, encode, encode_malachite};
 use crate::internals::{
     encode_batched, encode_karatsuba, encode_matrix, encode_matrix_portable, encode_ntt,
     encode_ntt_cached, encode_ntt_portable, encode_toom3,
 };
+use crate::{BufferTooSmall, decode, encode, encode_malachite};
 
 pub(crate) type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 
@@ -121,7 +121,14 @@ fn random_buffer_sizes() {
         }
         let want = bs58::encode(&data).into_vec();
         let n = want.len();
-        let sizes = [0, n.saturating_sub(2), n.saturating_sub(1), n, n + 1, rng.next_u32() as usize % (n + 2)];
+        let sizes = [
+            0,
+            n.saturating_sub(2),
+            n.saturating_sub(1),
+            n,
+            n + 1,
+            rng.next_u32() as usize % (n + 2),
+        ];
         for &(name, f) in ENCODERS {
             for size in sizes {
                 let mut out = vec![0xAA; size];
@@ -132,7 +139,10 @@ fn random_buffer_sizes() {
                 }
                 assert_eq!(got, Ok(n), "{name}: {len} bytes into {size}");
                 assert!(out[..n] == want[..], "{name}: {len} bytes into {size}");
-                assert!(out[n..].iter().all(|&b| b == 0xAA), "{name}: wrote past the result");
+                assert!(
+                    out[n..].iter().all(|&b| b == 0xAA),
+                    "{name}: wrote past the result"
+                );
             }
         }
     }
@@ -162,10 +172,15 @@ fn large_inputs_round_trip() {
     let random = random_bytes(&mut rng, len);
     let mut zero_run = random.clone();
     zero_run[1000..80_000].fill(0);
-    for data in [random, vec![0xFF; len], zero_run, [vec![0; 3], vec![0xFF; len]].concat()] {
+    for data in [
+        random,
+        vec![0xFF; len],
+        zero_run,
+        [vec![0; 3], vec![0xFF; len]].concat(),
+    ] {
         let want = encode_vec(ENCODERS[0].1, &data);
         let mut back = vec![0; data.len()];
-        let n = decode(std::str::from_utf8(&want).unwrap(), &mut back).unwrap();
+        let n = decode(core::str::from_utf8(&want).unwrap(), &mut back).unwrap();
         assert!(back[..n] == data[..], "round trip, {} bytes", data.len());
         for &(name, f) in &ENCODERS[1..] {
             assert!(encode_vec(f, &data) == want, "{name}, {} bytes", data.len());
@@ -179,8 +194,9 @@ fn malachite_encode(data: &[u8]) -> Vec<u8> {
     let zeros = data.iter().take_while(|&&b| b == 0).count();
     let x = Natural::from_power_of_2_digits_desc(8, data[zeros..].iter().copied()).unwrap();
     let digits: Vec<u8> = x.to_digits_desc(&58);
-    let ones = std::iter::repeat_n(b'1', zeros);
-    ones.chain(digits.iter().map(|&d| ALPHABET[d as usize])).collect()
+    let ones = core::iter::repeat_n(b'1', zeros);
+    ones.chain(digits.iter().map(|&d| ALPHABET[d as usize]))
+        .collect()
 }
 
 /// The subquadratic encoders at 1 MiB, where even `encode_batched` is slow. Inner runs of
@@ -228,7 +244,19 @@ fn encoded_length_saturates_without_wrapping() {
     assert_eq!(max_encoded_len(usize::MAX), usize::MAX);
     assert_eq!(max_encoded_len(usize::MAX - usize::MAX / 4), usize::MAX);
     let mut previous = 0;
-    for len in [0, 1, 7, 8, 32, 64, 512, 8192, 1 << 20, usize::MAX / 2, usize::MAX] {
+    for len in [
+        0,
+        1,
+        7,
+        8,
+        32,
+        64,
+        512,
+        8192,
+        1 << 20,
+        usize::MAX / 2,
+        usize::MAX,
+    ] {
         let bound = max_encoded_len(len);
         assert!(bound >= len, "{len} bytes need at least {len} characters");
         assert!(bound >= previous, "capacity decreased at {len} bytes");

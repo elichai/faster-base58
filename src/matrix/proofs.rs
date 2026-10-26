@@ -29,5 +29,12 @@ fn carry64_preserves_value_and_length() {
     let value = a as u128 + ((b as u128) << 32);
     assert_eq!(cols[0], value as u64);
     assert_eq!(cols[1], (value >> 64) as u64);
-    assert_eq!(len, if cols[1] != 0 { 2 } else { usize::from(cols[0] != 0) });
+    assert_eq!(
+        len,
+        if cols[1] != 0 {
+            2
+        } else {
+            usize::from(cols[0] != 0)
+        }
+    );
 }

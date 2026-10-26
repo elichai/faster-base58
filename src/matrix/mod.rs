@@ -4,16 +4,27 @@
 //! multiply-add throughput instead of along a carry chain. See the spec,
 //! `docs/superpowers/specs/2026-10-14-simd-front-end-design.md`.
 
-use std::mem::MaybeUninit;
+use core::mem::MaybeUninit;
 
 use crate::common::{CHUNK, DIGITS};
 use table::{CARRY_EVERY, MAX_COLS, MAX_GROUPS, PANEL_CHARS, ROWS};
 
-#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
+#[cfg(all(
+    target_arch = "aarch64",
+    target_endian = "little",
+    target_feature = "neon"
+))]
 mod neon;
-#[cfg(any(test, feature = "__internals", kani, not(all(
-    target_arch = "aarch64", target_endian = "little", target_feature = "neon"
-))))]
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
 mod portable;
 #[cfg(kani)]
 mod proofs;
@@ -30,13 +41,24 @@ struct Kernels {
     panel: Panel,
 }
 
-#[cfg(any(test, feature = "__internals", not(any(
-    all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
-    target_arch = "x86_64"
-))))]
-const PORTABLE: Kernels = Kernels { parse: portable::parse, panel: portable::panel };
+#[cfg(any(
+    test,
+    feature = "__internals",
+    not(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        target_arch = "x86_64"
+    ))
+))]
+const PORTABLE: Kernels = Kernels {
+    parse: portable::parse,
+    panel: portable::panel,
+};
 
-const BEST: Kernels = std::cfg_select! {
+const BEST: Kernels = core::cfg_select! {
     all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
         Kernels { parse: neon::parse, panel: neon::panel }
     }
@@ -52,10 +74,13 @@ pub(crate) const PANEL: Panel = BEST.panel;
 /// Thresholded entry points and their shared wrappers.
 #[cfg(any(feature = "cache", test, feature = "__internals"))]
 pub(crate) mod entry {
-    use super::*;
     use super::table::MAX_CHARS;
+    use super::*;
     use crate::{
-        Error, batched::decode_batched, common::{invalid, split_zeros}, dc::{decode, write_bytes},
+        Error,
+        batched::decode_batched,
+        common::{invalid, split_zeros},
+        dc::{decode, write_bytes},
     };
 
     /// Inputs with fewer digits than this use [`decode_batched`], which is faster there.
@@ -83,7 +108,12 @@ pub(crate) mod entry {
     /// [`decode_matrix`] with kernels `k`, using [`decode_batched`] below `min` digits.
     /// Inlined, so small inputs pay only a length check.
     #[inline(always)]
-    pub(super) fn decode_with(k: &Kernels, input: &str, output: &mut [u8], min: usize) -> Result<usize, Error> {
+    pub(super) fn decode_with(
+        k: &Kernels,
+        input: &str,
+        output: &mut [u8],
+        min: usize,
+    ) -> Result<usize, Error> {
         // The input length bounds the digit count, so small inputs skip `split_zeros` here.
         if input.len() < min {
             return decode_batched(input, output);
@@ -94,7 +124,12 @@ pub(crate) mod entry {
     /// [`decode_with`] for inputs of at least `min` bytes. Not inlined: its stack frame holds
     /// [`Scratch`], about 14 KiB, which small inputs should not set up.
     #[inline(never)]
-    fn decode_large(k: &Kernels, input: &str, output: &mut [u8], min: usize) -> Result<usize, Error> {
+    fn decode_large(
+        k: &Kernels,
+        input: &str,
+        output: &mut [u8],
+        min: usize,
+    ) -> Result<usize, Error> {
         let (zeros, digits) = split_zeros(input.as_bytes());
         if digits.len() < min {
             return decode_batched(input, output);
@@ -120,8 +155,8 @@ pub(crate) mod entry {
 /// Comparison hooks; production conversions keep using the core below.
 #[cfg(any(test, feature = "__internals"))]
 pub(crate) mod internals {
-    use super::*;
     use super::entry::{MATRIX_MIN, decode_with};
+    use super::*;
     use crate::Error;
 
     pub(crate) const PANEL_PORTABLE: Panel = PORTABLE.panel;
@@ -180,8 +215,8 @@ impl Scratch {
 pub(crate) fn zeroed<T: Copy + Default>(buf: &mut [MaybeUninit<T>], len: usize) -> &mut [T] {
     let buf = &mut buf[..len];
     buf.fill(MaybeUninit::new(T::default()));
-    // SAFETY: every element was just written, and `MaybeUninit<T>` has `T`'s layout.
-    unsafe { &mut *(buf as *mut [MaybeUninit<T>] as *mut [T]) }
+    // SAFETY: `fill` initialized every element of this prefix; the suffix is not exposed.
+    unsafe { buf.assume_init_mut() }
 }
 
 /// The value of `digits` as trimmed little-endian limbs, in `scratch`, or `None` if a
@@ -242,7 +277,10 @@ fn carry64(cols: &mut [u64]) -> usize {
         carry = v >> 64;
     }
     debug_assert_eq!(carry, 0, "the value does not fit the columns");
-    cols[..cols.len() / 2].iter().rposition(|&l| l != 0).map_or(0, |i| i + 1)
+    cols[..cols.len() / 2]
+        .iter()
+        .rposition(|&l| l != 0)
+        .map_or(0, |i| i + 1)
 }
 
 // `leaf`'s `out` bound: `58^n < 2^(64 * ceil(n / 10))` because `58^10 < 2^64`.
@@ -250,13 +288,13 @@ const _: () = assert!(58u128.pow(CHUNK as u32) < 1u128 << 64);
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::entry::{MATRIX_MIN, decode_matrix, decode_with};
     use super::internals::decode_matrix_portable;
     use super::table::MAX_CHARS;
-    use crate::{Error, batched::decode_batched};
+    use super::*;
     use crate::common::{ALPHABET, BASE, chunks};
     use crate::tests::{Decode, decode_vec, random_string};
+    use crate::{Error, batched::decode_batched};
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
@@ -273,7 +311,9 @@ mod tests {
 
     /// Class boundaries and the dispatch threshold, each with its neighbours.
     fn boundaries() -> impl Iterator<Item = usize> {
-        [704, 1408, 2816, MAX_CHARS, MATRIX_MIN].into_iter().flat_map(|b| [b - 1, b, b + 1])
+        [704, 1408, 2816, MAX_CHARS, MATRIX_MIN]
+            .into_iter()
+            .flat_map(|b| [b - 1, b, b + 1])
     }
 
     fn check(s: &str) {
@@ -286,7 +326,9 @@ mod tests {
     #[test]
     fn forced_matches_batched() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(5);
-        let random = (0..20).map(|_| 1 + rng.next_u32() as usize % MAX_CHARS).collect::<Vec<_>>();
+        let random = (0..20)
+            .map(|_| 1 + rng.next_u32() as usize % MAX_CHARS)
+            .collect::<Vec<_>>();
         for len in (1..=1500).chain(boundaries()).chain(random) {
             check(&random_string(&mut rng, len));
         }
@@ -294,7 +336,9 @@ mod tests {
 
     #[test]
     fn patterns() {
-        for n in [2, 15, 16, 17, 31, 32, 33, 703, 704, 705, 1408, 2816, MAX_CHARS] {
+        for n in [
+            2, 15, 16, 17, 31, 32, 33, 703, 704, 705, 1408, 2816, MAX_CHARS,
+        ] {
             // All 'z' gives the largest column sums (about 2^63.1 at `MAX_CHARS`), so the
             // carry schedule suffices for every input. This does not show that the bound
             // is tight: the `const` asserts in `table.rs` guard it.
@@ -334,11 +378,16 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(feature = "cache"), ignore = "exhaustive identical kernels run with cache in CI; cache-off ownership and boundary tests remain active")]
+    #[cfg_attr(
+        not(feature = "cache"),
+        ignore = "exhaustive identical kernels run with cache in CI; cache-off ownership and boundary tests remain active"
+    )]
     fn leaf_matches_horner() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(7);
         let all_z = ["z".repeat(MAX_CHARS), "z".repeat(2816), "z".repeat(2560)];
-        let inputs = (1..=MAX_CHARS).map(|n| random_string(&mut rng, n)).chain(all_z);
+        let inputs = (1..=MAX_CHARS)
+            .map(|n| random_string(&mut rng, n))
+            .chain(all_z);
         for s in inputs {
             // Exactly one limb per chunk, holding garbage.
             let mut out = vec![0xDEAD_BEEF; s.len().div_ceil(CHUNK)];
@@ -363,7 +412,11 @@ mod tests {
                     let mut s = valid.clone();
                     s[pos] = c;
                     let ok = ALPHABET.contains(&c);
-                    assert_eq!(leaf(&mut [0; 4], &s).is_some(), ok, "{c:#04x} at {pos} of {n}");
+                    assert_eq!(
+                        leaf(&mut [0; 4], &s).is_some(),
+                        ok,
+                        "{c:#04x} at {pos} of {n}"
+                    );
                     let portable = convert(&PORTABLE, &s, &mut Scratch::new()).is_some();
                     assert_eq!(portable, ok, "portable: {c:#04x} at {pos} of {n}");
                 }
@@ -407,11 +460,19 @@ mod tests {
             assert!(child.status.success() && ran, "{child:?}");
             return;
         }
-        let built = || table::cached::TABLES.iter().filter(|t| t.get().is_some()).count();
+        let built = || {
+            table::cached::TABLES
+                .iter()
+                .filter(|t| t.get().is_some())
+                .count()
+        };
         for n in [MATRIX_MIN, 705, 1409, 2817, MAX_CHARS] {
             let s = format!("{}0", "z".repeat(n - 1));
             let index = n - 1;
-            assert_eq!(decode_matrix(&s, &mut [0; 5000]), Err(Error::InvalidCharacter { index }));
+            assert_eq!(
+                decode_matrix(&s, &mut [0; 5000]),
+                Err(Error::InvalidCharacter { index })
+            );
             assert_eq!(leaf(&mut [0; 564], s.as_bytes()), None);
         }
         assert_eq!(built(), 0);
@@ -441,12 +502,18 @@ mod tests {
     #[test]
     fn leading_ones_around_threshold() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(9);
-        let real: [(&str, Decode); 2] =
-            [("best", decode_matrix), ("portable", decode_matrix_portable)];
+        let real: [(&str, Decode); 2] = [
+            ("best", decode_matrix),
+            ("portable", decode_matrix_portable),
+        ];
         for digits in [MATRIX_MIN - 1, MATRIX_MIN, MATRIX_MIN + 1] {
             for ones in [1, 2, 100, MATRIX_MIN] {
                 // 'z' first, so the digit count is exact.
-                let s = format!("{}z{}", "1".repeat(ones), random_string(&mut rng, digits - 1));
+                let s = format!(
+                    "{}z{}",
+                    "1".repeat(ones),
+                    random_string(&mut rng, digits - 1)
+                );
                 let want = decode_vec(decode_batched, &s).expect("valid");
                 for (name, f) in real {
                     let at = format!("{name}: {ones} ones, {digits} digits");
@@ -465,8 +532,14 @@ mod tests {
     /// `tests/matrix_cold.rs` does, in its own process.
     #[test]
     fn threads() {
-        let inputs: Vec<String> = [700, 1400, 2800, 5600].iter().map(|&n| "z".repeat(n)).collect();
-        let want: Vec<_> = inputs.iter().map(|s| decode_vec(decode_batched, s)).collect();
+        let inputs: Vec<String> = [700, 1400, 2800, 5600]
+            .iter()
+            .map(|&n| "z".repeat(n))
+            .collect();
+        let want: Vec<_> = inputs
+            .iter()
+            .map(|s| decode_vec(decode_batched, s))
+            .collect();
         std::thread::scope(|scope| {
             for _ in 0..8 {
                 scope.spawn(|| {

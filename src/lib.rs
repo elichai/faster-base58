@@ -11,13 +11,26 @@
 //! It accepts caller buffers and supports exact arrays. Large inputs use quadratic
 //! conversion; Auto can allocate workspace for faster algorithms.
 //!
+//! The library is `no_std` with `alloc` by default. The `std` feature enables
+//! standard-library support; `cache` enables `std` and shared table retention.
+//!
 //! The optional `cache` feature retains bounded NTT and matrix tables across calls.
 //! It is disabled by default. All named backend selectors require `__internals`;
 //! that feature exposes the unstable `internals` module for tests and measurements.
 
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
+
+#[macro_use]
+extern crate alloc;
+
+#[cfg(all(kani, not(feature = "std")))]
+extern crate std;
+
 mod api;
 mod batched;
 mod common;
+#[cfg(target_arch = "x86_64")]
+mod cpu;
 mod dc;
 mod encode;
 #[cfg(test)]
@@ -29,14 +42,14 @@ mod matrix;
 mod mul;
 #[cfg(any(target_arch = "x86_64", test, kani))]
 mod mul_ifma;
-mod ntt;
 pub mod no_alloc;
+mod ntt;
 #[cfg(test)]
 mod tests;
-#[cfg(kani)]
-mod verification;
 #[cfg(any(test, feature = "__internals", kani))]
 mod toom3;
+#[cfg(kani)]
+mod verification;
 
 pub use api::{decode, decode_array, decode_into, decode_vec, encode, encode_into, encode_string};
 pub use encode::max_encoded_len;
@@ -52,27 +65,34 @@ mod readme_examples {}
 use malachite::{decode_malachite, encode_malachite};
 
 #[cfg(test)]
-extern crate self as base58_bench;
+extern crate self as faster_base58;
 
 /// A decoding error. When the input has an invalid character and the output buffer is
 /// also too small for it, which of the two is reported is unspecified.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     /// The byte at `index` is the first that is not in the alphabet.
-    InvalidCharacter { index: usize },
+    InvalidCharacter {
+        index: usize,
+    },
     BufferTooSmall,
     /// An exact-length array was requested, but fewer bytes were decoded.
-    InvalidLength { expected: usize, actual: usize },
+    InvalidLength {
+        expected: usize,
+        actual: usize,
+    },
 }
 
 /// An encoding error: the output buffer cannot hold the result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BufferTooSmall;
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidCharacter { index } => write!(f, "invalid base58 character at byte {index}"),
+            Self::InvalidCharacter { index } => {
+                write!(f, "invalid base58 character at byte {index}")
+            }
             Self::BufferTooSmall => BufferTooSmall.fmt(f),
             Self::InvalidLength { expected, actual } => {
                 write!(f, "expected {expected} decoded bytes, got {actual}")
@@ -81,12 +101,12 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl core::error::Error for Error {}
 
-impl std::fmt::Display for BufferTooSmall {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for BufferTooSmall {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("output buffer is too small")
     }
 }
 
-impl std::error::Error for BufferTooSmall {}
+impl core::error::Error for BufferTooSmall {}

@@ -20,10 +20,10 @@ case "${1-}" in
         ;;
 esac
 export MIRIFLAGS='-Zmiri-strict-provenance'
-cargo +nightly-2026-10-23 miri setup --target "$target"
+cargo +nightly-2026-10-26 miri setup --target "$target"
 status=0
 for probe in "$@"; do
-    cargo +nightly-2026-10-23 miri test --target "$target" --locked \
+    cargo +nightly-2026-10-26 miri test --target "$target" --locked \
         --test miri_intrinsics "$probe" -- --exact || status=1
 done
 exit "$status"

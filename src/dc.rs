@@ -72,7 +72,14 @@ pub trait Multiplier {
 
     /// [`Multiplier::mul_wrapped`] where `b` is power `i` of the table, as in
     /// [`Multiplier::mul_power`].
-    fn mul_power_wrapped(&mut self, out: &mut [u64], a: &[u64], _i: usize, b: &[u64], s: &mut [u64]) {
+    fn mul_power_wrapped(
+        &mut self,
+        out: &mut [u64],
+        a: &[u64],
+        _i: usize,
+        b: &[u64],
+        s: &mut [u64],
+    ) {
         self.mul_wrapped(out, a, b, s);
     }
 }
@@ -103,12 +110,16 @@ pub(crate) enum Leaf {
 impl Leaf {
     /// With `cache`, [`Leaf::Matrix`] where it was measured faster: NEON.
     /// Without `cache`, Horner avoids rebuilding a matrix table at every leaf.
-    pub(crate) const BEST: Leaf =
-        if cfg!(all(feature = "cache", target_arch = "aarch64", target_endian = "little", target_feature = "neon")) {
-            Leaf::Matrix
-        } else {
-            Leaf::Horner
-        };
+    pub(crate) const BEST: Leaf = if cfg!(all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    )) {
+        Leaf::Matrix
+    } else {
+        Leaf::Horner
+    };
 }
 
 /// [`decode`], multiplying with `m`.
@@ -208,7 +219,9 @@ fn mul_add_base2(limbs: &mut [u64], len: usize, c1: u64, c2: u64) -> usize {
 /// Folds `chunks` (most significant first) into `limbs[..len]`. Returns the new length.
 fn mul_add_chunks(limbs: &mut [u64], len: usize, chunks: &[u64]) -> usize {
     let (pairs, last) = chunks.as_chunks::<2>();
-    let len = pairs.iter().fold(len, |len, &[c1, c2]| mul_add_base2(limbs, len, c1, c2));
+    let len = pairs
+        .iter()
+        .fold(len, |len, &[c1, c2]| mul_add_base2(limbs, len, c1, c2));
     last.iter().fold(len, |len, &c| mul_add_base(limbs, len, c))
 }
 
@@ -238,7 +251,11 @@ impl<'a> Power<'a> {
     fn new(exp: usize, limbs: &'a [u64], shift: usize) -> Self {
         let limbs = &limbs[..trimmed_len(limbs)];
         let zeros = limbs.iter().take_while(|&&x| x == 0).count();
-        Power { exp, limbs: &limbs[zeros..], shift: shift + zeros }
+        Power {
+            exp,
+            limbs: &limbs[zeros..],
+            shift: shift + zeros,
+        }
     }
 }
 
@@ -268,7 +285,10 @@ pub(crate) fn split_unit_leaf(n: usize, leaf: usize) -> (usize, usize) {
 /// Slot 0 holds `BASE^unit`, at most `unit` limbs; slot `i` holds the square of power
 /// `i - 1`, so twice its [`stored`] length.
 pub(crate) fn table_len(unit: usize, levels: usize) -> usize {
-    (1..levels).map(|i| 2 * stored(unit << (i - 1))).sum::<usize>() + unit
+    (1..levels)
+        .map(|i| 2 * stored(unit << (i - 1)))
+        .sum::<usize>()
+        + unit
 }
 
 /// At most the limbs a [`Power`] keeps of `BASE^e`. `BASE < 2^59`, and
@@ -384,8 +404,12 @@ mod tests {
 
     /// [`decode`] with each leaf.
     const LEAVES: [(&str, Decode); 2] = [
-        ("horner", |s, out| decode_with_leaf(s, out, &mut Karatsuba, Leaf::Horner)),
-        ("matrix", |s, out| decode_with_leaf(s, out, &mut Karatsuba, Leaf::Matrix)),
+        ("horner", |s, out| {
+            decode_with_leaf(s, out, &mut Karatsuba, Leaf::Horner)
+        }),
+        ("matrix", |s, out| {
+            decode_with_leaf(s, out, &mut Karatsuba, Leaf::Matrix)
+        }),
     ];
 
     /// Large inputs, where bs58 is too slow to serve as the reference.
@@ -423,7 +447,12 @@ mod tests {
 
     impl Checked {
         fn new() -> Self {
-            Checked { len: None, calls: 0, power_calls: 0, powers: Vec::new() }
+            Checked {
+                len: None,
+                calls: 0,
+                power_calls: 0,
+                powers: Vec::new(),
+            }
         }
     }
 
@@ -440,7 +469,10 @@ mod tests {
         fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
             let len = self.len.expect("mul before prepare");
             assert!(a.len() + b.len() <= len, "product longer than len = {len}");
-            assert!(scratch.len() >= self.scratch_len(a.len().max(b.len())), "scratch");
+            assert!(
+                scratch.len() >= self.scratch_len(a.len().max(b.len())),
+                "scratch"
+            );
             self.calls += 1;
             mul::mul(out, a, b, scratch);
         }
@@ -456,7 +488,10 @@ mod tests {
             if let Some(&(addr, n, len)) = self.powers.get(i) {
                 let power = (b.as_ptr().addr(), b.len());
                 assert_eq!((addr, n), power, "power {i} is not the one prepared");
-                assert!(a.len() + b.len() <= len, "product with power {i} longer than {len}");
+                assert!(
+                    a.len() + b.len() <= len,
+                    "product with power {i} longer than {len}"
+                );
                 self.power_calls += 1;
             }
             self.mul(out, a, b, s);
@@ -473,7 +508,10 @@ mod tests {
             let n = decode_with(&s, &mut out, &mut m).unwrap();
             assert_eq!(Ok(out[..n].to_vec()), decode_vec(decode, &s), "len {len}");
             assert!(m.calls > 0, "len {len}: no multiplications");
-            assert!(m.power_calls > 0, "len {len}: no products with a prepared power");
+            assert!(
+                m.power_calls > 0,
+                "len {len}: no products with a prepared power"
+            );
         }
     }
 
@@ -483,13 +521,20 @@ mod tests {
         let s = "z".repeat(1 << 20);
         let invalid = format!("{s}0");
         let mut m = Checked::new();
-        assert_eq!(decode_with(&s, &mut [0; 1], &mut m), Err(Error::BufferTooSmall));
+        assert_eq!(
+            decode_with(&s, &mut [0; 1], &mut m),
+            Err(Error::BufferTooSmall)
+        );
         let at = s.len();
         assert_eq!(
             decode_with(&invalid, &mut vec![0; at], &mut m),
             Err(Error::InvalidCharacter { index: at })
         );
-        assert_eq!((m.len, m.calls, m.powers.len()), (None, 0, 0), "work before the checks");
+        assert_eq!(
+            (m.len, m.calls, m.powers.len()),
+            (None, 0, 0),
+            "work before the checks"
+        );
     }
 
     /// The early length check never rejects a buffer the result fits in: the smallest
@@ -547,6 +592,13 @@ mod proofs {
         assert_eq!(len, if carry == 0 { 2 } else { 3 });
         assert_eq!(limbs[0], first as u64);
         assert_eq!(limbs[1], last as u64);
-        assert_eq!(limbs[2], if carry == 0 { 0xA5A5_A5A5_A5A5_A5A5 } else { carry });
+        assert_eq!(
+            limbs[2],
+            if carry == 0 {
+                0xA5A5_A5A5_A5A5_A5A5
+            } else {
+                carry
+            }
+        );
     }
 }

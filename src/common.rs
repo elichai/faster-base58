@@ -1,6 +1,6 @@
 //! Pieces shared by the decoders: the alphabet, chunk parsing and error reporting.
 
-use std::iter;
+use core::iter;
 
 use crate::Error;
 
@@ -55,7 +55,9 @@ pub(crate) fn chunks(digits: &[u8]) -> impl Iterator<Item = Option<u64>> {
 /// The error for the first invalid character in `input`.
 pub(crate) fn invalid(input: &str) -> Error {
     let index = input.bytes().position(|c| DIGITS[c as usize] == 0xFF);
-    Error::InvalidCharacter { index: index.expect("caller saw an invalid character") }
+    Error::InvalidCharacter {
+        index: index.expect("caller saw an invalid character"),
+    }
 }
 
 /// Whether every byte of `digits` is in the alphabet.

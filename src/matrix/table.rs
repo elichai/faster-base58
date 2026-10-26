@@ -4,6 +4,8 @@
 //! `i / 8`: every row of panel `p` starts at column `p`. Panel `p` stores `nb` blocks of
 //! 4 columns as `[nb][8][4]` words, zero outside each row's non-zero words.
 
+use alloc::vec::Vec;
+
 /// Characters per group: `58^4 < 2^24` leaves headroom in `u64` column sums.
 pub(crate) const GROUP: usize = 4;
 pub(crate) const GROUP_BASE: u64 = 58u64.pow(GROUP as u32);
@@ -33,13 +35,11 @@ const MAX_PRODUCT: u128 = (GROUP_BASE as u128 - 1) * u32::MAX as u128;
 const MAX_AFTER_CARRY: u128 = 2 * u32::MAX as u128;
 /// Panels between carry passes. Each panel adds 8 products to a column.
 pub(crate) const CARRY_EVERY: usize = 47;
-const _: () = assert!(
-    MAX_AFTER_CARRY + (ROWS * CARRY_EVERY) as u128 * MAX_PRODUCT <= u64::MAX as u128
-);
+const _: () =
+    assert!(MAX_AFTER_CARRY + (ROWS * CARRY_EVERY) as u128 * MAX_PRODUCT <= u64::MAX as u128);
 // One more panel could overflow: the schedule is as long as the bound allows.
-const _: () = assert!(
-    MAX_AFTER_CARRY + (ROWS * (CARRY_EVERY + 1)) as u128 * MAX_PRODUCT > u64::MAX as u128
-);
+const _: () =
+    assert!(MAX_AFTER_CARRY + (ROWS * (CARRY_EVERY + 1)) as u128 * MAX_PRODUCT > u64::MAX as u128);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Panel {
@@ -73,12 +73,16 @@ impl Table {
                     let previous = if r == 0 { ROWS - 1 } else { r - 1 };
                     let len = lengths[previous];
                     rows.copy_within(previous * stride..previous * stride + len, r * stride);
-                    lengths[r] = mul_small(&mut rows[r * stride..(r + 1) * stride], len, GROUP_BASE);
+                    lengths[r] =
+                        mul_small(&mut rows[r * stride..(r + 1) * stride], len, GROUP_BASE);
                 }
             }
             // The last row is the longest. Its top word is non-zero.
             let nb = (lengths[ROWS - 1] - p).div_ceil(4);
-            meta.push(Panel { nb, offset: data.len() });
+            meta.push(Panel {
+                nb,
+                offset: data.len(),
+            });
             for b in 0..nb {
                 for (r, &len) in lengths.iter().enumerate() {
                     for w in 0..4 {
@@ -127,13 +131,16 @@ pub(super) mod cached {
     use super::*;
     use std::sync::OnceLock;
 
-    pub(in crate::matrix) static TABLES: [OnceLock<Table>; CLASSES] = [const { OnceLock::new() }; CLASSES];
+    pub(in crate::matrix) static TABLES: [OnceLock<Table>; CLASSES] =
+        [const { OnceLock::new() }; CLASSES];
 
     /// A table that holds `chars` characters. A smaller class is a prefix of a larger one, so
     /// any larger class already built serves; otherwise the smallest class that holds
     /// `chars` is built and kept. Requires `chars <= MAX_CHARS`.
     pub(crate) fn get(chars: usize) -> &'static Table {
-        let k = (0..CLASSES).find(|&k| chars <= class_chars(k)).expect("too many characters");
+        let k = (0..CLASSES)
+            .find(|&k| chars <= class_chars(k))
+            .expect("too many characters");
         TABLES[k..]
             .iter()
             .find_map(OnceLock::get)
@@ -149,10 +156,13 @@ pub(crate) use cached::get;
 pub fn cache_memory() -> (usize, [crate::internals::MatrixCacheClass; CLASSES]) {
     #[cfg(feature = "cache")]
     {
-        let rows = std::array::from_fn(|k| match cached::TABLES[k].get() {
+        let rows = core::array::from_fn(|k| match cached::TABLES[k].get() {
             Some(t) => (
-                class_chars(k), true, t.panels.len(),
-                t.panels.capacity() * size_of::<Panel>(), t.data.len(),
+                class_chars(k),
+                true,
+                t.panels.len(),
+                t.panels.capacity() * size_of::<Panel>(),
+                t.data.len(),
                 t.data.capacity() * size_of::<u32>(),
             ),
             None => (class_chars(k), false, 0, 0, 0, 0),
@@ -160,13 +170,18 @@ pub fn cache_memory() -> (usize, [crate::internals::MatrixCacheClass; CLASSES]) 
         (size_of_val(&cached::TABLES), rows)
     }
     #[cfg(not(feature = "cache"))]
-    (0, std::array::from_fn(|k| (class_chars(k), false, 0, 0, 0, 0)))
+    (
+        0,
+        core::array::from_fn(|k| (class_chars(k), false, 0, 0, 0, 0)),
+    )
 }
 
 /// Without process-wide caching, this conversion owns the smallest suitable table.
 #[cfg(not(feature = "cache"))]
 pub(crate) fn get(chars: usize) -> Table {
-    let k = (0..CLASSES).find(|&k| chars <= class_chars(k)).expect("too many characters");
+    let k = (0..CLASSES)
+        .find(|&k| chars <= class_chars(k))
+        .expect("too many characters");
     Table::new(k)
 }
 
@@ -184,7 +199,10 @@ mod tests {
         {
             let (header, rows) = cache_memory();
             assert_eq!(header, 0);
-            assert!(rows.iter().all(|r| !r.1 && r.2 == 0 && r.3 == 0 && r.4 == 0 && r.5 == 0));
+            assert!(
+                rows.iter()
+                    .all(|r| !r.1 && r.2 == 0 && r.3 == 0 && r.4 == 0 && r.5 == 0)
+            );
         }
     }
 
@@ -210,13 +228,16 @@ mod tests {
         let mut meta = Vec::with_capacity(panels);
         let mut data = Vec::with_capacity(DATA_WORDS[k]);
         for p in 0..panels {
-            let rows: [Vec<u32>; ROWS] = std::array::from_fn(|_| {
+            let rows: [Vec<u32>; ROWS] = core::array::from_fn(|_| {
                 let r = row.clone();
                 reference_mul_small(&mut row, GROUP_BASE);
                 r
             });
             let nb = (rows[ROWS - 1].len() - p).div_ceil(4);
-            meta.push(Panel { nb, offset: data.len() });
+            meta.push(Panel {
+                nb,
+                offset: data.len(),
+            });
             for b in 0..nb {
                 for r in &rows {
                     for w in 0..4 {
@@ -315,13 +336,18 @@ mod tests {
 
     #[test]
     fn storage_has_no_spare_capacity() {
-        let sizes: Vec<_> = (0..CLASSES).map(|k| {
-            let t = class(k);
-            assert_eq!(t.data.len(), DATA_WORDS[k]);
-            assert_eq!(t.panels.capacity(), t.panels.len());
-            (class_chars(k), t.data.len() * 4, t.data.capacity() * 4)
-        }).collect();
-        assert!(sizes.iter().all(|row| row.1 == row.2), "class/data/capacity bytes: {sizes:?}");
+        let sizes: Vec<_> = (0..CLASSES)
+            .map(|k| {
+                let t = class(k);
+                assert_eq!(t.data.len(), DATA_WORDS[k]);
+                assert_eq!(t.panels.capacity(), t.panels.len());
+                (class_chars(k), t.data.len() * 4, t.data.capacity() * 4)
+            })
+            .collect();
+        assert!(
+            sizes.iter().all(|row| row.1 == row.2),
+            "class/data/capacity bytes: {sizes:?}"
+        );
     }
 
     /// [`get`] relies on this to serve a request from a larger class.

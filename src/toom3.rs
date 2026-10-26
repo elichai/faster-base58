@@ -29,13 +29,20 @@ pub fn decode_toom3(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 /// [`decode_toom3`] with Toom-3 for operands of at least `threshold` limbs. Panics if
 /// `threshold` is below 32.
 pub fn decode_toom3_with(input: &str, output: &mut [u8], threshold: usize) -> Result<usize, Error> {
-    assert!(threshold >= MIN_THRESHOLD, "Toom-3 threshold below {MIN_THRESHOLD}");
+    assert!(
+        threshold >= MIN_THRESHOLD,
+        "Toom-3 threshold below {MIN_THRESHOLD}"
+    );
     dc::decode_with(input, output, &mut Toom3 { threshold })
 }
 
 /// Like `encode_karatsuba`, but uses Toom-3 for large products.
 pub fn encode_toom3(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    let threshold = if mul::ifma_threshold() != 0 { IFMA_THRESHOLD } else { THRESHOLD };
+    let threshold = if mul::ifma_threshold() != 0 {
+        IFMA_THRESHOLD
+    } else {
+        THRESHOLD
+    };
     encode::dc::karatsuba::encode_with(input, output, &mut Toom3 { threshold })
 }
 
@@ -70,7 +77,9 @@ fn mul_with(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64], threshol
         toom3(out, a, b, scratch, threshold);
     } else {
         // Each block product suits Toom-3.
-        mul::mul_blocks(out, a, b, scratch, |o, x, y, s| mul_with(o, x, y, s, threshold));
+        mul::mul_blocks(out, a, b, scratch, |o, x, y, s| {
+            mul_with(o, x, y, s, threshold)
+        });
     }
 }
 
@@ -110,7 +119,11 @@ fn toom3(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64], threshold: 
     // Every value below is a sum of non-negative c_i, so nothing wraps.
     let mut wrap = false;
     // (r(2) - r(-1)) / 3 = c1 + c2 + 3·c3 + 5·c4
-    wrap |= if neg { add_assign(v2, vm1) } else { sub_assign(v2, vm1) };
+    wrap |= if neg {
+        add_assign(v2, vm1)
+    } else {
+        sub_assign(v2, vm1)
+    };
     div3(v2);
     // (r(1) ∓ |r(-1)|) / 2 are c1 + c3 and c0 + c2 + c4, in an order set by the sign.
     wrap |= sub_assign(v1, vm1);
@@ -221,9 +234,15 @@ mod tests {
     fn scratch_fits() {
         for n in MIN_THRESHOLD..1 << 20 {
             let k = n.div_ceil(3);
-            assert!(6 * k + 6 + mul::scratch_len(k + 1) <= mul::scratch_len(n), "toom3, {n}");
+            assert!(
+                6 * k + 6 + mul::scratch_len(k + 1) <= mul::scratch_len(n),
+                "toom3, {n}"
+            );
             // Blocks are cut for operands of at most `2k` limbs.
-            assert!(4 * k + mul::scratch_len(2 * k) <= mul::scratch_len(n), "blocks, {n}");
+            assert!(
+                4 * k + mul::scratch_len(2 * k) <= mul::scratch_len(n),
+                "blocks, {n}"
+            );
         }
     }
 
@@ -233,7 +252,13 @@ mod tests {
         // Exactly the documented scratch size, filled with garbage.
         let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; mul::scratch_len(a.len().max(b.len()))];
         mul_with(&mut got, a, b, &mut scratch, threshold);
-        assert_eq!(got, want, "{} x {}, threshold {threshold}", a.len(), b.len());
+        assert_eq!(
+            got,
+            want,
+            "{} x {}, threshold {threshold}",
+            a.len(),
+            b.len()
+        );
     }
 
     #[test]
@@ -241,7 +266,17 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(1);
         let (m, t) = (MIN_THRESHOLD, THRESHOLD);
         let lens = (0..=2)
-            .chain([m - 1, m, m + 1, 2 * m - 1, 2 * m, 2 * m + 1, 3 * m - 1, 3 * m, 3 * m + 1])
+            .chain([
+                m - 1,
+                m,
+                m + 1,
+                2 * m - 1,
+                2 * m,
+                2 * m + 1,
+                3 * m - 1,
+                3 * m,
+                3 * m + 1,
+            ])
             .chain([t - 1, t, t + 1, 200, 257, 513]);
         for na in lens.clone() {
             for nb in lens.clone() {
@@ -301,8 +336,9 @@ mod tests {
                 let b = vec![u64::MAX; nb];
                 check(&vec![0; n], &b, MIN_THRESHOLD);
                 check(&cancel, &b, MIN_THRESHOLD);
-                let sparse: Vec<_> =
-                    (0..n).map(|i| if i % 17 == 0 { u64::MAX } else { 0 }).collect();
+                let sparse: Vec<_> = (0..n)
+                    .map(|i| if i % 17 == 0 { u64::MAX } else { 0 })
+                    .collect();
                 check(&sparse, &b, MIN_THRESHOLD);
             }
         }
@@ -331,7 +367,16 @@ mod tests {
     #[test]
     fn div3_carry_boundaries() {
         let third = u64::MAX / 3;
-        for q in [0, 1, 4, third, third + 1, 2 * third, 2 * third + 1, u64::MAX] {
+        for q in [
+            0,
+            1,
+            4,
+            third,
+            third + 1,
+            2 * third,
+            2 * third + 1,
+            u64::MAX,
+        ] {
             let product = 3 * q as u128;
             let mut x = [product as u64, (product >> 64) as u64];
             div3(&mut x);

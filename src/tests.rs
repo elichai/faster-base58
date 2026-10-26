@@ -5,11 +5,11 @@ use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
 use crate::common::{ALPHABET, CHUNK, DIGITS, all_valid};
 use crate::dc::DC_THRESHOLD;
-use crate::{Error, decode, decode_malachite};
 use crate::internals::{
-    decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable,
-    decode_ntt, decode_ntt_cached, decode_ntt_portable, decode_toom3,
+    decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable, decode_ntt,
+    decode_ntt_cached, decode_ntt_portable, decode_toom3,
 };
+use crate::{Error, decode, decode_malachite};
 
 pub(crate) type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 
@@ -37,7 +37,9 @@ pub(crate) fn decode_vec(f: Decode, s: &str) -> Result<Vec<u8>, Error> {
 }
 
 pub(crate) fn random_string(rng: &mut Xoshiro256PlusPlus, len: usize) -> String {
-    (0..len).map(|_| ALPHABET[(rng.next_u32() % 58) as usize] as char).collect()
+    (0..len)
+        .map(|_| ALPHABET[(rng.next_u32() % 58) as usize] as char)
+        .collect()
 }
 
 /// Checks every decoder against bs58 on `s`: the output, or the index of the first
@@ -60,7 +62,11 @@ fn check(s: &str) -> Result<Vec<u8>, usize> {
             assert_eq!(f(s, &mut exact), Ok(want.len()), "{name}: exact buffer");
             assert_eq!(&exact, want, "{name}: exact buffer");
             if let Some(short) = exact.get_mut(1..) {
-                assert_eq!(f(s, short), Err(Error::BufferTooSmall), "{name}: short buffer");
+                assert_eq!(
+                    f(s, short),
+                    Err(Error::BufferTooSmall),
+                    "{name}: short buffer"
+                );
             }
         }
     }
@@ -92,7 +98,11 @@ fn matches_bs58() {
     // plus 58^n - 1, which maximises carries.
     for len in [32 * 1024, 32 * 1024 + 1] {
         let data = random_bytes(&mut rng, len);
-        assert_eq!(check(&bs58::encode(&data).into_string()), Ok(data), "{len} bytes");
+        assert_eq!(
+            check(&bs58::encode(&data).into_string()),
+            Ok(data),
+            "{len} bytes"
+        );
     }
     assert!(check(&"z".repeat(44_761)).is_ok());
 }
@@ -112,7 +122,11 @@ fn powers_of_two_64() {
     for k in [1, 2, 63, 64, 65, 300, 468, 469, 470, 600, 1000] {
         let mut data = vec![0u8; 8 * k + 1];
         data[0] = 1;
-        assert_eq!(check(&bs58::encode(&data).into_string()), Ok(data), "2^(64 * {k})");
+        assert_eq!(
+            check(&bs58::encode(&data).into_string()),
+            Ok(data),
+            "2^(64 * {k})"
+        );
     }
 }
 
@@ -124,8 +138,18 @@ fn large_inputs_match_batched() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(7);
     let len = 300_001;
     let random = random_string(&mut rng, len);
-    let zero_run = format!("{}{}{}", &random[..1000], "1".repeat(100_000), &random[1000..]);
-    for s in [random, "z".repeat(len), zero_run, format!("111{}", "z".repeat(len))] {
+    let zero_run = format!(
+        "{}{}{}",
+        &random[..1000],
+        "1".repeat(100_000),
+        &random[1000..]
+    );
+    for s in [
+        random,
+        "z".repeat(len),
+        zero_run,
+        format!("111{}", "z".repeat(len)),
+    ] {
         let want = decode_vec(decode_batched, &s);
         for &(name, f) in DECODERS {
             assert!(decode_vec(f, &s) == want, "{name}, {} chars", s.len());
@@ -153,7 +177,13 @@ fn random_buffer_sizes() {
         }
         let want = bs58::decode(&s).into_vec().ok();
         let n = want.as_ref().map_or(s.len(), Vec::len);
-        let sizes = [0, n.saturating_sub(1), n, n + 1, rng.next_u32() as usize % (n + 2)];
+        let sizes = [
+            0,
+            n.saturating_sub(1),
+            n,
+            n + 1,
+            rng.next_u32() as usize % (n + 2),
+        ];
         for &(name, f) in DECODERS {
             for size in sizes {
                 let mut out = vec![0xAA; size];

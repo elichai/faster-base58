@@ -45,7 +45,7 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 /// `crate::max_encoded_len(input.len())` bytes suffice for an actual input slice.
 pub fn encode_into<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a str, BufferTooSmall> {
     let len = encode(input, output)?;
-    Ok(std::str::from_utf8(&output[..len]).expect("base58 output is ASCII"))
+    Ok(core::str::from_utf8(&output[..len]).expect("base58 output is ASCII"))
 }
 
 /// Decodes into an array or slice and borrows the bytes written.

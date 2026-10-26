@@ -2,6 +2,10 @@ name: Verification
 
 on:
   push:
+    paths-ignore:
+      - 'docs/review/**'
+      - 'docs/superpowers/**'
+      - '.optimization-log/**'
   pull_request:
   workflow_dispatch:
     inputs:
@@ -17,6 +21,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   tests:
     env:
@@ -24,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         profile:
           - { name: debug, args: '' }
           - { name: release, args: '--release' }
@@ -34,13 +46,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup update stable --no-self-update
       - run: rustc +stable -vV
       - name: Unit, API, and property tests
         run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
       - name: Public API without internal exports
-        run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+        run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Downstream API and internal namespace boundaries
         if: matrix.profile.name == 'debug' && matrix.caches.name == 'off'
         env:
@@ -59,7 +71,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup update stable --no-self-update
       - run: cargo +stable test --locked --lib --tests --features __internals,malachite-nz/32_bit_limbs
       - run: cargo +stable test --locked --release --lib --tests --features __internals,malachite-nz/32_bit_limbs
@@ -71,7 +83,7 @@ jobs:
       matrix:
         target: [wasm32-unknown-unknown, aarch64-unknown-linux-gnu]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup target add --toolchain stable ${{ matrix.target }}
       - run: cargo +stable check --locked --lib --target ${{ matrix.target }}
       - run: cargo +stable check --locked --lib --features cache --target ${{ matrix.target }}
@@ -82,15 +94,65 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact
+
+  no_std:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [thumbv7em-none-eabi, x86_64-unknown-none]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup target add --toolchain stable ${{ matrix.target }}
+      - run: cargo +stable check --locked --lib --no-default-features --target ${{ matrix.target }}
+      - run: cargo +stable check --locked --lib --no-default-features --features __internals --target ${{ matrix.target }}
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup toolchain install 1.95 --profile minimal
+      - run: cargo +1.95 check --locked --lib
+      - run: cargo +1.95 check --locked --lib --features std
+      - run: cargo +1.95 check --locked --lib --features cache
+      - run: cargo +1.95 check --locked --lib --features __internals
+      - run: cargo +1.95 check --locked --lib --all-features
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --features std
+        env:
+          PROPTEST_CASES: '512'
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo +stable package --locked
+      - run: python3 scripts/check_package.py target/package
+
+  pointer_width_32:
+    runs-on: ubuntu-latest
+    env:
+      PROPTEST_CASES: '512'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y gcc-multilib
+      - run: rustup target add --toolchain stable i686-unknown-linux-gnu
+      - run: cargo +stable test --locked --target i686-unknown-linux-gnu --features __internals --lib --tests
+      - run: cargo +stable test --locked --target i686-unknown-linux-gnu --features __internals,cache --lib --tests
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup component add clippy --toolchain stable
+      - run: rustup component add rustfmt --toolchain stable
+      - run: cargo +stable fmt --all -- --check
+      - run: cargo +stable fmt --manifest-path tools/resource-profile/Cargo.toml --all -- --check
+      - run: cargo +stable fmt --manifest-path fuzz/Cargo.toml --all -- --check
       - run: cargo +stable clippy --locked --lib -- -D warnings
+      - run: cargo +stable clippy --locked --lib --features std -- -D warnings
       - run: cargo +stable clippy --locked --lib --features cache -- -D warnings
       - run: cargo +stable clippy --locked --lib --features __internals -- -D warnings
       - run: cargo +stable clippy --locked --lib --all-features -- -D warnings
@@ -107,7 +169,7 @@ jobs:
       matrix:
         cache_args: ['', '--features cache']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }}
       - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features count-allocations ${{ matrix.cache_args }}
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }} -- self-check
@@ -119,6 +181,7 @@ jobs:
       - run: python3 scripts/benchmark_graphs.py --self-test
       - run: python3 scripts/compare_threshold.py --self-test
       - run: python3 scripts/ac_power_run.py --self-test
+      - run: python3 assets/graphs/render.py --check
       - run: python3 docs/tradeoffs/2026-10-25/ac-power/verify_power.py --self-test
       - run: python3 -m py_compile scripts/validate_wasm_tradeoffs.py
       - run: node --check scripts/code_size_wasm.mjs
@@ -128,7 +191,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup target add --toolchain stable wasm32-unknown-unknown
       - run: rustup component add --toolchain stable llvm-tools
       - run: cargo +stable fetch --locked --manifest-path tools/resource-profile/Cargo.toml
@@ -151,19 +214,19 @@ jobs:
       RUSTFLAGS: -C target-cpu=x86-64 -C target-feature=+avx2
       MIRIFLAGS: -Zmiri-strict-provenance
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install nightly-2026-10-23 --component miri --profile minimal
-      - run: cargo +nightly-2026-10-23 miri setup --target x86_64-unknown-linux-gnu
-      - run: cargo +nightly-2026-10-23 miri test --target x86_64-unknown-linux-gnu --locked --features __internals --test miri
-      - run: cargo +nightly-2026-10-23 miri test --target x86_64-unknown-linux-gnu --locked --test tiny_inputs
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup toolchain install nightly-2026-10-26 --component miri --profile minimal
+      - run: cargo +nightly-2026-10-26 miri setup --target x86_64-unknown-linux-gnu
+      - run: cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --features __internals --test miri
+      - run: cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --test tiny_inputs
       - run: >-
-          cargo +nightly-2026-10-23 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
-      - run: cargo +nightly-2026-10-23 miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact
+          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
+      - run: cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact
       - name: Alternate alias model and seed
         env:
           MIRIFLAGS: -Zmiri-strict-provenance -Zmiri-tree-borrows -Zmiri-seed=1
         run: >-
-          cargo +nightly-2026-10-23 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
+          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
 
   miri_arm_panel:
     runs-on: ubuntu-latest
@@ -172,11 +235,11 @@ jobs:
       RUSTFLAGS: -C target-cpu=generic
       MIRIFLAGS: -Zmiri-strict-provenance
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install nightly-2026-10-23 --component miri --profile minimal
-      - run: cargo +nightly-2026-10-23 miri setup --target aarch64-unknown-linux-gnu
-      - run: cargo +nightly-2026-10-23 miri test --target aarch64-unknown-linux-gnu --locked --lib matrix::neon::tests::panel_matches_portable -- --exact
-      - run: cargo +nightly-2026-10-23 miri test --target aarch64-unknown-linux-gnu --locked --features __internals,malachite-nz/32_bit_limbs --test miri forced_encoder_leaves -- --exact
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup toolchain install nightly-2026-10-26 --component miri --profile minimal
+      - run: cargo +nightly-2026-10-26 miri setup --target aarch64-unknown-linux-gnu
+      - run: cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --lib matrix::neon::tests::panel_matches_portable -- --exact
+      - run: cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --features __internals,malachite-nz/32_bit_limbs --test miri forced_encoder_leaves -- --exact
 
   miri_unsupported_simd:
     if: github.event_name == 'workflow_dispatch' && inputs.extended_miri
@@ -187,8 +250,8 @@ jobs:
       matrix:
         arch: [arm, x86]
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install nightly-2026-10-23 --component miri --profile minimal
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup toolchain install nightly-2026-10-26 --component miri --profile minimal
       # This job deliberately remains red while upstream shims are missing.
       - run: sh scripts/miri-extended.sh ${{ matrix.arch }}
 
@@ -200,14 +263,14 @@ jobs:
       matrix:
         cache_args: ['', '--features cache']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup toolchain install nightly --profile minimal
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: |
           python3 fuzz/test_seed_corpus.py
           python3 fuzz/seed_corpus.py
-      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} encode_all fuzz/corpus/encode_small -- -max_len=2048 -max_total_time=60 -timeout=30 -rss_limit_mb=4096
-      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} decode_all fuzz/corpus/decode_small -- -max_len=2048 -max_total_time=60 -timeout=30 -rss_limit_mb=4096
+      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} encode_all fuzz/corpus/encode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly fuzz run ${{ matrix.cache_args }} decode_all fuzz/corpus/decode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly fuzz run ${{ matrix.cache_args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly fuzz run ${{ matrix.cache_args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
 
@@ -215,11 +278,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cargo install --locked kani-verifier --version 0.68.0
       - run: cargo kani setup
       - run: sudo apt-get update
       - run: sudo apt-get install -y z3
+      - name: Tiny production paths and alphabet domains
+        run: sh scripts/kani-production.sh
       # Wider experimental obligations have separate documented timeout results.
       - run: >-
           cargo kani --lib --harness ntt::proofs:: --harness matrix::proofs::
@@ -245,7 +310,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cargo install --locked kani-verifier --version 0.68.0
       - run: cargo kani setup
       - run: sudo apt-get update

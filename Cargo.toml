@@ -1,13 +1,31 @@
 [package]
-name = "base58-bench"
+name = "faster-base58"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.95"
+description = "Fast Bitcoin Base58 encoding and decoding with automatic CPU dispatch"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/elichai/faster-base58"
+readme = "README.md"
+keywords = ["base58", "encoding", "no-std", "serialization"]
+categories = ["encoding", "no-std"]
+include = [
+    "/src/**", "/tests/**/*.rs", "/benches/*.rs",
+    "/README.md", "/DESIGN.md", "/LICENSE-*",
+    "/assets/graphs/*.svg", "/docs/performance.md", "/docs/review/production*.md",
+]
 
 [features]
+default = []
+std = []
 # Opt in to process-wide matrix tables and bounded NTT twiddle retention.
-cache = []
+cache = ["std"]
 # Unstable hooks for this repository's tests and measurement tools.
 __internals = []
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+# OS-aware runtime detection without std or handwritten CPUID/XGETBV code.
+cpufeatures = "0.3.1"
 
 [dev-dependencies]
 basexx = "0.2.0"

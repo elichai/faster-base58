@@ -19,7 +19,11 @@ use crate::encode::max_encoded_len;
 #[cfg(any(
     test,
     feature = "__internals",
-    not(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))
+    not(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
 ))]
 pub(super) mod portable;
 
@@ -106,7 +110,7 @@ const _: () = TABLE_32.check(32);
 const _: () = TABLE_64.check(64);
 
 // Select the architecture wrappers here; the scalar implementation stays common.
-std::cfg_select! {
+core::cfg_select! {
     target_arch = "x86_64" => {
         pub(super) use super::x86::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
     }
@@ -145,7 +149,7 @@ pub(super) fn encode<const N: usize, const C: usize>(
 pub(super) fn words<const N: usize, const W: usize>(x: &[u8; N]) -> [u32; W] {
     const { assert!(N == 4 * W) };
     let c = x.as_chunks::<4>().0;
-    std::array::from_fn(|k| u32::from_be_bytes(c[W - 1 - k]))
+    core::array::from_fn(|k| u32::from_be_bytes(c[W - 1 - k]))
 }
 
 /// The characters of `x`'s value in `4 C` digits, top first, from separate kernels: `cols`
@@ -191,7 +195,11 @@ fn column(t: u64, q: u32) -> u32 {
 /// [`carry`], returning the carried columns.
 #[cfg(any(
     target_arch = "x86_64",
-    all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
     test
 ))]
 #[inline(always)]
@@ -218,7 +226,11 @@ pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
 /// segment.
 #[cfg(any(
     target_arch = "x86_64",
-    all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
     test
 ))]
 #[inline(always)]
@@ -295,7 +307,10 @@ mod verification {
             kani::assume(v < 1 << 58);
         }
         kani::assume(t[3] < COL_BASE);
-        let value = t.iter().rev().fold(0u128, |v, &c| v * COL_BASE as u128 + c as u128);
+        let value = t
+            .iter()
+            .rev()
+            .fold(0u128, |v, &c| v * COL_BASE as u128 + c as u128);
         kani::assume(value < (COL_BASE as u128).pow(4));
         (t, value)
     }
@@ -374,8 +389,8 @@ mod tests {
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
-    use super::*;
     use super::portable::{cols, digits, encode_32_portable, encode_64_portable};
+    use super::*;
     use crate::encode::tests::{Encode, encode_vec, random_bytes};
     use crate::internals::{encode_batched, encode_matrix, encode_matrix_portable};
 
@@ -425,7 +440,10 @@ mod tests {
             assert!(exact == want, "{at}: exact");
             let mut short = vec![0xAA; want.len() - 1];
             assert_eq!(f(data, &mut short), Err(BufferTooSmall), "{at}: short");
-            assert!(short.iter().all(|&b| b == 0xAA), "{at}: wrote into a short buffer");
+            assert!(
+                short.iter().all(|&b| b == 0xAA),
+                "{at}: wrote into a short buffer"
+            );
             assert_eq!(f(data, &mut []), Err(BufferTooSmall), "{at}: empty");
         }
     }
@@ -490,14 +508,24 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(43);
         for n in [1, 4, 12, 24, 100] {
             let cols: Vec<u64> = (0..n).map(|_| rng.next_u64() % COL_BASE).collect();
-            let q: Vec<u32> = (0..n).map(|i| if i % 3 == 0 { 0 } else { rng.next_u32() }).collect();
-            let t: Vec<u64> = cols.iter().zip(&q).map(|(&c, &q)| c + COL_BASE * q as u64).collect();
+            let q: Vec<u32> = (0..n)
+                .map(|i| if i % 3 == 0 { 0 } else { rng.next_u32() })
+                .collect();
+            let t: Vec<u64> = cols
+                .iter()
+                .zip(&q)
+                .map(|(&c, &q)| c + COL_BASE * q as u64)
+                .collect();
             let mut want = vec![[0; 4]; n];
             super::super::digits(&cols, &mut want);
             let mut got = vec![[0; 4]; n];
             digits(&t, &q, &mut got);
             assert_eq!(got, want, "{n} columns");
-            #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
+            #[cfg(all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ))]
             if n % 4 == 0 {
                 let mut got = vec![[0; 4]; n];
                 super::super::neon::fixed_digits(&t, &q, &mut got);
@@ -517,8 +545,13 @@ mod tests {
     }
 
     fn split_matches_all(x: &[u8; 64]) -> [bool; 5] {
-        [split_matches::<2>(x), split_matches::<3>(x), split_matches::<4>(x),
-            split_matches::<5>(x), split_matches::<6>(x)]
+        [
+            split_matches::<2>(x),
+            split_matches::<3>(x),
+            split_matches::<4>(x),
+            split_matches::<5>(x),
+            split_matches::<6>(x),
+        ]
     }
 
     /// Random inputs, then inputs whose base-58^4 digit above a segment's first column is
@@ -554,12 +587,18 @@ mod tests {
     }
 
     /// The NEON column kernel against the plain-Rust one.
-    #[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
+    #[cfg(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))]
     #[test]
     fn neon_cols_match_portable() {
         use super::super::neon;
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
-        let inputs = (0..1000).map(|_| random_bytes(&mut rng, 64)).chain([vec![0xFF; 64]]);
+        let inputs = (0..1000)
+            .map(|_| random_bytes(&mut rng, 64))
+            .chain([vec![0xFF; 64]]);
         for x in inputs {
             let (x64, x32): (&[u8; 64], &[u8; 32]) =
                 (x[..].try_into().unwrap(), x[..32].try_into().unwrap());

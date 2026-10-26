@@ -5,7 +5,7 @@ use core::arch::x86_64::*;
 
 /// Whether this CPU has AVX-512F and AVX-512 IFMA.
 pub fn available() -> bool {
-    is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512ifma")
+    crate::cpu::ifma()
 }
 
 /// `out = a * b`. Requires [`available`], `8 <= a.len() <= b.len()`,

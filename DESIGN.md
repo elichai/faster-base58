@@ -3,7 +3,11 @@
 This crate converts the Bitcoin Base58 alphabet. The root API selects kernels by
 size and CPU; `no_alloc` provides conversion without internal heap allocation.
 Generated-table retention is an opt-in `cache` feature, off by default.
-The library requires `std` and has no normal dependencies.
+The default library uses `core` and `alloc`, with no `std` dependency. `std` is
+an explicit feature, and `cache` enables it. On x86-64, the small `cpufeatures`
+dependency provides OS-aware runtime SIMD detection; other architectures need
+no normal dependencies. Its five cached detection booleans are atomic bytes,
+separate from generated table retention, and allocate no heap memory.
 
 This map complements [the user guide](README.md), [historical derivations](docs/historical-readme.md) and
 [the tradeoff evidence](docs/tradeoffs/README.md). The
@@ -51,10 +55,10 @@ remain because the feature also changes dispatch. Cache storage and fixed
 portable helpers share module gates; ISA/test/proof and conditional NTT state
 boundaries retain explicit gates. See the [cfg review](docs/review/cfg-consolidation.md).
 
-Four mutually exclusive CPU selectors use standard `std::cfg_select!`, including
+Four mutually exclusive CPU selectors use standard `core::cfg_select!`, including
 portable fallbacks. Runtime ISA checks and overlapping test/internal/cache gates
-stay separate. The macro requires Rust 1.95+; the checked stable compiler is
-1.99.1 and Kani's is 1.100 nightly. A complete crate MSRV remains undecided.
+stay separate. The crate's MSRV is Rust 1.95; a dedicated CI job checks it.
+Kani uses its separate bundled nightly compiler.
 
 | Family | Main use | Boundary behavior |
 | --- | --- | --- |
@@ -264,6 +268,15 @@ constants are separate. These sizes depend on target/toolchain layout, and
 dead stripping can omit unreachable cache families. Fewer initialized classes
 retain less; later calls can add classes. Construction temporaries, prepared
 powers, workspace and concurrent owned tables are additional active costs.
+
+Precomputing every general cache class would move up to about 41.8 MiB of table
+payload into static binary data before dead stripping, rather than generating
+only the classes a process actually uses. That is a poor default for small or
+Wasm consumers. The fixed 32/64-byte tables are already compile-time constants;
+general retention remains lazy and opt-in through `cache`/`std`. A smaller
+selected static-table policy is a separate, unmeasured option, not implemented
+as part of the no_std port. Changing a generated constant initializer from
+`static` to `const` does not itself turn a lazy heap table into static storage.
 
 The earlier M5 Auto snapshot records cached 1 KiB encoding retaining 185,856 table
 bytes. In the allocation rerun, cache-off 4 MiB NTT encoding retains zero after

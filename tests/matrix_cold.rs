@@ -7,8 +7,8 @@
 use std::sync::Barrier;
 use std::thread;
 
-use base58_bench::internals::{decode_batched, decode_matrix};
-use base58_bench::Error;
+use faster_base58::Error;
+use faster_base58::internals::{decode_batched, decode_matrix};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
@@ -42,7 +42,11 @@ fn cold_start_from_threads() {
                 barrier.wait();
                 // Each thread starts in another class, so classes are built concurrently.
                 for i in (0..inputs.len()).map(|i| (i + t) % inputs.len()) {
-                    assert_eq!(decode(decode_matrix, &inputs[i]), want[i], "thread {t}, input {i}");
+                    assert_eq!(
+                        decode(decode_matrix, &inputs[i]),
+                        want[i],
+                        "thread {t}, input {i}"
+                    );
                 }
             });
         }

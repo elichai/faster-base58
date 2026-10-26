@@ -12,8 +12,16 @@ static PEAK: AtomicUsize = AtomicUsize::new(0);
 static COUNTERS: [AtomicUsize; 10] = [const { AtomicUsize::new(0) }; 10];
 
 pub const NAMES: [&str; 10] = [
-    "alloc_calls", "alloc_bytes", "zeroed_calls", "zeroed_bytes", "realloc_calls",
-    "realloc_old_bytes", "realloc_new_bytes", "dealloc_calls", "dealloc_bytes", "failed_calls",
+    "alloc_calls",
+    "alloc_bytes",
+    "zeroed_calls",
+    "zeroed_bytes",
+    "realloc_calls",
+    "realloc_old_bytes",
+    "realloc_new_bytes",
+    "dealloc_calls",
+    "dealloc_bytes",
+    "failed_calls",
 ];
 
 #[derive(Debug)]
@@ -35,7 +43,10 @@ fn add(counter: &AtomicUsize, n: usize) -> usize {
 }
 
 fn sub_live(n: usize) {
-    if LIVE.try_update(Relaxed, Relaxed, |v| v.checked_sub(n)).is_err() {
+    if LIVE
+        .try_update(Relaxed, Relaxed, |v| v.checked_sub(n))
+        .is_err()
+    {
         INVALID.store(true, Relaxed);
     }
 }
@@ -61,7 +72,9 @@ unsafe impl GlobalAlloc for Counting {
         }
         let p = unsafe { System.alloc(layout) };
         if p.is_null() {
-            if ACTIVE.load(Relaxed) { count(9, 1); }
+            if ACTIVE.load(Relaxed) {
+                count(9, 1);
+            }
         } else {
             added_live(layout.size());
         }
@@ -77,7 +90,9 @@ unsafe impl GlobalAlloc for Counting {
         }
         let p = unsafe { System.alloc_zeroed(layout) };
         if p.is_null() {
-            if ACTIVE.load(Relaxed) { count(9, 1); }
+            if ACTIVE.load(Relaxed) {
+                count(9, 1);
+            }
         } else {
             added_live(layout.size());
         }
@@ -101,7 +116,9 @@ unsafe impl GlobalAlloc for Counting {
         }
         let q = unsafe { System.realloc(p, old, new_size) };
         if q.is_null() {
-            if ACTIVE.load(Relaxed) { count(9, 1); }
+            if ACTIVE.load(Relaxed) {
+                count(9, 1);
+            }
         } else if new_size >= old.size() {
             added_live(new_size - old.size());
         } else {
@@ -113,8 +130,13 @@ unsafe impl GlobalAlloc for Counting {
 
 pub fn begin() -> usize {
     assert!(!ACTIVE.load(Relaxed), "nested allocation window");
-    assert!(!INVALID.load(Relaxed), "allocation counter overflow/underflow");
-    for counter in &COUNTERS { counter.store(0, Relaxed); }
+    assert!(
+        !INVALID.load(Relaxed),
+        "allocation counter overflow/underflow"
+    );
+    for counter in &COUNTERS {
+        counter.store(0, Relaxed);
+    }
     let before = LIVE.load(Relaxed);
     PEAK.store(before, Relaxed);
     ACTIVE.store(true, Relaxed);
@@ -123,7 +145,10 @@ pub fn begin() -> usize {
 
 pub fn end(before: usize) -> Stats {
     assert!(ACTIVE.swap(false, Relaxed), "no allocation window");
-    assert!(!INVALID.load(Relaxed), "allocation counter overflow/underflow");
+    assert!(
+        !INVALID.load(Relaxed),
+        "allocation counter overflow/underflow"
+    );
     Stats {
         counters: std::array::from_fn(|i| COUNTERS[i].load(Relaxed)),
         live_before: before,

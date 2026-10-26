@@ -8,10 +8,10 @@ use super::portable;
 /// See `portable::panel`.
 pub(super) fn panel(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
     assert!(acc.len().is_multiple_of(4) && words.len() == 8 * acc.len());
-    if is_x86_feature_detected!("avx2") {
+    if crate::cpu::avx2() {
         // SAFETY: the CPU has AVX2.
         unsafe { avx2(acc, words, d) }
-    } else if is_x86_feature_detected!("sse4.1") {
+    } else if crate::cpu::sse41() {
         // SAFETY: the CPU has SSE4.1.
         unsafe { sse41(acc, words, d) }
     } else {
@@ -22,7 +22,12 @@ pub(super) fn panel(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
 /// [`panel`] with AVX2, without its length check.
 #[target_feature(enable = "avx2")]
 fn avx2(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
-    for (a, t) in acc.as_chunks_mut::<4>().0.iter_mut().zip(words.as_chunks::<32>().0) {
+    for (a, t) in acc
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(words.as_chunks::<32>().0)
+    {
         let a = a.as_mut_ptr().cast::<__m256i>();
         let t = t.as_ptr().cast::<__m128i>();
         // SAFETY: `a` points to 32 bytes and `t` to 8 rows of 16 bytes; all accesses are
@@ -43,7 +48,12 @@ fn avx2(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
 /// [`panel`] with SSE4.1, without its length check.
 #[target_feature(enable = "sse4.1")]
 fn sse41(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
-    for (a, t) in acc.as_chunks_mut::<4>().0.iter_mut().zip(words.as_chunks::<32>().0) {
+    for (a, t) in acc
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(words.as_chunks::<32>().0)
+    {
         let a = a.as_mut_ptr().cast::<__m128i>();
         let t = t.as_ptr().cast::<__m128i>();
         // SAFETY: as in `avx2`.
@@ -76,19 +86,19 @@ mod tests {
         for nb in [0, 1, 2, 7, 50] {
             let acc: Vec<u64> = (0..4 * nb).map(|_| rng.next_u64() >> 24).collect();
             let words: Vec<u32> = (0..32 * nb).map(|_| rng.next_u32()).collect();
-            let d: [u32; 8] = std::array::from_fn(|_| rng.next_u32() % 58u32.pow(4));
+            let d: [u32; 8] = core::array::from_fn(|_| rng.next_u32() % 58u32.pow(4));
             let mut want = acc.clone();
             portable::panel(&mut want, &words, &d);
             let mut got = acc.clone();
             panel(&mut got, &words, &d);
             assert_eq!(got, want, "dispatch, nb {nb}");
-            if is_x86_feature_detected!("sse4.1") {
+            if crate::cpu::sse41() {
                 let mut got = acc.clone();
                 // SAFETY: the CPU has SSE4.1.
                 unsafe { sse41(&mut got, &words, &d) };
                 assert_eq!(got, want, "sse4.1, nb {nb}");
             }
-            if is_x86_feature_detected!("avx2") {
+            if crate::cpu::avx2() {
                 let mut got = acc.clone();
                 // SAFETY: the CPU has AVX2.
                 unsafe { avx2(&mut got, &words, &d) };

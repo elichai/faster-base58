@@ -12,7 +12,7 @@ fuzz_target!(|data: &[u8]| {
     if data.len() > MAX_INPUT_BYTES {
         return;
     }
-    let selector = data.first().copied().unwrap_or(0) as usize;
+    let selector = support::scalar::selector(data);
     support::check_encode(data, selector);
     support::check_decode(&bs58::encode(data).into_string(), selector);
 });

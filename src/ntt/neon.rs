@@ -5,7 +5,7 @@
 //! `sqdmulh` + `srshr` + `mls` is [`Prime::reduce`]. The `h = 2` and `h = 1` stages run
 //! inside registers with `zip`/`uzp`.
 
-use std::arch::aarch64::*;
+use core::arch::aarch64::*;
 
 use super::Kernels;
 use super::crt::GARNER;
@@ -39,13 +39,19 @@ fn normalize(x: int32x4_t, q: int32x4_t) -> int32x4_t {
 #[inline]
 #[target_feature(enable = "neon")]
 fn zip1_64(a: int32x4_t, b: int32x4_t) -> int32x4_t {
-    vreinterpretq_s32_s64(vzip1q_s64(vreinterpretq_s64_s32(a), vreinterpretq_s64_s32(b)))
+    vreinterpretq_s32_s64(vzip1q_s64(
+        vreinterpretq_s64_s32(a),
+        vreinterpretq_s64_s32(b),
+    ))
 }
 
 #[inline]
 #[target_feature(enable = "neon")]
 fn zip2_64(a: int32x4_t, b: int32x4_t) -> int32x4_t {
-    vreinterpretq_s32_s64(vzip2q_s64(vreinterpretq_s64_s32(a), vreinterpretq_s64_s32(b)))
+    vreinterpretq_s32_s64(vzip2q_s64(
+        vreinterpretq_s64_s32(a),
+        vreinterpretq_s64_s32(b),
+    ))
 }
 
 /// `[t[2], t[3], t[2], t[3]]`, the twiddles of the `h = 2` stage for two blocks.
@@ -173,11 +179,17 @@ fn forward_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
             let (v0, v1) = (vld1q_s32(ptr.add(i)), vld1q_s32(ptr.add(i + 4)));
             // h = 2: pairs (0, 2), (1, 3) of each 4-element block.
             let (x, y) = (zip1_64(v0, v1), zip2_64(v0, v1));
-            let (x, y) = (reduce(vaddq_s32(x, y), qv, vv), mont(vsubq_s32(x, y), w2, w2q, qv));
+            let (x, y) = (
+                reduce(vaddq_s32(x, y), qv, vv),
+                mont(vsubq_s32(x, y), w2, w2q, qv),
+            );
             let (v0, v1) = (zip1_64(x, y), zip2_64(x, y));
             // h = 1: pairs (0, 1), twiddle 1.
             let (x, y) = (vuzp1q_s32(v0, v1), vuzp2q_s32(v0, v1));
-            let (x, y) = (reduce(vaddq_s32(x, y), qv, vv), reduce(vsubq_s32(x, y), qv, vv));
+            let (x, y) = (
+                reduce(vaddq_s32(x, y), qv, vv),
+                reduce(vsubq_s32(x, y), qv, vv),
+            );
             vst1q_s32(ptr.add(i), vzip1q_s32(x, y));
             vst1q_s32(ptr.add(i + 4), vzip2q_s32(x, y));
         }
@@ -197,7 +209,10 @@ fn inverse_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
             let (v0, v1) = (vld1q_s32(ptr.add(i)), vld1q_s32(ptr.add(i + 4)));
             // h = 1, twiddle 1.
             let (x, y) = (vuzp1q_s32(v0, v1), vuzp2q_s32(v0, v1));
-            let (x, y) = (reduce(vaddq_s32(x, y), qv, vv), reduce(vsubq_s32(x, y), qv, vv));
+            let (x, y) = (
+                reduce(vaddq_s32(x, y), qv, vv),
+                reduce(vsubq_s32(x, y), qv, vv),
+            );
             let (v0, v1) = (vzip1q_s32(x, y), vzip2q_s32(x, y));
             // h = 2, lazy (`portable::lazy`): `n >= 8`, so this is not the last stage.
             let (x, y) = (zip1_64(v0, v1), zip2_64(v0, v1));
@@ -342,7 +357,13 @@ fn load_twist_neon(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq: &[i3
     }
     if full < m {
         let mut tail = [0; 2];
-        portable::load_twist(&mut tail, &limbs[limbs.len() - 1..], p, &w[full..], &wq[full..]);
+        portable::load_twist(
+            &mut tail,
+            &limbs[limbs.len() - 1..],
+            p,
+            &w[full..],
+            &wq[full..],
+        );
         dst[full..m].copy_from_slice(&tail);
     }
     dst[m..].fill(0);
@@ -438,7 +459,12 @@ fn pair_neon(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
             // SAFETY: `b + i + 4 <= m` and `m + i + 4 <= m + n`, within `r`, `iw`, `iwq`.
             unsafe {
                 let px = r.add(b + i);
-                let x = mont(vld1q_s32(px), vld1q_s32(w.add(b + i)), vld1q_s32(wq.add(b + i)), qv);
+                let x = mont(
+                    vld1q_s32(px),
+                    vld1q_s32(w.add(b + i)),
+                    vld1q_s32(wq.add(b + i)),
+                    qv,
+                );
                 vst1q_s32(px, x);
                 let ps = r.add(m + i);
                 vst1q_s32(ps, reduce(vsubq_s32(vld1q_s32(ps), x), qv, vv));
@@ -451,7 +477,12 @@ fn pair_neon(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
         // SAFETY: `i + 4 <= n` and `m + i + 4 <= m + n`, within `r`, `iw`, `iwq`.
         unsafe {
             let (plo, phi) = (r.add(i), r.add(m + i));
-            let x = mont(vld1q_s32(plo), vld1q_s32(w.add(i)), vld1q_s32(wq.add(i)), qv);
+            let x = mont(
+                vld1q_s32(plo),
+                vld1q_s32(w.add(i)),
+                vld1q_s32(wq.add(i)),
+                qv,
+            );
             let s = vld1q_s32(phi);
             vst1q_s32(plo, mont(vaddq_s32(s, x), h, hq, qv));
             vst1q_s32(phi, mont(vsubq_s32(s, x), h, hq, qv));
@@ -559,7 +590,11 @@ mod tests {
                 portable::pair(&mut b, m, w, wq, p);
                 assert_eq!(a, b, "pair, m {m}, n {n}");
             }
-            for (d, start, len, neg) in [(8, 8, 8, true), (64, 72, 2000, true), (256, 96, 3000, false)] {
+            for (d, start, len, neg) in [
+                (8, 8, 8, true),
+                (64, 72, 2000, true),
+                (256, 96, 3000, false),
+            ] {
                 let (mut a, mut b) = (y[..d].to_vec(), y[..d].to_vec());
                 fold_sub(&mut a, &x[..len], start, neg, p);
                 portable::fold_sub(&mut b, &x[..len], start, neg, p);
@@ -568,7 +603,7 @@ mod tests {
         }
         let n = 4096;
         let r: [Vec<i32>; 3] =
-            std::array::from_fn(|i| samples(&mut rng, PRIMES[i].q, n)[..n].to_vec());
+            core::array::from_fn(|i| samples(&mut rng, PRIMES[i].q, n)[..n].to_vec());
         let (mut a, mut b) = (r.clone(), r);
         let [a1, a2, a3] = &mut a;
         garner([a1, a2, a3]);

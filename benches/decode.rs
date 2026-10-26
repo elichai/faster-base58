@@ -4,7 +4,9 @@ mod malachite;
 use std::hint::black_box;
 use std::sync::LazyLock;
 
-use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
+use criterion::{
+    BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main,
+};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
@@ -13,22 +15,70 @@ type DecodeFn = fn(&str, &mut [u8]) -> usize;
 
 /// Add new implementations here, with the largest decoded size to time them at.
 const DECODERS: &[(&str, DecodeFn, usize)] = &[
-    ("bs58", |s, out| bs58::decode(s).onto(out).unwrap(), QUADRATIC_MAX),
-    ("basexx", |s, out| copy_out(&BASEXX.decode(s).unwrap(), out), QUADRATIC_MAX),
-    ("basexx-b", |s, out| copy_out(&BASEXX_B.decode(s).unwrap(), out), QUADRATIC_MAX),
-    ("batched", |s, out| base58_bench::internals::decode_batched(s, out).unwrap(), QUADRATIC_MAX),
-    ("auto", |s, out| base58_bench::decode(s, out).unwrap(), usize::MAX),
-    ("dc", |s, out| base58_bench::internals::decode_karatsuba(s, out).unwrap(), usize::MAX),
-    ("dc-toom3", |s, out| base58_bench::internals::decode_toom3(s, out).unwrap(), usize::MAX),
-    ("ntt", |s, out| base58_bench::internals::decode_ntt(s, out).unwrap(), usize::MAX),
-    ("ntt-cached", |s, out| base58_bench::internals::decode_ntt_cached(s, out).unwrap(), usize::MAX),
-    ("ntt-portable", |s, out| base58_bench::internals::decode_ntt_portable(s, out).unwrap(), usize::MAX),
-    ("dc-malachite", |s, out| malachite::decode_malachite(s, out).unwrap(), usize::MAX),
+    (
+        "bs58",
+        |s, out| bs58::decode(s).onto(out).unwrap(),
+        QUADRATIC_MAX,
+    ),
+    (
+        "basexx",
+        |s, out| copy_out(&BASEXX.decode(s).unwrap(), out),
+        QUADRATIC_MAX,
+    ),
+    (
+        "basexx-b",
+        |s, out| copy_out(&BASEXX_B.decode(s).unwrap(), out),
+        QUADRATIC_MAX,
+    ),
+    (
+        "batched",
+        |s, out| faster_base58::internals::decode_batched(s, out).unwrap(),
+        QUADRATIC_MAX,
+    ),
+    (
+        "auto",
+        |s, out| faster_base58::decode(s, out).unwrap(),
+        usize::MAX,
+    ),
+    (
+        "dc",
+        |s, out| faster_base58::internals::decode_karatsuba(s, out).unwrap(),
+        usize::MAX,
+    ),
+    (
+        "dc-toom3",
+        |s, out| faster_base58::internals::decode_toom3(s, out).unwrap(),
+        usize::MAX,
+    ),
+    (
+        "ntt",
+        |s, out| faster_base58::internals::decode_ntt(s, out).unwrap(),
+        usize::MAX,
+    ),
+    (
+        "ntt-cached",
+        |s, out| faster_base58::internals::decode_ntt_cached(s, out).unwrap(),
+        usize::MAX,
+    ),
+    (
+        "ntt-portable",
+        |s, out| faster_base58::internals::decode_ntt_portable(s, out).unwrap(),
+        usize::MAX,
+    ),
+    (
+        "dc-malachite",
+        |s, out| malachite::decode_malachite(s, out).unwrap(),
+        usize::MAX,
+    ),
     // Above 5632 characters (about 4 KiB) these call `decode`.
-    ("matrix", |s, out| base58_bench::internals::decode_matrix(s, out).unwrap(), MATRIX_MAX),
+    (
+        "matrix",
+        |s, out| faster_base58::internals::decode_matrix(s, out).unwrap(),
+        MATRIX_MAX,
+    ),
     (
         "matrix-portable",
-        |s, out| base58_bench::internals::decode_matrix_portable(s, out).unwrap(),
+        |s, out| faster_base58::internals::decode_matrix_portable(s, out).unwrap(),
         MATRIX_MAX,
     ),
 ];
@@ -98,10 +148,12 @@ fn input(size: usize) -> (String, Vec<u8>) {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(size as u64);
     // No leading '1', so no leading zero bytes.
     let digit = |i: usize, r: u32| if i == 0 { 1 + r % 57 } else { r % 58 };
-    let s: String = (0..len).map(|i| alphabet[digit(i, rng.next_u32()) as usize] as char).collect();
+    let s: String = (0..len)
+        .map(|i| alphabet[digit(i, rng.next_u32()) as usize] as char)
+        .collect();
     // 58^len <= 2^(8 size) up to rounding, so `size + 1` bytes always suffice.
     let mut data = vec![0; size + 1];
-    let n = base58_bench::decode(&s, &mut data).unwrap();
+    let n = faster_base58::decode(&s, &mut data).unwrap();
     data.truncate(n);
     (s, data)
 }

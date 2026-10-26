@@ -48,8 +48,14 @@ pub(super) fn parse(digits: &[u8], groups: &mut [u32]) -> bool {
             bad = vorrq_u8(bad, x);
             let x = vqtbl1q_u8(x, rev);
             // Pairs `x0 + 58 x1` (at most 255 * 59 < 2^16), then `p0 + 3364 p1`.
-            let p = vpaddq_u16(vmull_u8(vget_low_u8(x), vget_low_u8(w1)), vmull_high_u8(x, w1));
-            let q = vpaddq_u32(vmull_u16(vget_low_u16(p), vget_low_u16(w2)), vmull_high_u16(p, w2));
+            let p = vpaddq_u16(
+                vmull_u8(vget_low_u8(x), vget_low_u8(w1)),
+                vmull_high_u8(x, w1),
+            );
+            let q = vpaddq_u32(
+                vmull_u16(vget_low_u16(p), vget_low_u16(w2)),
+                vmull_high_u16(p, w2),
+            );
             vst1q_u32(out.add(4 * k), q);
         };
         for k in 0..full {
@@ -137,7 +143,7 @@ mod tests {
         for nb in [0, 1, 2, 7, 50] {
             let acc: Vec<u64> = (0..4 * nb).map(|_| rng.next_u64() >> 24).collect();
             let words: Vec<u32> = (0..32 * nb).map(|_| rng.next_u32()).collect();
-            let d: [u32; 8] = std::array::from_fn(|_| rng.next_u32() % 58u32.pow(4));
+            let d: [u32; 8] = core::array::from_fn(|_| rng.next_u32() % 58u32.pow(4));
             let (mut a, mut b) = (acc.clone(), acc);
             panel(&mut a, &words, &d);
             portable::panel(&mut b, &words, &d);

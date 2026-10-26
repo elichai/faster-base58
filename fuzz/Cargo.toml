@@ -1,5 +1,5 @@
 [package]
-name = "base58-bench-fuzz"
+name = "faster-base58-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2024"
@@ -8,10 +8,10 @@ edition = "2024"
 cargo-fuzz = true
 
 [features]
-cache = ["base58-bench/cache"]
+cache = ["faster-base58/cache"]
 
 [dependencies]
-base58-bench = { path = "..", features = ["__internals"] }
+faster-base58 = { path = "..", features = ["__internals"] }
 bs58 = "0.5.1"
 libfuzzer-sys = "0.4"
 malachite-nz = "0.14.0"

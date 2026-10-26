@@ -15,5 +15,12 @@ pub fn decode_ntt(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 /// only when a product uses transforms.
 pub fn encode_ntt(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new_owned(Kernels::best());
-    encode::encode_tuned(input, output, m, encode_params().0, ENCODE_LEAF, Leaves::Horner)
+    encode::encode_tuned(
+        input,
+        output,
+        m,
+        encode_params().0,
+        ENCODE_LEAF,
+        Leaves::Horner,
+    )
 }

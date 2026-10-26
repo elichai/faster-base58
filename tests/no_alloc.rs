@@ -1,4 +1,4 @@
-use base58_bench::{BufferTooSmall, Error, no_alloc};
+use faster_base58::{BufferTooSmall, Error, no_alloc};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed};
 

@@ -10,7 +10,13 @@ fn main() {
         for operation in ["encode", "decode"] {
             for size in [0, 1, 31, 32, 64, 512, 4096, 8192] {
                 for _ in 0..3 {
-                    assert!(Command::new(&exe).args([operation, &size.to_string()]).status().unwrap().success());
+                    assert!(
+                        Command::new(&exe)
+                            .args([operation, &size.to_string()])
+                            .status()
+                            .unwrap()
+                            .success()
+                    );
                 }
             }
         }
@@ -23,10 +29,10 @@ fn main() {
     let mut times = [0; 2];
     match args[0].as_str() {
         "encode" => {
-            let mut out = vec![0; base58_bench::max_encoded_len(size)];
+            let mut out = vec![0; faster_base58::max_encoded_len(size)];
             for elapsed in &mut times {
                 let start = Instant::now();
-                let len = base58_bench::encode(black_box(&data), black_box(&mut out)).unwrap();
+                let len = faster_base58::encode(black_box(&data), black_box(&mut out)).unwrap();
                 *elapsed = start.elapsed().as_nanos();
                 assert_eq!(&out[..len], encoded.as_bytes());
             }
@@ -35,7 +41,7 @@ fn main() {
             let mut out = vec![0; size];
             for elapsed in &mut times {
                 let start = Instant::now();
-                let len = base58_bench::decode(black_box(&encoded), black_box(&mut out)).unwrap();
+                let len = faster_base58::decode(black_box(&encoded), black_box(&mut out)).unwrap();
                 *elapsed = start.elapsed().as_nanos();
                 assert_eq!(len, size);
                 assert_eq!(out, data);

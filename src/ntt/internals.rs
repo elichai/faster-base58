@@ -5,8 +5,8 @@ use crate::dc::{self, Leaf};
 use crate::encode::{self, Leaves};
 use crate::{BufferTooSmall, Error};
 
-pub(crate) mod owned;
 pub(crate) mod cached;
+pub(crate) mod owned;
 
 impl Ntt {
     /// Own tables even when the `cache` feature is enabled, for cost comparisons.
@@ -20,7 +20,11 @@ impl Ntt {
 
     /// Select the table policy for an explicit comparison, without changing leaves.
     pub(super) fn with_cache(cached: bool, kernels: Kernels) -> Self {
-        if cached { Self::new(kernels) } else { Self::new_owned(kernels) }
+        if cached {
+            Self::new(kernels)
+        } else {
+            Self::new_owned(kernels)
+        }
     }
 }
 
@@ -34,7 +38,11 @@ pub fn decode_ntt_with(
     prepared: usize,
 ) -> Result<usize, Error> {
     let ntt = Ntt::with_cache(cached, Kernels::best());
-    let mut ntt = Ntt { threshold, prepared_threshold: prepared, ..ntt };
+    let mut ntt = Ntt {
+        threshold,
+        prepared_threshold: prepared,
+        ..ntt
+    };
     // The leaves of the decoder it stands in for.
     let leaf = if cached { Leaf::BEST } else { Leaf::Horner };
     dc::decode_with_leaf(input, output, &mut ntt, leaf)
@@ -45,7 +53,12 @@ pub fn decode_ntt_with(
 /// hand-written against compiler-generated NEON, not SIMD against scalar code. The leaves
 /// are those of [`cached::decode_ntt_cached`].
 pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with_leaf(input, output, &mut Ntt::new(Kernels::portable()), Leaf::BEST)
+    dc::decode_with_leaf(
+        input,
+        output,
+        &mut Ntt::new(Kernels::portable()),
+        Leaf::BEST,
+    )
 }
 
 /// [`cached::encode_ntt_cached`] with divide and conquer above `threshold` bytes and

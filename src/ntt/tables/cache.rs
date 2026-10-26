@@ -1,7 +1,7 @@
 //! Process-wide bounded twiddle retention, present only with `cache`.
 
-use std::sync::OnceLock;
 use super::Tables;
+use std::sync::OnceLock;
 
 /// Largest transform log kept for the process lifetime; larger tables are per call.
 /// This limits retention without changing the transforms supported by [`super::MAX_LOG`].
@@ -16,7 +16,10 @@ impl Tables {
     /// only when none is cached yet, and then kept. Requires `1 <= log <= CACHE_MAX_LOG`.
     /// All slots together hold at most `48 * (2^(CACHE_MAX_LOG + 1) - 2)` data bytes.
     pub fn cached(log: u32) -> &'static Tables {
-        assert!((1..=CACHE_MAX_LOG).contains(&log), "uncacheable log = {log}");
+        assert!(
+            (1..=CACHE_MAX_LOG).contains(&log),
+            "uncacheable log = {log}"
+        );
         let log = log as usize;
         CACHE[log..]
             .iter()
@@ -28,12 +31,20 @@ impl Tables {
 /// Static header bytes and (log, initialized, vector length bytes, vector capacity
 /// bytes), without initializing a table.
 #[cfg(feature = "__internals")]
-pub fn cache_memory() -> (usize, [(u32, bool, usize, usize); super::MAX_LOG as usize + 1]) {
-    let rows = std::array::from_fn(|log| match CACHE.get(log).and_then(OnceLock::get) {
+pub fn cache_memory() -> (
+    usize,
+    [(u32, bool, usize, usize); super::MAX_LOG as usize + 1],
+) {
+    let rows = core::array::from_fn(|log| match CACHE.get(log).and_then(OnceLock::get) {
         Some(t) => {
-            let vectors = t.tw.iter().flat_map(|tw| [&tw.fw, &tw.fwq, &tw.iw, &tw.iwq]);
+            let vectors =
+                t.tw.iter()
+                    .flat_map(|tw| [&tw.fw, &tw.fwq, &tw.iw, &tw.iwq]);
             let (len, cap) = vectors.fold((0, 0), |(len, cap), v| {
-                (len + v.len() * size_of::<i32>(), cap + v.capacity() * size_of::<i32>())
+                (
+                    len + v.len() * size_of::<i32>(),
+                    cap + v.capacity() * size_of::<i32>(),
+                )
             });
             (log as u32, true, len, cap)
         }

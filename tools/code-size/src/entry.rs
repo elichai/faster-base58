@@ -17,17 +17,17 @@ macro_rules! backend {
     };
 }
 
-backend!("auto", base58_bench::encode, base58_bench::decode);
-backend!("no-alloc", base58_bench::no_alloc::encode, base58_bench::no_alloc::decode);
-backend!("batched", base58_bench::internals::encode_batched, base58_bench::internals::decode_batched);
-backend!("karatsuba", base58_bench::internals::encode_karatsuba, base58_bench::internals::decode_karatsuba);
-backend!("toom3", base58_bench::internals::encode_toom3, base58_bench::internals::decode_toom3);
-backend!("ntt", base58_bench::internals::encode_ntt, base58_bench::internals::decode_ntt);
-backend!("ntt-cached", base58_bench::internals::encode_ntt_cached, base58_bench::internals::decode_ntt_cached);
-backend!("ntt-portable", base58_bench::internals::encode_ntt_portable, base58_bench::internals::decode_ntt_portable);
-backend!("matrix", base58_bench::internals::encode_matrix, base58_bench::internals::decode_matrix);
-backend!("matrix-portable", base58_bench::internals::encode_matrix_portable, base58_bench::internals::decode_matrix_portable);
-backend!("matrix-forced", base58_bench::internals::encode_matrix_whole, base58_bench::internals::decode_matrix_forced);
+backend!("auto", faster_base58::encode, faster_base58::decode);
+backend!("no-alloc", faster_base58::no_alloc::encode, faster_base58::no_alloc::decode);
+backend!("batched", faster_base58::internals::encode_batched, faster_base58::internals::decode_batched);
+backend!("karatsuba", faster_base58::internals::encode_karatsuba, faster_base58::internals::decode_karatsuba);
+backend!("toom3", faster_base58::internals::encode_toom3, faster_base58::internals::decode_toom3);
+backend!("ntt", faster_base58::internals::encode_ntt, faster_base58::internals::decode_ntt);
+backend!("ntt-cached", faster_base58::internals::encode_ntt_cached, faster_base58::internals::decode_ntt_cached);
+backend!("ntt-portable", faster_base58::internals::encode_ntt_portable, faster_base58::internals::decode_ntt_portable);
+backend!("matrix", faster_base58::internals::encode_matrix, faster_base58::internals::decode_matrix);
+backend!("matrix-portable", faster_base58::internals::encode_matrix_portable, faster_base58::internals::decode_matrix_portable);
+backend!("matrix-forced", faster_base58::internals::encode_matrix_whole, faster_base58::internals::decode_matrix_forced);
 backend!("ntt-same-owned", self::encode_ntt_same_leaves, self::decode_ntt_same_leaves);
 backend!("ntt-same-cached", self::encode_ntt_same_leaves, self::decode_ntt_same_leaves);
 backend!("bs58", competitors_adapter::encode_bs58, competitors_adapter::decode_bs58);
@@ -38,13 +38,13 @@ compile_error!("the Malachite probe requires the external tests/support/malachit
 backend!("malachite", malachite_adapter::encode_malachite, malachite_adapter::decode_malachite);
 
 #[cfg(all(any(size_backend = "ntt-same-owned", size_backend = "ntt-same-cached"), not(size_direction = "decode")))]
-fn encode_ntt_same_leaves(input: &[u8], output: &mut [u8]) -> Result<usize, base58_bench::BufferTooSmall> {
-    base58_bench::internals::encode_ntt_same_leaves(input, output, cfg!(size_backend = "ntt-same-cached"))
+fn encode_ntt_same_leaves(input: &[u8], output: &mut [u8]) -> Result<usize, faster_base58::BufferTooSmall> {
+    faster_base58::internals::encode_ntt_same_leaves(input, output, cfg!(size_backend = "ntt-same-cached"))
 }
 
 #[cfg(all(any(size_backend = "ntt-same-owned", size_backend = "ntt-same-cached"), not(size_direction = "encode")))]
-fn decode_ntt_same_leaves(input: &str, output: &mut [u8]) -> Result<usize, base58_bench::Error> {
-    base58_bench::internals::decode_ntt_same_leaves(input, output, cfg!(size_backend = "ntt-same-cached"))
+fn decode_ntt_same_leaves(input: &str, output: &mut [u8]) -> Result<usize, faster_base58::Error> {
+    faster_base58::internals::decode_ntt_same_leaves(input, output, cfg!(size_backend = "ntt-same-cached"))
 }
 
 // Every artifact exports these two helpers, including the empty baseline.

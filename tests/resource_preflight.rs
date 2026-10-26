@@ -1,7 +1,7 @@
 //! A separate test binary keeps both matrix caches cold before rejection checks.
 #![cfg(feature = "__internals")]
 
-use base58_bench::{self as b58, BufferTooSmall, Error, internals};
+use faster_base58::{self as b58, BufferTooSmall, Error, internals};
 
 type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
@@ -10,7 +10,9 @@ const ENCODERS: [(&str, Encode); 5] = [
     ("auto", b58::encode),
     ("matrix", b58::internals::encode_matrix),
     ("portable", b58::internals::encode_matrix_portable),
-    ("forced", |input, output| internals::encode_matrix_with(input, output, 0)),
+    ("forced", |input, output| {
+        internals::encode_matrix_with(input, output, 0)
+    }),
     ("whole", internals::encode_matrix_whole),
 ];
 const DECODERS: [(&str, Decode); 4] = [
@@ -22,7 +24,12 @@ const DECODERS: [(&str, Decode); 4] = [
 
 #[test]
 fn impossible_encode_buffers_build_no_table() {
-    let retained = || internals::encode_matrix_cache_memory().1.iter().any(|row| row.1);
+    let retained = || {
+        internals::encode_matrix_cache_memory()
+            .1
+            .iter()
+            .any(|row| row.1)
+    };
     assert!(!retained());
     let mut power = vec![0; 512];
     power[0] = 1;
@@ -35,8 +42,16 @@ fn impossible_encode_buffers_build_no_table() {
     ];
     for (input, capacity) in &cases {
         for (name, encode) in ENCODERS {
-            assert_eq!(encode(input, &mut vec![0xA5; *capacity]), Err(BufferTooSmall), "{name}");
-            assert!(!retained(), "{name}: rejected {} bytes retained a table", input.len());
+            assert_eq!(
+                encode(input, &mut vec![0xA5; *capacity]),
+                Err(BufferTooSmall),
+                "{name}"
+            );
+            assert!(
+                !retained(),
+                "{name}: rejected {} bytes retained a table",
+                input.len()
+            );
         }
     }
     for (input, _) in cases {
@@ -50,12 +65,21 @@ fn impossible_encode_buffers_build_no_table() {
             }
         }
     }
-    assert_eq!(retained(), cfg!(feature = "cache"), "matrix table retention follows the cache feature");
+    assert_eq!(
+        retained(),
+        cfg!(feature = "cache"),
+        "matrix table retention follows the cache feature"
+    );
 }
 
 #[test]
 fn impossible_decode_buffers_build_no_table() {
-    let retained = || internals::decode_matrix_cache_memory().1.iter().any(|row| row.1);
+    let retained = || {
+        internals::decode_matrix_cache_memory()
+            .1
+            .iter()
+            .any(|row| row.1)
+    };
     assert!(!retained());
     let cases = [
         ("1".repeat(4096), 4095),
@@ -66,11 +90,22 @@ fn impossible_decode_buffers_build_no_table() {
     ];
     for (input, capacity) in &cases {
         for (name, decode) in DECODERS {
-            assert_eq!(decode(input, &mut vec![0xA5; *capacity]), Err(Error::BufferTooSmall), "{name}");
-            assert!(!retained(), "{name}: rejected {} characters retained a table", input.len());
+            assert_eq!(
+                decode(input, &mut vec![0xA5; *capacity]),
+                Err(Error::BufferTooSmall),
+                "{name}"
+            );
+            assert!(
+                !retained(),
+                "{name}: rejected {} characters retained a table",
+                input.len()
+            );
         }
     }
-    assert_eq!(b58::decode_array::<32>(&"z".repeat(4096)), Err(Error::BufferTooSmall));
+    assert_eq!(
+        b58::decode_array::<32>(&"z".repeat(4096)),
+        Err(Error::BufferTooSmall)
+    );
     assert!(!retained());
     let invalid = format!("11{}é0", "z".repeat(704));
     for (name, decode) in DECODERS {
@@ -92,5 +127,9 @@ fn impossible_decode_buffers_build_no_table() {
             }
         }
     }
-    assert_eq!(retained(), cfg!(feature = "cache"), "matrix table retention follows the cache feature");
+    assert_eq!(
+        retained(),
+        cfg!(feature = "cache"),
+        "matrix table retention follows the cache feature"
+    );
 }

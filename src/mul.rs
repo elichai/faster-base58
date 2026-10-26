@@ -15,7 +15,7 @@ const _: () = assert!(8 <= IFMA_MIN && IFMA_MIN <= KARATSUBA_THRESHOLD);
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod ifma {
     use crate::mul_ifma::avx512 as mul_ifma;
-    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+    use core::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
     /// Tuned on whole decodes on Zen 5.
     static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(384);
@@ -254,14 +254,29 @@ pub(crate) mod tests {
     /// the default and one above every test length.
     fn thresholds() -> Vec<usize> {
         let t = ifma_threshold();
-        if t == 0 { vec![0] } else { vec![0, IFMA_MIN + 1, t, usize::MAX] }
+        if t == 0 {
+            vec![0]
+        } else {
+            vec![0, IFMA_MIN + 1, t, usize::MAX]
+        }
     }
 
     #[test]
     fn mul_matches_schoolbook() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(1);
         let k = KARATSUBA_THRESHOLD;
-        let ifma = [7, 8, 9, IFMA_MIN - 1, IFMA_MIN, IFMA_MIN + 1, 71, 72, 73, 100];
+        let ifma = [
+            7,
+            8,
+            9,
+            IFMA_MIN - 1,
+            IFMA_MIN,
+            IFMA_MIN + 1,
+            71,
+            72,
+            73,
+            100,
+        ];
         let lens = (0..=4)
             .chain(k - 4..=k + 4)
             .chain([2 * k - 1, 2 * k, 2 * k + 1, 200, 257, 513])

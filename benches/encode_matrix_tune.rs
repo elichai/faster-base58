@@ -21,11 +21,11 @@ mod malachite;
 use std::hint::black_box;
 use std::time::Instant;
 
-use base58_bench::internals::{
+use faster_base58::internals::{
     encode_batched, encode_karatsuba, encode_matrix, encode_matrix_whole, encode_matrix_with,
     encode_ntt_cached, encode_toom3, ifma_threshold,
 };
-use base58_bench::max_encoded_len;
+use faster_base58::max_encoded_len;
 use malachite::encode_malachite;
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
 use malachite_nz::natural::Natural;
@@ -38,25 +38,52 @@ type Config = (&'static str, Encode, fn(usize) -> bool);
 
 /// `matrix` is last.
 const CONFIGS: [Config; 7] = [
-    ("batched", |d, o| encode_batched(d, o).unwrap(), |size| size <= 8192),
+    (
+        "batched",
+        |d, o| encode_batched(d, o).unwrap(),
+        |size| size <= 8192,
+    ),
     ("dc", |d, o| encode_karatsuba(d, o).unwrap(), large),
     ("dc-toom3", |d, o| encode_toom3(d, o).unwrap(), large),
     ("ntt-cached", |d, o| encode_ntt_cached(d, o).unwrap(), large),
-    ("dc-malachite", |d, o| encode_malachite(d, o).unwrap(), large),
+    (
+        "dc-malachite",
+        |d, o| encode_malachite(d, o).unwrap(),
+        large,
+    ),
     ("malachite", malachite, large),
-    ("matrix", |d, o| encode_matrix_with(d, o, 0).unwrap(), |_| true),
+    (
+        "matrix",
+        |d, o| encode_matrix_with(d, o, 0).unwrap(),
+        |_| true,
+    ),
 ];
 /// `encode_matrix` dispatches; `matrix` is its conversion at every size.
 const CAP: [Config; 3] = [
-    ("ntt-cached", |d, o| encode_ntt_cached(d, o).unwrap(), |_| true),
-    ("encode_matrix", |d, o| encode_matrix(d, o).unwrap(), |_| true),
-    ("matrix", |d, o| encode_matrix_whole(d, o).unwrap(), |_| true),
+    (
+        "ntt-cached",
+        |d, o| encode_ntt_cached(d, o).unwrap(),
+        |_| true,
+    ),
+    (
+        "encode_matrix",
+        |d, o| encode_matrix(d, o).unwrap(),
+        |_| true,
+    ),
+    (
+        "matrix",
+        |d, o| encode_matrix_whole(d, o).unwrap(),
+        |_| true,
+    ),
 ];
-const SWEEP: [usize; 14] = [32, 48, 64, 80, 96, 112, 128, 144, 160, 192, 224, 256, 384, 512];
+const SWEEP: [usize; 14] = [
+    32, 48, 64, 80, 96, 112, 128, 144, 160, 192, 224, 256, 384, 512,
+];
 const COLD: [usize; 6] = [512, 1024, 1875, 4096, 6144, 8192];
 /// 2049 bytes is the first in the 4 KiB table class (2.8 MiB).
-const CAP_SIZES: [usize; 12] =
-    [1536, 2048, 2049, 2304, 2560, 2816, 3072, 3328, 3584, 3840, 4096, 4608];
+const CAP_SIZES: [usize; 12] = [
+    1536, 2048, 2049, 2304, 2560, 2816, 3072, 3328, 3584, 3840, 4096, 4608,
+];
 const ROUNDS: usize = 31;
 /// Target length of one timed block.
 const BLOCK_NS: u128 = 2_000_000;
@@ -121,14 +148,21 @@ fn main() {
             .map(|(&t, c)| (t, c.0))
             .min_by(|a, b| a.0.total_cmp(&b.0))
             .unwrap();
-        println!("| {size} | {} | {:.2} ({name}) |", cells.join(" | "), best / matrix[0]);
+        println!(
+            "| {size} | {} | {:.2} ({name}) |",
+            cells.join(" | "),
+            best / matrix[0]
+        );
     }
 }
 
 /// [`CAP`], warm. Below 1, `ntt-cached / matrix` favors handing off.
 fn cap() {
     println!("IFMA threshold: {}", ifma_threshold());
-    println!("| bytes | {} | ntt-cached / matrix |", CAP.map(|c| c.0).join(" | "));
+    println!(
+        "| bytes | {} | ntt-cached / matrix |",
+        CAP.map(|c| c.0).join(" | ")
+    );
     println!("|---:|{}---:|", "---:|".repeat(CAP.len()));
     for size in sizes(&CAP_SIZES) {
         let data = data(size);
@@ -143,8 +177,9 @@ fn cap() {
 
 /// `SIZES`, or `default`.
 fn sizes(default: &[usize]) -> Vec<usize> {
-    std::env::var("SIZES")
-        .map_or(default.to_vec(), |s| s.split(',').map(|v| v.parse().unwrap()).collect())
+    std::env::var("SIZES").map_or(default.to_vec(), |s| {
+        s.split(',').map(|v| v.parse().unwrap()).collect()
+    })
 }
 
 /// Asserts that each config's output is `encode_batched`'s. Also builds the tables.
@@ -153,7 +188,11 @@ fn check(configs: &[&Config], data: &[u8], out: &mut [u8]) {
     let want = out[..n].to_vec();
     for (name, f, _) in configs {
         let n = f(data, out);
-        assert!(out[..n] == want[..], "{name}: wrong output at {} bytes", data.len());
+        assert!(
+            out[..n] == want[..],
+            "{name}: wrong output at {} bytes",
+            data.len()
+        );
     }
 }
 

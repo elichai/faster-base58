@@ -8,17 +8,17 @@
 //! the reciprocal of the power below, and serves every division by it. All products go
 //! through a [`Multiplier`].
 
-use std::cmp::Ordering;
+use alloc::vec::Vec;
+
+use core::cmp::Ordering;
 
 use super::batched::Limbs;
-use super::{bits, matrix, min_digits, split_zeros, ten_digits};
-use crate::common::CHUNK;
-use crate::dc::{
-    LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len,
-};
-use crate::mul::{add_assign, fold_wrapped, sub_assign};
-use crate::BufferTooSmall;
 use super::encode_batched;
+use super::{bits, matrix, min_digits, split_zeros, ten_digits};
+use crate::BufferTooSmall;
+use crate::common::CHUNK;
+use crate::dc::{LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len};
+use crate::mul::{add_assign, fold_wrapped, sub_assign};
 
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;
@@ -98,10 +98,17 @@ impl Leaves {
     /// on x86_64, where cached matrix leaves took 2-59% less time than Horner leaves
     /// in the measured Zen 5 cells. Without `cache`, use Horner so recursive leaves
     /// do not rebuild general matrix tables.
-    pub(crate) const BEST: Leaves = if cfg!(all(feature = "cache", any(
-        all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
-        target_arch = "x86_64"
-    ))) {
+    pub(crate) const BEST: Leaves = if cfg!(all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            target_arch = "x86_64"
+        )
+    )) {
         Leaves::Matrix
     } else {
         Leaves::Horner
@@ -118,8 +125,15 @@ pub fn encode_tuned(
     leaf: usize,
     leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    let max = if leaves == Leaves::Matrix { MATRIX_LEAF } else { LEAF };
-    assert!((1..=max).contains(&leaf), "{leaves:?} leaf of {leaf} chunks");
+    let max = if leaves == Leaves::Matrix {
+        MATRIX_LEAF
+    } else {
+        LEAF
+    };
+    assert!(
+        (1..=max).contains(&leaf),
+        "{leaves:?} leaf of {leaf} chunks"
+    );
     let (zeros, x) = split_zeros(input);
     if x.len() <= threshold {
         return encode_batched(input, output);
@@ -144,7 +158,10 @@ pub fn encode_tuned(
     // no product longer than twice that plus one.
     m.prepare(2 * full(e) + 2);
 
-    let x: Vec<u64> = x.rchunks(8).map(|c| c.iter().fold(0, |v, &b| v << 8 | b as u64)).collect();
+    let x: Vec<u64> = x
+        .rchunks(8)
+        .map(|c| c.iter().fold(0, |v, &b| v << 8 | b as u64))
+        .collect();
     let mut table = vec![0; table_len(unit, levels)];
     let mut scratch = vec![0; m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m))];
     let powers = powers(unit, levels, &mut table, &mut scratch, m, false);
@@ -168,7 +185,19 @@ pub fn encode_tuned(
     }
     let mut scratch = vec![0; node_scratch_len(&divs, m)];
     let mut out = Out { buf: out, pos: 0 };
-    node(&x, n, false, &Tree { divs: &divs, leaf, leaves }, &mut out, &mut scratch, m)?;
+    node(
+        &x,
+        n,
+        false,
+        &Tree {
+            divs: &divs,
+            leaf,
+            leaves,
+        },
+        &mut out,
+        &mut scratch,
+        m,
+    )?;
     ones.fill(b'1');
     Ok(zeros + out.pos)
 }
@@ -226,11 +255,20 @@ impl<'a> Divisor<'a> {
                 reciprocal_from_square(recip, a, b.recip, k, s, m);
             }
             _ => {
-                debug_assert!(below.is_none() || n <= RECIP_BASECASE, "not from the square");
+                debug_assert!(
+                    below.is_none() || n <= RECIP_BASECASE,
+                    "not from the square"
+                );
                 reciprocal(recip, a, s, m)
             }
         }
-        Divisor { exp: p.exp, shift: p.shift, bits, pn, recip }
+        Divisor {
+            exp: p.exp,
+            shift: p.shift,
+            bits,
+            pn,
+            recip,
+        }
     }
 
     fn qn(&self) -> usize {
@@ -322,7 +360,9 @@ fn divide(
 fn divide_scratch_len(d: &Divisor<'_>, m: &impl Multiplier) -> usize {
     let (dn, qn) = (d.pn.len(), d.qn());
     let full = (qn + dn) + m.scratch_len(qn + 1);
-    let wrapped = m.wrap_len(dn + 2, qn + dn).map_or(0, |l| 2 * l + m.wrapped_scratch_len(l, qn));
+    let wrapped = m
+        .wrap_len(dn + 2, qn + dn)
+        .map_or(0, |l| 2 * l + m.wrapped_scratch_len(l, qn));
     (dn + qn) + (2 * qn + 1) + full.max(wrapped)
 }
 
@@ -351,7 +391,10 @@ struct Out<'a> {
 
 impl Out<'_> {
     fn take(&mut self, n: usize) -> Result<&mut [u8], BufferTooSmall> {
-        let s = self.buf.get_mut(self.pos..self.pos + n).ok_or(BufferTooSmall)?;
+        let s = self
+            .buf
+            .get_mut(self.pos..self.pos + n)
+            .ok_or(BufferTooSmall)?;
         self.pos += n;
         Ok(s)
     }
@@ -405,7 +448,9 @@ fn node(
 /// Scratch limbs [`node`] needs for any node, by induction on the levels: a node at level
 /// `i` holds `hi` and `lo` while it divides or while its children, at lower levels, run.
 fn node_scratch_len(divs: &[Divisor<'_>], m: &impl Multiplier) -> usize {
-    divs.iter().fold(0, |below, d| 2 * d.qn() + 1 + divide_scratch_len(d, m).max(below))
+    divs.iter().fold(0, |below, d| {
+        2 * d.qn() + 1 + divide_scratch_len(d, m).max(below)
+    })
 }
 
 /// The big-endian bytes of `x < BASE^n` without leading zeros, in `buf`, which needs
@@ -455,7 +500,11 @@ fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), 
 fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
     let mut bytes = [0u8; 8 * LEAF];
     let mut slots = [[0u8; 8]; LEAF];
-    let mut limbs = Limbs { slots: &mut slots, len: 0, top: 0 };
+    let mut limbs = Limbs {
+        slots: &mut slots,
+        len: 0,
+        top: 0,
+    };
     limbs.feed(be_bytes(x, &mut bytes));
     let Limbs { slots, len, top } = limbs;
     let stored = &slots[slots.len() - len..];
@@ -696,7 +745,11 @@ mod verification {
         let x: [u64; 2] = kani::any();
         let value = x[0] as u128 | (x[1] as u128) << 64;
         kani::assume(value < BASE as u128 * BASE as u128);
-        let p = Power { exp: 1, limbs: &[BASE], shift: 0 };
+        let p = Power {
+            exp: 1,
+            limbs: &[BASE],
+            shift: 0,
+        };
         let mut scratch = [0; 96];
         let mut data = [0; 4];
         let mut m = Scalar;
@@ -710,8 +763,8 @@ mod verification {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::karatsuba::encode;
+    use super::*;
     use crate::dc::Karatsuba;
     use crate::mul;
     use crate::ntt::{Kernels, Ntt};
@@ -720,7 +773,12 @@ mod tests {
 
     fn product(a: &[u64], b: &[u64]) -> Vec<u64> {
         let mut out = vec![0; a.len() + b.len()];
-        mul::mul(&mut out, a, b, &mut vec![0; mul::scratch_len(a.len().max(b.len()))]);
+        mul::mul(
+            &mut out,
+            a,
+            b,
+            &mut vec![0; mul::scratch_len(a.len().max(b.len()))],
+        );
         out
     }
 
@@ -789,7 +847,10 @@ mod tests {
         x2.push(0);
         add_assign(&mut x2, &[2]);
         let ax2 = product(a, &x2);
-        assert!(ax2[2 * n..].iter().any(|&v| v != 0), "{what}: a (x + 2) < β^(2n)");
+        assert!(
+            ax2[2 * n..].iter().any(|&v| v != 0),
+            "{what}: a (x + 2) < β^(2n)"
+        );
     }
 
     /// The divisors of a table, each from the one below with exactly the scratch it needs,
@@ -804,7 +865,10 @@ mod tests {
         let e = unit << (levels - 1);
         let mut s = vec![0x5A; m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m))];
         let powers = powers(unit, levels, &mut table, &mut s, m, false);
-        storage.resize(powers[..levels].iter().map(Divisor::storage_len).sum(), 0xA5);
+        storage.resize(
+            powers[..levels].iter().map(Divisor::storage_len).sum(),
+            0xA5,
+        );
         let mut data = &mut storage[..];
         let mut divs: Vec<Divisor<'_>> = Vec::with_capacity(levels);
         for (i, p) in powers[..levels].iter().enumerate() {
@@ -847,7 +911,10 @@ mod tests {
                     let mut scratch = vec![GUARD; count + 2];
                     let d = Divisor::new(p, divs.last(), slot, &mut scratch[1..count + 1], &mut m);
                     assert_eq!(d.pn.as_ptr().addr(), start + used * size_of::<u64>());
-                    assert_eq!(d.recip.as_ptr().addr(), start + (used + d.pn.len()) * size_of::<u64>());
+                    assert_eq!(
+                        d.recip.as_ptr().addr(),
+                        start + (used + d.pn.len()) * size_of::<u64>()
+                    );
                     assert_eq!(d.recip.len(), n + 1);
                     assert_ne!(d.pn.last().unwrap() >> 63, 0);
                     assert_eq!((scratch[0], scratch[count + 1]), (GUARD, GUARD));
@@ -876,7 +943,11 @@ mod tests {
     impl PreparedChecked {
         fn check_power(&mut self, i: usize, b: &[u64], len: usize) {
             if let Some(&(addr, limbs, bound)) = self.prepared.get(i) {
-                assert_eq!((b.as_ptr().addr(), b.len()), (addr, limbs), "power {i} moved");
+                assert_eq!(
+                    (b.as_ptr().addr(), b.len()),
+                    (addr, limbs),
+                    "power {i} moved"
+                );
                 assert!(len <= bound, "power {i} product exceeds prepared bound");
                 self.uses += 1;
             }
@@ -915,7 +986,14 @@ mod tests {
             self.wrapped.then_some(n)
         }
 
-        fn mul_power_wrapped(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
+        fn mul_power_wrapped(
+            &mut self,
+            out: &mut [u64],
+            a: &[u64],
+            i: usize,
+            b: &[u64],
+            s: &mut [u64],
+        ) {
             self.check_power(i, b, a.len() + b.len());
             let (p, s) = s.split_at_mut(a.len() + b.len());
             self.mul(p, a, b, s);
@@ -933,8 +1011,16 @@ mod tests {
                     data[len / 4..len / 2].fill(0);
                     let want = bs58::encode(&data).into_string();
                     let mut output = vec![0xA5; want.len() + 7];
-                    let mut m = PreparedChecked { len: None, prepared: Vec::new(), uses: 0, wrapped };
-                    assert_eq!(encode_tuned(&data, &mut output, &mut m, 0, 7, Leaves::Horner), Ok(want.len()));
+                    let mut m = PreparedChecked {
+                        len: None,
+                        prepared: Vec::new(),
+                        uses: 0,
+                        wrapped,
+                    };
+                    assert_eq!(
+                        encode_tuned(&data, &mut output, &mut m, 0, 7, Leaves::Horner),
+                        Ok(want.len())
+                    );
                     assert_eq!(&output[..want.len()], want.as_bytes());
                     assert!(output[want.len()..].iter().all(|&v| v == 0xA5));
                     assert!(!m.prepared.is_empty() && m.uses > 0);
@@ -981,16 +1067,29 @@ mod tests {
             let mut max = product(&power, &power);
             sub_assign(&mut max, &[1]);
             let max = max[..trimmed_len(&max)].to_vec();
-            for x in [random, max, vec![7], vec![], p.limbs.to_vec(), power.clone()] {
+            for x in [
+                random,
+                max,
+                vec![7],
+                vec![],
+                p.limbs.to_vec(),
+                power.clone(),
+            ] {
                 let (mut hi, mut lo) = (vec![0; d.qn() + 1], vec![0; d.qn()]);
                 let mut ds = vec![0; divide_scratch_len(d, m)];
                 let (hn, ln) = divide(&x, d, i, &mut hi, &mut lo, &mut ds, m);
-                assert!(ln < power.len() || !ge(&lo[..ln], &power), "level {i}: lo >= P");
+                assert!(
+                    ln < power.len() || !ge(&lo[..ln], &power),
+                    "level {i}: lo >= P"
+                );
                 let mut back = product(&hi[..hn], &power);
                 back.resize(back.len().max(ln) + 1, 0);
                 add_assign(&mut back, &lo[..ln]);
                 let bl = trimmed_len(&back);
-                assert!(back[..bl] == x[..trimmed_len(&x)], "level {i}: hi P + lo != x");
+                assert!(
+                    back[..bl] == x[..trimmed_len(&x)],
+                    "level {i}: hi P + lo != x"
+                );
             }
         }
     }
@@ -1008,7 +1107,11 @@ mod tests {
                 for extra in [0, 1, 9] {
                     let mut got = vec![0; want.len()];
                     let m = &mut Wrap(extra);
-                    assert_eq!(encode_tuned(&data, &mut got, m, 0, 32, Leaves::Horner), Ok(n), "{len}, {extra}");
+                    assert_eq!(
+                        encode_tuned(&data, &mut got, m, 0, 32, Leaves::Horner),
+                        Ok(n),
+                        "{len}, {extra}"
+                    );
                     assert!(got[..n] == want[..n], "{len} bytes, L = n + {extra}");
                 }
             }
@@ -1028,7 +1131,12 @@ mod tests {
             rng.fill_bytes(&mut random);
             let mut runs = random.clone();
             runs[len / 5..len / 2].fill(0);
-            for data in [random, vec![0xFF; len], runs, [vec![0; 2], vec![0xFF; len]].concat()] {
+            for data in [
+                random,
+                vec![0xFF; len],
+                runs,
+                [vec![0; 2], vec![0xFF; len]].concat(),
+            ] {
                 let mut want = vec![0xAA; crate::max_encoded_len(data.len())];
                 let n = encode_batched(&data, &mut want);
                 let both = [1, 2, 3, 7, 32, 96, 255, LEAF].into_iter();

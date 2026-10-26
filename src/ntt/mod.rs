@@ -8,6 +8,8 @@
 //! polynomials instead, negacyclic and cyclic, and put together by polynomial Chinese
 //! remaindering ([`Plan`], [`crt()`]).
 
+use alloc::vec::Vec;
+
 #[cfg(any(test, feature = "__internals"))]
 pub(crate) mod internals;
 
@@ -18,7 +20,11 @@ mod cache_policy_tests;
 mod crt;
 #[cfg(all(test, miri))]
 mod miri_tests;
-#[cfg(all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"))]
+#[cfg(all(
+    target_arch = "aarch64",
+    target_endian = "little",
+    target_feature = "neon"
+))]
 mod neon;
 mod portable;
 #[cfg(kani)]
@@ -27,14 +33,14 @@ mod tables;
 #[cfg(target_arch = "x86_64")]
 mod x86;
 
-use std::ptr;
+use core::ptr;
 
 use crate::dc::{self, Leaf, Multiplier};
 use crate::encode::Leaves;
 use crate::mul;
-use tables::{MAX_LOG, PRIMES, Prime, Tables, Twiddles};
 #[cfg(feature = "cache")]
 use tables::cache::CACHE_MAX_LOG;
+use tables::{MAX_LOG, PRIMES, Prime, Tables, Twiddles};
 
 /// Products whose shorter operand has fewer limbs than this use Karatsuba.
 const THRESHOLD: usize = 128;
@@ -181,7 +187,12 @@ impl Ntt {
             (self.kernels.load)(f, b, p);
             (self.kernels.forward)(f, p, tw);
         }
-        Some(Prepared { log, addr: b.as_ptr().addr(), len: b.len(), data })
+        Some(Prepared {
+            log,
+            addr: b.as_ptr().addr(),
+            len: b.len(),
+            data,
+        })
     }
 }
 
@@ -231,7 +242,15 @@ impl Multiplier for Ntt {
             return mul::mul(out, a, b, scratch);
         }
         self.ensure_tables();
-        mul_with(out, a, b, scratch, self.initialized_tables(), &self.kernels, self.threshold);
+        mul_with(
+            out,
+            a,
+            b,
+            scratch,
+            self.initialized_tables(),
+            &self.kernels,
+            self.threshold,
+        );
     }
 
     fn prepare_power(&mut self, i: usize, b: &[u64], len: usize) {
@@ -252,7 +271,15 @@ impl Multiplier for Ntt {
                     && log_len(a.len() + b.len()) <= f.log =>
             {
                 // Preparing `f` initialized the tables, and `prepare` clears both.
-                transform(out, a, b, s, self.initialized_tables(), &self.kernels, Some(f))
+                transform(
+                    out,
+                    a,
+                    b,
+                    s,
+                    self.initialized_tables(),
+                    &self.kernels,
+                    Some(f),
+                )
             }
             _ => self.mul(out, a, b, s),
         }
@@ -281,7 +308,14 @@ impl Multiplier for Ntt {
         wrapped(out, a, b, s, self.initialized_tables(), &self.kernels, None);
     }
 
-    fn mul_power_wrapped(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
+    fn mul_power_wrapped(
+        &mut self,
+        out: &mut [u64],
+        a: &[u64],
+        i: usize,
+        b: &[u64],
+        s: &mut [u64],
+    ) {
         self.ensure_tables();
         let f = match self.powers.get(i) {
             Some(Some(f)) if f.is(b) && log_len(out.len()) <= f.log => Some(f),
@@ -392,7 +426,7 @@ impl Kernels {
     /// with AVX-512F, the rest the portable ones compiled for AVX-512 or AVX2 when
     /// available.
     pub fn best() -> Self {
-        std::cfg_select! {
+        core::cfg_select! {
             all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
                 Kernels::neon()
             }
@@ -424,7 +458,11 @@ pub(crate) const fn scratch_len(n: usize) -> usize {
     // The maximum of two bounds of the form `c n + d` with `c >= 1` still meets
     // `dc_scratch_len`'s requirement.
     let karatsuba = mul::scratch_len(n);
-    if karatsuba > 16 * n + 64 { karatsuba } else { 16 * n + 64 }
+    if karatsuba > 16 * n + 64 {
+        karatsuba
+    } else {
+        16 * n + 64
+    }
 }
 
 /// `log2` of the transform length for a product of `len` limbs: at least `2 len` points
@@ -453,7 +491,9 @@ pub(crate) fn mul_with(
     if a.len() < threshold.max(1) {
         mul::mul(out, a, b, scratch);
     } else if 2 * a.len() <= b.len() {
-        mul::mul_blocks(out, a, b, scratch, |o, x, y, s| mul_with(o, x, y, s, t, k, threshold));
+        mul::mul_blocks(out, a, b, scratch, |o, x, y, s| {
+            mul_with(o, x, y, s, t, k, threshold)
+        });
     } else if log_len(a.len() + b.len()) > t.log {
         split(out, a, b, scratch, t, k, threshold);
     } else {
@@ -556,12 +596,24 @@ impl Plan {
         let top = 1 << p.ilog2();
         let cyc = |r: usize| r.next_power_of_two().max(64);
         if p > top && cyc(p - top) < top {
-            return Plan { nega: [top, 0], k: 1, cyc: cyc(p - top) };
+            return Plan {
+                nega: [top, 0],
+                k: 1,
+                cyc: cyc(p - top),
+            };
         }
         if p > top + top / 2 && cyc(p - top - top / 2) < top / 2 {
-            return Plan { nega: [top, top / 2], k: 2, cyc: cyc(p - top - top / 2) };
+            return Plan {
+                nega: [top, top / 2],
+                k: 2,
+                cyc: cyc(p - top - top / 2),
+            };
         }
-        Plan { nega: [0; 2], k: 0, cyc: p.next_power_of_two() }
+        Plan {
+            nega: [0; 2],
+            k: 0,
+            cyc: p.next_power_of_two(),
+        }
     }
 
     fn nega(&self) -> &[usize] {
@@ -602,7 +654,11 @@ fn pieces(
     let (sa, scratch) = scratch.split_at_mut(plan.cyc);
     let (sb, scratch) = scratch.split_at_mut(plan.cyc);
     let sa = sums(sa, a);
-    let sb = if ptr::eq(a, b) || fb.is_some() { None } else { sums(sb, b) };
+    let sb = if ptr::eq(a, b) || fb.is_some() {
+        None
+    } else {
+        sums(sb, b)
+    };
     let (r, tmp) = as_i32(scratch).split_at_mut(3 * width);
     for (j, ((r, p), tw)) in r.chunks_exact_mut(width).zip(PRIMES).zip(&t.tw).enumerate() {
         let f = fb.map(|f| f.prime(j));
@@ -745,19 +801,19 @@ fn as_i32(s: &mut [u64]) -> &mut [i32] {
     let s = &mut s[skip..];
     // SAFETY: `u64` is at least as aligned as `i32`, the new slice covers the same
     // bytes, every bit pattern is a valid `i32`, and the borrow of `s` moves into it.
-    unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr().cast(), 2 * s.len()) }
+    unsafe { core::slice::from_raw_parts_mut(s.as_mut_ptr().cast(), 2 * s.len()) }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::internals::{
-        cached::decode_ntt_cached, owned::decode_ntt, decode_ntt_portable, decode_ntt_with,
+        cached::decode_ntt_cached, decode_ntt_portable, decode_ntt_with, owned::decode_ntt,
     };
-    use crate::{dc, encode};
+    use super::*;
     use crate::common::CHUNK;
     use crate::dc::DC_THRESHOLD;
     use crate::tests::{Decode, decode_vec, random_string};
+    use crate::{dc, encode};
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
@@ -765,17 +821,32 @@ mod tests {
     /// which the shapes in the tests below are chosen around.
     fn scalar_ntt(kernels: Kernels) -> Ntt {
         let (threshold, prepared_threshold) = (THRESHOLD, PREPARED_THRESHOLD);
-        Ntt { threshold, prepared_threshold, ..Ntt::new_owned(kernels) }
+        Ntt {
+            threshold,
+            prepared_threshold,
+            ..Ntt::new_owned(kernels)
+        }
     }
 
     /// [`mul_with`] against Karatsuba, with exactly `scratch_len` garbage-filled scratch.
     fn check(a: &[u64], b: &[u64], t: &Tables, k: &Kernels, threshold: usize) {
         let mut want = vec![0; a.len() + b.len()];
-        mul::mul(&mut want, a, b, &mut vec![0; mul::scratch_len(a.len().max(b.len()))]);
+        mul::mul(
+            &mut want,
+            a,
+            b,
+            &mut vec![0; mul::scratch_len(a.len().max(b.len()))],
+        );
         let mut got = vec![0xA5A5_A5A5_A5A5_A5A5; a.len() + b.len()];
         let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len(a.len().max(b.len()))];
         mul_with(&mut got, a, b, &mut scratch, t, k, threshold);
-        assert!(got == want, "{} x {} limbs, tables 2^{}", a.len(), b.len(), t.log);
+        assert!(
+            got == want,
+            "{} x {} limbs, tables 2^{}",
+            a.len(),
+            b.len(),
+            t.log
+        );
     }
 
     /// Random, all-ones (the largest coefficients) and zero operands.
@@ -874,7 +945,10 @@ mod tests {
     #[test]
     fn decode_through_split() {
         let s = random_string(&mut Xoshiro256PlusPlus::seed_from_u64(38), 100_001);
-        let mut ntt = Ntt { max_log: 10, ..scalar_ntt(Kernels::best()) };
+        let mut ntt = Ntt {
+            max_log: 10,
+            ..scalar_ntt(Kernels::best())
+        };
         let mut out = vec![0; s.len()];
         let n = dc::decode_with(&s, &mut out, &mut ntt).unwrap();
         assert!(Ok(out[..n].to_vec()) == decode_vec(crate::dc::decode, &s));
@@ -893,7 +967,7 @@ mod tests {
         let input = vec![0xA5; 8192];
         let mut encoded = vec![0; crate::max_encoded_len(input.len())];
         let len = crate::encode_malachite(&input, &mut encoded).unwrap();
-        let text = std::str::from_utf8(&encoded[..len]).unwrap();
+        let text = core::str::from_utf8(&encoded[..len]).unwrap();
         for cached in [false, true] {
             let mut ntt = Ntt {
                 threshold: usize::MAX,
@@ -913,7 +987,10 @@ mod tests {
                 ..Ntt::with_cache(cached, Kernels::best())
             };
             let mut out = vec![0; encoded.len()];
-            assert_eq!(encode::encode_tuned(&input, &mut out, &mut ntt, 0, 32, Leaves::Horner), Ok(len));
+            assert_eq!(
+                encode::encode_tuned(&input, &mut out, &mut ntt, 0, 32, Leaves::Horner),
+                Ok(len)
+            );
             assert_eq!(out[..len], encoded[..len]);
             assert!(ntt.owned.is_none(), "encode cached={cached}");
             #[cfg(feature = "cache")]
@@ -1007,7 +1084,11 @@ mod tests {
                         let (mut got, mut want) = (vec![0; d], vec![0; d]);
                         narrow(&mut got, s, p);
                         fold(&mut want, &a, p, None, &k);
-                        assert_eq!(reduced(&got, p.q), reduced(&want, p.q), "d {d}, {len} limbs");
+                        assert_eq!(
+                            reduced(&got, p.q),
+                            reduced(&want, p.q),
+                            "d {d}, {len} limbs"
+                        );
                         assert!(got.iter().all(|v| v.abs() < p.q), "d {d}, {len} limbs");
                     }
                 }
@@ -1019,7 +1100,14 @@ mod tests {
     #[test]
     fn narrow_extremes() {
         use crate::ntt::tables::tests::modq;
-        let s = [0, 1, u32::MAX as u64, 1 << 32, (1 << 63) - (1 << 32), (1 << 63) - 1];
+        let s = [
+            0,
+            1,
+            u32::MAX as u64,
+            1 << 32,
+            (1 << 63) - (1 << 32),
+            (1 << 63) - 1,
+        ];
         for p in PRIMES {
             let mut got = [0; 6];
             narrow(&mut got, &s, p);
@@ -1034,7 +1122,12 @@ mod tests {
     /// with exactly `scratch_len` garbage-filled scratch.
     fn check_power(ntt: &mut Ntt, i: usize, a: &[u64], b: &[u64], len: usize) {
         let mut want = vec![0; a.len() + b.len()];
-        mul::mul(&mut want, a, b, &mut vec![0; mul::scratch_len(a.len().max(b.len()))]);
+        mul::mul(
+            &mut want,
+            a,
+            b,
+            &mut vec![0; mul::scratch_len(a.len().max(b.len()))],
+        );
         ntt.prepare_power(i, b, len);
         let mut got = vec![0xA5A5_A5A5_A5A5_A5A5; a.len() + b.len()];
         let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len(a.len().max(b.len()))];
@@ -1073,7 +1166,7 @@ mod tests {
     /// and prime, for one cyclic transform, two pieces and three.
     #[test]
     fn prepared_powers_skip_transforms() {
-        use std::cell::Cell;
+        use core::cell::Cell;
         thread_local!(static FORWARDS: Cell<usize> = const { Cell::new(0) });
         let counting = Kernels {
             forward: |a, p, t| {
@@ -1085,7 +1178,11 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(41);
         let mut ntt = scalar_ntt(counting);
         ntt.prepare(4000);
-        let shapes = [(1031, 858, 1889, 1), (600, 500, 4000, 2), (800, 900, 2000, 3)];
+        let shapes = [
+            (1031, 858, 1889, 1),
+            (600, 500, 4000, 2),
+            (800, 900, 2000, 3),
+        ];
         for (i, (na, nb, len, pieces)) in shapes.into_iter().enumerate() {
             let (a, b) = operands(&mut rng, na, nb)[0].clone();
             ntt.prepare_power(i, &b, len);
@@ -1172,7 +1269,12 @@ mod tests {
             for (l, na, nb) in shapes {
                 for (a, b) in operands(&mut rng, na, nb) {
                     let mut full = vec![0; na + nb];
-                    mul::mul(&mut full, &a, &b, &mut vec![0; mul::scratch_len(na.max(nb))]);
+                    mul::mul(
+                        &mut full,
+                        &a,
+                        &b,
+                        &mut vec![0; mul::scratch_len(na.max(nb))],
+                    );
                     let mut want = vec![0; l];
                     mul::fold_wrapped(&mut want, &full);
                     let want = canon(want);
@@ -1204,8 +1306,14 @@ mod tests {
     fn squares_take_square_path() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(37);
         let t = Tables::new(14);
-        let no_pointwise = Kernels { pointwise: |_, _, _| panic!("pointwise"), ..Kernels::best() };
-        let no_square = Kernels { square: |_, _| panic!("square"), ..Kernels::best() };
+        let no_pointwise = Kernels {
+            pointwise: |_, _, _| panic!("pointwise"),
+            ..Kernels::best()
+        };
+        let no_square = Kernels {
+            square: |_, _| panic!("square"),
+            ..Kernels::best()
+        };
         for (n, nega) in [(128, 0), (129, 1), (200, 2)] {
             assert_eq!(Plan::new(2 * n).nega().len(), nega);
             let a: Vec<u64> = (0..n).map(|_| rng.next_u64()).collect();
@@ -1303,12 +1411,20 @@ mod tests {
         for len in exact.into_iter().chain(others) {
             let s = random_string(&mut rng, len);
             let ntt = Ntt::new_owned(Kernels::best());
-            let mut m = Recording { ntt, prepared: 0, used: 0, power_points: 0 };
+            let mut m = Recording {
+                ntt,
+                prepared: 0,
+                used: 0,
+                power_points: 0,
+            };
             dc::decode_with(&s, &mut vec![0; len], &mut m).unwrap();
             assert!(m.prepared >= m.used, "len {len}: tables too small");
             // The README's bound: prepared powers take less than 12 L bytes while the
             // longest product fits the tables.
-            assert!(m.power_points < 1 << m.prepared, "len {len}: prepared powers too large");
+            assert!(
+                m.power_points < 1 << m.prepared,
+                "len {len}: prepared powers too large"
+            );
             if exact.contains(&len) {
                 assert_eq!(m.prepared, m.used, "len {len}: tables too large");
             }
@@ -1332,7 +1448,10 @@ mod tests {
                 .collect();
             threads.into_iter().map(|t| t.join().unwrap()).collect()
         });
-        assert!(got.iter().all(|&t| std::ptr::eq(t, got[0])), "two tables built");
+        assert!(
+            got.iter().all(|&t| core::ptr::eq(t, got[0])),
+            "two tables built"
+        );
         assert_eq!(got[0].log, LOG);
         for (g, w) in got[0].tw.iter().zip(&Tables::new(LOG).tw) {
             assert!(g.fw == w.fw && g.fwq == w.fwq && g.iw == w.iw && g.iwq == w.iwq);
@@ -1400,8 +1519,10 @@ mod tests {
     #[test]
     fn large_all_ones_pieces() {
         let t = Tables::new(21);
-        let shapes: [(usize, &[usize], usize); 2] =
-            [(327_680, &[1 << 20], 1 << 18), (409_600, &[1 << 20, 1 << 19], 1 << 16)];
+        let shapes: [(usize, &[usize], usize); 2] = [
+            (327_680, &[1 << 20], 1 << 18),
+            (409_600, &[1 << 20, 1 << 19], 1 << 16),
+        ];
         for (n, nega, cyc) in shapes {
             let plan = Plan::new(2 * n);
             assert_eq!((log_len(2 * n), plan.nega(), plan.cyc), (21, nega, cyc));
@@ -1417,12 +1538,18 @@ mod tests {
         for len in 1..=1 << 14 {
             let (plan, l) = (Plan::new(len), 1 << log_len(len));
             let w = plan.width();
-            assert!(w >= 2 * len && w <= l && (plan.nega().is_empty() || w < l), "len {len}");
+            assert!(
+                w >= 2 * len && w <= l && (plan.nega().is_empty() || w < l),
+                "len {len}"
+            );
             // Descending powers of two, at least 8, the cyclic one last and smallest, and
             // at least 64 next to negacyclic ones.
             let mut all = plan.nega().to_vec();
             all.push(plan.cyc);
-            assert!(all.iter().all(|&x| x.is_power_of_two() && x >= 8), "len {len}");
+            assert!(
+                all.iter().all(|&x| x.is_power_of_two() && x >= 8),
+                "len {len}"
+            );
             assert!(all.windows(2).all(|x| x[0] > x[1]), "len {len}");
             assert!(plan.nega().is_empty() || plan.cyc >= 64, "len {len}");
             assert!(plan.nega().iter().all(|&m| 2 * m <= l), "len {len}");
@@ -1460,8 +1587,14 @@ mod tests {
     fn crt_reconstructs_polynomial() {
         use crate::ntt::tables::tests::{modq, samples};
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(36);
-        let shapes: [(&[usize], usize); 6] =
-            [(&[16], 8), (&[64], 8), (&[64], 32), (&[1024], 256), (&[64, 32], 8), (&[1024, 128], 32)];
+        let shapes: [(&[usize], usize); 6] = [
+            (&[16], 8),
+            (&[64], 8),
+            (&[64], 32),
+            (&[1024], 256),
+            (&[64, 32], 8),
+            (&[1024, 128], 32),
+        ];
         for k in [Kernels::portable(), Kernels::best()] {
             for (p, (nega, cyc)) in PRIMES.into_iter().flat_map(|p| shapes.map(|s| (p, s))) {
                 let len = nega.iter().sum::<usize>() + cyc;
@@ -1495,7 +1628,11 @@ mod tests {
                 }
                 for got in all {
                     for (i, (&got, &want)) in got.iter().zip(c).enumerate() {
-                        assert_eq!(modq(got as i128, p.q), modq(want as i128, p.q), "{nega:?} {i}");
+                        assert_eq!(
+                            modq(got as i128, p.q),
+                            modq(want as i128, p.q),
+                            "{nega:?} {i}"
+                        );
                         assert!(got.abs() < p.q);
                     }
                 }

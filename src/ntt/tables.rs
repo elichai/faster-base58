@@ -4,6 +4,8 @@
 //! state the inputs they accept and the outputs they guarantee. The transforms keep
 //! every stored value in `(-q, q)`.
 
+use alloc::vec::Vec;
+
 #[cfg(feature = "cache")]
 pub(super) mod cache;
 
@@ -16,8 +18,11 @@ pub(crate) const S: i32 = 26;
 
 /// Primes below `2^30` that are `1 mod 2^23`, each with a root of unity of order exactly
 /// `2^23`. Their product is about `2^89.35`.
-const PRIMES_AND_ROOTS: [(u32, u32); 3] =
-    [(998_244_353, 15_311_432), (897_581_057, 872_686_320), (880_803_841, 273_508_579)];
+const PRIMES_AND_ROOTS: [(u32, u32); 3] = [
+    (998_244_353, 15_311_432),
+    (897_581_057, 872_686_320),
+    (880_803_841, 273_508_579),
+];
 
 pub(crate) const PRIMES: [Prime; 3] = [
     Prime::new(PRIMES_AND_ROOTS[0].0),
@@ -84,9 +89,16 @@ impl Prime {
     }
 
     /// Maps `(-q, q)` to `[0, q)`.
-    #[cfg(any(test, feature = "__internals", kani, not(all(
-        target_arch = "aarch64", target_endian = "little", target_feature = "neon"
-    ))))]
+    #[cfg(any(
+        test,
+        feature = "__internals",
+        kani,
+        not(all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ))
+    ))]
     #[inline(always)]
     pub fn normalize(self, x: i32) -> i32 {
         x + ((x >> 31) & self.q)
@@ -123,7 +135,11 @@ impl Prime {
 
 /// `x < q` as a balanced `i32`.
 const fn balance(x: u64, q: u64) -> i32 {
-    if x > q / 2 { (x as i64 - q as i64) as i32 } else { x as i32 }
+    if x > q / 2 {
+        (x as i64 - q as i64) as i32
+    } else {
+        x as i32
+    }
 }
 
 /// Montgomery twiddles for one prime and transforms of up to `2^log` points.
@@ -195,7 +211,7 @@ impl Tables {
     /// Requires `1 <= log <= MAX_LOG`.
     pub fn new(log: u32) -> Self {
         assert!((1..=MAX_LOG).contains(&log), "log = {log}");
-        let tw = std::array::from_fn(|i| Twiddles::new(PRIMES[i], PRIMES_AND_ROOTS[i].1, log));
+        let tw = core::array::from_fn(|i| Twiddles::new(PRIMES[i], PRIMES_AND_ROOTS[i].1, log));
         Tables { log, tw }
     }
 }
@@ -230,7 +246,9 @@ pub(crate) mod tests {
         for (q, root) in PRIMES_AND_ROOTS {
             let q = q as u64;
             assert!(q < 1 << 30 && (q - 1).is_multiple_of(1 << 23), "{q}");
-            let prime = (2..).take_while(|d| d * d <= q).all(|d| !q.is_multiple_of(d));
+            let prime = (2..)
+                .take_while(|d| d * d <= q)
+                .all(|d| !q.is_multiple_of(d));
             assert!(prime, "{q} is not prime");
             // root^(2^22) = -1, so the order is exactly 2^23.
             assert_eq!(pow(root as u64, 1 << 22, q), q - 1, "{q}");
@@ -250,7 +268,11 @@ pub(crate) mod tests {
                 let n = 1usize << log;
                 let (k, kq) = p.scale(n);
                 assert_eq!(kq, p.wq(k));
-                assert_eq!(modq(k as i128 * n as i128, p.q), modq(1 << 64, p.q), "n = {n}");
+                assert_eq!(
+                    modq(k as i128 * n as i128, p.q),
+                    modq(1 << 64, p.q),
+                    "n = {n}"
+                );
             }
         }
     }
@@ -262,7 +284,12 @@ pub(crate) mod tests {
         for log in [1, 5, 10, 15] {
             let small = Tables::new(log);
             for (s, b) in small.tw.iter().zip(&big.tw) {
-                for (x, y) in [(&s.fw, &b.fw), (&s.fwq, &b.fwq), (&s.iw, &b.iw), (&s.iwq, &b.iwq)] {
+                for (x, y) in [
+                    (&s.fw, &b.fw),
+                    (&s.fwq, &b.fwq),
+                    (&s.iw, &b.iw),
+                    (&s.iwq, &b.iwq),
+                ] {
                     assert_eq!(x[..], y[..x.len()], "log {log}");
                 }
             }
@@ -289,7 +316,10 @@ pub(crate) mod tests {
             for (a, w) in pairs.chain(small.iter().zip(small.iter().rev()).map(|(&a, &w)| (a, w))) {
                 let r = p.mont(a, w, p.wq(w));
                 assert!(4 * (r as i64).abs() < 3 * p.q as i64, "{a} * {w}: {r}");
-                assert_eq!(modq((r as i128) << 32, p.q), modq(a as i128 * w as i128, p.q));
+                assert_eq!(
+                    modq((r as i128) << 32, p.q),
+                    modq(a as i128 * w as i128, p.q)
+                );
             }
         }
     }
@@ -298,8 +328,18 @@ pub(crate) mod tests {
     fn reduce_is_bounded() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(11);
         for p in PRIMES {
-            let edges = [i32::MIN, i32::MAX, p.q / 2, p.q / 2 + 1, -(p.q / 2) - 1, 3 * (p.q / 2)];
-            for x in edges.into_iter().chain(samples(&mut rng, i32::MAX, 100_000)) {
+            let edges = [
+                i32::MIN,
+                i32::MAX,
+                p.q / 2,
+                p.q / 2 + 1,
+                -(p.q / 2) - 1,
+                3 * (p.q / 2),
+            ];
+            for x in edges
+                .into_iter()
+                .chain(samples(&mut rng, i32::MAX, 100_000))
+            {
                 let r = p.reduce(x);
                 assert!(r.abs() <= p.q / 2 + 32, "{x}: {r}");
                 assert_eq!(modq(r as i128, p.q), modq(x as i128, p.q));
@@ -344,7 +384,7 @@ pub(crate) mod tests {
         for log in [3, 12, 6, 9, 12] {
             let a = Tables::cached(log);
             assert!(a.log >= log, "log {log}");
-            assert!(std::ptr::eq(a, Tables::cached(a.log)), "log {log}");
+            assert!(core::ptr::eq(a, Tables::cached(a.log)), "log {log}");
         }
     }
 }

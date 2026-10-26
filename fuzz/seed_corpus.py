@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Write deterministic corpus seeds; no packages or network access required."""
 
+import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent / "corpus"
@@ -21,6 +22,8 @@ DECODE_CARRY_LENGTHS = [
     # All-z inputs cross 8192 u64 limbs at 89,500 characters, then reach the new cap.
     89_499, 89_500, DECODE_MAX_BYTES - 1, DECODE_MAX_BYTES,
 ]
+UNICODE_LENGTHS = [23, 64, 769, 8193]
+INVALID_UNICODE = [("two-byte", "é"), ("three-byte", "中"), ("four-byte", "🦀")]
 
 
 def write_seed(target, name, data):
@@ -55,13 +58,35 @@ def main():
                 write_seed("decode_small", f"{label}-{length}", data)
     for length in DECODE_CARRY_LENGTHS:
         write_seed("decode_all", f"ntt-carry-{length}", b"z" * length)
+    for length in UNICODE_LENGTHS:
+        for label, char in INVALID_UNICODE:
+            bad = char.encode("utf-8")
+            valid_length = length - len(bad)
+            for where, position in [("middle", valid_length // 2), ("end", valid_length)]:
+                data = b"2" * position + bad + b"z" * (valid_length - position)
+                name = f"unicode-{label}-{where}-{length}"
+                write_seed("decode_all", name, data)
+                if length <= SMALL_MAX_BYTES:
+                    write_seed("decode_small", name, data)
+    # The old first-byte selector could never choose a malformed position >255.
+    late = bytearray(1024)
+    late[1021] = 1
+    for target in ["encode_all", "decode_all", "encode_small", "decode_small"]:
+        write_seed(target, "selector-late-1024", bytes(late))
     count = (
         len(LENGTHS) * 6
         + len(DECODE_CARRY_LENGTHS)
         + sum(n <= SMALL_MAX_BYTES for n in LENGTHS) * 6
+        + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
+        + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
+        + 4
     )
     print(f"Prepared {count} deterministic seeds in {ROOT}")
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=ROOT,
+                        help="Write additive seeds under this root; existing differing files fail.")
+    ROOT = parser.parse_args().output
     main()

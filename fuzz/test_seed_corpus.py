@@ -12,6 +12,31 @@ import seed_corpus
 
 
 class SeedCorpusTests(unittest.TestCase):
+    def test_unicode_seeds_cover_late_byte_indices_and_preserve_budget(self):
+        with TemporaryDirectory() as directory:
+            previous = seed_corpus.ROOT
+            seed_corpus.ROOT = root = Path(directory)
+            try:
+                with redirect_stdout(StringIO()):
+                    seed_corpus.main()
+            finally:
+                seed_corpus.ROOT = previous
+            for length in seed_corpus.UNICODE_LENGTHS:
+                for label, char in seed_corpus.INVALID_UNICODE:
+                    for where in ["middle", "end"]:
+                        data = (root / "decode_all" / f"unicode-{label}-{where}-{length}").read_bytes()
+                        self.assertEqual(len(data), length)
+                        self.assertLessEqual(len(data), seed_corpus.DECODE_MAX_BYTES)
+                        self.assertEqual(data.decode("utf-8").count(char), 1)
+                        index = data.index(char.encode("utf-8"))
+                        valid = length - len(char.encode("utf-8"))
+                        self.assertEqual(index, valid // 2 if where == "middle" else valid)
+                        if length == 8193:
+                            self.assertGreater(index, 255)
+            late = (root / "decode_all" / "selector-late-1024").read_bytes()
+            self.assertEqual(late[:4], b"\0" * 4)
+            self.assertEqual(late[1021:], b"\1\0\0")
+
     def test_carry_seeds_cross_limb_boundary_and_cover_encode_budget(self):
         # n copies of z represent exactly 58**n - 1. These straddle 8192 u64 limbs.
         self.assertLessEqual((58**89_499 - 1).bit_length(), 8192 * 64)

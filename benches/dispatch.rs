@@ -3,15 +3,16 @@
 #[path = "../tests/support/mod.rs"]
 mod support;
 
-use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
+use criterion::{
+    BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main,
+};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 use std::hint::black_box;
 
 const SIZES: &[usize] = &[
-    0, 1, 2, 4, 7, 8, 16, 21, 22, 23, 31, 32, 33, 63, 64, 65, 128, 256, 384, 512,
-    768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 32768, 36864, 65536,
-    131072, 147456, 1048576,
+    0, 1, 2, 4, 7, 8, 16, 21, 22, 23, 31, 32, 33, 63, 64, 65, 128, 256, 384, 512, 768, 1024, 1536,
+    2048, 3072, 4096, 6144, 8192, 12288, 32768, 36864, 65536, 131072, 147456, 1048576,
 ];
 
 fn applicable(name: &str, size: usize) -> bool {
@@ -30,7 +31,7 @@ fn dispatch(c: &mut Criterion) {
         if let Some(first) = data.first_mut() {
             *first |= 1;
         }
-        let mut encoded = vec![0; base58_bench::max_encoded_len(size)];
+        let mut encoded = vec![0; faster_base58::max_encoded_len(size)];
         let len = support::malachite::encode_malachite(&data, &mut encoded).unwrap();
         encoded.truncate(len);
         if size <= 4096 {
@@ -42,12 +43,16 @@ fn dispatch(c: &mut Criterion) {
             if !applicable(name, size) {
                 continue;
             }
-            let mut out = vec![0; base58_bench::max_encoded_len(size)];
+            let mut out = vec![0; faster_base58::max_encoded_len(size)];
             assert_eq!(f(&data, &mut out), Ok(len), "{name} encode {size}");
             assert_eq!(&out[..len], encoded, "{name} encode {size}");
-            group.bench_with_input(BenchmarkId::new(format!("encode/{name}"), size), &data, |b, d| {
-                b.iter(|| f(black_box(d), black_box(&mut out)).unwrap());
-            });
+            group.bench_with_input(
+                BenchmarkId::new(format!("encode/{name}"), size),
+                &data,
+                |b, d| {
+                    b.iter(|| f(black_box(d), black_box(&mut out)).unwrap());
+                },
+            );
         }
         for &(name, f) in support::DECODERS {
             if !applicable(name, size) {
@@ -56,9 +61,13 @@ fn dispatch(c: &mut Criterion) {
             let mut out = vec![0; size];
             assert_eq!(f(text, &mut out), Ok(size), "{name} decode {size}");
             assert_eq!(out, data, "{name} decode {size}");
-            group.bench_with_input(BenchmarkId::new(format!("decode/{name}"), size), &text, |b, s| {
-                b.iter(|| f(black_box(s), black_box(&mut out)).unwrap());
-            });
+            group.bench_with_input(
+                BenchmarkId::new(format!("decode/{name}"), size),
+                &text,
+                |b, s| {
+                    b.iter(|| f(black_box(s), black_box(&mut out)).unwrap());
+                },
+            );
         }
         if size == 32 || size == 64 {
             let mut out = vec![0; size];

@@ -24,7 +24,7 @@ PROFILES = [('default', []), ('cache', ['cache']), ('internals', ['__internals']
             ('cache-internals', ['cache', '__internals'])]
 
 NORMAL = r'''
-use base58_bench::{encode, decode, encode_into, decode_into, encode_string, decode_vec,
+use faster_base58::{encode, decode, encode_into, decode_into, encode_string, decode_vec,
                   decode_array, max_encoded_len, BufferTooSmall, Error, no_alloc};
 fn main() {
     let input = [0, 0, 1];
@@ -67,11 +67,11 @@ fn main() {
 
 INTERNAL = r'''
 #![allow(unused_imports)]
-use base58_bench::{BufferTooSmall, Error};
-use base58_bench::internals::*;
-use base58_bench::internals::{HOOK_NAMES};
+use faster_base58::{BufferTooSmall, Error};
+use faster_base58::internals::*;
+use faster_base58::internals::{HOOK_NAMES};
 #[cfg(target_arch = "x86_64")]
-use base58_bench::internals::{set_ifma_threshold, ifma_mul, ifma_scratch_len};
+use faster_base58::internals::{set_ifma_threshold, ifma_mul, ifma_scratch_len};
 fn main() {
     type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
     type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
@@ -155,7 +155,7 @@ def check_fixture(name, source_file, profile, rlib, source, output, environment,
     destination = output / profile / name
     label = profile + '-' + name
     built = run(['rustc', '--edition=2024', '--error-format=json', '--crate-name', name,
-                 source_file, '--extern', 'base58_bench=' + str(rlib),
+                 source_file, '--extern', 'faster_base58=' + str(rlib),
                  '-L', 'dependency=' + str(rlib.parent / 'deps'), '-o', destination],
                 label, source, output, environment)
     if expected:
@@ -185,11 +185,11 @@ def main():
         return
     before = fingerprint(source)
     fixtures = {'normal': NORMAL, 'internals_positive': INTERNAL,
-                'root_bench': 'use base58_bench::bench; fn main() { let _ = bench::ifma_threshold; }\n',
-                'private_encode': 'use base58_bench::encode::encode_batched; fn main() { let _ = encode_batched; }\n',
-                'absent_internals': 'use base58_bench::internals; fn main() { let _ = internals::ifma_threshold; }\n',
-                'owned_input': 'fn main() { let mut out = [0; 8]; let _ = base58_bench::no_alloc::encode_into(vec![1], &mut out); }\n'}
-    fixtures.update({'root_' + name: f'use base58_bench::{name}; fn main() {{ let _ = {name}; }}\n' for name in NAMES})
+                'root_bench': 'use faster_base58::bench; fn main() { let _ = bench::ifma_threshold; }\n',
+                'private_encode': 'use faster_base58::encode::encode_batched; fn main() { let _ = encode_batched; }\n',
+                'absent_internals': 'use faster_base58::internals; fn main() { let _ = internals::ifma_threshold; }\n',
+                'owned_input': 'fn main() { let mut out = [0; 8]; let _ = faster_base58::no_alloc::encode_into(vec![1], &mut out); }\n'}
+    fixtures.update({'root_' + name: f'use faster_base58::{name}; fn main() {{ let _ = {name}; }}\n' for name in NAMES})
     for name, content in fixtures.items():
         (output / (name + '.rs')).write_text(content)
     environment = build_environment()
@@ -204,10 +204,13 @@ def main():
         build = run(command, profile + '-build', source, output, environment)
         assert build.returncode == 0, (profile, build.stderr)
         messages = [json.loads(line) for line in build.stdout.splitlines() if line.startswith('{')]
-        artifacts = [row for row in messages if row.get('reason') == 'compiler-artifact' and row['target']['name'] == 'base58_bench']
-        assert len(artifacts) == 1 and set(artifacts[0]['features']) == set(features)
+        artifacts = [row for row in messages if row.get('reason') == 'compiler-artifact' and row['target']['name'] == 'faster_base58']
+        expected_features = set(features) | {'default'}
+        if 'cache' in features:
+            expected_features.add('std')
+        assert len(artifacts) == 1 and set(artifacts[0]['features']) == expected_features
         assert artifacts[0]['profile']['test'] is False
-        rlib = target / 'debug/libbase58_bench.rlib'
+        rlib = target / 'debug/libfaster_base58.rlib'
         checks = [check_fixture('normal', output / 'normal.rs', profile, rlib, source, output, environment)]
         for name in NAMES:
             checks.append(check_fixture('root_' + name, output / ('root_' + name + '.rs'), profile,
@@ -219,7 +222,8 @@ def main():
             checks.append(check_fixture('internals_positive', output / 'internals_positive.rs', profile, rlib, source, output, environment))
         else:
             checks.append(check_fixture('absent_internals', output / 'absent_internals.rs', profile, rlib, source, output, environment, ('E0432', 'internals')))
-        profiles.append(dict(profile=profile, features=features, checks=checks,
+        profiles.append(dict(profile=profile, features=features,
+                             resolved_features=artifacts[0]['features'], checks=checks,
                              rlib_sha256=hashlib.sha256(rlib.read_bytes()).hexdigest()))
         print('PASS', profile, len(checks), 'downstream checks', flush=True)
     assert fingerprint(source) == before, 'library/support sources changed during validation'

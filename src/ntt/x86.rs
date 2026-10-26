@@ -1,8 +1,10 @@
 //! Portable NTT kernels compiled for detected x86 target features.
 
+use super::portable::{
+    fold_sub, forward, garner, halves, inverse, load, load_add, load_twist, pair, pointwise,
+    square, twist,
+};
 use super::tables::{Prime, Twiddles};
-use super::portable::{load, forward, inverse, pointwise, square, garner,
-    load_twist, load_add, twist, fold_sub, halves, pair};
 
 /// These kernels compiled for AVX-512 or AVX2, when this CPU has either.
 pub(super) fn kernels() -> Option<super::Kernels> {
@@ -73,9 +75,9 @@ pub(super) fn kernels() -> Option<super::Kernels> {
             }
         }};
     }
-    if is_x86_feature_detected!("avx512f") {
+    if crate::cpu::avx512f() {
         Some(kernels!("avx512f"))
-    } else if is_x86_feature_detected!("avx2") {
+    } else if crate::cpu::avx2() {
         Some(kernels!("avx2"))
     } else {
         None

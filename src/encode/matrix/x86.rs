@@ -22,7 +22,7 @@ pub(super) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, 
         // SAFETY: the CPU has every feature checked by `has_vbmi`.
         return unsafe { encode_64_vbmi(x, output) };
     }
-    if is_x86_feature_detected!("avx2") {
+    if crate::cpu::avx2() {
         // SAFETY: the CPU has AVX2.
         return unsafe { encode_64(x, output) };
     }
@@ -34,11 +34,7 @@ const COLS_64: usize = max_encoded_len(64).div_ceil(4);
 
 /// Whether the CPU runs [`encode_64_vbmi`].
 pub(super) fn has_vbmi() -> bool {
-    is_x86_feature_detected!("avx2")
-        && is_x86_feature_detected!("avx512f")
-        && is_x86_feature_detected!("avx512bw")
-        && is_x86_feature_detected!("avx512vl")
-        && is_x86_feature_detected!("avx512vbmi")
+    crate::cpu::vbmi()
 }
 
 /// [`encode_matrix`](super::entry::encode_matrix) for 64 bytes with AVX2.
@@ -118,7 +114,10 @@ fn alphabet_vbmi(d: __m256i) -> __m256i {
     let [lo, hi] = &ALPHABET_64;
     // SAFETY: `lo` and `hi` hold 32 bytes; the loads are unaligned.
     let (lo, hi) = unsafe {
-        (_mm256_loadu_si256(lo.as_ptr().cast()), _mm256_loadu_si256(hi.as_ptr().cast()))
+        (
+            _mm256_loadu_si256(lo.as_ptr().cast()),
+            _mm256_loadu_si256(hi.as_ptr().cast()),
+        )
     };
     _mm256_permutex2var_epi8(lo, d, hi)
 }
@@ -175,9 +174,8 @@ fn zero_digits(r: &[u32; 24]) -> usize {
 /// The carried columns `r` in the lanes [`group`] takes, top first.
 #[target_feature(enable = "avx2")]
 fn lanes(r: &[u32; 24]) -> [__m256i; 6] {
-    let v = |a: usize, b, c, d| {
-        _mm256_setr_epi64x(r[a] as i64, r[b] as i64, r[c] as i64, r[d] as i64)
-    };
+    let v =
+        |a: usize, b, c, d| _mm256_setr_epi64x(r[a] as i64, r[b] as i64, r[c] as i64, r[d] as i64);
     [
         v(23, 22, 19, 18),
         v(21, 20, 17, 16),
@@ -294,7 +292,7 @@ mod tests {
     use crate::common::ALPHABET;
 
     fn avx2() -> bool {
-        let yes = is_x86_feature_detected!("avx2");
+        let yes = crate::cpu::avx2();
         if !yes {
             eprintln!("no AVX2 on this CPU: AVX2 kernels not run");
         }
@@ -317,15 +315,27 @@ mod tests {
         let wide = vbmi();
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(45);
         let mut inputs: Vec<[u8; 64]> = [0, 1, 0x80, 0xFF].map(|b| [b; 64]).to_vec();
-        inputs.extend((0..1000).map(|_| std::array::from_fn(|_| rng.next_u32() as u8)));
+        inputs.extend((0..1000).map(|_| core::array::from_fn(|_| rng.next_u32() as u8)));
         for x in &inputs {
             let half: &[u8; 32] = x[..32].try_into().unwrap();
             // SAFETY: the CPU has AVX2, and AVX-512F where `wide`.
             unsafe {
-                assert_eq!(cols(x, &TABLE_64), fixed::portable::cols(x, &TABLE_64), "{x:?}");
-                assert_eq!(cols(half, &TABLE_32), fixed::portable::cols(half, &TABLE_32), "{x:?}");
+                assert_eq!(
+                    cols(x, &TABLE_64),
+                    fixed::portable::cols(x, &TABLE_64),
+                    "{x:?}"
+                );
+                assert_eq!(
+                    cols(half, &TABLE_32),
+                    fixed::portable::cols(half, &TABLE_32),
+                    "{x:?}"
+                );
                 if wide {
-                    assert_eq!(cols_512(x, &TABLE_64), fixed::portable::cols(x, &TABLE_64), "{x:?}");
+                    assert_eq!(
+                        cols_512(x, &TABLE_64),
+                        fixed::portable::cols(x, &TABLE_64),
+                        "{x:?}"
+                    );
                 }
             }
         }
@@ -346,7 +356,7 @@ mod tests {
             // SAFETY: the CPU has AVX2; the loads and stores are unaligned, 32 bytes.
             let got: [[u8; 8]; 4] = unsafe {
                 let d = digits(_mm256_loadu_si256(lanes.as_ptr().cast()));
-                std::mem::transmute(d)
+                core::mem::transmute(d)
             };
             for (l, (&c, g)) in lanes.iter().zip(got).enumerate() {
                 let digit = |ch| ALPHABET.iter().position(|&a| a == ch).unwrap() as u8;
@@ -370,10 +380,10 @@ mod tests {
         }
         for (name, f) in kernels {
             for first in 0..58u8 {
-                let d: [u8; 32] = std::array::from_fn(|i| (first + i as u8) % 58);
+                let d: [u8; 32] = core::array::from_fn(|i| (first + i as u8) % 58);
                 // SAFETY: the CPU has the kernel's features.
                 let got: [u8; 32] = unsafe {
-                    std::mem::transmute(f(std::mem::transmute::<[u8; 32], __m256i>(d)))
+                    core::mem::transmute(f(core::mem::transmute::<[u8; 32], __m256i>(d)))
                 };
                 let want = d.map(|d| ALPHABET[d as usize]);
                 assert_eq!(got, want, "{name}");
@@ -391,12 +401,12 @@ mod tests {
         if vbmi() {
             kernels.push(("shift_vbmi", shift_vbmi));
         }
-        let v: [u8; 32] = std::array::from_fn(|i| i as u8 + 100);
+        let v: [u8; 32] = core::array::from_fn(|i| i as u8 + 100);
         for (name, f) in kernels {
             for n in 0..=32 {
                 // SAFETY: the CPU has the kernel's features.
                 let got: [u8; 32] = unsafe {
-                    std::mem::transmute(f(std::mem::transmute::<[u8; 32], __m256i>(v), n))
+                    core::mem::transmute(f(core::mem::transmute::<[u8; 32], __m256i>(v), n))
                 };
                 assert_eq!(got[..32 - n], v[n..], "{name}: shift by {n}");
             }
@@ -418,7 +428,7 @@ mod tests {
             kernels.push(("encode_64_vbmi", encode_64_vbmi));
         }
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(46);
-        let mut random = || -> [u8; 64] { std::array::from_fn(|_| rng.next_u32() as u8) };
+        let mut random = || -> [u8; 64] { core::array::from_fn(|_| rng.next_u32() as u8) };
         let mut inputs: Vec<[u8; 64]> = (0..3000).map(|_| random()).collect();
         for zeros in 0..=64 {
             let mut x = random();
@@ -447,7 +457,10 @@ mod tests {
                 assert_eq!(f(x, &mut out[..want.len()]), Ok(want.len()), "{at}: exact");
                 let mut short = vec![0xAA; want.len() - 1];
                 assert_eq!(f(x, &mut short), Err(BufferTooSmall), "{at}: short");
-                assert!(short.iter().all(|&b| b == 0xAA), "{at}: wrote into a short buffer");
+                assert!(
+                    short.iter().all(|&b| b == 0xAA),
+                    "{at}: wrote into a short buffer"
+                );
             }
         }
     }

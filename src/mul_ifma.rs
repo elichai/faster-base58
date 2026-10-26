@@ -165,7 +165,11 @@ unsafe fn mul_v<V: V8>(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64
         }
         c.fill(0);
         for k in 0..s.chunks {
-            let nw = if k + 1 < s.chunks { s.gb + 1 } else { s.nw_last };
+            let nw = if k + 1 < s.chunks {
+                s.gb + 1
+            } else {
+                s.nw_last
+            };
             // Chunk `k` has at most `8 nw - 7` digits at `bd[at(k)..]`, zeros on both
             // sides to `bd[at(k) - 8..at(k) + 8 nw]`; it adds to
             // `c[8 k gb..8 (k gb + groups + nw)]`, inside `c` by `Shape::new`.
@@ -190,8 +194,14 @@ unsafe fn to_digits<V: V8>(dst: &mut [u64], src: &[u64], g0: usize, g1: usize) {
     unsafe {
         // Even groups start at bit 0 of their first limb, odd ones at bit 32. Per lane: the
         // limb holding the digit's low bits and the shift; the rest is in the next limb.
-        let lo = [V::from_array([0, 0, 1, 2, 3, 4, 4, 5]), V::from_array([0, 1, 2, 2, 3, 4, 5, 6])];
-        let hi = [V::from_array([1, 1, 2, 3, 4, 5, 5, 6]), V::from_array([1, 2, 3, 3, 4, 5, 6, 7])];
+        let lo = [
+            V::from_array([0, 0, 1, 2, 3, 4, 4, 5]),
+            V::from_array([0, 1, 2, 2, 3, 4, 5, 6]),
+        ];
+        let hi = [
+            V::from_array([1, 1, 2, 3, 4, 5, 5, 6]),
+            V::from_array([1, 2, 3, 3, 4, 5, 6, 7]),
+        ];
         let r = [
             V::from_array([0, 52, 40, 28, 16, 4, 56, 44]),
             V::from_array([32, 20, 8, 60, 48, 36, 24, 12]),
@@ -205,7 +215,11 @@ unsafe fn to_digits<V: V8>(dst: &mut [u64], src: &[u64], g0: usize, g1: usize) {
             let p = 13 * g / 2;
             let x = V::load_n(src.as_ptr().add(p), src.len() - p);
             let o = g % 2;
-            let d = x.permute(lo[o]).shrv(r[o]).or(x.permute(hi[o]).shlv(l[o])).and(m52);
+            let d = x
+                .permute(lo[o])
+                .shrv(r[o])
+                .or(x.permute(hi[o]).shlv(l[o]))
+                .and(m52);
             d.store(dst.as_mut_ptr().add(8 * (g - g0)));
         }
     }
@@ -336,7 +350,11 @@ unsafe fn pack<V: V8>(out: &mut [u64], j: usize, u0: V, u1: V) {
         let lo = limbs(
             u0,
             u1,
-            [[0, 1, 2, 3, 4, 6, 7, 8], [1, 2, 3, 4, 5, 7, 8, 9], [2, 3, 4, 5, 6, 8, 9, 10]],
+            [
+                [0, 1, 2, 3, 4, 6, 7, 8],
+                [1, 2, 3, 4, 5, 7, 8, 9],
+                [2, 3, 4, 5, 6, 8, 9, 10],
+            ],
             [
                 [0, 12, 24, 36, 48, 8, 20, 32],
                 [52, 40, 28, 16, 4, 44, 32, 20],
@@ -374,7 +392,8 @@ unsafe fn limbs<V: V8>(u0: V, u1: V, i: [[u64; 8]; 3], s: [[u64; 8]; 3]) -> V {
     // SAFETY: the caller's.
     let v = |x: [u64; 8]| unsafe { V::from_array(x) };
     let d0 = u0.permute2(v(i[0]), u1).shrv(v(s[0]));
-    d0.or(u0.permute2(v(i[1]), u1).shlv(v(s[1]))).or(u0.permute2(v(i[2]), u1).shlv(v(s[2])))
+    d0.or(u0.permute2(v(i[1]), u1).shlv(v(s[1])))
+        .or(u0.permute2(v(i[2]), u1).shlv(v(s[2])))
 }
 
 #[cfg(any(test, kani))]
@@ -411,7 +430,9 @@ mod emulation {
             Emu(core::array::from_fn(|i| unsafe { *p.add(i) }))
         }
         unsafe fn load_n(p: *const u64, n: usize) -> Self {
-            Emu(core::array::from_fn(|i| if i < n { unsafe { *p.add(i) } } else { 0 }))
+            Emu(core::array::from_fn(|i| {
+                if i < n { unsafe { *p.add(i) } } else { 0 }
+            }))
         }
         unsafe fn store(self, p: *mut u64) {
             unsafe { self.store_n(p, 8) }
@@ -440,7 +461,9 @@ mod emulation {
             self.map(s, |x, s| if s < 64 { x << s } else { 0 })
         }
         fn up(self, prev: Self) -> Self {
-            Emu(core::array::from_fn(|i| if i == 0 { prev.0[7] } else { self.0[i - 1] }))
+            Emu(core::array::from_fn(|i| {
+                if i == 0 { prev.0[7] } else { self.0[i - 1] }
+            }))
         }
         fn permute(self, idx: Self) -> Self {
             Emu(idx.0.map(|j| self.0[j as usize % 8]))
@@ -450,11 +473,15 @@ mod emulation {
             Emu(idx.0.map(|j| both[j as usize % 16]))
         }
         fn madd52lo(self, x: Self, y: Self) -> Self {
-            let p = x.map(y, |x, y| ((x & M52) as u128 * (y & M52) as u128) as u64 & M52);
+            let p = x.map(y, |x, y| {
+                ((x & M52) as u128 * (y & M52) as u128) as u64 & M52
+            });
             self.add(p)
         }
         fn madd52hi(self, x: Self, y: Self) -> Self {
-            let p = x.map(y, |x, y| (((x & M52) as u128 * (y & M52) as u128) >> 52) as u64);
+            let p = x.map(y, |x, y| {
+                (((x & M52) as u128 * (y & M52) as u128) >> 52) as u64
+            });
             self.add(p)
         }
         fn bit52(self) -> bool {
@@ -475,7 +502,11 @@ mod emulation {
         let mut high = Emu([previous; 8]);
         let carried = carry(Emu(columns), &mut high, Emu([M52; 8]));
         for i in 0..8 {
-            let from_below = if i == 0 { previous } else { columns[i - 1] >> 52 };
+            let from_below = if i == 0 {
+                previous
+            } else {
+                columns[i - 1] >> 52
+            };
             let want = (columns[i] as u128 % (1u128 << 52)) + from_below as u128;
             assert_eq!(carried.0[i] as u128, want);
             assert_eq!(high.0[i], columns[i] >> 52);
@@ -531,7 +562,12 @@ mod tests {
         assert!(out[o..o + n] == want, "{what}, {} x {}", a.len(), b.len());
         let canaries = out[..o].iter().chain(&out[o + n..]);
         let mut canaries = canaries.chain(&scratch[..o]).chain(&scratch[o + ns..]);
-        assert!(canaries.all(|&x| x == GARBAGE), "canary, {what}, {} x {}", a.len(), b.len());
+        assert!(
+            canaries.all(|&x| x == GARBAGE),
+            "canary, {what}, {} x {}",
+            a.len(),
+            b.len()
+        );
     }
 
     fn limbs(rng: &mut Xoshiro256PlusPlus, n: usize) -> Vec<u64> {
@@ -551,14 +587,24 @@ mod tests {
         };
         let sparse = |rng: &mut Xoshiro256PlusPlus, n: usize| {
             (0..n)
-                .map(|_| if rng.next_u32().is_multiple_of(4) { rng.next_u64() } else { 0 })
+                .map(|_| {
+                    if rng.next_u32().is_multiple_of(4) {
+                        rng.next_u64()
+                    } else {
+                        0
+                    }
+                })
                 .collect()
         };
         vec![
             ("ones", vec![u64::MAX; na], vec![u64::MAX; nb]),
             ("ones x rand", vec![u64::MAX; na], limbs(rng, nb)),
             ("gap", gap(na), vec![u64::MAX; nb]),
-            ("alt", vec![0xAAAA_AAAA_AAAA_AAAA; na], vec![0x5555_5555_5555_5555; nb]),
+            (
+                "alt",
+                vec![0xAAAA_AAAA_AAAA_AAAA; na],
+                vec![0x5555_5555_5555_5555; nb],
+            ),
             ("sparse", sparse(rng, na), sparse(rng, nb)),
             ("rand", limbs(rng, na), limbs(rng, nb)),
             ("rand", limbs(rng, na), limbs(rng, nb)),
@@ -571,7 +617,17 @@ mod tests {
         let nas = (8..=40).chain([47, 48, 63, 64, 71, 72, 73, 89, 90, 100, 129, 200, 300]);
         for na in nas {
             // `b` of 72 limbs is the longest without chunks.
-            for nb in [na, na + 1, na + 7, 72, 73, 2 * na - 1, 2 * na + 3, 5 * na + 11, 777] {
+            for nb in [
+                na,
+                na + 1,
+                na + 7,
+                72,
+                73,
+                2 * na - 1,
+                2 * na + 3,
+                5 * na + 11,
+                777,
+            ] {
                 if nb < na {
                     continue;
                 }
@@ -587,7 +643,11 @@ mod tests {
             }
         }
         // The longest `a`: column sums up to 2^64 - 6144 (all ones).
-        for (na, nb) in [(MAX_LEN - 1, MAX_LEN - 1), (MAX_LEN, MAX_LEN), (MAX_LEN, 1700)] {
+        for (na, nb) in [
+            (MAX_LEN - 1, MAX_LEN - 1),
+            (MAX_LEN, MAX_LEN),
+            (MAX_LEN, 1700),
+        ] {
             for (what, a, b) in patterns(&mut rng, na, nb) {
                 check(&f, &a, &b, what);
             }
@@ -613,7 +673,10 @@ mod tests {
     #[test]
     fn avx512_matches_reference() {
         if !avx512::available() {
-            assert!(std::env::var_os("BASE58_REQUIRE_IFMA").is_none(), "no AVX-512 IFMA");
+            assert!(
+                std::env::var_os("BASE58_REQUIRE_IFMA").is_none(),
+                "no AVX-512 IFMA"
+            );
             eprintln!("skipped: no AVX-512 IFMA");
             return;
         }
@@ -627,7 +690,11 @@ mod tests {
         type Finish = unsafe fn(&mut [u64], &mut [u64]);
         let emu: Finish = finish::<Emu>;
         #[cfg(target_arch = "x86_64")]
-        let fs = if avx512::available() { vec![emu, avx512::finish_tf] } else { vec![emu] };
+        let fs = if avx512::available() {
+            vec![emu, avx512::finish_tf]
+        } else {
+            vec![emu]
+        };
         #[cfg(not(target_arch = "x86_64"))]
         let fs = [emu];
         for v in [true, false] {
@@ -635,8 +702,9 @@ mod tests {
             // c_1 = 2^52 - 1 and c_0 >> 52 = 1 give s_1 = 2^52; with s_2 mod 2^52 = 2^52 - 1,
             // u_2 = 2^52.
             // Columns below 2^60 up to 55 keep the value inside 52 limbs.
-            let mut c: Vec<u64> =
-                (0..64).map(|k| if k < 56 { rng.next_u64() >> 4 } else { 0 }).collect();
+            let mut c: Vec<u64> = (0..64)
+                .map(|k| if k < 56 { rng.next_u64() >> 4 } else { 0 })
+                .collect();
             (c[0], c[1], c[2]) = (1 << 52, M52, M52);
             // The largest permitted column must also accept the incoming scalar carry.
             c[3] = u64::MAX - 6143;
@@ -676,7 +744,10 @@ mod tests {
             assert!(s.chunks == 1 || 8 * (s.chunks - 1) * s.gb < mb);
             for na in 8..=nb.min(MAX_LEN) {
                 assert!(8 * digits(na).div_ceil(8) <= na + nb, "{na} x {nb}");
-                assert!(scratch_len(na, nb) <= crate::mul::scratch_len(nb), "{na} x {nb}");
+                assert!(
+                    scratch_len(na, nb) <= crate::mul::scratch_len(nb),
+                    "{na} x {nb}"
+                );
             }
         }
     }

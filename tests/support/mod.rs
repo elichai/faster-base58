@@ -1,39 +1,52 @@
 #![allow(dead_code)]
 
 pub mod malachite;
+pub mod scalar;
 
-use base58_bench::{BufferTooSmall, Error};
+use faster_base58::{BufferTooSmall, Error};
 
-pub const ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+pub const ALPHABET: &[u8; 58] = scalar::ALPHABET;
 pub type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 pub type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 
 pub const ENCODERS: &[(&str, Encode)] = &[
-    ("auto", base58_bench::encode),
-    ("no-alloc", base58_bench::no_alloc::encode),
-    ("batched", base58_bench::internals::encode_batched),
-    ("dc", base58_bench::internals::encode_karatsuba),
-    ("toom3", base58_bench::internals::encode_toom3),
-    ("ntt", base58_bench::internals::encode_ntt),
-    ("ntt-cached", base58_bench::internals::encode_ntt_cached),
-    ("ntt-portable", base58_bench::internals::encode_ntt_portable),
+    ("auto", faster_base58::encode),
+    ("no-alloc", faster_base58::no_alloc::encode),
+    ("batched", faster_base58::internals::encode_batched),
+    ("dc", faster_base58::internals::encode_karatsuba),
+    ("toom3", faster_base58::internals::encode_toom3),
+    ("ntt", faster_base58::internals::encode_ntt),
+    ("ntt-cached", faster_base58::internals::encode_ntt_cached),
+    (
+        "ntt-portable",
+        faster_base58::internals::encode_ntt_portable,
+    ),
     ("malachite", malachite::encode_malachite),
-    ("matrix", base58_bench::internals::encode_matrix),
-    ("matrix-portable", base58_bench::internals::encode_matrix_portable),
+    ("matrix", faster_base58::internals::encode_matrix),
+    (
+        "matrix-portable",
+        faster_base58::internals::encode_matrix_portable,
+    ),
 ];
 
 pub const DECODERS: &[(&str, Decode)] = &[
-    ("auto", base58_bench::decode),
-    ("no-alloc", base58_bench::no_alloc::decode),
-    ("batched", base58_bench::internals::decode_batched),
-    ("dc", base58_bench::internals::decode_karatsuba),
-    ("toom3", base58_bench::internals::decode_toom3),
-    ("ntt", base58_bench::internals::decode_ntt),
-    ("ntt-cached", base58_bench::internals::decode_ntt_cached),
-    ("ntt-portable", base58_bench::internals::decode_ntt_portable),
+    ("auto", faster_base58::decode),
+    ("no-alloc", faster_base58::no_alloc::decode),
+    ("batched", faster_base58::internals::decode_batched),
+    ("dc", faster_base58::internals::decode_karatsuba),
+    ("toom3", faster_base58::internals::decode_toom3),
+    ("ntt", faster_base58::internals::decode_ntt),
+    ("ntt-cached", faster_base58::internals::decode_ntt_cached),
+    (
+        "ntt-portable",
+        faster_base58::internals::decode_ntt_portable,
+    ),
     ("malachite", malachite::decode_malachite),
-    ("matrix", base58_bench::internals::decode_matrix),
-    ("matrix-portable", base58_bench::internals::decode_matrix_portable),
+    ("matrix", faster_base58::internals::decode_matrix),
+    (
+        "matrix-portable",
+        faster_base58::internals::decode_matrix_portable,
+    ),
 ];
 
 const GUARD: usize = 16;
@@ -77,20 +90,30 @@ pub fn check_encoder(name: &str, encode: Encode, data: &[u8], want: &[u8], selec
 
 pub fn check_encode(data: &[u8], selector: usize) {
     let want = bs58::encode(data).into_vec();
-    assert!(want.len() <= base58_bench::max_encoded_len(data.len()));
+    if let Some(scalar) = scalar::encode(data) {
+        assert_eq!(want, scalar, "independent u128 encode oracle");
+    }
+    assert!(want.len() <= faster_base58::max_encoded_len(data.len()));
     for &(name, encode) in ENCODERS {
         check_encoder(name, encode, data, &want, selector);
     }
 }
 
 pub fn oracle_decode(input: &str) -> Result<Vec<u8>, usize> {
-    bs58::decode(input.as_bytes())
+    let result = bs58::decode(input.as_bytes())
         .into_vec()
         .map_err(|error| match error {
             bs58::decode::Error::InvalidCharacter { index, .. }
             | bs58::decode::Error::NonAsciiCharacter { index } => index,
             error => panic!("unexpected bs58 error: {error:?}"),
-        })
+        });
+    if let Some(scalar) = scalar::decode(input) {
+        assert_eq!(
+            result, scalar,
+            "independent u128 decode/first-invalid oracle"
+        );
+    }
+    result
 }
 
 pub fn check_decoder(

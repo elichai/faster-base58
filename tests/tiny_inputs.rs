@@ -1,10 +1,10 @@
-use base58_bench::{BufferTooSmall, Error};
+use faster_base58::{BufferTooSmall, Error};
 
 const ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 fn check_encode(input: &[u8]) {
     let expected = bs58::encode(input).into_string();
-    for encode in [base58_bench::encode, base58_bench::no_alloc::encode] {
+    for encode in [faster_base58::encode, faster_base58::no_alloc::encode] {
         for capacity in 0..=expected.len() + 1 {
             let mut buffer = [0xA5; 8];
             let result = encode(input, &mut buffer[1..1 + capacity]);
@@ -23,7 +23,7 @@ fn check_encode(input: &[u8]) {
 
 fn check_decode(input: &str) {
     let expected = bs58::decode(input).into_vec().unwrap();
-    for decode in [base58_bench::decode, base58_bench::no_alloc::decode] {
+    for decode in [faster_base58::decode, faster_base58::no_alloc::decode] {
         for capacity in 0..=expected.len() + 1 {
             let mut buffer = [0xA5; 8];
             let result = decode(input, &mut buffer[1..1 + capacity]);
@@ -67,7 +67,7 @@ fn tiny_invalid_inputs_keep_byte_offsets() {
         ("é", 0),
         ("1é", 1),
     ] {
-        for decode in [base58_bench::decode, base58_bench::no_alloc::decode] {
+        for decode in [faster_base58::decode, faster_base58::no_alloc::decode] {
             let mut buffer = [0xA5; 4];
             assert!(
                 matches!(decode(input, &mut buffer), Err(Error::InvalidCharacter { index: actual, .. }) if actual == index)
