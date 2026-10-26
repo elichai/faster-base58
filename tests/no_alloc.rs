@@ -1,17 +1,22 @@
 use faster_base58::{BufferTooSmall, Error, no_alloc};
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed};
+use std::cell::Cell;
+use std::sync::atomic::AtomicBool;
 
 struct Counting;
 
 #[global_allocator]
 static ALLOCATOR: Counting = Counting;
-static ACTIVE: AtomicBool = AtomicBool::new(false);
-static CALLS: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
+thread_local! {
+    static ACTIVE: Cell<bool> = const { Cell::new(false) };
+    static CALLS: Cell<[usize; 4]> = const { Cell::new([0; 4]) };
+}
 
 fn record(kind: usize) {
-    if ACTIVE.load(Relaxed) {
-        CALLS[kind].fetch_add(1, Relaxed);
+    if ACTIVE.get() {
+        let mut calls = CALLS.get();
+        calls[kind] += 1;
+        CALLS.set(calls);
     }
 }
 
@@ -39,14 +44,12 @@ unsafe impl GlobalAlloc for Counting {
 }
 
 fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
-    assert!(!ACTIVE.load(Relaxed));
-    for count in &CALLS {
-        count.store(0, Relaxed);
-    }
-    ACTIVE.store(true, Relaxed);
+    assert!(!ACTIVE.get());
+    CALLS.set([0; 4]);
+    ACTIVE.set(true);
     let result = call();
-    ACTIVE.store(false, Relaxed);
-    (result, std::array::from_fn(|i| CALLS[i].load(Relaxed)))
+    ACTIVE.set(false);
+    (result, CALLS.get())
 }
 
 fn without_allocations<T>(call: impl FnOnce() -> T) -> T {
@@ -286,12 +289,41 @@ fn borrowed_and_array_contracts() {
     );
 }
 
-// One test in a separate integration process keeps first use cold and prevents
-// overlapping counting regions. Assertions/oracle/caller-buffer setup stay outside.
+fn allocation_counter_is_thread_local() {
+    use std::sync::atomic::Ordering::{Acquire, Release};
+
+    let started = AtomicBool::new(false);
+    let finished = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            while !started.load(Acquire) {
+                std::hint::spin_loop();
+            }
+            std::hint::black_box(vec![0xA5; 128]);
+            finished.store(true, Release);
+        });
+        without_allocations(|| {
+            started.store(true, Release);
+            while !finished.load(Acquire) {
+                std::hint::spin_loop();
+            }
+        });
+    });
+    let (value, calls) = observe(|| std::hint::black_box(vec![0xA5; 128]));
+    assert!(
+        calls[0] + calls[1] > 0,
+        "the observed thread must still count"
+    );
+    drop(value);
+}
+
+// One process keeps first use cold; thread-local counters exclude libtest activity.
+// Assertions/oracle/caller-buffer setup stay outside counting regions.
 #[test]
 fn no_allocator_calls_on_cold_success_or_error_paths() {
     cold_paths();
     differential_boundaries();
     invalid_byte_offsets();
     borrowed_and_array_contracts();
+    allocation_counter_is_thread_local();
 }

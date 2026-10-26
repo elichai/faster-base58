@@ -6,6 +6,7 @@ import hashlib
 import html
 import json
 import math
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -46,6 +47,14 @@ def duration(value, places=2):
             return f"{value / scale:.{places}f} {unit}"
 
 
+def coordinate(value):
+    # libm logarithms may differ by a few ULPs across platforms. SVG needs pixels,
+    # not a platform-specific full-precision float representation.
+    result = f"{value:.2f}"
+    require(all(f"{value + delta:.2f}" == result for delta in [-1e-9, 1e-9]), "SVG coordinate is too close to a rounding boundary")
+    return result
+
+
 rows = csv_rows(TIMINGS)
 points = []
 for profile, label, metric, _ in PROFILES:
@@ -68,12 +77,12 @@ def figure(operation):
              '<rect width="1120" height="800" fill="white"/>',
              '<style>text{font-family:Arial,sans-serif;fill:#1e293b;font-size:13px}.title{font-size:23px;font-weight:700}.panel{font-size:16px;font-weight:700}.grid{stroke:#e2e8f0;stroke-width:1}</style>']
     def text(x, y, value, extra=""):
-        parts.append(f'<text x="{x:.2f}" y="{y:.2f}" {extra}>{html.escape(str(value))}</text>')
+        parts.append(f'<text x="{coordinate(x)}" y="{coordinate(y)}" {extra}>{html.escape(str(value))}</text>')
     text(28, 32, operation.capitalize() + " · time per conversion", 'class="title"')
     text(28, 56, "2026-10-25 snapshot · before rename and no_std · reusable output buffers · lower is faster")
     for index, (mode, color, dash) in enumerate(zip(MODES, COLORS, DASHES)):
         x = 30 + index * 270
-        parts.append(f'<path d="M{x} 82h36" stroke="{color}" stroke-width="3" stroke-dasharray="{dash}"/>')
+        parts.append(f'<path d="M{coordinate(x)} 82.00h36.00" stroke="{color}" stroke-width="3" stroke-dasharray="{dash}"/>')
         text(x + 44, 86, mode)
     for index, (profile, label, metric, _) in enumerate(PROFILES):
         left, top, width, height = 82 + index % 2 * 550, 144 + index // 2 * 312, 428, 218
@@ -86,22 +95,22 @@ def figure(operation):
         text(left, top - 19, label + " · " + clock, 'class="panel"')
         for exponent in range(lo, hi + 1):
             yy = y(10 ** exponent)
-            parts.append(f'<path d="M{left} {yy}h{width}" class="grid"/>')
+            parts.append(f'<path d="M{coordinate(left)} {coordinate(yy)}h{coordinate(width)}" class="grid"/>')
             text(left - 8, yy + 4, duration(10 ** exponent, 0), 'text-anchor="end"')
         for size, tick in zip(PAYLOADS, ["32 B", "64 B", "256 B", "1 KiB", "4 KiB", "64 KiB"]):
             xx = x(size)
-            parts.append(f'<path d="M{xx} {top}v{height}" class="grid"/>')
+            parts.append(f'<path d="M{coordinate(xx)} {coordinate(top)}v{coordinate(height)}" class="grid"/>')
             text(xx, top + height + 23, tick, 'text-anchor="middle"')
         text(left + width / 2, top + height + 47, "Input bytes" if operation == "encode" else "Decoded payload bytes", 'text-anchor="middle"')
         for mode, color, dash in zip(MODES, COLORS, DASHES):
             series = sorted((p for p in selected if p["mode"] == mode), key=lambda p: p["bytes"])
-            vertices = " ".join(f"{x(p['bytes'])},{y(p['median_ns'])}" for p in series)
+            vertices = " ".join(f"{coordinate(x(p['bytes']))},{coordinate(y(p['median_ns']))}" for p in series)
             parts.append(f'<polyline fill="none" stroke="{color}" stroke-width="2.2" stroke-dasharray="{dash}" points="{vertices}"/>')
             for p in series:
                 xx, yy = x(p["bytes"]), y(p["median_ns"])
                 a, b = y(p["minimum_ns"]), y(p["maximum_ns"])
-                parts.append(f'<path d="M{xx} {a}V{b} M{xx-3} {a}h6 M{xx-3} {b}h6" stroke="{color}" stroke-width="1"/>')
-                parts.append(f'<circle cx="{xx}" cy="{yy}" r="3" fill="{color}"><title>{html.escape(mode)}: {duration(p["median_ns"])}; range {duration(p["minimum_ns"])}–{duration(p["maximum_ns"])}</title></circle>')
+                parts.append(f'<path d="M{coordinate(xx)} {coordinate(a)}V{coordinate(b)} M{coordinate(xx-3)} {coordinate(a)}h6.00 M{coordinate(xx-3)} {coordinate(b)}h6.00" stroke="{color}" stroke-width="1"/>')
+                parts.append(f'<circle cx="{coordinate(xx)}" cy="{coordinate(yy)}" r="3" fill="{color}"><title>{html.escape(mode)}: {duration(p["median_ns"])}; range {duration(p["minimum_ns"])}–{duration(p["maximum_ns"])}</title></circle>')
     text(28, 773, "Dots: median of 3 process medians. Bars: observed process range. Native and Wasm clocks are different.")
     parts.append("</svg>\n")
     return "\n".join(parts)
@@ -132,7 +141,12 @@ outputs = {"encode.svg": figure("encode"), "decode.svg": figure("decode"), "data
 inputs = {str(p.relative_to(ROOT)): digest(p) for p in [TIMINGS, SIZES]}
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--check", action="store_true", help="check committed graphs, input hashes and README table cells")
+parser.add_argument("--output", type=Path, help="render into a new directory, preserving existing assets")
 args = parser.parse_args()
+require(not (args.check and args.output), "--output cannot be combined with --check")
+destination = args.output.resolve() if args.output else HERE
+if args.output:
+    destination.mkdir(parents=True, exist_ok=False)
 if args.check:
     receipt = json.loads((HERE / "receipt.json").read_text())
     require(receipt["inputs"] == inputs and receipt["renderer_sha256"] == digest(Path(__file__)), "Renderer/input hash mismatch")
@@ -142,17 +156,24 @@ if args.check:
     guide = (ROOT / "README.md").read_text()
     require(performance in guide and size_table in guide, "README table differs from frozen numeric inputs")
 else:
-    require(all(not (HERE / n).exists() for n in [*outputs, "receipt.json"]), "Refusing to overwrite generated files")
+    require(all(not (destination / n).exists() for n in [*outputs, "receipt.json"]), "Refusing to overwrite generated files")
     for name, content in outputs.items():
-        with (HERE / name).open("x") as stream:
+        with (destination / name).open("x") as stream:
             stream.write(content)
     receipt = dict(status="pass", snapshot=data["snapshot"], inputs=inputs, renderer_sha256=digest(Path(__file__)), python=sys.version,
-                   timing_points=len(points), linked_size_cells=len(size_data), outputs={name: digest(HERE / name) for name in outputs})
-    with (HERE / "receipt.json").open("x") as stream:
+                   timing_points=len(points), linked_size_cells=len(size_data), svg_coordinate_decimals=2,
+                   coordinate_stability_tolerance=1e-9, outputs={name: digest(destination / name) for name in outputs})
+    with (destination / "receipt.json").open("x") as stream:
         json.dump(receipt, stream, indent=2)
         stream.write("\n")
 for name in ["encode.svg", "decode.svg"]:
-    svg = ET.fromstring((HERE / name).read_bytes())
+    svg = ET.fromstring((destination / name).read_bytes())
     require(len(svg.findall("{http://www.w3.org/2000/svg}polyline")) == 16, "Wrong SVG series count")
     require(len(svg.findall("{http://www.w3.org/2000/svg}circle")) == 96, "Wrong SVG point count")
+    for node in svg.iter():
+        for key in ["x", "y", "cx", "cy", "points", "d"]:
+            if key not in node.attrib:
+                continue
+            for number in re.findall(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", node.attrib[key]):
+                require("e" not in number.lower() and ("." not in number or len(number.split(".")[1]) <= 2), "Unquantized SVG coordinate")
 print(json.dumps(dict(status="pass", mode="check" if args.check else "render", timing_points=len(points), linked_size_cells=len(size_data))))

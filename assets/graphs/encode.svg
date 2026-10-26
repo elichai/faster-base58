@@ -5,357 +5,357 @@
 <style>text{font-family:Arial,sans-serif;fill:#1e293b;font-size:13px}.title{font-size:23px;font-weight:700}.panel{font-size:16px;font-weight:700}.grid{stroke:#e2e8f0;stroke-width:1}</style>
 <text x="28.00" y="32.00" class="title">Encode · time per conversion</text>
 <text x="28.00" y="56.00" >2026-10-25 snapshot · before rename and no_std · reusable output buffers · lower is faster</text>
-<path d="M30 82h36" stroke="#075c9b" stroke-width="3" stroke-dasharray="none"/>
+<path d="M30.00 82.00h36.00" stroke="#075c9b" stroke-width="3" stroke-dasharray="none"/>
 <text x="74.00" y="86.00" >Auto</text>
-<path d="M300 82h36" stroke="#853da2" stroke-width="3" stroke-dasharray="7 3"/>
+<path d="M300.00 82.00h36.00" stroke="#853da2" stroke-width="3" stroke-dasharray="7 3"/>
 <text x="344.00" y="86.00" >Auto + cache</text>
-<path d="M570 82h36" stroke="#007960" stroke-width="3" stroke-dasharray="2 3"/>
+<path d="M570.00 82.00h36.00" stroke="#007960" stroke-width="3" stroke-dasharray="2 3"/>
 <text x="614.00" y="86.00" >no_alloc</text>
-<path d="M840 82h36" stroke="#687487" stroke-width="3" stroke-dasharray="9 3 2 3"/>
+<path d="M840.00 82.00h36.00" stroke="#687487" stroke-width="3" stroke-dasharray="9 3 2 3"/>
 <text x="884.00" y="86.00" >bs58</text>
 <text x="82.00" y="125.00" class="panel">M5 Pro · process CPU</text>
-<path d="M82 362.0h428" class="grid"/>
+<path d="M82.00 362.00h428.00" class="grid"/>
 <text x="74.00" y="366.00" text-anchor="end">10 ns</text>
-<path d="M82 337.77777777777777h428" class="grid"/>
+<path d="M82.00 337.78h428.00" class="grid"/>
 <text x="74.00" y="341.78" text-anchor="end">100 ns</text>
-<path d="M82 313.55555555555554h428" class="grid"/>
+<path d="M82.00 313.56h428.00" class="grid"/>
 <text x="74.00" y="317.56" text-anchor="end">1 µs</text>
-<path d="M82 289.33333333333337h428" class="grid"/>
+<path d="M82.00 289.33h428.00" class="grid"/>
 <text x="74.00" y="293.33" text-anchor="end">10 µs</text>
-<path d="M82 265.1111111111111h428" class="grid"/>
+<path d="M82.00 265.11h428.00" class="grid"/>
 <text x="74.00" y="269.11" text-anchor="end">100 µs</text>
-<path d="M82 240.88888888888889h428" class="grid"/>
+<path d="M82.00 240.89h428.00" class="grid"/>
 <text x="74.00" y="244.89" text-anchor="end">1 ms</text>
-<path d="M82 216.66666666666669h428" class="grid"/>
+<path d="M82.00 216.67h428.00" class="grid"/>
 <text x="74.00" y="220.67" text-anchor="end">10 ms</text>
-<path d="M82 192.44444444444446h428" class="grid"/>
+<path d="M82.00 192.44h428.00" class="grid"/>
 <text x="74.00" y="196.44" text-anchor="end">100 ms</text>
-<path d="M82 168.22222222222223h428" class="grid"/>
+<path d="M82.00 168.22h428.00" class="grid"/>
 <text x="74.00" y="172.22" text-anchor="end">1 s</text>
-<path d="M82 144.0h428" class="grid"/>
+<path d="M82.00 144.00h428.00" class="grid"/>
 <text x="74.00" y="148.00" text-anchor="end">10 s</text>
-<path d="M82.0 144v218" class="grid"/>
+<path d="M82.00 144.00v218.00" class="grid"/>
 <text x="82.00" y="385.00" text-anchor="middle">32 B</text>
-<path d="M120.9090909090909 144v218" class="grid"/>
+<path d="M120.91 144.00v218.00" class="grid"/>
 <text x="120.91" y="385.00" text-anchor="middle">64 B</text>
-<path d="M198.72727272727272 144v218" class="grid"/>
+<path d="M198.73 144.00v218.00" class="grid"/>
 <text x="198.73" y="385.00" text-anchor="middle">256 B</text>
-<path d="M276.5454545454545 144v218" class="grid"/>
+<path d="M276.55 144.00v218.00" class="grid"/>
 <text x="276.55" y="385.00" text-anchor="middle">1 KiB</text>
-<path d="M354.3636363636364 144v218" class="grid"/>
+<path d="M354.36 144.00v218.00" class="grid"/>
 <text x="354.36" y="385.00" text-anchor="middle">4 KiB</text>
-<path d="M510.0 144v218" class="grid"/>
+<path d="M510.00 144.00v218.00" class="grid"/>
 <text x="510.00" y="385.00" text-anchor="middle">64 KiB</text>
 <text x="296.00" y="409.00" text-anchor="middle">Input bytes</text>
-<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="82.0,358.5093416048071 120.9090909090909,353.00118885805466 198.72727272727272,318.5285990032943 276.5454545454545,292.29136231925384 354.3636363636364,264.566597431532 510.0,230.54799315266467"/>
-<path d="M82.0 358.6368180773878V358.4233031416768 M79.0 358.6368180773878h6 M79.0 358.4233031416768h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="82.0" cy="358.5093416048071" r="3" fill="#075c9b"><title>Auto: 13.94 ns; range 13.77 ns–14.05 ns</title></circle>
-<path d="M120.9090909090909 353.3550741245965V352.76726088327666 M117.9090909090909 353.3550741245965h6 M117.9090909090909 352.76726088327666h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="353.00118885805466" r="3" fill="#075c9b"><title>Auto: 23.52 ns; range 22.75 ns–24.05 ns</title></circle>
-<path d="M198.72727272727272 318.73036475593426V318.26412073935137 M195.72727272727272 318.73036475593426h6 M195.72727272727272 318.26412073935137h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="318.5285990032943" r="3" fill="#075c9b"><title>Auto: 623.29 ns; range 611.45 ns–639.16 ns</title></circle>
-<path d="M276.5454545454545 292.53921723247953V292.2073245315219 M273.5454545454545 292.53921723247953h6 M273.5454545454545 292.2073245315219h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="292.29136231925384" r="3" fill="#075c9b"><title>Auto: 7.55 µs; range 7.37 µs–7.61 µs</title></circle>
-<path d="M354.3636363636364 264.7259562466475V263.8448456594622 M351.3636363636364 264.7259562466475h6 M351.3636363636364 263.8448456594622h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="264.566597431532" r="3" fill="#075c9b"><title>Auto: 105.31 µs; range 103.73 µs–112.79 µs</title></circle>
-<path d="M510.0 230.69864352954224V230.5263661285149 M507.0 230.69864352954224h6 M507.0 230.5263661285149h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="510.0" cy="230.54799315266467" r="3" fill="#075c9b"><title>Auto: 2.67 ms; range 2.63 ms–2.68 ms</title></circle>
-<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="82.0,359.00038561919854 120.9090909090909,353.2870770649182 198.72727272727272,329.2311664259251 276.5454545454545,306.5676682225295 354.3636363636364,278.2498641734851 510.0,232.35590824823993"/>
-<path d="M82.0 359.2149787850848V358.76172798197547 M79.0 359.2149787850848h6 M79.0 358.76172798197547h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="82.0" cy="359.00038561919854" r="3" fill="#853da2"><title>Auto + cache: 13.30 ns; range 13.03 ns–13.60 ns</title></circle>
-<path d="M120.9090909090909 353.43535860705856V353.2707296219229 M117.9090909090909 353.43535860705856h6 M117.9090909090909 353.2707296219229h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="353.2870770649182" r="3" fill="#853da2"><title>Auto + cache: 22.89 ns; range 22.57 ns–22.93 ns</title></circle>
-<path d="M198.72727272727272 329.3717163817481V329.18283967787045 M195.72727272727272 329.3717163817481h6 M195.72727272727272 329.18283967787045h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="329.2311664259251" r="3" fill="#853da2"><title>Auto + cache: 225.34 ns; range 222.35 ns–226.38 ns</title></circle>
-<path d="M276.5454545454545 306.61915323005167V306.5107983779561 M273.5454545454545 306.61915323005167h6 M273.5454545454545 306.5107983779561h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="306.5676682225295" r="3" fill="#853da2"><title>Auto + cache: 1.94 µs; range 1.93 µs–1.95 µs</title></circle>
-<path d="M354.3636363636364 278.2535491476225V278.08495931227446 M351.3636363636364 278.2535491476225h6 M351.3636363636364 278.08495931227446h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="278.2498641734851" r="3" fill="#853da2"><title>Auto + cache: 28.68 µs; range 28.67 µs–29.13 µs</title></circle>
-<path d="M510.0 232.48997734401587V232.34189459947498 M507.0 232.48997734401587h6 M507.0 232.34189459947498h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="510.0" cy="232.35590824823993" r="3" fill="#853da2"><title>Auto + cache: 2.25 ms; range 2.22 ms–2.25 ms</title></circle>
-<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="82.0,358.5214433414104 120.9090909090909,353.1940034433825 198.72727272727272,318.33872083457806 276.5454545454545,292.145404894945 354.3636363636364,264.45070085551515 510.0,206.16134731588738"/>
-<path d="M82.0 358.5792624242579V358.457061027087 M79.0 358.5792624242579h6 M79.0 358.457061027087h6" stroke="#007960" stroke-width="1"/>
-<circle cx="82.0" cy="358.5214433414104" r="3" fill="#007960"><title>no_alloc: 13.92 ns; range 13.84 ns–14.00 ns</title></circle>
-<path d="M120.9090909090909 353.26839634533565V352.99664083487505 M117.9090909090909 353.26839634533565h6 M117.9090909090909 352.99664083487505h6" stroke="#007960" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="353.1940034433825" r="3" fill="#007960"><title>no_alloc: 23.10 ns; range 22.93 ns–23.53 ns</title></circle>
-<path d="M198.72727272727272 318.46902111802933V318.2721601569765 M195.72727272727272 318.46902111802933h6 M195.72727272727272 318.2721601569765h6" stroke="#007960" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="318.33872083457806" r="3" fill="#007960"><title>no_alloc: 634.64 ns; range 626.83 ns–638.67 ns</title></circle>
-<path d="M276.5454545454545 292.2343602119145V290.95150956443877 M273.5454545454545 292.2343602119145h6 M273.5454545454545 290.95150956443877h6" stroke="#007960" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="292.145404894945" r="3" fill="#007960"><title>no_alloc: 7.65 µs; range 7.59 µs–8.57 µs</title></circle>
-<path d="M354.3636363636364 264.5874282847755V264.2630284113936 M351.3636363636364 264.5874282847755h6 M351.3636363636364 264.2630284113936h6" stroke="#007960" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="264.45070085551515" r="3" fill="#007960"><title>no_alloc: 106.48 µs; range 105.10 µs–108.40 µs</title></circle>
-<path d="M510.0 206.4317944204051V206.05032985804854 M507.0 206.4317944204051h6 M507.0 206.05032985804854h6" stroke="#007960" stroke-width="1"/>
-<circle cx="510.0" cy="206.16134731588738" r="3" fill="#007960"><title>no_alloc: 27.15 ms; range 26.46 ms–27.43 ms</title></circle>
-<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="82.0,314.8783845532372 120.9090909090909,301.37635444516127 198.72727272727272,270.93477709745594 276.5454545454545,241.15522153085766 354.3636363636364,212.2391970695043 510.0,153.962606340848"/>
-<path d="M82.0 315.10804020108355V314.6393911268501 M79.0 315.10804020108355h6 M79.0 314.6393911268501h6" stroke="#687487" stroke-width="1"/>
-<circle cx="82.0" cy="314.8783845532372" r="3" fill="#687487"><title>bs58: 881.84 ns; range 862.79 ns–902.10 ns</title></circle>
-<path d="M120.9090909090909 301.70950442544586V301.14649291560477 M117.9090909090909 301.70950442544586h6 M117.9090909090909 301.14649291560477h6" stroke="#687487" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="301.37635444516127" r="3" fill="#687487"><title>bs58: 3.18 µs; range 3.08 µs–3.25 µs</title></circle>
-<path d="M198.72727272727272 271.01975176879847V270.8414108225866 M195.72727272727272 271.01975176879847h6 M195.72727272727272 270.8414108225866h6" stroke="#687487" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="270.93477709745594" r="3" fill="#687487"><title>bs58: 57.49 µs; range 57.02 µs–58.00 µs</title></circle>
-<path d="M276.5454545454545 241.20117633005083V241.09604707057457 M273.5454545454545 241.20117633005083h6 M273.5454545454545 241.09604707057457h6" stroke="#687487" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="241.15522153085766" r="3" fill="#687487"><title>bs58: 975.00 µs; range 970.75 µs–980.50 µs</title></circle>
-<path d="M354.3636363636364 212.25094345429468V212.23781600380056 M351.3636363636364 212.25094345429468h6 M351.3636363636364 212.23781600380056h6" stroke="#687487" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="212.2391970695043" r="3" fill="#687487"><title>bs58: 15.23 ms; range 15.22 ms–15.23 ms</title></circle>
-<path d="M510.0 153.97405472993867V153.83295064752897 M507.0 153.97405472993867h6 M507.0 153.83295064752897h6" stroke="#687487" stroke-width="1"/>
-<circle cx="510.0" cy="153.962606340848" r="3" fill="#687487"><title>bs58: 3.88 s; range 3.87 s–3.93 s</title></circle>
+<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="82.00,358.51 120.91,353.00 198.73,318.53 276.55,292.29 354.36,264.57 510.00,230.55"/>
+<path d="M82.00 358.64V358.42 M79.00 358.64h6.00 M79.00 358.42h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="82.00" cy="358.51" r="3" fill="#075c9b"><title>Auto: 13.94 ns; range 13.77 ns–14.05 ns</title></circle>
+<path d="M120.91 353.36V352.77 M117.91 353.36h6.00 M117.91 352.77h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="120.91" cy="353.00" r="3" fill="#075c9b"><title>Auto: 23.52 ns; range 22.75 ns–24.05 ns</title></circle>
+<path d="M198.73 318.73V318.26 M195.73 318.73h6.00 M195.73 318.26h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="198.73" cy="318.53" r="3" fill="#075c9b"><title>Auto: 623.29 ns; range 611.45 ns–639.16 ns</title></circle>
+<path d="M276.55 292.54V292.21 M273.55 292.54h6.00 M273.55 292.21h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="276.55" cy="292.29" r="3" fill="#075c9b"><title>Auto: 7.55 µs; range 7.37 µs–7.61 µs</title></circle>
+<path d="M354.36 264.73V263.84 M351.36 264.73h6.00 M351.36 263.84h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="354.36" cy="264.57" r="3" fill="#075c9b"><title>Auto: 105.31 µs; range 103.73 µs–112.79 µs</title></circle>
+<path d="M510.00 230.70V230.53 M507.00 230.70h6.00 M507.00 230.53h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="510.00" cy="230.55" r="3" fill="#075c9b"><title>Auto: 2.67 ms; range 2.63 ms–2.68 ms</title></circle>
+<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="82.00,359.00 120.91,353.29 198.73,329.23 276.55,306.57 354.36,278.25 510.00,232.36"/>
+<path d="M82.00 359.21V358.76 M79.00 359.21h6.00 M79.00 358.76h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="82.00" cy="359.00" r="3" fill="#853da2"><title>Auto + cache: 13.30 ns; range 13.03 ns–13.60 ns</title></circle>
+<path d="M120.91 353.44V353.27 M117.91 353.44h6.00 M117.91 353.27h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="120.91" cy="353.29" r="3" fill="#853da2"><title>Auto + cache: 22.89 ns; range 22.57 ns–22.93 ns</title></circle>
+<path d="M198.73 329.37V329.18 M195.73 329.37h6.00 M195.73 329.18h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="198.73" cy="329.23" r="3" fill="#853da2"><title>Auto + cache: 225.34 ns; range 222.35 ns–226.38 ns</title></circle>
+<path d="M276.55 306.62V306.51 M273.55 306.62h6.00 M273.55 306.51h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="276.55" cy="306.57" r="3" fill="#853da2"><title>Auto + cache: 1.94 µs; range 1.93 µs–1.95 µs</title></circle>
+<path d="M354.36 278.25V278.08 M351.36 278.25h6.00 M351.36 278.08h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="354.36" cy="278.25" r="3" fill="#853da2"><title>Auto + cache: 28.68 µs; range 28.67 µs–29.13 µs</title></circle>
+<path d="M510.00 232.49V232.34 M507.00 232.49h6.00 M507.00 232.34h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="510.00" cy="232.36" r="3" fill="#853da2"><title>Auto + cache: 2.25 ms; range 2.22 ms–2.25 ms</title></circle>
+<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="82.00,358.52 120.91,353.19 198.73,318.34 276.55,292.15 354.36,264.45 510.00,206.16"/>
+<path d="M82.00 358.58V358.46 M79.00 358.58h6.00 M79.00 358.46h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="82.00" cy="358.52" r="3" fill="#007960"><title>no_alloc: 13.92 ns; range 13.84 ns–14.00 ns</title></circle>
+<path d="M120.91 353.27V353.00 M117.91 353.27h6.00 M117.91 353.00h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="120.91" cy="353.19" r="3" fill="#007960"><title>no_alloc: 23.10 ns; range 22.93 ns–23.53 ns</title></circle>
+<path d="M198.73 318.47V318.27 M195.73 318.47h6.00 M195.73 318.27h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="198.73" cy="318.34" r="3" fill="#007960"><title>no_alloc: 634.64 ns; range 626.83 ns–638.67 ns</title></circle>
+<path d="M276.55 292.23V290.95 M273.55 292.23h6.00 M273.55 290.95h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="276.55" cy="292.15" r="3" fill="#007960"><title>no_alloc: 7.65 µs; range 7.59 µs–8.57 µs</title></circle>
+<path d="M354.36 264.59V264.26 M351.36 264.59h6.00 M351.36 264.26h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="354.36" cy="264.45" r="3" fill="#007960"><title>no_alloc: 106.48 µs; range 105.10 µs–108.40 µs</title></circle>
+<path d="M510.00 206.43V206.05 M507.00 206.43h6.00 M507.00 206.05h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="510.00" cy="206.16" r="3" fill="#007960"><title>no_alloc: 27.15 ms; range 26.46 ms–27.43 ms</title></circle>
+<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="82.00,314.88 120.91,301.38 198.73,270.93 276.55,241.16 354.36,212.24 510.00,153.96"/>
+<path d="M82.00 315.11V314.64 M79.00 315.11h6.00 M79.00 314.64h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="82.00" cy="314.88" r="3" fill="#687487"><title>bs58: 881.84 ns; range 862.79 ns–902.10 ns</title></circle>
+<path d="M120.91 301.71V301.15 M117.91 301.71h6.00 M117.91 301.15h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="120.91" cy="301.38" r="3" fill="#687487"><title>bs58: 3.18 µs; range 3.08 µs–3.25 µs</title></circle>
+<path d="M198.73 271.02V270.84 M195.73 271.02h6.00 M195.73 270.84h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="198.73" cy="270.93" r="3" fill="#687487"><title>bs58: 57.49 µs; range 57.02 µs–58.00 µs</title></circle>
+<path d="M276.55 241.20V241.10 M273.55 241.20h6.00 M273.55 241.10h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="276.55" cy="241.16" r="3" fill="#687487"><title>bs58: 975.00 µs; range 970.75 µs–980.50 µs</title></circle>
+<path d="M354.36 212.25V212.24 M351.36 212.25h6.00 M351.36 212.24h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="354.36" cy="212.24" r="3" fill="#687487"><title>bs58: 15.23 ms; range 15.22 ms–15.23 ms</title></circle>
+<path d="M510.00 153.97V153.83 M507.00 153.97h6.00 M507.00 153.83h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="510.00" cy="153.96" r="3" fill="#687487"><title>bs58: 3.88 s; range 3.87 s–3.93 s</title></circle>
 <text x="632.00" y="125.00" class="panel">GCP AMD EPYC 9B45 (generic) · process CPU</text>
-<path d="M632 362.0h428" class="grid"/>
+<path d="M632.00 362.00h428.00" class="grid"/>
 <text x="624.00" y="366.00" text-anchor="end">10 ns</text>
-<path d="M632 337.77777777777777h428" class="grid"/>
+<path d="M632.00 337.78h428.00" class="grid"/>
 <text x="624.00" y="341.78" text-anchor="end">100 ns</text>
-<path d="M632 313.55555555555554h428" class="grid"/>
+<path d="M632.00 313.56h428.00" class="grid"/>
 <text x="624.00" y="317.56" text-anchor="end">1 µs</text>
-<path d="M632 289.33333333333337h428" class="grid"/>
+<path d="M632.00 289.33h428.00" class="grid"/>
 <text x="624.00" y="293.33" text-anchor="end">10 µs</text>
-<path d="M632 265.1111111111111h428" class="grid"/>
+<path d="M632.00 265.11h428.00" class="grid"/>
 <text x="624.00" y="269.11" text-anchor="end">100 µs</text>
-<path d="M632 240.88888888888889h428" class="grid"/>
+<path d="M632.00 240.89h428.00" class="grid"/>
 <text x="624.00" y="244.89" text-anchor="end">1 ms</text>
-<path d="M632 216.66666666666669h428" class="grid"/>
+<path d="M632.00 216.67h428.00" class="grid"/>
 <text x="624.00" y="220.67" text-anchor="end">10 ms</text>
-<path d="M632 192.44444444444446h428" class="grid"/>
+<path d="M632.00 192.44h428.00" class="grid"/>
 <text x="624.00" y="196.44" text-anchor="end">100 ms</text>
-<path d="M632 168.22222222222223h428" class="grid"/>
+<path d="M632.00 168.22h428.00" class="grid"/>
 <text x="624.00" y="172.22" text-anchor="end">1 s</text>
-<path d="M632 144.0h428" class="grid"/>
+<path d="M632.00 144.00h428.00" class="grid"/>
 <text x="624.00" y="148.00" text-anchor="end">10 s</text>
-<path d="M632.0 144v218" class="grid"/>
+<path d="M632.00 144.00v218.00" class="grid"/>
 <text x="632.00" y="385.00" text-anchor="middle">32 B</text>
-<path d="M670.9090909090909 144v218" class="grid"/>
+<path d="M670.91 144.00v218.00" class="grid"/>
 <text x="670.91" y="385.00" text-anchor="middle">64 B</text>
-<path d="M748.7272727272727 144v218" class="grid"/>
+<path d="M748.73 144.00v218.00" class="grid"/>
 <text x="748.73" y="385.00" text-anchor="middle">256 B</text>
-<path d="M826.5454545454545 144v218" class="grid"/>
+<path d="M826.55 144.00v218.00" class="grid"/>
 <text x="826.55" y="385.00" text-anchor="middle">1 KiB</text>
-<path d="M904.3636363636364 144v218" class="grid"/>
+<path d="M904.36 144.00v218.00" class="grid"/>
 <text x="904.36" y="385.00" text-anchor="middle">4 KiB</text>
-<path d="M1060.0 144v218" class="grid"/>
+<path d="M1060.00 144.00v218.00" class="grid"/>
 <text x="1060.00" y="385.00" text-anchor="middle">64 KiB</text>
 <text x="846.00" y="409.00" text-anchor="middle">Input bytes</text>
-<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="632.0,349.9144407540693 670.9090909090909,346.8164810921261 748.7272727272727,311.748748393494 826.5454545454545,291.02602815675186 904.3636363636364,272.10287526315335 1060.0,227.3627924993432"/>
-<path d="M632.0 349.9447292096812V349.85040129451147 M629.0 349.9447292096812h6 M629.0 349.85040129451147h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="632.0" cy="349.9144407540693" r="3" fill="#075c9b"><title>Auto: 31.55 ns; range 31.46 ns–31.74 ns</title></circle>
-<path d="M670.9090909090909 346.8233551871919V346.7963434590814 M667.9090909090909 346.8233551871919h6 M667.9090909090909 346.7963434590814h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="346.8164810921261" r="3" fill="#075c9b"><title>Auto: 42.35 ns; range 42.32 ns–42.43 ns</title></circle>
-<path d="M748.7272727272727 311.76670616963713V311.74536276544353 M745.7272727272727 311.76670616963713h6 M745.7272727272727 311.74536276544353h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="311.748748393494" r="3" fill="#075c9b"><title>Auto: 1.19 µs; range 1.19 µs–1.19 µs</title></circle>
-<path d="M826.5454545454545 291.0401771572757V291.01161136871303 M823.5454545454545 291.0401771572757h6 M823.5454545454545 291.01161136871303h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="291.02602815675186" r="3" fill="#075c9b"><title>Auto: 8.51 µs; range 8.50 µs–8.53 µs</title></circle>
-<path d="M904.3636363636364 272.13191813428676V272.09837001795074 M901.3636363636364 272.13191813428676h6 M901.3636363636364 272.09837001795074h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="272.10287526315335" r="3" fill="#075c9b"><title>Auto: 51.45 µs; range 51.30 µs–51.47 µs</title></circle>
-<path d="M1060.0 227.3953445607362V227.3319383036714 M1057.0 227.3953445607362h6 M1057.0 227.3319383036714h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="1060.0" cy="227.3627924993432" r="3" fill="#075c9b"><title>Auto: 3.62 ms; range 3.61 ms–3.63 ms</title></circle>
-<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="632.0,350.1496031875615 670.9090909090909,347.1867880012501 748.7272727272727,323.1083995724147 826.5454545454545,300.7099252308107 904.3636363636364,274.4213886967465 1060.0,230.14490448083976"/>
-<path d="M632.0 350.1592467848398V350.1389261607677 M629.0 350.1592467848398h6 M629.0 350.1389261607677h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="632.0" cy="350.1496031875615" r="3" fill="#853da2"><title>Auto + cache: 30.85 ns; range 30.82 ns–30.88 ns</title></circle>
-<path d="M670.9090909090909 347.1910153203655V345.97575908262127 M667.9090909090909 347.1910153203655h6 M667.9090909090909 345.97575908262127h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="347.1867880012501" r="3" fill="#853da2"><title>Auto + cache: 40.88 ns; range 40.87 ns–45.87 ns</title></circle>
-<path d="M748.7272727272727 323.1198007153904V323.00699326633423 M745.7272727272727 323.1198007153904h6 M745.7272727272727 323.00699326633423h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="323.1083995724147" r="3" fill="#853da2"><title>Auto + cache: 403.29 ns; range 402.85 ns–407.20 ns</title></circle>
-<path d="M826.5454545454545 300.7184476987883V300.7048053724594 M823.5454545454545 300.7184476987883h6 M823.5454545454545 300.7048053724594h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="300.7099252308107" r="3" fill="#853da2"><title>Auto + cache: 3.39 µs; range 3.39 µs–3.39 µs</title></circle>
-<path d="M904.3636363636364 274.4430588012028V274.36090763430695 M901.3636363636364 274.4430588012028h6 M901.3636363636364 274.36090763430695h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="274.4213886967465" r="3" fill="#853da2"><title>Auto + cache: 41.27 µs; range 41.18 µs–41.51 µs</title></circle>
-<path d="M1060.0 230.17817055756197V230.12754208717456 M1057.0 230.17817055756197h6 M1057.0 230.12754208717456h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="1060.0" cy="230.14490448083976" r="3" fill="#853da2"><title>Auto + cache: 2.78 ms; range 2.77 ms–2.78 ms</title></circle>
-<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="632.0,349.974411694931 670.9090909090909,346.78888021689716 748.7272727272727,311.75928487920805 826.5454545454545,284.20469546832874 904.3636363636364,255.5921245526947 1060.0,197.45120577473165"/>
-<path d="M632.0 349.97723175872477V349.973132423432 M629.0 349.97723175872477h6 M629.0 349.973132423432h6" stroke="#007960" stroke-width="1"/>
-<circle cx="632.0" cy="349.974411694931" r="3" fill="#007960"><title>no_alloc: 31.37 ns; range 31.36 ns–31.37 ns</title></circle>
-<path d="M670.9090909090909 346.84517880780675V346.7882564713991 M667.9090909090909 346.84517880780675h6 M667.9090909090909 346.7882564713991h6" stroke="#007960" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="346.78888021689716" r="3" fill="#007960"><title>no_alloc: 42.46 ns; range 42.23 ns–42.46 ns</title></circle>
-<path d="M748.7272727272727 311.76251505613186V311.7283023834534 M745.7272727272727 311.76251505613186h6 M745.7272727272727 311.7283023834534h6" stroke="#007960" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="311.75928487920805" r="3" fill="#007960"><title>no_alloc: 1.19 µs; range 1.19 µs–1.19 µs</title></circle>
-<path d="M826.5454545454545 284.20960389472884V284.14346168096904 M823.5454545454545 284.20960389472884h6 M823.5454545454545 284.14346168096904h6" stroke="#007960" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="284.20469546832874" r="3" fill="#007960"><title>no_alloc: 16.28 µs; range 16.28 µs–16.38 µs</title></circle>
-<path d="M904.3636363636364 255.6079965513229V255.58507578563916 M901.3636363636364 255.6079965513229h6 M901.3636363636364 255.58507578563916h6" stroke="#007960" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="255.5921245526947" r="3" fill="#007960"><title>no_alloc: 247.16 µs; range 246.79 µs–247.33 µs</title></circle>
-<path d="M1060.0 197.45354615931186V197.4464284075731 M1057.0 197.45354615931186h6 M1057.0 197.4464284075731h6" stroke="#007960" stroke-width="1"/>
-<circle cx="1060.0" cy="197.45120577473165" r="3" fill="#007960"><title>no_alloc: 62.13 ms; range 62.12 ms–62.16 ms</title></circle>
-<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="632.0,314.80875583410557 670.9090909090909,299.22499251599885 748.7272727272727,268.9558359012806 826.5454545454545,239.60994152862708 904.3636363636364,210.4519845562687 1060.0,152.1081236976088"/>
-<path d="M632.0 314.8245615908145V314.8084954508166 M629.0 314.8245615908145h6 M629.0 314.8084954508166h6" stroke="#687487" stroke-width="1"/>
-<circle cx="632.0" cy="314.80875583410557" r="3" fill="#687487"><title>bs58: 887.69 ns; range 886.36 ns–887.71 ns</title></circle>
-<path d="M670.9090909090909 299.22702097315243V299.2209893683781 M667.9090909090909 299.22702097315243h6 M667.9090909090909 299.2209893683781h6" stroke="#687487" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="299.22499251599885" r="3" fill="#687487"><title>bs58: 3.91 µs; range 3.90 µs–3.91 µs</title></circle>
-<path d="M748.7272727272727 268.9575416427104V268.9459953849853 M745.7272727272727 268.9575416427104h6 M745.7272727272727 268.9459953849853h6" stroke="#687487" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="268.9558359012806" r="3" fill="#687487"><title>bs58: 69.39 µs; range 69.37 µs–69.45 µs</title></circle>
-<path d="M826.5454545454545 239.62093235776547V239.60949673156432 M823.5454545454545 239.62093235776547h6 M823.5454545454545 239.60949673156432h6" stroke="#687487" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="239.60994152862708" r="3" fill="#687487"><title>bs58: 1.13 ms; range 1.13 ms–1.13 ms</title></circle>
-<path d="M904.3636363636364 210.45299438624463V210.45064215110267 M901.3636363636364 210.45299438624463h6 M901.3636363636364 210.45064215110267h6" stroke="#687487" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="210.4519845562687" r="3" fill="#687487"><title>bs58: 18.05 ms; range 18.05 ms–18.06 ms</title></circle>
-<path d="M1060.0 152.11659159858206V152.10710800912764 M1057.0 152.11659159858206h6 M1057.0 152.10710800912764h6" stroke="#687487" stroke-width="1"/>
-<circle cx="1060.0" cy="152.1081236976088" r="3" fill="#687487"><title>bs58: 4.63 s; range 4.62 s–4.63 s</title></circle>
+<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="632.00,349.91 670.91,346.82 748.73,311.75 826.55,291.03 904.36,272.10 1060.00,227.36"/>
+<path d="M632.00 349.94V349.85 M629.00 349.94h6.00 M629.00 349.85h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="632.00" cy="349.91" r="3" fill="#075c9b"><title>Auto: 31.55 ns; range 31.46 ns–31.74 ns</title></circle>
+<path d="M670.91 346.82V346.80 M667.91 346.82h6.00 M667.91 346.80h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="670.91" cy="346.82" r="3" fill="#075c9b"><title>Auto: 42.35 ns; range 42.32 ns–42.43 ns</title></circle>
+<path d="M748.73 311.77V311.75 M745.73 311.77h6.00 M745.73 311.75h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="748.73" cy="311.75" r="3" fill="#075c9b"><title>Auto: 1.19 µs; range 1.19 µs–1.19 µs</title></circle>
+<path d="M826.55 291.04V291.01 M823.55 291.04h6.00 M823.55 291.01h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="826.55" cy="291.03" r="3" fill="#075c9b"><title>Auto: 8.51 µs; range 8.50 µs–8.53 µs</title></circle>
+<path d="M904.36 272.13V272.10 M901.36 272.13h6.00 M901.36 272.10h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="904.36" cy="272.10" r="3" fill="#075c9b"><title>Auto: 51.45 µs; range 51.30 µs–51.47 µs</title></circle>
+<path d="M1060.00 227.40V227.33 M1057.00 227.40h6.00 M1057.00 227.33h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="1060.00" cy="227.36" r="3" fill="#075c9b"><title>Auto: 3.62 ms; range 3.61 ms–3.63 ms</title></circle>
+<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="632.00,350.15 670.91,347.19 748.73,323.11 826.55,300.71 904.36,274.42 1060.00,230.14"/>
+<path d="M632.00 350.16V350.14 M629.00 350.16h6.00 M629.00 350.14h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="632.00" cy="350.15" r="3" fill="#853da2"><title>Auto + cache: 30.85 ns; range 30.82 ns–30.88 ns</title></circle>
+<path d="M670.91 347.19V345.98 M667.91 347.19h6.00 M667.91 345.98h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="670.91" cy="347.19" r="3" fill="#853da2"><title>Auto + cache: 40.88 ns; range 40.87 ns–45.87 ns</title></circle>
+<path d="M748.73 323.12V323.01 M745.73 323.12h6.00 M745.73 323.01h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="748.73" cy="323.11" r="3" fill="#853da2"><title>Auto + cache: 403.29 ns; range 402.85 ns–407.20 ns</title></circle>
+<path d="M826.55 300.72V300.70 M823.55 300.72h6.00 M823.55 300.70h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="826.55" cy="300.71" r="3" fill="#853da2"><title>Auto + cache: 3.39 µs; range 3.39 µs–3.39 µs</title></circle>
+<path d="M904.36 274.44V274.36 M901.36 274.44h6.00 M901.36 274.36h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="904.36" cy="274.42" r="3" fill="#853da2"><title>Auto + cache: 41.27 µs; range 41.18 µs–41.51 µs</title></circle>
+<path d="M1060.00 230.18V230.13 M1057.00 230.18h6.00 M1057.00 230.13h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="1060.00" cy="230.14" r="3" fill="#853da2"><title>Auto + cache: 2.78 ms; range 2.77 ms–2.78 ms</title></circle>
+<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="632.00,349.97 670.91,346.79 748.73,311.76 826.55,284.20 904.36,255.59 1060.00,197.45"/>
+<path d="M632.00 349.98V349.97 M629.00 349.98h6.00 M629.00 349.97h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="632.00" cy="349.97" r="3" fill="#007960"><title>no_alloc: 31.37 ns; range 31.36 ns–31.37 ns</title></circle>
+<path d="M670.91 346.85V346.79 M667.91 346.85h6.00 M667.91 346.79h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="670.91" cy="346.79" r="3" fill="#007960"><title>no_alloc: 42.46 ns; range 42.23 ns–42.46 ns</title></circle>
+<path d="M748.73 311.76V311.73 M745.73 311.76h6.00 M745.73 311.73h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="748.73" cy="311.76" r="3" fill="#007960"><title>no_alloc: 1.19 µs; range 1.19 µs–1.19 µs</title></circle>
+<path d="M826.55 284.21V284.14 M823.55 284.21h6.00 M823.55 284.14h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="826.55" cy="284.20" r="3" fill="#007960"><title>no_alloc: 16.28 µs; range 16.28 µs–16.38 µs</title></circle>
+<path d="M904.36 255.61V255.59 M901.36 255.61h6.00 M901.36 255.59h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="904.36" cy="255.59" r="3" fill="#007960"><title>no_alloc: 247.16 µs; range 246.79 µs–247.33 µs</title></circle>
+<path d="M1060.00 197.45V197.45 M1057.00 197.45h6.00 M1057.00 197.45h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="1060.00" cy="197.45" r="3" fill="#007960"><title>no_alloc: 62.13 ms; range 62.12 ms–62.16 ms</title></circle>
+<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="632.00,314.81 670.91,299.22 748.73,268.96 826.55,239.61 904.36,210.45 1060.00,152.11"/>
+<path d="M632.00 314.82V314.81 M629.00 314.82h6.00 M629.00 314.81h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="632.00" cy="314.81" r="3" fill="#687487"><title>bs58: 887.69 ns; range 886.36 ns–887.71 ns</title></circle>
+<path d="M670.91 299.23V299.22 M667.91 299.23h6.00 M667.91 299.22h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="670.91" cy="299.22" r="3" fill="#687487"><title>bs58: 3.91 µs; range 3.90 µs–3.91 µs</title></circle>
+<path d="M748.73 268.96V268.95 M745.73 268.96h6.00 M745.73 268.95h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="748.73" cy="268.96" r="3" fill="#687487"><title>bs58: 69.39 µs; range 69.37 µs–69.45 µs</title></circle>
+<path d="M826.55 239.62V239.61 M823.55 239.62h6.00 M823.55 239.61h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="826.55" cy="239.61" r="3" fill="#687487"><title>bs58: 1.13 ms; range 1.13 ms–1.13 ms</title></circle>
+<path d="M904.36 210.45V210.45 M901.36 210.45h6.00 M901.36 210.45h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="904.36" cy="210.45" r="3" fill="#687487"><title>bs58: 18.05 ms; range 18.05 ms–18.06 ms</title></circle>
+<path d="M1060.00 152.12V152.11 M1057.00 152.12h6.00 M1057.00 152.11h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="1060.00" cy="152.11" r="3" fill="#687487"><title>bs58: 4.63 s; range 4.62 s–4.63 s</title></circle>
 <text x="82.00" y="437.00" class="panel">GCP AMD EPYC 9B45 (native) · process CPU</text>
-<path d="M82 674.0h428" class="grid"/>
+<path d="M82.00 674.00h428.00" class="grid"/>
 <text x="74.00" y="678.00" text-anchor="end">10 ns</text>
-<path d="M82 649.7777777777778h428" class="grid"/>
+<path d="M82.00 649.78h428.00" class="grid"/>
 <text x="74.00" y="653.78" text-anchor="end">100 ns</text>
-<path d="M82 625.5555555555555h428" class="grid"/>
+<path d="M82.00 625.56h428.00" class="grid"/>
 <text x="74.00" y="629.56" text-anchor="end">1 µs</text>
-<path d="M82 601.3333333333334h428" class="grid"/>
+<path d="M82.00 601.33h428.00" class="grid"/>
 <text x="74.00" y="605.33" text-anchor="end">10 µs</text>
-<path d="M82 577.1111111111111h428" class="grid"/>
+<path d="M82.00 577.11h428.00" class="grid"/>
 <text x="74.00" y="581.11" text-anchor="end">100 µs</text>
-<path d="M82 552.8888888888889h428" class="grid"/>
+<path d="M82.00 552.89h428.00" class="grid"/>
 <text x="74.00" y="556.89" text-anchor="end">1 ms</text>
-<path d="M82 528.6666666666666h428" class="grid"/>
+<path d="M82.00 528.67h428.00" class="grid"/>
 <text x="74.00" y="532.67" text-anchor="end">10 ms</text>
-<path d="M82 504.44444444444446h428" class="grid"/>
+<path d="M82.00 504.44h428.00" class="grid"/>
 <text x="74.00" y="508.44" text-anchor="end">100 ms</text>
-<path d="M82 480.22222222222223h428" class="grid"/>
+<path d="M82.00 480.22h428.00" class="grid"/>
 <text x="74.00" y="484.22" text-anchor="end">1 s</text>
-<path d="M82 456.0h428" class="grid"/>
+<path d="M82.00 456.00h428.00" class="grid"/>
 <text x="74.00" y="460.00" text-anchor="end">10 s</text>
-<path d="M82.0 456v218" class="grid"/>
+<path d="M82.00 456.00v218.00" class="grid"/>
 <text x="82.00" y="697.00" text-anchor="middle">32 B</text>
-<path d="M120.9090909090909 456v218" class="grid"/>
+<path d="M120.91 456.00v218.00" class="grid"/>
 <text x="120.91" y="697.00" text-anchor="middle">64 B</text>
-<path d="M198.72727272727272 456v218" class="grid"/>
+<path d="M198.73 456.00v218.00" class="grid"/>
 <text x="198.73" y="697.00" text-anchor="middle">256 B</text>
-<path d="M276.5454545454545 456v218" class="grid"/>
+<path d="M276.55 456.00v218.00" class="grid"/>
 <text x="276.55" y="697.00" text-anchor="middle">1 KiB</text>
-<path d="M354.3636363636364 456v218" class="grid"/>
+<path d="M354.36 456.00v218.00" class="grid"/>
 <text x="354.36" y="697.00" text-anchor="middle">4 KiB</text>
-<path d="M510.0 456v218" class="grid"/>
+<path d="M510.00 456.00v218.00" class="grid"/>
 <text x="510.00" y="697.00" text-anchor="middle">64 KiB</text>
 <text x="296.00" y="721.00" text-anchor="middle">Input bytes</text>
-<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="82.0,661.6581036218552 120.9090909090909,661.5697046936131 198.72727272727272,623.9758516504322 276.5454545454545,603.3773284560255 354.3636363636364,584.5156293917578 510.0,539.4438333534774"/>
-<path d="M82.0 661.6696977379308V660.6112063539082 M79.0 661.6696977379308h6 M79.0 660.6112063539082h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="82.0" cy="661.6581036218552" r="3" fill="#075c9b"><title>Auto: 32.32 ns; range 32.29 ns–35.71 ns</title></circle>
-<path d="M120.9090909090909 661.6404624669888V661.5000506982002 M117.9090909090909 661.6404624669888h6 M117.9090909090909 661.5000506982002h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="661.5697046936131" r="3" fill="#075c9b"><title>Auto: 32.60 ns; range 32.38 ns–32.81 ns</title></circle>
-<path d="M198.72727272727272 623.9911992226226V623.9588669566967 M195.72727272727272 623.9911992226226h6 M195.72727272727272 623.9588669566967h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="623.9758516504322" r="3" fill="#075c9b"><title>Auto: 1.16 µs; range 1.16 µs–1.16 µs</title></circle>
-<path d="M276.5454545454545 603.3799762457546V603.3197860428106 M273.5454545454545 603.3799762457546h6 M273.5454545454545 603.3197860428106h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="603.3773284560255" r="3" fill="#075c9b"><title>Auto: 8.23 µs; range 8.23 µs–8.28 µs</title></circle>
-<path d="M354.3636363636364 584.5384168387988V584.48665164216 M351.3636363636364 584.5384168387988h6 M351.3636363636364 584.48665164216h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="584.5156293917578" r="3" fill="#075c9b"><title>Auto: 49.47 µs; range 49.36 µs–49.60 µs</title></circle>
-<path d="M510.0 539.487710799409V539.4146139078932 M507.0 539.487710799409h6 M507.0 539.4146139078932h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="510.0" cy="539.4438333534774" r="3" fill="#075c9b"><title>Auto: 3.59 ms; range 3.57 ms–3.60 ms</title></circle>
-<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="82.0,660.8346633276915 120.9090909090909,661.6634258387069 198.72727272727272,635.1689703397421 276.5454545454545,612.7358073523269 354.3636363636364,587.0491065620569 510.0,542.1280904927135"/>
-<path d="M82.0 662.1186161800874V660.8216601329741 M79.0 662.1186161800874h6 M79.0 660.8216601329741h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="82.0" cy="660.8346633276915" r="3" fill="#853da2"><title>Auto + cache: 34.96 ns; range 30.94 ns–35.00 ns</title></circle>
-<path d="M120.9090909090909 661.7665078300037V661.1104309058326 M117.9090909090909 661.7665078300037h6 M117.9090909090909 661.1104309058326h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="661.6634258387069" r="3" fill="#853da2"><title>Auto + cache: 32.31 ns; range 31.99 ns–34.05 ns</title></circle>
-<path d="M198.72727272727272 635.1804394920571V634.9852433765132 M195.72727272727272 635.1804394920571h6 M195.72727272727272 634.9852433765132h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="635.1689703397421" r="3" fill="#853da2"><title>Auto + cache: 400.97 ns; range 400.54 ns–408.04 ns</title></circle>
-<path d="M276.5454545454545 612.7470064241855V612.7351732489237 M273.5454545454545 612.7470064241855h6 M273.5454545454545 612.7351732489237h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="612.7358073523269" r="3" fill="#853da2"><title>Auto + cache: 3.38 µs; range 3.38 µs–3.38 µs</title></circle>
-<path d="M354.3636363636364 587.0588613310823V587.028895916478 M351.3636363636364 587.0588613310823h6 M351.3636363636364 587.028895916478h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="587.0491065620569" r="3" fill="#853da2"><title>Auto + cache: 38.88 µs; range 38.84 µs–38.95 µs</title></circle>
-<path d="M510.0 542.1709240686697V541.949537931773 M507.0 542.1709240686697h6 M507.0 541.949537931773h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="510.0" cy="542.1280904927135" r="3" fill="#853da2"><title>Auto + cache: 2.78 ms; range 2.77 ms–2.83 ms</title></circle>
-<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="82.0,661.734396304036 120.9090909090909,661.5342801838837 198.72727272727272,623.9792878004989 276.5454545454545,597.0148307489765 354.3636363636364,568.4324603613359 510.0,510.3449240434629"/>
-<path d="M82.0 661.7484311586442V661.7218538660427 M79.0 661.7484311586442h6 M79.0 661.7218538660427h6" stroke="#007960" stroke-width="1"/>
-<circle cx="82.0" cy="661.734396304036" r="3" fill="#007960"><title>no_alloc: 32.09 ns; range 32.05 ns–32.13 ns</title></circle>
-<path d="M120.9090909090909 661.5436949222371V661.522439647299 M117.9090909090909 661.5436949222371h6 M117.9090909090909 661.522439647299h6" stroke="#007960" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="661.5342801838837" r="3" fill="#007960"><title>no_alloc: 32.71 ns; range 32.68 ns–32.74 ns</title></circle>
-<path d="M198.72727272727272 624.0030750572065V623.9784687903322 M195.72727272727272 624.0030750572065h6 M195.72727272727272 623.9784687903322h6" stroke="#007960" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="623.9792878004989" r="3" fill="#007960"><title>no_alloc: 1.16 µs; range 1.16 µs–1.16 µs</title></circle>
-<path d="M276.5454545454545 597.0153413681605V597.0119081582534 M273.5454545454545 597.0153413681605h6 M273.5454545454545 597.0119081582534h6" stroke="#007960" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="597.0148307489765" r="3" fill="#007960"><title>no_alloc: 15.08 µs; range 15.08 µs–15.08 µs</title></circle>
-<path d="M354.3636363636364 568.4369590004349V568.4313367223363 M351.3636363636364 568.4369590004349h6 M351.3636363636364 568.4313367223363h6" stroke="#007960" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="568.4324603613359" r="3" fill="#007960"><title>no_alloc: 228.19 µs; range 228.09 µs–228.21 µs</title></circle>
-<path d="M510.0 510.3494517944248V510.34481363035866 M507.0 510.3494517944248h6 M507.0 510.34481363035866h6" stroke="#007960" stroke-width="1"/>
-<circle cx="510.0" cy="510.3449240434629" r="3" fill="#007960"><title>no_alloc: 57.07 ms; range 57.04 ms–57.07 ms</title></circle>
-<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="82.0,628.3604894330712 120.9090909090909,614.0932782590367 198.72727272727272,583.5610517769016 276.5454545454545,553.7586236340084 354.3636363636364,524.4726571919246 510.0,466.1021843996202"/>
-<path d="M82.0 628.3673083672574V628.3341574854296 M79.0 628.3673083672574h6 M79.0 628.3341574854296h6" stroke="#687487" stroke-width="1"/>
-<circle cx="82.0" cy="628.3604894330712" r="3" fill="#687487"><title>bs58: 765.95 ns; range 765.45 ns–767.87 ns</title></circle>
-<path d="M120.9090909090909 614.1029713689418V614.0866075099954 M117.9090909090909 614.1029713689418h6 M117.9090909090909 614.0866075099954h6" stroke="#687487" stroke-width="1"/>
-<circle cx="120.9090909090909" cy="614.0932782590367" r="3" fill="#687487"><title>bs58: 2.97 µs; range 2.97 µs–2.98 µs</title></circle>
-<path d="M198.72727272727272 583.5619767611386V583.5562388017161 M195.72727272727272 583.5619767611386h6 M195.72727272727272 583.5562388017161h6" stroke="#687487" stroke-width="1"/>
-<circle cx="198.72727272727272" cy="583.5610517769016" r="3" fill="#687487"><title>bs58: 54.16 µs; range 54.16 µs–54.19 µs</title></circle>
-<path d="M276.5454545454545 553.7614851631113V553.7402411123177 M273.5454545454545 553.7614851631113h6 M273.5454545454545 553.7402411123177h6" stroke="#687487" stroke-width="1"/>
-<circle cx="276.5454545454545" cy="553.7586236340084" r="3" fill="#687487"><title>bs58: 920.65 µs; range 920.40 µs–922.26 µs</title></circle>
-<path d="M354.3636363636364 524.4775097554289V524.4714124545403 M351.3636363636364 524.4775097554289h6 M351.3636363636364 524.4714124545403h6" stroke="#687487" stroke-width="1"/>
-<circle cx="354.3636363636364" cy="524.4726571919246" r="3" fill="#687487"><title>bs58: 14.90 ms; range 14.89 ms–14.90 ms</title></circle>
-<path d="M510.0 466.11616479964V466.1019014735106 M507.0 466.11616479964h6 M507.0 466.1019014735106h6" stroke="#687487" stroke-width="1"/>
-<circle cx="510.0" cy="466.1021843996202" r="3" fill="#687487"><title>bs58: 3.83 s; range 3.82 s–3.83 s</title></circle>
+<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="82.00,661.66 120.91,661.57 198.73,623.98 276.55,603.38 354.36,584.52 510.00,539.44"/>
+<path d="M82.00 661.67V660.61 M79.00 661.67h6.00 M79.00 660.61h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="82.00" cy="661.66" r="3" fill="#075c9b"><title>Auto: 32.32 ns; range 32.29 ns–35.71 ns</title></circle>
+<path d="M120.91 661.64V661.50 M117.91 661.64h6.00 M117.91 661.50h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="120.91" cy="661.57" r="3" fill="#075c9b"><title>Auto: 32.60 ns; range 32.38 ns–32.81 ns</title></circle>
+<path d="M198.73 623.99V623.96 M195.73 623.99h6.00 M195.73 623.96h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="198.73" cy="623.98" r="3" fill="#075c9b"><title>Auto: 1.16 µs; range 1.16 µs–1.16 µs</title></circle>
+<path d="M276.55 603.38V603.32 M273.55 603.38h6.00 M273.55 603.32h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="276.55" cy="603.38" r="3" fill="#075c9b"><title>Auto: 8.23 µs; range 8.23 µs–8.28 µs</title></circle>
+<path d="M354.36 584.54V584.49 M351.36 584.54h6.00 M351.36 584.49h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="354.36" cy="584.52" r="3" fill="#075c9b"><title>Auto: 49.47 µs; range 49.36 µs–49.60 µs</title></circle>
+<path d="M510.00 539.49V539.41 M507.00 539.49h6.00 M507.00 539.41h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="510.00" cy="539.44" r="3" fill="#075c9b"><title>Auto: 3.59 ms; range 3.57 ms–3.60 ms</title></circle>
+<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="82.00,660.83 120.91,661.66 198.73,635.17 276.55,612.74 354.36,587.05 510.00,542.13"/>
+<path d="M82.00 662.12V660.82 M79.00 662.12h6.00 M79.00 660.82h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="82.00" cy="660.83" r="3" fill="#853da2"><title>Auto + cache: 34.96 ns; range 30.94 ns–35.00 ns</title></circle>
+<path d="M120.91 661.77V661.11 M117.91 661.77h6.00 M117.91 661.11h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="120.91" cy="661.66" r="3" fill="#853da2"><title>Auto + cache: 32.31 ns; range 31.99 ns–34.05 ns</title></circle>
+<path d="M198.73 635.18V634.99 M195.73 635.18h6.00 M195.73 634.99h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="198.73" cy="635.17" r="3" fill="#853da2"><title>Auto + cache: 400.97 ns; range 400.54 ns–408.04 ns</title></circle>
+<path d="M276.55 612.75V612.74 M273.55 612.75h6.00 M273.55 612.74h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="276.55" cy="612.74" r="3" fill="#853da2"><title>Auto + cache: 3.38 µs; range 3.38 µs–3.38 µs</title></circle>
+<path d="M354.36 587.06V587.03 M351.36 587.06h6.00 M351.36 587.03h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="354.36" cy="587.05" r="3" fill="#853da2"><title>Auto + cache: 38.88 µs; range 38.84 µs–38.95 µs</title></circle>
+<path d="M510.00 542.17V541.95 M507.00 542.17h6.00 M507.00 541.95h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="510.00" cy="542.13" r="3" fill="#853da2"><title>Auto + cache: 2.78 ms; range 2.77 ms–2.83 ms</title></circle>
+<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="82.00,661.73 120.91,661.53 198.73,623.98 276.55,597.01 354.36,568.43 510.00,510.34"/>
+<path d="M82.00 661.75V661.72 M79.00 661.75h6.00 M79.00 661.72h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="82.00" cy="661.73" r="3" fill="#007960"><title>no_alloc: 32.09 ns; range 32.05 ns–32.13 ns</title></circle>
+<path d="M120.91 661.54V661.52 M117.91 661.54h6.00 M117.91 661.52h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="120.91" cy="661.53" r="3" fill="#007960"><title>no_alloc: 32.71 ns; range 32.68 ns–32.74 ns</title></circle>
+<path d="M198.73 624.00V623.98 M195.73 624.00h6.00 M195.73 623.98h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="198.73" cy="623.98" r="3" fill="#007960"><title>no_alloc: 1.16 µs; range 1.16 µs–1.16 µs</title></circle>
+<path d="M276.55 597.02V597.01 M273.55 597.02h6.00 M273.55 597.01h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="276.55" cy="597.01" r="3" fill="#007960"><title>no_alloc: 15.08 µs; range 15.08 µs–15.08 µs</title></circle>
+<path d="M354.36 568.44V568.43 M351.36 568.44h6.00 M351.36 568.43h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="354.36" cy="568.43" r="3" fill="#007960"><title>no_alloc: 228.19 µs; range 228.09 µs–228.21 µs</title></circle>
+<path d="M510.00 510.35V510.34 M507.00 510.35h6.00 M507.00 510.34h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="510.00" cy="510.34" r="3" fill="#007960"><title>no_alloc: 57.07 ms; range 57.04 ms–57.07 ms</title></circle>
+<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="82.00,628.36 120.91,614.09 198.73,583.56 276.55,553.76 354.36,524.47 510.00,466.10"/>
+<path d="M82.00 628.37V628.33 M79.00 628.37h6.00 M79.00 628.33h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="82.00" cy="628.36" r="3" fill="#687487"><title>bs58: 765.95 ns; range 765.45 ns–767.87 ns</title></circle>
+<path d="M120.91 614.10V614.09 M117.91 614.10h6.00 M117.91 614.09h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="120.91" cy="614.09" r="3" fill="#687487"><title>bs58: 2.97 µs; range 2.97 µs–2.98 µs</title></circle>
+<path d="M198.73 583.56V583.56 M195.73 583.56h6.00 M195.73 583.56h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="198.73" cy="583.56" r="3" fill="#687487"><title>bs58: 54.16 µs; range 54.16 µs–54.19 µs</title></circle>
+<path d="M276.55 553.76V553.74 M273.55 553.76h6.00 M273.55 553.74h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="276.55" cy="553.76" r="3" fill="#687487"><title>bs58: 920.65 µs; range 920.40 µs–922.26 µs</title></circle>
+<path d="M354.36 524.48V524.47 M351.36 524.48h6.00 M351.36 524.47h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="354.36" cy="524.47" r="3" fill="#687487"><title>bs58: 14.90 ms; range 14.89 ms–14.90 ms</title></circle>
+<path d="M510.00 466.12V466.10 M507.00 466.12h6.00 M507.00 466.10h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="510.00" cy="466.10" r="3" fill="#687487"><title>bs58: 3.83 s; range 3.82 s–3.83 s</title></circle>
 <text x="632.00" y="437.00" class="panel">Wasm / V8 on M5 Pro · elapsed</text>
-<path d="M632 674.0h428" class="grid"/>
+<path d="M632.00 674.00h428.00" class="grid"/>
 <text x="624.00" y="678.00" text-anchor="end">10 ns</text>
-<path d="M632 649.7777777777778h428" class="grid"/>
+<path d="M632.00 649.78h428.00" class="grid"/>
 <text x="624.00" y="653.78" text-anchor="end">100 ns</text>
-<path d="M632 625.5555555555555h428" class="grid"/>
+<path d="M632.00 625.56h428.00" class="grid"/>
 <text x="624.00" y="629.56" text-anchor="end">1 µs</text>
-<path d="M632 601.3333333333334h428" class="grid"/>
+<path d="M632.00 601.33h428.00" class="grid"/>
 <text x="624.00" y="605.33" text-anchor="end">10 µs</text>
-<path d="M632 577.1111111111111h428" class="grid"/>
+<path d="M632.00 577.11h428.00" class="grid"/>
 <text x="624.00" y="581.11" text-anchor="end">100 µs</text>
-<path d="M632 552.8888888888889h428" class="grid"/>
+<path d="M632.00 552.89h428.00" class="grid"/>
 <text x="624.00" y="556.89" text-anchor="end">1 ms</text>
-<path d="M632 528.6666666666666h428" class="grid"/>
+<path d="M632.00 528.67h428.00" class="grid"/>
 <text x="624.00" y="532.67" text-anchor="end">10 ms</text>
-<path d="M632 504.44444444444446h428" class="grid"/>
+<path d="M632.00 504.44h428.00" class="grid"/>
 <text x="624.00" y="508.44" text-anchor="end">100 ms</text>
-<path d="M632 480.22222222222223h428" class="grid"/>
+<path d="M632.00 480.22h428.00" class="grid"/>
 <text x="624.00" y="484.22" text-anchor="end">1 s</text>
-<path d="M632 456.0h428" class="grid"/>
+<path d="M632.00 456.00h428.00" class="grid"/>
 <text x="624.00" y="460.00" text-anchor="end">10 s</text>
-<path d="M632.0 456v218" class="grid"/>
+<path d="M632.00 456.00v218.00" class="grid"/>
 <text x="632.00" y="697.00" text-anchor="middle">32 B</text>
-<path d="M670.9090909090909 456v218" class="grid"/>
+<path d="M670.91 456.00v218.00" class="grid"/>
 <text x="670.91" y="697.00" text-anchor="middle">64 B</text>
-<path d="M748.7272727272727 456v218" class="grid"/>
+<path d="M748.73 456.00v218.00" class="grid"/>
 <text x="748.73" y="697.00" text-anchor="middle">256 B</text>
-<path d="M826.5454545454545 456v218" class="grid"/>
+<path d="M826.55 456.00v218.00" class="grid"/>
 <text x="826.55" y="697.00" text-anchor="middle">1 KiB</text>
-<path d="M904.3636363636364 456v218" class="grid"/>
+<path d="M904.36 456.00v218.00" class="grid"/>
 <text x="904.36" y="697.00" text-anchor="middle">4 KiB</text>
-<path d="M1060.0 456v218" class="grid"/>
+<path d="M1060.00 456.00v218.00" class="grid"/>
 <text x="1060.00" y="697.00" text-anchor="middle">64 KiB</text>
 <text x="846.00" y="721.00" text-anchor="middle">Input bytes</text>
-<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="632.0,663.9061141586095 670.9090909090909,649.5886580516244 748.7272727272727,617.8103921472141 826.5454545454545,589.8803044275558 904.3636363636364,561.1035852787487 1060.0,524.923011366937"/>
-<path d="M632.0 663.958543193559V663.797840573813 M629.0 663.958543193559h6 M629.0 663.797840573813h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="632.0" cy="663.9061141586095" r="3" fill="#075c9b"><title>Auto: 26.10 ns; range 25.98 ns–26.37 ns</title></circle>
-<path d="M670.9090909090909 649.599708956964V649.5634789784807 M667.9090909090909 649.599708956964h6 M667.9090909090909 649.5634789784807h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="649.5886580516244" r="3" fill="#075c9b"><title>Auto: 101.81 ns; range 101.71 ns–102.06 ns</title></circle>
-<path d="M748.7272727272727 617.8504965590458V617.6191652464661 M745.7272727272727 617.8504965590458h6 M745.7272727272727 617.6191652464661h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="617.8103921472141" r="3" fill="#075c9b"><title>Auto: 2.09 µs; range 2.08 µs–2.13 µs</title></circle>
-<path d="M826.5454545454545 589.9609208404354V589.2277764151454 M823.5454545454545 589.9609208404354h6 M823.5454545454545 589.2277764151454h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="589.8803044275558" r="3" fill="#075c9b"><title>Auto: 29.71 µs; range 29.48 µs–31.61 µs</title></circle>
-<path d="M904.3636363636364 561.1559283327122V560.6473261715778 M901.3636363636364 561.1559283327122h6 M901.3636363636364 560.6473261715778h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="561.1035852787487" r="3" fill="#075c9b"><title>Auto: 458.00 µs; range 455.72 µs–478.30 µs</title></circle>
-<path d="M1060.0 524.984110705757V524.853964256492 M1057.0 524.984110705757h6 M1057.0 524.853964256492h6" stroke="#075c9b" stroke-width="1"/>
-<circle cx="1060.0" cy="524.923011366937" r="3" fill="#075c9b"><title>Auto: 14.27 ms; range 14.19 ms–14.37 ms</title></circle>
-<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="632.0,663.7767878027983 670.9090909090909,649.59492776169 748.7272727272727,627.0001520605076 826.5454545454545,601.2549674818074 904.3636363636364,572.8782172894969 1060.0,524.8567408914896"/>
-<path d="M632.0 663.9053984669309V663.421499016352 M629.0 663.9053984669309h6 M629.0 663.421499016352h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="632.0" cy="663.7767878027983" r="3" fill="#853da2"><title>Auto + cache: 26.43 ns; range 26.11 ns–27.34 ns</title></circle>
-<path d="M670.9090909090909 649.665835604219V649.1592680965549 M667.9090909090909 649.665835604219h6 M667.9090909090909 649.1592680965549h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="649.59492776169" r="3" fill="#853da2"><title>Auto + cache: 101.75 ns; range 101.07 ns–106.06 ns</title></circle>
-<path d="M748.7272727272727 627.1208947642053V626.1935591673181 M745.7272727272727 627.1208947642053h6 M745.7272727272727 626.1935591673181h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="627.0001520605076" r="3" fill="#853da2"><title>Auto + cache: 871.69 ns; range 861.74 ns–941.15 ns</title></circle>
-<path d="M826.5454545454545 601.5073751166217V600.534268907601 M823.5454545454545 601.5073751166217h6 M823.5454545454545 600.534268907601h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="601.2549674818074" r="3" fill="#853da2"><title>Auto + cache: 10.07 µs; range 9.84 µs–10.79 µs</title></circle>
-<path d="M904.3636363636364 572.9562393883074V572.7198430711201 M901.3636363636364 572.9562393883074h6 M901.3636363636364 572.7198430711201h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="572.8782172894969" r="3" fill="#853da2"><title>Auto + cache: 149.54 µs; range 148.43 µs–151.81 µs</title></circle>
-<path d="M1060.0 524.9400363761939V524.2763521811983 M1057.0 524.9400363761939h6 M1057.0 524.2763521811983h6" stroke="#853da2" stroke-width="1"/>
-<circle cx="1060.0" cy="524.8567408914896" r="3" fill="#853da2"><title>Auto + cache: 14.36 ms; range 14.25 ms–15.18 ms</title></circle>
-<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="632.0,663.7863200552042 670.9090909090909,649.6626615811196 748.7272727272727,617.6253197285153 826.5454545454545,589.8089018835583 904.3636363636364,560.9416126092508 1060.0,502.81337734353207"/>
-<path d="M632.0 664.1156142851956V662.8982822219662 M629.0 664.1156142851956h6 M629.0 662.8982822219662h6" stroke="#007960" stroke-width="1"/>
-<circle cx="632.0" cy="663.7863200552042" r="3" fill="#007960"><title>no_alloc: 26.40 ns; range 25.59 ns–28.73 ns</title></circle>
-<path d="M670.9090909090909 649.6632067085577V649.6453610009852 M667.9090909090909 649.6632067085577h6 M667.9090909090909 649.6453610009852h6" stroke="#007960" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="649.6626615811196" r="3" fill="#007960"><title>no_alloc: 101.10 ns; range 101.10 ns–101.27 ns</title></circle>
-<path d="M748.7272727272727 618.0435051968333V617.4743653580599 M745.7272727272727 618.0435051968333h6 M745.7272727272727 617.4743653580599h6" stroke="#007960" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="617.6253197285153" r="3" fill="#007960"><title>no_alloc: 2.13 µs; range 2.04 µs–2.16 µs</title></circle>
-<path d="M826.5454545454545 589.8421246704363V589.7988912953392 M823.5454545454545 589.8421246704363h6 M823.5454545454545 589.7988912953392h6" stroke="#007960" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="589.8089018835583" r="3" fill="#007960"><title>no_alloc: 29.91 µs; range 29.81 µs–29.94 µs</title></circle>
-<path d="M904.3636363636364 561.0347998072285V560.8845946622264 M901.3636363636364 561.0347998072285h6 M901.3636363636364 560.8845946622264h6" stroke="#007960" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="560.9416126092508" r="3" fill="#007960"><title>no_alloc: 465.10 µs; range 461.00 µs–467.63 µs</title></circle>
-<path d="M1060.0 503.0769421748739V502.57145264281513 M1057.0 503.0769421748739h6 M1057.0 502.57145264281513h6" stroke="#007960" stroke-width="1"/>
-<circle cx="1060.0" cy="502.81337734353207" r="3" fill="#007960"><title>no_alloc: 116.77 ms; range 113.88 ms–119.49 ms</title></circle>
-<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="632.0,630.3135792652669 670.9090909090909,614.9687432130887 748.7272727272727,583.4916678574441 826.5454545454545,553.6387370141481 904.3636363636364,523.8850045188236 1060.0,465.9559725974741"/>
-<path d="M632.0 630.3192469092568V629.5479688975947 M629.0 630.3192469092568h6 M629.0 629.5479688975947h6" stroke="#687487" stroke-width="1"/>
-<circle cx="632.0" cy="630.3135792652669" r="3" fill="#687487"><title>bs58: 636.16 ns; range 635.82 ns–684.19 ns</title></circle>
-<path d="M670.9090909090909 614.968796825106V614.646932551141 M667.9090909090909 614.968796825106h6 M667.9090909090909 614.646932551141h6" stroke="#687487" stroke-width="1"/>
-<circle cx="670.9090909090909" cy="614.9687432130887" r="3" fill="#687487"><title>bs58: 2.74 µs; range 2.74 µs–2.82 µs</title></circle>
-<path d="M748.7272727272727 583.5152003307059V583.3236589588371 M745.7272727272727 583.5152003307059h6 M745.7272727272727 583.3236589588371h6" stroke="#687487" stroke-width="1"/>
-<circle cx="748.7272727272727" cy="583.4916678574441" r="3" fill="#687487"><title>bs58: 54.52 µs; range 54.40 µs–55.40 µs</title></circle>
-<path d="M826.5454545454545 553.659751958652V553.4061174255216 M823.5454545454545 553.659751958652h6 M823.5454545454545 553.4061174255216h6" stroke="#687487" stroke-width="1"/>
-<circle cx="826.5454545454545" cy="553.6387370141481" r="3" fill="#687487"><title>bs58: 931.20 µs; range 929.34 µs–952.02 µs</title></circle>
-<path d="M904.3636363636364 524.3364992800869V523.8562487082044 M901.3636363636364 524.3364992800869h6 M901.3636363636364 523.8562487082044h6" stroke="#687487" stroke-width="1"/>
-<circle cx="904.3636363636364" cy="523.8850045188236" r="3" fill="#687487"><title>bs58: 15.75 ms; range 15.09 ms–15.80 ms</title></circle>
-<path d="M1060.0 465.96085596862355V465.91209328506255 M1057.0 465.96085596862355h6 M1057.0 465.91209328506255h6" stroke="#687487" stroke-width="1"/>
-<circle cx="1060.0" cy="465.9559725974741" r="3" fill="#687487"><title>bs58: 3.88 s; range 3.88 s–3.90 s</title></circle>
+<polyline fill="none" stroke="#075c9b" stroke-width="2.2" stroke-dasharray="none" points="632.00,663.91 670.91,649.59 748.73,617.81 826.55,589.88 904.36,561.10 1060.00,524.92"/>
+<path d="M632.00 663.96V663.80 M629.00 663.96h6.00 M629.00 663.80h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="632.00" cy="663.91" r="3" fill="#075c9b"><title>Auto: 26.10 ns; range 25.98 ns–26.37 ns</title></circle>
+<path d="M670.91 649.60V649.56 M667.91 649.60h6.00 M667.91 649.56h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="670.91" cy="649.59" r="3" fill="#075c9b"><title>Auto: 101.81 ns; range 101.71 ns–102.06 ns</title></circle>
+<path d="M748.73 617.85V617.62 M745.73 617.85h6.00 M745.73 617.62h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="748.73" cy="617.81" r="3" fill="#075c9b"><title>Auto: 2.09 µs; range 2.08 µs–2.13 µs</title></circle>
+<path d="M826.55 589.96V589.23 M823.55 589.96h6.00 M823.55 589.23h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="826.55" cy="589.88" r="3" fill="#075c9b"><title>Auto: 29.71 µs; range 29.48 µs–31.61 µs</title></circle>
+<path d="M904.36 561.16V560.65 M901.36 561.16h6.00 M901.36 560.65h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="904.36" cy="561.10" r="3" fill="#075c9b"><title>Auto: 458.00 µs; range 455.72 µs–478.30 µs</title></circle>
+<path d="M1060.00 524.98V524.85 M1057.00 524.98h6.00 M1057.00 524.85h6.00" stroke="#075c9b" stroke-width="1"/>
+<circle cx="1060.00" cy="524.92" r="3" fill="#075c9b"><title>Auto: 14.27 ms; range 14.19 ms–14.37 ms</title></circle>
+<polyline fill="none" stroke="#853da2" stroke-width="2.2" stroke-dasharray="7 3" points="632.00,663.78 670.91,649.59 748.73,627.00 826.55,601.25 904.36,572.88 1060.00,524.86"/>
+<path d="M632.00 663.91V663.42 M629.00 663.91h6.00 M629.00 663.42h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="632.00" cy="663.78" r="3" fill="#853da2"><title>Auto + cache: 26.43 ns; range 26.11 ns–27.34 ns</title></circle>
+<path d="M670.91 649.67V649.16 M667.91 649.67h6.00 M667.91 649.16h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="670.91" cy="649.59" r="3" fill="#853da2"><title>Auto + cache: 101.75 ns; range 101.07 ns–106.06 ns</title></circle>
+<path d="M748.73 627.12V626.19 M745.73 627.12h6.00 M745.73 626.19h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="748.73" cy="627.00" r="3" fill="#853da2"><title>Auto + cache: 871.69 ns; range 861.74 ns–941.15 ns</title></circle>
+<path d="M826.55 601.51V600.53 M823.55 601.51h6.00 M823.55 600.53h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="826.55" cy="601.25" r="3" fill="#853da2"><title>Auto + cache: 10.07 µs; range 9.84 µs–10.79 µs</title></circle>
+<path d="M904.36 572.96V572.72 M901.36 572.96h6.00 M901.36 572.72h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="904.36" cy="572.88" r="3" fill="#853da2"><title>Auto + cache: 149.54 µs; range 148.43 µs–151.81 µs</title></circle>
+<path d="M1060.00 524.94V524.28 M1057.00 524.94h6.00 M1057.00 524.28h6.00" stroke="#853da2" stroke-width="1"/>
+<circle cx="1060.00" cy="524.86" r="3" fill="#853da2"><title>Auto + cache: 14.36 ms; range 14.25 ms–15.18 ms</title></circle>
+<polyline fill="none" stroke="#007960" stroke-width="2.2" stroke-dasharray="2 3" points="632.00,663.79 670.91,649.66 748.73,617.63 826.55,589.81 904.36,560.94 1060.00,502.81"/>
+<path d="M632.00 664.12V662.90 M629.00 664.12h6.00 M629.00 662.90h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="632.00" cy="663.79" r="3" fill="#007960"><title>no_alloc: 26.40 ns; range 25.59 ns–28.73 ns</title></circle>
+<path d="M670.91 649.66V649.65 M667.91 649.66h6.00 M667.91 649.65h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="670.91" cy="649.66" r="3" fill="#007960"><title>no_alloc: 101.10 ns; range 101.10 ns–101.27 ns</title></circle>
+<path d="M748.73 618.04V617.47 M745.73 618.04h6.00 M745.73 617.47h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="748.73" cy="617.63" r="3" fill="#007960"><title>no_alloc: 2.13 µs; range 2.04 µs–2.16 µs</title></circle>
+<path d="M826.55 589.84V589.80 M823.55 589.84h6.00 M823.55 589.80h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="826.55" cy="589.81" r="3" fill="#007960"><title>no_alloc: 29.91 µs; range 29.81 µs–29.94 µs</title></circle>
+<path d="M904.36 561.03V560.88 M901.36 561.03h6.00 M901.36 560.88h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="904.36" cy="560.94" r="3" fill="#007960"><title>no_alloc: 465.10 µs; range 461.00 µs–467.63 µs</title></circle>
+<path d="M1060.00 503.08V502.57 M1057.00 503.08h6.00 M1057.00 502.57h6.00" stroke="#007960" stroke-width="1"/>
+<circle cx="1060.00" cy="502.81" r="3" fill="#007960"><title>no_alloc: 116.77 ms; range 113.88 ms–119.49 ms</title></circle>
+<polyline fill="none" stroke="#687487" stroke-width="2.2" stroke-dasharray="9 3 2 3" points="632.00,630.31 670.91,614.97 748.73,583.49 826.55,553.64 904.36,523.89 1060.00,465.96"/>
+<path d="M632.00 630.32V629.55 M629.00 630.32h6.00 M629.00 629.55h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="632.00" cy="630.31" r="3" fill="#687487"><title>bs58: 636.16 ns; range 635.82 ns–684.19 ns</title></circle>
+<path d="M670.91 614.97V614.65 M667.91 614.97h6.00 M667.91 614.65h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="670.91" cy="614.97" r="3" fill="#687487"><title>bs58: 2.74 µs; range 2.74 µs–2.82 µs</title></circle>
+<path d="M748.73 583.52V583.32 M745.73 583.52h6.00 M745.73 583.32h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="748.73" cy="583.49" r="3" fill="#687487"><title>bs58: 54.52 µs; range 54.40 µs–55.40 µs</title></circle>
+<path d="M826.55 553.66V553.41 M823.55 553.66h6.00 M823.55 553.41h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="826.55" cy="553.64" r="3" fill="#687487"><title>bs58: 931.20 µs; range 929.34 µs–952.02 µs</title></circle>
+<path d="M904.36 524.34V523.86 M901.36 524.34h6.00 M901.36 523.86h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="904.36" cy="523.89" r="3" fill="#687487"><title>bs58: 15.75 ms; range 15.09 ms–15.80 ms</title></circle>
+<path d="M1060.00 465.96V465.91 M1057.00 465.96h6.00 M1057.00 465.91h6.00" stroke="#687487" stroke-width="1"/>
+<circle cx="1060.00" cy="465.96" r="3" fill="#687487"><title>bs58: 3.88 s; range 3.88 s–3.90 s</title></circle>
 <text x="28.00" y="773.00" >Dots: median of 3 process medians. Bars: observed process range. Native and Wasm clocks are different.</text>
 </svg>

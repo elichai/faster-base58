@@ -5,13 +5,15 @@
     "docs/tradeoffs/2026-10-25/ac-power/timings.csv": "811af8ca18ab75ac7d633979ffa7b6a98d03dac868047986ab58a86bc812092b",
     "docs/tradeoffs/2026-10-25/allocation-layout/sizes.csv": "decde0d009be5555aca114ea96b09ff863a8486d4e2a78e05bad59b155857984"
   },
-  "renderer_sha256": "e549da3421230ca8e22d4e7af92a638af12709eac3ecea9772bbdc4256e5e57c",
+  "renderer_sha256": "dd0d9e4c2122c2ee541229148999c984b574a08132e6cd59101e26b4c21ab2f1",
   "python": "3.15.1 (main, Oct 21 2026, 05:55:12) [Clang 21.0.0 (clang-2100.3.34.2)]",
   "timing_points": 192,
   "linked_size_cells": 16,
+  "svg_coordinate_decimals": 2,
+  "coordinate_stability_tolerance": 1e-09,
   "outputs": {
-    "encode.svg": "4ea1075d6752b2f6bc77e32012a51cd2762e8bab925153702818fb89c552a441",
-    "decode.svg": "522b43a4b4e6562510d590226aa00483fe01f3b49c4cb01ea3ae0af869dbe1a4",
+    "encode.svg": "f19e722f8eddeab1931e4c2058551c46655e13b194ea7b37119ad04f51b3cac6",
+    "decode.svg": "14af2445f200270b7a17ca91f84f3530d329b10fa6ec9aba67b217175c52c939",
     "data.json": "0dcb6b023db5179a931b623a316dceb47bdacdc62dcb1eb9044e81cf72b17c5f",
     "tables.md": "4aa67a6ec1c14c1f48739d58e504f245d6dc893b23b684d5ebd90923ba205a38"
   }

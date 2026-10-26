@@ -8,7 +8,7 @@ pub fn available() -> bool {
     crate::cpu::ifma()
 }
 
-/// `out = a * b`. Requires [`available`], `8 <= a.len() <= b.len()`,
+/// `out = a * b`. Requires AVX-512F and AVX-512 IFMA, `8 <= a.len() <= b.len()`,
 /// `a.len() <= MAX_LEN`, `out.len() == a.len() + b.len()` and
 /// `scratch.len() >= scratch_len(a.len(), b.len())`. `scratch` may hold anything.
 pub fn mul(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {

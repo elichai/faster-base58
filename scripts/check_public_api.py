@@ -109,9 +109,9 @@ def fingerprint(source):
 def run(command, label, source, output, environment):
     prefix = ['rtk', 'proxy'] if shutil.which('rtk') else []
     result = subprocess.run([*prefix, *map(str, command)], cwd=source, env=environment,
-                            capture_output=True, text=True)
-    (output / (label + '.stdout')).write_text(result.stdout)
-    (output / (label + '.stderr')).write_text(result.stderr)
+                            capture_output=True, encoding='utf-8')
+    (output / (label + '.stdout')).write_text(result.stdout, encoding='utf-8')
+    (output / (label + '.stderr')).write_text(result.stderr, encoding='utf-8')
     return result
 
 
@@ -191,7 +191,7 @@ def main():
                 'owned_input': 'fn main() { let mut out = [0; 8]; let _ = faster_base58::no_alloc::encode_into(vec![1], &mut out); }\n'}
     fixtures.update({'root_' + name: f'use faster_base58::{name}; fn main() {{ let _ = {name}; }}\n' for name in NAMES})
     for name, content in fixtures.items():
-        (output / (name + '.rs')).write_text(content)
+        (output / (name + '.rs')).write_text(content, encoding='utf-8')
     environment = build_environment()
     profiles = []
     for profile, features in PROFILES:

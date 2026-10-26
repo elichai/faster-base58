@@ -28,7 +28,7 @@ pub(crate) mod ifma {
         0
     }
 
-    /// Sets the IFMA leaf threshold of [`super::mul`], for benchmarks; 0 turns the leaf off.
+    /// Sets the IFMA leaf threshold of `mul`, for benchmarks; 0 turns the leaf off.
     #[cfg(any(test, feature = "__internals"))]
     pub fn set_ifma_threshold(t: usize) {
         IFMA_THRESHOLD.store(t, Relaxed);
