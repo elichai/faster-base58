@@ -1,0 +1,97 @@
+{
+  "decision": "Reject both portable fixed-decoder matrix prototypes; no shared runtime change.",
+  "baseline_commit": "f1a710f4e774f946e59a433c0b210bd8ae6a90db",
+  "baseline_source_manifest_sha256": "1d45e73c1a431ef8830c81dc30376a5141265d8944bf069c25e95ca6bde04600",
+  "baseline_source_json_sha256": "c957de9ab60ec3edb37f820d7339679c7d2713f1b61426c6539b248611cb9001",
+  "compiled_probe_files": {
+    "probe/Cargo.lock": "e0aa62024769a779bde2294bf1cbe68ad3498015797af5e264075d1f1c68a5b6",
+    "probe/Cargo.toml": "29ca0f7e044e86f56323a5ce0ce01a79cbee07a4042b9bccc3b151be761d7cec",
+    "probe/src/lib.rs": "307954db6432df980bfdbe0fafe27c422ad36b936b8729ba1403435325c3d2f0",
+    "probe/src/main.rs": "8b18079485226b3a12735a8d59a71d330bde6c20878b79a626c0fd7672e927b9",
+    "probe/src/tests.rs": "3e1a3394e03a9ea3dabc999c6556a28c72da60e36c200eed9582c69879d0bda0"
+  },
+  "compiler": {
+    "command": [
+      "rustc",
+      "-vV"
+    ],
+    "exit_code": 0,
+    "output": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-apple-darwin\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+  },
+  "hardware": {
+    "command": [
+      "/usr/sbin/sysctl",
+      "-n",
+      "machdep.cpu.brand_string"
+    ],
+    "exit_code": 1,
+    "output": "sysctl: sysctl fmt -1 1024 1: Operation not permitted\n"
+  },
+  "protocol": {
+    "clock": "process CPU ns",
+    "secondary_clock": "elapsed ns",
+    "warm_samples": 3,
+    "minimum_cpu_batch_ns": 10000000,
+    "fresh_pairs": 3,
+    "seed": 20261026,
+    "order": "AB if (case index + pair index) even, otherwise BA; randomized case order",
+    "fixture_limits": "Six deterministic distributions per decoded size; not every input."
+  },
+  "processes": 432,
+  "accepted_batches": 1296,
+  "descriptive_pairs_per_case": 3,
+  "power": {
+    "scope": "Sampled AC, no continuous power/thermal/frequency assertion.",
+    "ac_snapshots": 14
+  },
+  "raw_inputs": {
+    "timings-v1/raw.jsonl": {
+      "sha256": "0ebd27100ea6112db05d0e8cc9c2001aa49281a37d8efe2bfd1a0ce60bbe9f9b",
+      "bytes": 727453
+    },
+    "timings-v1/metadata.json": {
+      "sha256": "d29f9b6d9b26e857641dbd03e18a5e9fe2888de0939b0ce4807e188baa41a550",
+      "bytes": 14249
+    },
+    "timing-validation.json": {
+      "sha256": "f092d0a70e9f1a0b1165ac6706dfc89f07e80bed58c1cdd357a14a301b5d3e1e",
+      "bytes": 895
+    },
+    "validation.json": {
+      "sha256": "88e69c26acdc340269dc75877b13fbc6a482ba72be564c2c684ce4f993b06609",
+      "bytes": 1869
+    },
+    "observers/receipt.json": {
+      "sha256": "2325cd7305cb983edea6ea11b314bcb38ea9bda046c46646b5ad93551a236d6e",
+      "bytes": 3373
+    }
+  },
+  "five8": {
+    "version": "1.0.0",
+    "five8_core_version": "1.0.0",
+    "license_declared": "MIT",
+    "upstream_commit": "311279fb81461df36e730458a0463a6a322042d7",
+    "use": "Installed source inspection and dev benchmark only; code/tables not copied."
+  },
+  "csv_outputs": {
+    "linked-sizes.csv": {
+      "sha256": "066f97d65cc9f1b029a0074922e1feae0809de237ab012065939b42f01b57069",
+      "bytes": 1854
+    },
+    "table-bounds.json": {
+      "sha256": "6782cda6acb574b92eddb3bf289a77e45bddb250e1e13422458518134c562bc9",
+      "bytes": 1415
+    },
+    "timings.csv": {
+      "sha256": "b79ac5db4f41dbd4a860c054059bfcd072e50f58393a29aa08663882fabd5f1d",
+      "bytes": 15696
+    }
+  },
+  "scope": [
+    "M5 native timing only; default no-cache/no-internals benchmark.",
+    "Default and cache correctness tests, no new formal/fuzz/Miri claims.",
+    "Wasm linked size only, not execution.",
+    "Other modes/oracles share one benchmark executable; ordinary size observers are separate.",
+    "Source snapshot precedes the current shared routing refactor."
+  ]
+}

@@ -1,4 +1,4 @@
-//! [`encode_matrix`](super::entry::encode_matrix) for exactly 32 or 64 bytes: the sizes of keys,
+//! Fixed matrix encoding for exactly 32 or 64 bytes: the sizes of keys,
 //! hashes and signatures.
 //!
 //! The same algorithm, fixed at compile time: the table is a constant, the column sums
@@ -25,7 +25,7 @@ use crate::encode::max_encoded_len;
         target_feature = "neon"
     ))
 ))]
-pub(super) mod portable;
+pub(crate) mod portable;
 
 /// The powers `2^(32k)`, `k < W`, in base 58^4, in `C` columns.
 pub(super) struct Table<const W: usize, const C: usize> {
@@ -111,14 +111,14 @@ const _: () = TABLE_64.check(64);
 
 // Select the architecture wrappers here; the scalar implementation stays common.
 core::cfg_select! {
-    target_arch = "x86_64" => {
-        pub(super) use super::x86::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
+    all(target_arch = "x86_64", target_feature = "sse2") => {
+        pub(crate) use super::x86::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
     }
     all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
-        pub(super) use super::neon::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
+        pub(crate) use super::neon::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
     }
     _ => {
-        pub(super) use self::portable::{encode_32_portable as encode_32, encode_64_portable as encode_64};
+        pub(crate) use self::portable::{encode_32_portable as encode_32, encode_64_portable as encode_64};
     }
 }
 
@@ -194,7 +194,7 @@ fn column(t: u64, q: u32) -> u32 {
 
 /// [`carry`], returning the carried columns.
 #[cfg(any(
-    target_arch = "x86_64",
+    all(target_arch = "x86_64", target_feature = "sse2"),
     all(
         target_arch = "aarch64",
         target_endian = "little",
@@ -225,7 +225,7 @@ pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
 /// The chain is about `r / K` divisions instead of `r`. Requires at least two columns per
 /// segment.
 #[cfg(any(
-    target_arch = "x86_64",
+    all(target_arch = "x86_64", target_feature = "sse2"),
     all(
         target_arch = "aarch64",
         target_endian = "little",
@@ -392,7 +392,7 @@ mod tests {
     use super::portable::{cols, digits, encode_32_portable, encode_64_portable};
     use super::*;
     use crate::encode::tests::{Encode, encode_vec, random_bytes};
-    use crate::internals::{encode_batched, encode_matrix, encode_matrix_portable};
+    use crate::internals::encode_batched;
 
     #[test]
     fn tables_hold_the_powers() {
@@ -415,8 +415,8 @@ mod tests {
     /// Both sizes through each entry point. `best` runs the AVX-512 VBMI or AVX2 kernels
     /// when the CPU has them (the tests in `x86.rs` say when it has not), NEON on aarch64.
     const ENCODERS: [(&str, Encode); 4] = [
-        ("matrix", encode_matrix),
-        ("matrix-portable", encode_matrix_portable),
+        ("auto", crate::encode),
+        ("no_alloc", crate::no_alloc::encode),
         ("best", |d, o| match d.len() {
             32 => encode_32(d.try_into().unwrap(), o),
             _ => encode_64(d.try_into().unwrap(), o),

@@ -4,11 +4,11 @@
 //!   input bytes, in place in the output.
 //! - `dc.rs`: divide and conquer by powers of 58^10,
 //!   each division Barrett's with a Newton reciprocal, over any `Multiplier`.
-//! - [`encode_matrix`] (`matrix.rs`): a matrix of powers with the decoder's SIMD
+//! - [`matrix`] (`matrix.rs`): a matrix of powers with the decoder's SIMD
 //!   multiply-adds, up to 8 KiB, and a fixed-size path for 32 and 64 bytes
 //!   (`matrix/fixed.rs`).
 
-mod batched;
+pub(crate) mod batched;
 pub(crate) mod dc;
 pub(crate) mod matrix;
 #[cfg(test)]
@@ -16,8 +16,8 @@ mod tests;
 
 pub use batched::encode_batched;
 pub use dc::Leaves;
+#[cfg(any(test, feature = "__internals", kani))]
 pub use dc::encode_tuned;
-pub(crate) use matrix::encode_fixed;
 
 use crate::common::{ALPHABET, BASE};
 
@@ -51,7 +51,7 @@ fn bits(x: &[u8]) -> u64 {
 }
 
 /// Splits off the leading zero bytes, each of which encodes to a '1'.
-fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
+pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
     let zeros = input.iter().take_while(|&&b| b == 0).count();
     (zeros, &input[zeros..])
 }

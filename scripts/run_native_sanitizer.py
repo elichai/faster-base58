@@ -92,7 +92,7 @@ def main():
         extra = {'BASE58_NTT_CACHE_HISTORY': 'concurrent'} if name == THREAD_TESTS[0] else {}
         cases.append((name, ['--lib', name, '--', '--exact', '--nocapture', '--test-threads=1'], 1, extra))
     if args.sanitizer == 'memory':
-        cases.append(('public-api', ['--test', 'api', '--', '--nocapture', '--test-threads=1'], 3, {}))
+        cases.append(('public-api', ['--test', 'api', '--', '--nocapture', '--test-threads=1'], 4, {}))
     else:
         cases.append(('matrix-cold', ['--test', 'matrix_cold', '--', '--nocapture', '--test-threads=1'], 1, {}))
     covered, skipped = 0, []

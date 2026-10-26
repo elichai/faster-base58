@@ -32,6 +32,16 @@ pub fn encode_batched(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTo
         _ => {}
     }
     let (zeros, x) = split_zeros(input);
+    encode_parts(zeros, x, output)
+}
+
+/// Batched conversion after removing the leading zero bytes.
+pub(crate) fn encode_parts(
+    zeros: usize,
+    x: &[u8],
+    output: &mut [u8],
+) -> Result<usize, BufferTooSmall> {
+    debug_assert!(x.first() != Some(&0));
     if x.is_empty() {
         output.get_mut(..zeros).ok_or(BufferTooSmall)?.fill(b'1');
         return Ok(zeros);

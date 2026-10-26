@@ -5,13 +5,16 @@
 
 use core::mem::MaybeUninit;
 
-use super::{bits, max_encoded_len, min_digits, split_zeros};
+use super::max_encoded_len;
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
+use super::{bits, min_digits};
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 use crate::BufferTooSmall;
 use crate::common::ALPHABET;
 use crate::matrix::{PANEL, Panel, zeroed};
 use table::{CARRY_EVERY, COL_BASE, MAX_BYTES, MAX_COLS, MAX_WORDS, PANEL_BYTES, ROWS, WORD};
 
-mod fixed;
+pub(crate) mod fixed;
 #[cfg(all(
     target_arch = "aarch64",
     target_endian = "little",
@@ -19,7 +22,7 @@ mod fixed;
 ))]
 mod neon;
 mod table;
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
 /// One backend's kernels: the decoder's panel kernel, and [`digits`]'s.
@@ -35,100 +38,44 @@ const BEST: Kernels = core::cfg_select! {
     _ => Kernels { panel: PANEL, digits },
 };
 
-/// Thresholded entry points and their shared wrappers.
+/// Matrix conversion after automatic length selection.
 #[cfg(any(feature = "cache", test, feature = "__internals"))]
 pub(crate) mod entry {
-    use super::super::encode_batched;
     use super::*;
-    use crate::ntt::encode as encode_ntt;
 
-    /// Inputs with fewer bytes than this, after leading zeros, use [`encode_batched`], which
+    /// Inputs with fewer bytes than this, after leading zeros, use the batched encoder, which
     /// is faster there. Tuned by measurement; see `docs/performance.md`.
-    pub(super) const MATRIX_MIN: usize = 22;
+    pub(crate) const MATRIX_MIN: usize = 22;
 
-    /// Like [`encode_batched`], but faster from 22 bytes to 8 KiB when the table of powers is
-    /// in cache. Fewer than `MATRIX_MIN` bytes use [`encode_batched`]; more than 8192 (3584 on
-    /// CPUs with the AVX-512 IFMA leaf) use [`encode_ntt`].
-    ///
-    /// NEON on aarch64; the decoder's AVX2 or SSE4.1 kernels on x86_64, where on Zen 5 it was
-    /// 1.2x (32 B) to 3.9x (512 B) faster than [`encode_batched`]. Other targets run the
-    /// plain-Rust kernels.
-    ///
-    /// Exactly 32 or 64 bytes take a fixed-size path (`matrix/fixed.rs`) with its table in
-    /// the binary: NEON on aarch64; on x86_64 plain Rust, with AVX-512 VBMI or AVX2 kernels
-    /// for 64 bytes if the CPU has them.
-    ///
-    /// The matrix path uses about 30 KiB of stack. With `cache`, warm calls allocate no
-    /// heap and first use builds a retained table. Without `cache`, each matrix invocation
-    /// builds and drops its own table. Data is reserved at its final length:
-    /// about 47 KiB, 181 KiB, 712 KiB, 2.8 MiB or 11 MiB, plus panel metadata.
-    /// With `cache`, initialized classes accumulate. Recursive fallbacks can allocate workspace.
-    /// See `docs/performance.md` for setup, retained-memory and CPU measurements.
-    pub fn encode_matrix(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-        if let Ok(x) = input.try_into() {
-            return fixed::encode_32(x, output);
-        }
-        if let Ok(x) = input.try_into() {
-            return fixed::encode_64(x, output);
-        }
-        encode_with(&BEST, input, output, MATRIX_MIN)
-    }
-
-    /// [`encode_matrix`] with kernels `k`, using [`encode_batched`] below `min` bytes.
-    /// Inlined, so small inputs pay only a length check.
-    #[inline(always)]
-    pub(super) fn encode_with(
-        k: &Kernels,
-        input: &[u8],
+    /// Converts a normalized value of `MATRIX_MIN..=MAX_BYTES` bytes.
+    /// The caller selects the backend before entering this 30 KiB stack frame.
+    #[cfg(feature = "cache")]
+    #[inline]
+    pub(crate) fn encode(
+        zeros: usize,
+        x: &[u8],
         output: &mut [u8],
-        min: usize,
     ) -> Result<usize, BufferTooSmall> {
-        // The input length bounds the byte count, so small inputs skip `split_zeros` here.
-        if input.len() < min {
-            return encode_batched(input, output);
-        }
-        encode_large(k, input, output, min)
-    }
-
-    /// [`encode_with`] for inputs of at least `min` bytes. Not inlined: its stack frame holds
-    /// [`Scratch`], about 30 KiB, which small inputs should not set up.
-    #[inline(never)]
-    fn encode_large(
-        k: &Kernels,
-        input: &[u8],
-        output: &mut [u8],
-        min: usize,
-    ) -> Result<usize, BufferTooSmall> {
-        let (zeros, x) = split_zeros(input);
-        if x.len() < min {
-            return encode_batched(input, output);
-        }
-        let cap = if crate::mul::ifma_threshold() != 0 {
-            IFMA_CAP
-        } else {
-            MAX_BYTES
-        };
-        if x.len() > cap {
-            return encode_ntt(input, output);
-        }
-        if zeros > output.len() || (!x.is_empty() && output.len() - zeros < min_digits(bits(x))) {
-            return Err(BufferTooSmall);
-        }
-        let mut scratch = Scratch::new();
-        write(k, zeros, convert(k, x, &mut scratch), output)
+        assert!(
+            x.len() >= MATRIX_MIN,
+            "value is too short for the matrix encoder"
+        );
+        encode_parts(&BEST, zeros, x, output)
     }
 
     /// The largest input `encode_matrix` converts itself when Karatsuba has the AVX-512 IFMA
     /// leaf. On Zen 5, in one binary, the NTT encoder with matrix leaves took 3% more time
     /// than the matrix at 3584 bytes with default flags and 3.5–6% less at 3840 and 4096
     /// (historically 7–11% less from 3584 with native flags).
-    pub(super) const IFMA_CAP: usize = 3584;
+    pub(crate) const IFMA_CAP: usize = 3584;
+
+    pub(crate) const MAX_INPUT: usize = MAX_BYTES;
 }
 
 /// Comparison and tuning hooks; production conversions keep using the core below.
 #[cfg(any(test, feature = "__internals"))]
 pub(crate) mod internals {
-    use super::entry::{MATRIX_MIN, encode_with};
+    use super::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
     use super::*;
     use crate::matrix::internals::PANEL_PORTABLE;
 
@@ -137,21 +84,21 @@ pub(crate) mod internals {
         digits,
     };
 
-    /// [`super::entry::encode_matrix`] with the plain-Rust kernels, to show what the SIMD ones add.
+    /// General matrix encoding, with batched and NTT fallbacks outside its useful range.
+    /// Fixed 32/64-byte encoders belong to Auto and `no_alloc`, not this comparison hook.
+    pub fn encode_matrix(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+        encode_with(&BEST, input, output, MATRIX_MIN)
+    }
+
+    /// [`encode_matrix`] with plain-Rust kernels.
     pub fn encode_matrix_portable(
         input: &[u8],
         output: &mut [u8],
     ) -> Result<usize, BufferTooSmall> {
-        if let Ok(x) = input.try_into() {
-            return fixed::portable::encode_32_portable(x, output);
-        }
-        if let Ok(x) = input.try_into() {
-            return fixed::portable::encode_64_portable(x, output);
-        }
         encode_with(&PORTABLE, input, output, MATRIX_MIN)
     }
 
-    /// [`super::entry::encode_matrix`] with [`crate::internals::encode_batched`] below
+    /// [`encode_matrix`] with [`crate::internals::encode_batched`] below
     /// `min` bytes and without the fixed-size path, for tuning.
     pub fn encode_matrix_with(
         input: &[u8],
@@ -159,6 +106,27 @@ pub(crate) mod internals {
         min: usize,
     ) -> Result<usize, BufferTooSmall> {
         encode_with(&BEST, input, output, min)
+    }
+
+    pub(super) fn encode_with(
+        k: &Kernels,
+        input: &[u8],
+        output: &mut [u8],
+        min: usize,
+    ) -> Result<usize, BufferTooSmall> {
+        let (zeros, x) = super::super::split_zeros(input);
+        if x.len() < min {
+            return super::super::batched::encode_parts(zeros, x, output);
+        }
+        let cap = if crate::mul::ifma_threshold() != 0 {
+            IFMA_CAP
+        } else {
+            MAX_INPUT
+        };
+        if x.len() > cap {
+            return crate::ntt::internals::cached::encode_ntt_cached(input, output);
+        }
+        encode_parts(k, zeros, x, output)
     }
 
     #[cfg(feature = "__internals")]
@@ -177,32 +145,31 @@ pub(crate) mod internals {
     }
 }
 
-/// Fixed tables only; other input lengths need a different encoder.
-pub(crate) fn encode_fixed(
-    input: &[u8],
-    output: &mut [u8],
-) -> Option<Result<usize, BufferTooSmall>> {
-    if let Ok(x) = input.try_into() {
-        return Some(fixed::encode_32(x, output));
-    }
-    if let Ok(x) = input.try_into() {
-        return Some(fixed::encode_64(x, output));
-    }
-    None
-}
-
-/// [`entry::encode_matrix`]'s conversion with the fastest kernels, without its thresholds: the
+/// Matrix conversion with the fastest kernels, without its thresholds: the
 /// divide-and-conquer encoders' single-leaf case. Requires at most `MAX_BYTES` bytes after
 /// the leading zeros.
 #[inline(never)]
+#[cfg(any(test, feature = "__internals", kani))]
 pub fn encode_whole(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    let (zeros, x) = split_zeros(input);
+    let (zeros, x) = super::split_zeros(input);
+    encode_parts(&BEST, zeros, x, output)
+}
+
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
+#[inline(never)]
+fn encode_parts(
+    k: &Kernels,
+    zeros: usize,
+    x: &[u8],
+    output: &mut [u8],
+) -> Result<usize, BufferTooSmall> {
     assert!(x.len() <= MAX_BYTES, "{} bytes for one matrix", x.len());
+    debug_assert!(x.first() != Some(&0));
     if zeros > output.len() || (!x.is_empty() && output.len() - zeros < min_digits(bits(x))) {
         return Err(BufferTooSmall);
     }
     let mut scratch = Scratch::new();
-    write(&BEST, zeros, convert(&BEST, x, &mut scratch), output)
+    write(k, zeros, convert(k, x, &mut scratch), output)
 }
 
 /// Stack space for one conversion, about 30 KiB. Only the part an input needs is written.
@@ -313,6 +280,7 @@ fn normalize(cols: &mut [u64]) -> usize {
 
 /// Writes `zeros` '1's and the digits of the trimmed columns `cols` to `output`, and
 /// returns the length. Writes nothing past it.
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 fn write(
     k: &Kernels,
     zeros: usize,
@@ -377,12 +345,19 @@ mod tests {
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::SeedableRng;
 
-    use super::entry::{IFMA_CAP, MATRIX_MIN, encode_matrix, encode_with};
-    use super::internals::{PORTABLE, encode_matrix_portable};
+    use super::entry::{IFMA_CAP, MATRIX_MIN};
+    use super::internals::{PORTABLE, encode_matrix, encode_matrix_portable, encode_with};
     use super::table::{MAX_AFTER_CARRY, MAX_CARRY};
     use super::*;
     use crate::encode::batched::encode_batched;
     use crate::encode::tests::{Encode, encode_vec, random_bytes};
+
+    #[cfg(feature = "cache")]
+    #[test]
+    #[should_panic(expected = "value is too short for the matrix encoder")]
+    fn selected_encoder_rejects_short_values() {
+        entry::encode(0, &[1], &mut [0; 2]).unwrap();
+    }
 
     /// The matrix path at every size up to `MAX_BYTES`.
     fn forced_best(data: &[u8], out: &mut [u8]) -> Result<usize, BufferTooSmall> {

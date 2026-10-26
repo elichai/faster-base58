@@ -13,7 +13,6 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use super::batched::Limbs;
-use super::encode_batched;
 use super::{bits, matrix, min_digits, split_zeros, ten_digits};
 use crate::BufferTooSmall;
 use crate::common::CHUNK;
@@ -29,12 +28,9 @@ pub(super) const MATRIX_LEAF: usize = 1024;
 
 #[cfg(any(not(feature = "cache"), test, feature = "__internals", kani))]
 pub(crate) mod karatsuba {
-    use super::*;
-    use crate::dc::Karatsuba;
-
     /// Inputs of more than this many bytes use divide and conquer, with leaves of at most
     /// [`DC_LEAF`] chunks, when multiplying with Karatsuba or Toom-3. Tuned on an M5 Pro
-    /// against [`encode_batched`], in one binary; the NTT and malachite have their own.
+    /// against [`crate::encode::encode_batched`], in one binary; the NTT and malachite have their own.
     pub(crate) const DC_THRESHOLD: usize = 5120;
     pub(crate) const DC_LEAF: usize = 96;
 
@@ -43,32 +39,36 @@ pub(crate) mod karatsuba {
     const DC_IFMA_LEAF: usize = 32;
 
     /// [`DC_THRESHOLD`] with the IFMA leaf. On Zen 5 divide and conquer with 32-chunk leaves
-    /// tied [`encode_batched`] at 512 bytes and took 28% less time at 768.
+    /// tied [`crate::encode::encode_batched`] at 512 bytes and took 28% less time at 768.
     pub(crate) const DC_IFMA_THRESHOLD: usize = 512;
 
-    /// Like [`encode_batched`], but subquadratic for large inputs.
+    pub(crate) fn params() -> (usize, usize) {
+        match crate::mul::ifma_threshold() {
+            0 => (DC_THRESHOLD, DC_LEAF),
+            _ => (DC_IFMA_THRESHOLD, DC_IFMA_LEAF),
+        }
+    }
+}
+
+#[cfg(any(test, feature = "__internals", kani))]
+pub(crate) mod internals {
+    use super::*;
+    use crate::dc::Karatsuba;
+
+    /// Batched encoding below the Karatsuba crossover, then divide and conquer.
     pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
         encode_with(input, output, &mut Karatsuba)
     }
 
-    /// [`encode`], multiplying with `m`.
+    /// [`encode`] with an explicit multiplier for comparisons.
     pub(crate) fn encode_with(
         input: &[u8],
         output: &mut [u8],
         m: &mut impl Multiplier,
     ) -> Result<usize, BufferTooSmall> {
-        let (threshold, leaf) = match crate::mul::ifma_threshold() {
-            0 => (DC_THRESHOLD, DC_LEAF),
-            _ => (DC_IFMA_THRESHOLD, DC_IFMA_LEAF),
-        };
+        let (threshold, leaf) = karatsuba::params();
         encode_tuned(input, output, m, threshold, leaf, Leaves::Horner)
     }
-}
-
-#[cfg(any(test, feature = "__internals"))]
-pub(crate) mod internals {
-    use super::*;
-    use crate::dc::Karatsuba;
 
     /// `encode_karatsuba` with `threshold` and `leaf` in place of `DC_THRESHOLD`
     /// and `DC_LEAF`, and leaves converted by `leaves`.
@@ -86,7 +86,7 @@ pub(crate) mod internals {
 /// How the divide-and-conquer encoders convert their leaves.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Leaves {
-    /// [`encode_batched`]'s kernel.
+    /// [`crate::encode::encode_batched`]'s kernel.
     Horner,
     /// `encode_matrix`'s conversion. The `cache` feature retains its table;
     /// explicit use without that feature builds an owned table per leaf invocation.
@@ -106,7 +106,7 @@ impl Leaves {
                 target_endian = "little",
                 target_feature = "neon"
             ),
-            target_arch = "x86_64"
+            all(target_arch = "x86_64", target_feature = "sse2")
         )
     )) {
         Leaves::Matrix
@@ -117,6 +117,7 @@ impl Leaves {
 
 /// Divide and conquer above `threshold` bytes, with leaves converted by `leaves`.
 /// Panics unless `leaf` is in `1..=256` for Horner or `1..=1024` for Matrix.
+#[cfg(any(test, feature = "__internals", kani))]
 pub fn encode_tuned(
     input: &[u8],
     output: &mut [u8],
@@ -125,6 +126,22 @@ pub fn encode_tuned(
     leaf: usize,
     leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
+    check_leaf(leaf, leaves);
+    let (zeros, x) = split_zeros(input);
+    if x.len() <= threshold {
+        return super::batched::encode_parts(zeros, x, output);
+    }
+    let n = (min_digits(bits(x)) + 2).div_ceil(CHUNK);
+    if split_unit_leaf(n, leaf).1 == 0 {
+        return match leaves {
+            Leaves::Horner => super::batched::encode_parts(zeros, x, output),
+            Leaves::Matrix => matrix::encode_whole(input, output),
+        };
+    }
+    encode_parts(zeros, x, output, m, leaf, leaves)
+}
+
+fn check_leaf(leaf: usize, leaves: Leaves) {
     let max = if leaves == Leaves::Matrix {
         MATRIX_LEAF
     } else {
@@ -134,10 +151,20 @@ pub fn encode_tuned(
         (1..=max).contains(&leaf),
         "{leaves:?} leaf of {leaf} chunks"
     );
-    let (zeros, x) = split_zeros(input);
-    if x.len() <= threshold {
-        return encode_batched(input, output);
-    }
+}
+
+/// Converts a nonzero value large enough to split into at least two leaves.
+/// Length dispatch belongs to the caller; this never falls back to another encoder.
+pub(crate) fn encode_parts(
+    zeros: usize,
+    x: &[u8],
+    output: &mut [u8],
+    m: &mut impl Multiplier,
+    leaf: usize,
+    leaves: Leaves,
+) -> Result<usize, BufferTooSmall> {
+    check_leaf(leaf, leaves);
+    assert!(!x.is_empty() && x[0] != 0, "expected a nonzero value");
     let min = min_digits(bits(x));
     let (ones, out) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
     if out.len() < min {
@@ -146,13 +173,7 @@ pub fn encode_tuned(
     // `x < 58^(min + 2) <= BASE^n`.
     let n = (min + 2).div_ceil(CHUNK);
     let (unit, levels) = split_unit_leaf(n, leaf);
-    if levels == 0 {
-        // One leaf: the whole value.
-        return match leaves {
-            Leaves::Horner => encode_batched(input, output),
-            Leaves::Matrix => matrix::encode_whole(input, output),
-        };
-    }
+    assert!(levels != 0, "value is too short for divide and conquer");
     let e = unit << (levels - 1);
     // No divisor, quotient or remainder is longer than BASE^e, at most `full(e)` limbs, and
     // no product longer than twice that plus one.
@@ -764,13 +785,20 @@ mod verification {
 
 #[cfg(test)]
 mod tests {
-    use super::karatsuba::encode;
+    use super::internals::encode;
     use super::*;
     use crate::dc::Karatsuba;
+    use crate::encode::encode_batched;
     use crate::mul;
     use crate::ntt::{Kernels, Ntt};
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
+
+    #[test]
+    #[should_panic(expected = "value is too short for divide and conquer")]
+    fn normalized_encoder_rejects_single_leaf_values() {
+        encode_parts(0, &[1], &mut [0; 2], &mut Karatsuba, 1, Leaves::Horner).unwrap();
+    }
 
     fn product(a: &[u64], b: &[u64]) -> Vec<u64> {
         let mut out = vec![0; a.len() + b.len()];

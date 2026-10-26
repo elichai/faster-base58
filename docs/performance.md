@@ -9,6 +9,8 @@ not establish one fastest backend for every size, input distribution or build.
 
 | Dataset | Coverage and interpretation |
 | --- | --- |
+| [Centralized dispatch](benchmarks/dispatch/README.md) | Local 2026-10-26 routing cleanup. Separate internal-worker survey, ordinary-consumer outlining experiment and zero-prefix allocation comparison. |
+| [Fixed decoding](benchmarks/fixed-decode/README.md) | Portable fixed-matrix prototypes were slower and larger on M5; retained as a rejected experiment. |
 | [Backend grid](benchmarks/backend-grid/README.md) | 2026-10-24 source: 29 decoded sizes from empty through 4 MiB; M5 native, GCP generic/native and M5 Wasm. Includes backend wrappers, forced-kernel controls, bs58 and five8. This predates the cache-feature split, no_std and rename. |
 | [Backend resources](benchmarks/backend-resources/README.md) | Earlier 2026-10-23 timing, allocation and linked-size associations across five runtime configurations, including Wasm on GCP. Its cache policy was unbounded; its retained heap is historical. |
 | [Public modes](benchmarks/public-modes/README.md) | 2026-10-25 Auto, Auto+cache, no_alloc and bs58 comparison. These exact timing inputs feed the README graphs. M5 timings were rerun on sampled AC power; cloud timings retain their matched earlier cohorts. |

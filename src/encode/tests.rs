@@ -70,7 +70,7 @@ fn matches_bs58() {
         DC_THRESHOLD,
         super::dc::karatsuba::DC_IFMA_THRESHOLD,
         crate::ntt::ENCODE_THRESHOLD,
-        crate::ntt::ENCODE_IFMA_THRESHOLD,
+        crate::ntt::internals::ENCODE_IFMA_THRESHOLD,
         crate::malachite::ENCODE_THRESHOLD,
         crate::malachite::ENCODE_IFMA_THRESHOLD,
     ];

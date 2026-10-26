@@ -38,11 +38,14 @@ passes and compile-time bounds keep accumulations within `u64`.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
 local sums. Fixed dimensions remove table construction and dimension handling;
-64-byte kernels also segment the carry chain. Auto, `no_alloc` and the Matrix
-wrapper already share these specializations. Their short carry schedule needs
+64-byte kernels also segment the carry chain. Auto and `no_alloc` select these
+specializations directly. The internal Matrix comparison hooks use the general
+matrix kernel. Their short carry schedule needs
 fixed-size bounds and cannot replace the general schedule directly. Padding
 nearby lengths into these kernels was [rejected](docs/benchmarks/decisions/README.md):
 zero-heavy inputs regressed despite some ordinary-input gains.
+Portable fixed decoding was also [measured and rejected](docs/benchmarks/fixed-decode/README.md):
+the general decoder was faster on M5, and the prototypes added code and tables.
 
 [NTT multiplication](src/ntt/mod.rs) uses two 32-bit coefficients per limb,
 three primes below `2^30`, Montgomery products and exact CRT reconstruction.
@@ -54,12 +57,23 @@ supports the coefficient bounds; larger products split. It is not an input limit
 ## Automatic selection
 
 These are tuned crossovers, not format limits or guarantees of optimality for
-every input. Leading zeros can reduce the significant input seen by a wrapper.
+every input. After the tiny and fixed routes, Auto strips leading zeros once and
+selects by significant length in [`src/api.rs`](src/api.rs). The selected kernels
+accept that normalized input and do not dispatch to another backend. Their size
+preconditions are checked; small inputs never enter the large stack frames or
+construct multipliers. Internal comparison/tuning wrappers still accept every
+length so differential tests can exercise their fallbacks.
+
+Normalized selection changes some zero-prefixed inputs' backend and allocation
+behavior. With `cache`, a Matrix table can now be retained where the earlier
+route used batched conversion. The [dispatch report](docs/benchmarks/dispatch/README.md)
+records that cost, timing variation and the NTT outlining needed to keep large
+stack frames out of tiny encode entries.
 
 | Mode | Encode | Decode |
 | --- | --- | --- |
-| Auto, default | Batched below 22 bytes; fixed matrices at exactly 32/64 bytes; Karatsuba through 4096 bytes; then owned NTT | Tiny through two text bytes; batched through 5120; Karatsuba through 5632; then owned NTT |
-| Auto + `cache` | Tiny/fixed routes first; general Matrix through 8192 significant bytes, or 3584 with IFMA; then NTT | Batched below 576 text bytes on NEON/Wasm, 1024 elsewhere; supported medium-size Matrix; then NTT |
+| Auto, default | Fixed matrices at exactly 32/64 bytes; otherwise batched through 4096 significant bytes, with IFMA Karatsuba at 513–4096; then owned NTT | Tiny through two text bytes; batched through 5120 significant digits; Karatsuba through 5632; then owned NTT |
+| Auto + `cache` | Tiny/fixed routes first; batched below 22 significant bytes; general Matrix through 8192, or 3584 with IFMA; then NTT | Batched below 576 significant digits on NEON/Wasm, 1024 elsewhere; supported medium-size Matrix; then NTT |
 | `no_alloc` | Fixed 32/64-byte matrices; batched elsewhere | Tiny/batched |
 
 Cached decoding uses Matrix only on NEON, Wasm or x86 with SSE4.1. Its upper
@@ -85,6 +99,8 @@ On x86, runtime checks guard the required ISA combinations. With `std`, detectio
 uses `std::is_x86_feature_detected!`; otherwise it uses `cpufeatures`. The latter
 caches five atomic-byte detection results without heap allocation. Cargo still
 resolves that x86 dependency with `std`, but those detector expansions are excluded.
+Native x86 kernels also require baseline SSE2 in the target. Soft-float targets
+without it use portable kernels; runtime CPUID cannot opt them into SIMD.
 Selectors use `core::cfg_select!`; the MSRV is Rust 1.95.
 
 SIMD applies beyond fixed lengths. Fixed 32-byte x86 encoding deliberately uses

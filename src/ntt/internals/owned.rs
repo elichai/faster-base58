@@ -1,6 +1,7 @@
 //! Entry points that own their twiddle tables.
 
-use super::super::{ENCODE_LEAF, Kernels, Ntt, encode_params};
+use super::super::{ENCODE_LEAF, Kernels, Ntt};
+use super::encode_params;
 use crate::dc;
 use crate::encode::{self, Leaves};
 use crate::{BufferTooSmall, Error};

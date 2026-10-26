@@ -61,7 +61,7 @@ fn portable_transform_paths() {
 
 #[test]
 fn selected_simd_transform_paths() {
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
     assert!(
         crate::cpu::avx2(),
         "run this with explicit SIMD target features"

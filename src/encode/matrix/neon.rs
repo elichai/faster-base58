@@ -12,14 +12,14 @@ use crate::common::ALPHABET;
 use crate::encode::max_encoded_len;
 
 /// Fixed 32-byte encoding with NEON column sums and digit conversion.
-pub(super) fn encode_fixed_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+pub(crate) fn encode_fixed_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     fixed::encode(x, output, |x, o| {
         fixed::chars(x, o, |x| cols(x, &fixed::TABLE_32), fixed_digits)
     })
 }
 
 /// Fixed 64-byte encoding with the carry in four segments.
-pub(super) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+pub(crate) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     fixed::encode(x, output, |x, o| {
         let (t, r) = (cols(x, &fixed::TABLE_64), max_encoded_len(64).div_ceil(4));
         let c = fixed::carry_split::<24, 4>(&t, r).unwrap_or_else(|| carry_cold(&t, r));

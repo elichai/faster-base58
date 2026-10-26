@@ -97,6 +97,19 @@ pub fn check_encode(data: &[u8], selector: usize) {
     for &(name, encode) in ENCODERS {
         check_encoder(name, encode, data, &want, selector);
     }
+    // Matrix comparison hooks no longer select fixed-size kernels.
+    let fixed: Option<Encode> = match data.len() {
+        32 => Some(|data, out| {
+            faster_base58::internals::encode_32_portable(data.try_into().unwrap(), out)
+        }),
+        64 => Some(|data, out| {
+            faster_base58::internals::encode_64_portable(data.try_into().unwrap(), out)
+        }),
+        _ => None,
+    };
+    if let Some(encode) = fixed {
+        check_encoder("fixed-portable", encode, data, &want, selector);
+    }
 }
 
 pub fn oracle_decode(input: &str) -> Result<Vec<u8>, usize> {

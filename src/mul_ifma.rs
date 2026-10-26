@@ -82,7 +82,7 @@ macro_rules! pick {
     };
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 pub(crate) mod avx512;
 
 /// Scratch limbs native `mul` needs for `a.len() == na` and `b.len() == nb`.
@@ -669,7 +669,7 @@ mod tests {
     }
 
     /// Set `BASE58_REQUIRE_IFMA` to fail instead of skipping on CPUs without AVX-512 IFMA.
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
     #[test]
     fn avx512_matches_reference() {
         if !avx512::available() {
@@ -689,13 +689,13 @@ mod tests {
     fn finish_sequential_carry() {
         type Finish = unsafe fn(&mut [u64], &mut [u64]);
         let emu: Finish = finish::<Emu>;
-        #[cfg(target_arch = "x86_64")]
+        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
         let fs = if avx512::available() {
             vec![emu, avx512::finish_tf]
         } else {
             vec![emu]
         };
-        #[cfg(not(target_arch = "x86_64"))]
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
         let fs = [emu];
         for v in [true, false] {
             let mut rng = Xoshiro256PlusPlus::seed_from_u64(5);

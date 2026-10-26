@@ -7,6 +7,10 @@ the semantics of every SIMD instruction. The implementation map is in
 [DESIGN.md](DESIGN.md); repeatable jobs are in
 [the workflow](.github/workflows/verification.yml).
 
+[Local verification of the normalized dispatcher](docs/verification/local-ci.md)
+records the full matrix, outlined-source checks and later portable-target
+correction, with exact input hashes, platform adaptations and remaining gaps.
+
 ## Public contract
 
 - The alphabet is Bitcoin Base58. Leading zero bytes become leading `'1'`s.
@@ -71,7 +75,7 @@ decode bytes. They cross 8192/8193-limb boundaries. Lossy UTF-8 and inserted
 characters can expand the decoded text. These are campaign budgets, not format
 limits; they do not exercise every transform size.
 
-The 2026-10-26 careful AddressSanitizer campaign completed **450,058 executions in mutation campaigns**
+The historical 2026-10-26 careful AddressSanitizer campaign completed **450,058 executions in mutation campaigns**
 across default/cache encode/decode, plus full and supplemental boundary replays.
 Linux LeakSanitizer completed another **249,334 executions**. Both retain debug
 assertions and overflow checks. ThreadSanitizer passed five nonzero concurrency

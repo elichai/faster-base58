@@ -7,7 +7,14 @@ use crate::common::{BASE, DIGITS, chunks, invalid, split_zeros};
 ///
 /// Works in place in `output`: no allocation.
 pub fn decode_batched(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    let (zeros, digits) = split_zeros(input.as_bytes());
+    let (zeros, _) = split_zeros(input.as_bytes());
+    decode_parts(input, zeros, output)
+}
+
+/// Batched conversion with the number of leading `'1'` bytes already known.
+pub(crate) fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
+    let digits = &input.as_bytes()[zeros..];
+    debug_assert!(digits.first() != Some(&b'1'));
     let (zero_bytes, buf) = output
         .split_at_mut_checked(zeros)
         .ok_or(Error::BufferTooSmall)?;

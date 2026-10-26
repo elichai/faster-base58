@@ -4,19 +4,13 @@ use super::super::four_digits;
 use super::{TABLE_32, TABLE_64, Table, chars, column, encode, words};
 use crate::BufferTooSmall;
 
-/// [`super::encode_32`] with the plain-Rust kernels.
-pub(in crate::encode::matrix) fn encode_32_portable(
-    x: &[u8; 32],
-    out: &mut [u8],
-) -> Result<usize, BufferTooSmall> {
+/// Fixed 32-byte encoding with plain-Rust kernels.
+pub fn encode_32_portable(x: &[u8; 32], out: &mut [u8]) -> Result<usize, BufferTooSmall> {
     encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_32), digits))
 }
 
-/// [`super::encode_64`] with the plain-Rust kernels.
-pub(in crate::encode::matrix) fn encode_64_portable(
-    x: &[u8; 64],
-    out: &mut [u8],
-) -> Result<usize, BufferTooSmall> {
+/// Fixed 64-byte encoding with plain-Rust kernels.
+pub fn encode_64_portable(x: &[u8; 64], out: &mut [u8]) -> Result<usize, BufferTooSmall> {
     encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_64), digits))
 }
 

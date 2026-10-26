@@ -1,0 +1,46 @@
+[
+  {
+    "decoded_bytes": 32,
+    "max_encoded_chars": 44,
+    "group": 4,
+    "groups": 11,
+    "columns": 8,
+    "table_bytes": 352,
+    "max_column_plus_carry": 167564446076440575,
+    "max_final_carry": 3,
+    "max_value": "389790918707373377135528568990913592653094657612049369038476873218241589149695"
+  },
+  {
+    "decoded_bytes": 32,
+    "max_encoded_chars": 44,
+    "group": 5,
+    "groups": 9,
+    "columns": 8,
+    "table_bytes": 288,
+    "max_column_plus_carry": 8769783620215767039,
+    "max_final_carry": 3,
+    "max_value": "389790918707373377135528568990913592653094657612049369038476873218241589149695"
+  },
+  {
+    "decoded_bytes": 64,
+    "max_encoded_chars": 88,
+    "group": 4,
+    "groups": 22,
+    "columns": 16,
+    "table_bytes": 1408,
+    "max_column_plus_carry": 408502486555426815,
+    "max_final_carry": 11,
+    "max_value": "151936960306738160585212877324511817950383697976161563178973819135835175919895720727863108350127395861080584703891259178454003549339453195800706836296892415"
+  },
+  {
+    "decoded_bytes": 64,
+    "max_encoded_chars": 88,
+    "group": 5,
+    "groups": 18,
+    "columns": 16,
+    "table_bytes": 1152,
+    "max_column_plus_carry": 17385290215047823359,
+    "max_final_carry": 11,
+    "max_value": "151936960306738160585212877324511817950383697976161563178973819135835175919895720727863108350127395861080584703891259178454003549339453195800706836296892415"
+  }
+]

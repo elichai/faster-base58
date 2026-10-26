@@ -13,7 +13,7 @@ use alloc::vec::Vec;
 #[cfg(any(test, feature = "__internals"))]
 pub(crate) mod internals;
 
-#[cfg(any(target_arch = "x86_64", test))]
+#[cfg(any(all(target_arch = "x86_64", target_feature = "sse2"), test))]
 mod avx512;
 #[cfg(test)]
 mod cache_policy_tests;
@@ -30,7 +30,7 @@ mod portable;
 #[cfg(kani)]
 mod proofs;
 mod tables;
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
 use core::ptr;
@@ -58,6 +58,7 @@ const IFMA_PREPARED_THRESHOLD: usize = 2048;
 /// The encoders' divide-and-conquer threshold in bytes and leaf size in chunks, tuned on
 /// an M5 Pro against `encode_batched` in one binary. Smaller leaves were up to 4% faster
 /// from 8 KiB up and 1-2% slower at 4-6 KiB.
+#[cfg(any(not(feature = "cache"), test, feature = "__internals"))]
 pub(crate) const ENCODE_THRESHOLD: usize = 4096;
 const ENCODE_LEAF: usize = 32;
 
@@ -72,34 +73,33 @@ const CACHED_LEAF: usize = match Leaves::BEST {
     Leaves::Matrix => 768,
 };
 
-/// [`ENCODE_THRESHOLD`] with the IFMA leaf. On Zen 5 divide and conquer with 32-chunk
-/// Horner leaves tied `encode_batched` at 512 bytes and took 26% less time at 768.
-pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 512;
-
-/// The threshold and the caching encoders' leaf size for this CPU.
-fn encode_params() -> (usize, usize) {
-    match mul::ifma_threshold() {
-        0 => (ENCODE_THRESHOLD, CACHED_LEAF),
-        _ => (ENCODE_IFMA_THRESHOLD, CACHED_LEAF),
-    }
-}
-
 /// Divide-and-conquer decoding with NTT multiplication and the feature-selected leaves.
 /// With `cache`, twiddles through log18 and selected matrix-leaf tables are retained;
 /// larger twiddles live for this call. Without `cache`, tables are owned and leaves
 /// use Horner. Tables are built only when a product uses transforms.
-pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, crate::Error> {
-    dc::decode_with_leaf(input, output, &mut Ntt::new(Kernels::best()), Leaf::BEST)
+#[inline(never)]
+pub(crate) fn decode(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, crate::Error> {
+    dc::decode_parts(
+        input,
+        zeros,
+        output,
+        &mut Ntt::new(Kernels::best()),
+        Leaf::BEST,
+    )
 }
 
 /// Divide-and-conquer encoding with NTT multiplication and the feature-selected leaves.
 /// With `cache`, twiddles through log18 and selected matrix-leaf tables are retained;
 /// larger twiddles live for this call. Without `cache`, tables are owned and leaves
 /// use Horner. Tables are built only when a product uses transforms.
-pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, crate::BufferTooSmall> {
+#[inline(never)]
+pub(crate) fn encode(
+    zeros: usize,
+    x: &[u8],
+    output: &mut [u8],
+) -> Result<usize, crate::BufferTooSmall> {
     let m = &mut Ntt::new(Kernels::best());
-    let (threshold, leaf) = encode_params();
-    crate::encode::encode_tuned(input, output, m, threshold, leaf, Leaves::BEST)
+    crate::encode::dc::encode_parts(zeros, x, output, m, CACHED_LEAF, Leaves::BEST)
 }
 
 /// The [`Multiplier`] of the NTT decoders.
@@ -432,7 +432,7 @@ impl Kernels {
             all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
                 Kernels::neon()
             }
-            target_arch = "x86_64" => {
+            all(target_arch = "x86_64", target_feature = "sse2") => {
                 avx512::kernels().or_else(x86::kernels).unwrap_or_else(Kernels::portable)
             }
             _ => Kernels::portable(),

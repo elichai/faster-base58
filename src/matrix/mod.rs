@@ -28,7 +28,7 @@ mod portable;
 #[cfg(kani)]
 mod proofs;
 mod table;
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
 /// A panel kernel: see `portable::panel`.
@@ -49,7 +49,7 @@ struct Kernels {
             target_endian = "little",
             target_feature = "neon"
         ),
-        target_arch = "x86_64"
+        all(target_arch = "x86_64", target_feature = "sse2")
     ))
 ))]
 const PORTABLE: Kernels = Kernels {
@@ -61,7 +61,7 @@ const BEST: Kernels = core::cfg_select! {
     all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
         Kernels { parse: neon::parse, panel: neon::panel }
     }
-    target_arch = "x86_64" => {
+    all(target_arch = "x86_64", target_feature = "sse2") => {
         Kernels { parse: portable::parse, panel: x86::panel }
     }
     _ => PORTABLE,
@@ -70,72 +70,39 @@ const BEST: Kernels = core::cfg_select! {
 /// The panel kernels, for the matrix encoder (`encode/matrix.rs`).
 pub(crate) const PANEL: Panel = BEST.panel;
 
-/// Thresholded entry points and their shared wrappers.
+/// Matrix conversion after automatic length selection.
 #[cfg(any(feature = "cache", test, feature = "__internals"))]
 pub(crate) mod entry {
     use super::table::MAX_CHARS;
     use super::*;
-    use crate::{
-        Error,
-        batched::decode_batched,
-        common::{invalid, split_zeros},
-        dc::{decode, write_bytes},
-    };
+    use crate::{Error, common::invalid, dc::write_bytes};
 
-    /// Inputs with fewer digits than this use [`decode_batched`], which is faster there.
+    /// Inputs with fewer digits than this use the batched decoder, which is faster there.
     /// Tuned by measurement; see `docs/performance.md`.
-    pub(super) const MATRIX_MIN: usize = 576;
+    pub(crate) const MATRIX_MIN: usize = 576;
 
-    /// Like [`decode_batched`], but faster from about 0.4 KiB to 4 KiB when the table of
-    /// powers is in cache. Fewer than `MATRIX_MIN` digits use [`decode_batched`]; more than
-    /// 5632 use [`decode`].
-    ///
-    /// The speedup was measured with NEON (aarch64). x86_64 uses AVX2 or SSE4.1 kernels: on
-    /// AMD Zen 5 they were faster from about 1 KiB with default flags, but with
-    /// `-C target-cpu=native` they only tied [`decode_batched`] at 2–4 KiB. Other targets run
-    /// the plain-Rust kernels; their advantage depends on the target and input size.
-    ///
-    /// With `cache`, warm matrix calls allocate no heap; first use builds a retained table.
-    /// Without `cache`, each matrix invocation builds and drops its own table.
-    /// Data is reserved at its final length: about 40 KiB, 154 KiB, 601 KiB or 2.3 MiB, plus
-    /// panel metadata. With `cache`, initialized classes accumulate. The recursive
-    /// fallback can allocate workspace. See `docs/performance.md` for measurements.
-    pub fn decode_matrix(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-        decode_with(&BEST, input, output, MATRIX_MIN)
+    /// Converts `MATRIX_MIN..=MAX_CHARS` significant digits without backend fallbacks.
+    #[cfg(feature = "cache")]
+    #[inline]
+    pub(crate) fn decode(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
+        assert!(
+            input.len() - zeros >= MATRIX_MIN,
+            "value is too short for the matrix decoder"
+        );
+        decode_parts(&BEST, input, zeros, output)
     }
 
-    /// [`decode_matrix`] with kernels `k`, using [`decode_batched`] below `min` digits.
-    /// Inlined, so small inputs pay only a length check.
-    #[inline(always)]
-    pub(super) fn decode_with(
-        k: &Kernels,
-        input: &str,
-        output: &mut [u8],
-        min: usize,
-    ) -> Result<usize, Error> {
-        // The input length bounds the digit count, so small inputs skip `split_zeros` here.
-        if input.len() < min {
-            return decode_batched(input, output);
-        }
-        decode_large(k, input, output, min)
-    }
-
-    /// [`decode_with`] for inputs of at least `min` bytes. Not inlined: its stack frame holds
-    /// [`Scratch`], about 14 KiB, which small inputs should not set up.
+    /// Not inlined: small inputs must not enter this 14 KiB stack frame.
     #[inline(never)]
-    fn decode_large(
+    pub(super) fn decode_parts(
         k: &Kernels,
         input: &str,
+        zeros: usize,
         output: &mut [u8],
-        min: usize,
     ) -> Result<usize, Error> {
-        let (zeros, digits) = split_zeros(input.as_bytes());
-        if digits.len() < min {
-            return decode_batched(input, output);
-        }
-        if digits.len() > MAX_CHARS {
-            return decode(input, output);
-        }
+        let digits = &input.as_bytes()[zeros..];
+        assert!(digits.len() <= MAX_CHARS, "too many digits for one matrix");
+        debug_assert!(digits.first() != Some(&b'1'));
         // A nonzero first digit gives at least 58^(d - 1), as in the D&C preflight.
         let min_len = if digits.is_empty() {
             0
@@ -154,21 +121,48 @@ pub(crate) mod entry {
 /// Comparison hooks; production conversions keep using the core below.
 #[cfg(any(test, feature = "__internals"))]
 pub(crate) mod internals {
-    use super::entry::{MATRIX_MIN, decode_with};
+    use super::entry::{MATRIX_MIN, decode_parts};
     use super::*;
     use crate::Error;
 
     pub(crate) const PANEL_PORTABLE: Panel = PORTABLE.panel;
 
-    /// [`super::entry::decode_matrix`] with the plain-Rust kernels, to show what the SIMD ones add.
+    /// General matrix decoding, with batched and Karatsuba fallbacks outside its useful range.
+    pub fn decode_matrix(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+        decode_with(&BEST, input, output, MATRIX_MIN)
+    }
+
+    /// [`decode_matrix`] with plain-Rust kernels.
     pub fn decode_matrix_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
         decode_with(&PORTABLE, input, output, MATRIX_MIN)
+    }
+
+    pub(super) fn decode_with(
+        k: &Kernels,
+        input: &str,
+        output: &mut [u8],
+        min: usize,
+    ) -> Result<usize, Error> {
+        let (zeros, digits) = crate::common::split_zeros(input.as_bytes());
+        if digits.len() < min {
+            return crate::batched::decode_parts(input, zeros, output);
+        }
+        if digits.len() > table::MAX_CHARS {
+            return crate::dc::decode_parts(
+                input,
+                zeros,
+                output,
+                &mut crate::dc::Karatsuba,
+                crate::dc::Leaf::Horner,
+            );
+        }
+        decode_parts(k, input, zeros, output)
     }
 
     #[cfg(feature = "__internals")]
     pub(crate) mod feature_only {
         use super::super::BEST;
-        use super::super::entry::decode_with;
+        use super::decode_with;
         use crate::Error;
 
         pub use super::super::table::cache_memory as decode_matrix_cache_memory;
@@ -287,8 +281,8 @@ const _: () = assert!(58u128.pow(CHUNK as u32) < 1u128 << 64);
 
 #[cfg(test)]
 mod tests {
-    use super::entry::{MATRIX_MIN, decode_matrix, decode_with};
-    use super::internals::decode_matrix_portable;
+    use super::entry::MATRIX_MIN;
+    use super::internals::{decode_matrix, decode_matrix_portable, decode_with};
     use super::table::MAX_CHARS;
     use super::*;
     use crate::common::{ALPHABET, BASE, chunks};
@@ -307,6 +301,13 @@ mod tests {
     }
 
     const FORCED: [(&str, Decode); 2] = [("best", forced_best), ("portable", forced_portable)];
+
+    #[cfg(feature = "cache")]
+    #[test]
+    #[should_panic(expected = "value is too short for the matrix decoder")]
+    fn selected_decoder_rejects_short_values() {
+        entry::decode("2", 0, &mut [0; 1]).unwrap();
+    }
 
     /// Class boundaries and the dispatch threshold, each with its neighbours.
     fn boundaries() -> impl Iterator<Item = usize> {

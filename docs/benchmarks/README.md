@@ -7,6 +7,8 @@ different quantities. No cells are extrapolated.
 
 | Dataset | Purpose and source generation |
 | --- | --- |
+| [Centralized dispatch](dispatch/README.md) | Local 2026-10-26 routing refactor, ordinary-consumer NTT outlining, linked sizes and zero-prefix allocation tradeoffs. Each phase has a distinct source binding. |
+| [Fixed decoding](fixed-decode/README.md) | Rejected portable 32/64-byte decoder prototypes; local timings, arithmetic bounds and M5/Wasm linked sizes. |
 | [Complete backend timing grid](backend-grid/README.md) | Historical 2026-10-24 source; all 29 decoded payload sizes through 4 MiB, four environments. This precedes the cache feature split, package rename and no_std. |
 | [Complete earlier backend resource tradeoffs](backend-resources/README.md) | Historical 2026-10-23 source. This is the complete earlier allocation/code-size association for five runtime configurations, including Wasm on GCP. It is not current heap usage. |
 | [Published public-mode comparison](public-modes/README.md) | 2026-10-25 snapshot before allocation-layout changes, no_std and rename. These exact inputs feed the README timing graphs. |

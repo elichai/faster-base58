@@ -1,21 +1,23 @@
 //! Divide-and-conquer radix conversion: `value(hi) * BASE^e + value(lo)`, with balanced
 //! splits. [`decode`] multiplies with Karatsuba; [`decode_with`] takes the multiplication.
 
-use crate::batched::decode_batched;
-use crate::common::{BASE, CHUNK, all_valid, chunks, invalid, split_zeros};
+#[cfg(any(test, feature = "__internals", kani))]
+use crate::common::split_zeros;
+use crate::common::{BASE, CHUNK, all_valid, chunks, invalid};
 use crate::{Error, matrix, mul};
 
 /// Inputs with more chunks than this use divide-and-conquer. Below it,
-/// [`decode_batched`] is faster.
+/// [`crate::batched::decode_batched`] is faster.
 pub(crate) const DC_THRESHOLD: usize = 512;
 
 /// Leaves have at most this many chunks.
 pub(crate) const LEAF: usize = 256;
 const _: () = assert!(LEAF <= DC_THRESHOLD);
 
-/// Like [`decode_batched`], but subquadratic for large inputs.
+/// Like [`crate::batched::decode_batched`], but subquadratic for large inputs.
 ///
 /// Makes one allocation, for the result, the power table and all scratch space.
+#[cfg(any(test, feature = "__internals", kani))]
 pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     decode_with(input, output, &mut Karatsuba)
 }
@@ -84,17 +86,22 @@ pub trait Multiplier {
     }
 }
 
-/// [`mul::mul`] as a [`Multiplier`].
-pub(crate) struct Karatsuba;
+core::cfg_select! {
+    any(not(feature = "cache"), test, feature = "__internals", kani) => {
+        /// [`mul::mul`] as a [`Multiplier`].
+        pub(crate) struct Karatsuba;
 
-impl Multiplier for Karatsuba {
-    fn scratch_len(&self, n: usize) -> usize {
-        mul::scratch_len(n)
-    }
+        impl Multiplier for Karatsuba {
+            fn scratch_len(&self, n: usize) -> usize {
+                mul::scratch_len(n)
+            }
 
-    fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
-        mul::mul(out, a, b, scratch);
+            fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
+                mul::mul(out, a, b, scratch);
+            }
+        }
     }
+    _ => {}
 }
 
 /// How [`dc`] converts its leaves.
@@ -123,6 +130,7 @@ impl Leaf {
 }
 
 /// [`decode`], multiplying with `m`.
+#[cfg(any(test, feature = "__internals", kani))]
 pub fn decode_with(
     input: &str,
     output: &mut [u8],
@@ -132,6 +140,7 @@ pub fn decode_with(
 }
 
 /// [`decode_with`], with leaves converted by `leaf`.
+#[cfg(any(test, feature = "__internals", kani))]
 pub(crate) fn decode_with_leaf(
     input: &str,
     output: &mut [u8],
@@ -139,10 +148,28 @@ pub(crate) fn decode_with_leaf(
     leaf: Leaf,
 ) -> Result<usize, Error> {
     let (zeros, digits) = split_zeros(input.as_bytes());
-    let n = digits.len().div_ceil(CHUNK);
-    if n <= DC_THRESHOLD {
-        return decode_batched(input, output);
+    if digits.len() <= DC_THRESHOLD * CHUNK {
+        return crate::batched::decode_parts(input, zeros, output);
     }
+    decode_parts(input, zeros, output, m, leaf)
+}
+
+/// Divide-and-conquer conversion after stripping leading `'1'` bytes.
+/// Requires more than `DC_THRESHOLD * CHUNK` significant characters.
+pub(crate) fn decode_parts(
+    input: &str,
+    zeros: usize,
+    output: &mut [u8],
+    m: &mut impl Multiplier,
+    leaf: Leaf,
+) -> Result<usize, Error> {
+    let digits = &input.as_bytes()[zeros..];
+    assert!(
+        digits.len() > DC_THRESHOLD * CHUNK,
+        "value is too short for divide and conquer"
+    );
+    debug_assert_ne!(digits[0], b'1');
+    let n = digits.len().div_ceil(CHUNK);
     // Fail before allocating or computing anything. The first digit is not '1', so the
     // value is at least 58^(d - 1), which takes more than (d - 1) * 0.732 bytes.
     let min_len = ((digits.len() - 1) as u128 * 732 / 1000) as usize + 1;
@@ -398,9 +425,16 @@ pub(crate) fn trimmed_len(limbs: &[u64]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::batched::decode_batched;
     use crate::tests::{Decode, decode_vec, random_string};
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::SeedableRng;
+
+    #[test]
+    #[should_panic(expected = "value is too short for divide and conquer")]
+    fn normalized_decoder_rejects_short_values() {
+        decode_parts("2", 0, &mut [0; 1], &mut Karatsuba, Leaf::Horner).unwrap();
+    }
 
     /// [`decode`] with each leaf.
     const LEAVES: [(&str, Decode); 2] = [

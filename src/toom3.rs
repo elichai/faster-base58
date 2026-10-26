@@ -43,7 +43,7 @@ pub fn encode_toom3(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooS
     } else {
         THRESHOLD
     };
-    encode::dc::karatsuba::encode_with(input, output, &mut Toom3 { threshold })
+    encode::dc::internals::encode_with(input, output, &mut Toom3 { threshold })
 }
 
 /// [`mul_with`] as a [`Multiplier`].

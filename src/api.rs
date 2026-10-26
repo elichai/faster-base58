@@ -2,7 +2,6 @@
 
 use alloc::{string::String, vec::Vec};
 
-use crate::batched::decode_batched;
 use crate::{BufferTooSmall, Error};
 
 /// Encodes Bitcoin Base58 and returns the number of bytes written to `output`.
@@ -15,27 +14,49 @@ use crate::{BufferTooSmall, Error};
 /// Timing depends on the input. Use [`encode_into`] to borrow the resulting string.
 #[inline]
 pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    if input.len() < 22 {
-        return crate::encode::encode_batched(input, output);
+    match input.len() {
+        32 => return crate::encode::matrix::fixed::encode_32(input.try_into().unwrap(), output),
+        64 => return crate::encode::matrix::fixed::encode_64(input.try_into().unwrap(), output),
+        0..22 => return crate::encode::encode_batched(input, output),
+        _ => {}
     }
+    let (zeros, x) = crate::encode::split_zeros(input);
     #[cfg(feature = "cache")]
     {
-        crate::encode::matrix::entry::encode_matrix(input, output)
+        use crate::encode::matrix::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
+        if x.len() < MATRIX_MIN {
+            return crate::encode::batched::encode_parts(zeros, x, output);
+        }
+        let cap = if crate::mul::ifma_threshold() != 0 {
+            IFMA_CAP
+        } else {
+            MAX_INPUT
+        };
+        if x.len() <= cap {
+            return crate::encode::matrix::entry::encode(zeros, x, output);
+        }
     }
     #[cfg(not(feature = "cache"))]
     {
-        if let Some(result) = crate::encode::encode_fixed(input, output) {
-            return result;
-        }
         // Conservative crossover based on historical kernel measurements:
         // Karatsuba/Horner in the medium range, owned NTT above it. This is not
         // a claim that the crossover is optimal on every target.
-        if input.len() <= crate::ntt::ENCODE_THRESHOLD {
-            crate::encode::dc::karatsuba::encode(input, output)
-        } else {
-            crate::ntt::encode(input, output)
+        if x.len() <= crate::ntt::ENCODE_THRESHOLD {
+            let (threshold, leaf) = crate::encode::dc::karatsuba::params();
+            if x.len() > threshold {
+                return crate::encode::dc::encode_parts(
+                    zeros,
+                    x,
+                    output,
+                    &mut crate::dc::Karatsuba,
+                    leaf,
+                    crate::encode::Leaves::Horner,
+                );
+            }
+            return crate::encode::batched::encode_parts(zeros, x, output);
         }
     }
+    crate::ntt::encode(zeros, x, output)
 }
 
 /// Decodes Bitcoin Base58 and returns the number of bytes written to `output`.
@@ -50,21 +71,27 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
 /// Process-wide table retention requires `cache`; larger NTT tables always live for
 /// one conversion. See the review for the measured feature-enabled routes.
 pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+    if input.len() <= 2 {
+        return crate::batched::decode_short(input, output);
+    }
+    let (zeros, digits) = crate::common::split_zeros(input.as_bytes());
     #[cfg(not(feature = "cache"))]
     {
-        if input.len() <= 2 {
-            return crate::batched::decode_short(input, output);
-        }
-        if input.len() <= crate::dc::DC_THRESHOLD * crate::common::CHUNK {
-            return decode_batched(input, output);
+        if digits.len() <= crate::dc::DC_THRESHOLD * crate::common::CHUNK {
+            return crate::batched::decode_parts(input, zeros, output);
         }
         // Preserve the former medium/large boundary while avoiding matrix setup.
         // The historical measurements motivate this conservative boundary;
         // measurements of the complete dispatch do not establish optimality.
-        if input.len() <= 5632 {
-            return crate::dc::decode(input, output);
+        if digits.len() <= 5632 {
+            return crate::dc::decode_parts(
+                input,
+                zeros,
+                output,
+                &mut crate::dc::Karatsuba,
+                crate::dc::Leaf::Horner,
+            );
         }
-        crate::ntt::decode(input, output)
     }
     #[cfg(feature = "cache")]
     {
@@ -78,21 +105,18 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
         } else {
             1024
         };
-        if input.len() < matrix_min {
-            if input.len() <= 2 {
-                return crate::batched::decode_short(input, output);
-            }
-            return decode_batched(input, output);
+        if digits.len() < matrix_min {
+            return crate::batched::decode_parts(input, zeros, output);
         }
-        if input.len() <= 5632 {
-            #[cfg(target_arch = "x86_64")]
+        if digits.len() <= 5632 {
+            #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
             if crate::mul::ifma_threshold() != 0 {
-                if input.len() > 5120 {
-                    return crate::ntt::decode(input, output);
+                if digits.len() > 5120 {
+                    return crate::ntt::decode(input, zeros, output);
                 }
                 // Native AVX2 builds make Horner faster than matrix on the measured Zen 5.
                 if cfg!(target_feature = "avx2") {
-                    return decode_batched(input, output);
+                    return crate::batched::decode_parts(input, zeros, output);
                 }
             }
             if cfg!(all(
@@ -101,16 +125,16 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
                 target_feature = "neon"
             )) || cfg!(target_arch = "wasm32")
             {
-                return crate::matrix::entry::decode_matrix(input, output);
+                return crate::matrix::entry::decode(input, zeros, output);
             }
-            #[cfg(target_arch = "x86_64")]
+            #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
             if crate::cpu::sse41() {
-                return crate::matrix::entry::decode_matrix(input, output);
+                return crate::matrix::entry::decode(input, zeros, output);
             }
-            return decode_batched(input, output);
+            return crate::batched::decode_parts(input, zeros, output);
         }
-        crate::ntt::decode(input, output)
     }
+    crate::ntt::decode(input, zeros, output)
 }
 
 /// Encodes into an array or slice and borrows the resulting ASCII string.

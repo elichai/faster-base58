@@ -11,13 +11,14 @@ pub type MatrixCacheClass = (usize, bool, usize, usize, usize, usize);
 
 pub use crate::batched::decode_batched;
 pub use crate::dc::{Multiplier, decode as decode_karatsuba, decode_with};
-pub use crate::encode::dc::{
-    internals::encode_karatsuba_with, karatsuba::encode as encode_karatsuba,
+pub use crate::encode::dc::internals::{encode as encode_karatsuba, encode_karatsuba_with};
+pub use crate::encode::matrix::encode_whole as encode_matrix_whole;
+pub use crate::encode::matrix::fixed::portable::{encode_32_portable, encode_64_portable};
+pub use crate::encode::matrix::internals::{
+    encode_matrix, encode_matrix_portable, encode_matrix_with,
 };
-pub use crate::encode::matrix::internals::{encode_matrix_portable, encode_matrix_with};
-pub use crate::encode::matrix::{encode_whole as encode_matrix_whole, entry::encode_matrix};
 pub use crate::encode::{Leaves, encode_batched, encode_tuned};
-pub use crate::matrix::{entry::decode_matrix, internals::decode_matrix_portable};
+pub use crate::matrix::internals::{decode_matrix, decode_matrix_portable};
 pub use crate::mul::{ifma_threshold, mul_with, scratch_len};
 pub use crate::ntt::internals::{
     cached::{decode_ntt_cached, encode_ntt_cached},
@@ -35,7 +36,7 @@ pub use crate::{
         decode_ntt_same_leaves, encode_ntt_same_leaves, ntt_cache_memory,
     },
 };
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 pub use crate::{
     mul::ifma::set_ifma_threshold,
     mul_ifma::{avx512::mul as ifma_mul, scratch_len as ifma_scratch_len},

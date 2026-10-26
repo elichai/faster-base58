@@ -15,9 +15,10 @@ use crate::{BufferTooSmall, Error};
 /// storage is allocated, even on first use or insufficient output capacity.
 #[inline]
 pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    match crate::encode::encode_fixed(input, output) {
-        Some(result) => result,
-        None => crate::encode::encode_batched(input, output),
+    match input.len() {
+        32 => crate::encode::matrix::fixed::encode_32(input.try_into().unwrap(), output),
+        64 => crate::encode::matrix::fixed::encode_64(input.try_into().unwrap(), output),
+        _ => crate::encode::encode_batched(input, output),
     }
 }
 

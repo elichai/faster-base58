@@ -11,12 +11,12 @@ use crate::common::ALPHABET;
 use crate::encode::max_encoded_len;
 
 /// Fixed 32-byte encoding uses scalar kernels: they beat AVX2 on measured Zen 5.
-pub(super) fn encode_fixed_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+pub(crate) fn encode_fixed_32(x: &[u8; 32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     fixed::portable::encode_32_portable(x, output)
 }
 
 /// Select VBMI, then AVX2, otherwise the scalar fixed-size encoder.
-pub(super) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+pub(crate) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     if has_vbmi() {
         // SAFETY: the CPU has every feature checked by `has_vbmi`.
         return unsafe { encode_64_vbmi(x, output) };
@@ -36,7 +36,7 @@ pub(super) fn has_vbmi() -> bool {
     crate::cpu::vbmi()
 }
 
-/// [`encode_matrix`](super::entry::encode_matrix) for 64 bytes with AVX2.
+/// Fixed matrix encoding for 64 bytes with AVX2.
 #[target_feature(enable = "avx2")]
 pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let t = cols(x, &TABLE_64);

@@ -1,12 +1,22 @@
 //! Comparison and tuning entry points; the root facade keeps their flattened names.
 
-use super::{Kernels, Ntt, encode_params};
+use super::{CACHED_LEAF, ENCODE_THRESHOLD, Kernels, Ntt};
 use crate::dc::{self, Leaf};
 use crate::encode::{self, Leaves};
 use crate::{BufferTooSmall, Error};
 
 pub(crate) mod cached;
 pub(crate) mod owned;
+
+/// NTT conversion crossover with IFMA, retained for explicit backend comparisons.
+pub(crate) const ENCODE_IFMA_THRESHOLD: usize = 512;
+
+fn encode_params() -> (usize, usize) {
+    match crate::mul::ifma_threshold() {
+        0 => (ENCODE_THRESHOLD, CACHED_LEAF),
+        _ => (ENCODE_IFMA_THRESHOLD, CACHED_LEAF),
+    }
+}
 
 impl Ntt {
     /// Own tables even when the `cache` feature is enabled, for cost comparisons.

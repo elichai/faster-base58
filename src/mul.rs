@@ -1,6 +1,6 @@
 //! Arithmetic on little-endian `u64` limb slices.
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 use crate::mul_ifma;
 
 /// Operands shorter than this use schoolbook multiplication.
@@ -12,7 +12,7 @@ const KARATSUBA_THRESHOLD: usize = 32;
 const IFMA_MIN: usize = 12;
 const _: () = assert!(8 <= IFMA_MIN && IFMA_MIN <= KARATSUBA_THRESHOLD);
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 pub(crate) mod ifma {
     use crate::mul_ifma::avx512 as mul_ifma;
     use core::sync::atomic::{AtomicUsize, Ordering::Relaxed};
@@ -35,7 +35,7 @@ pub(crate) mod ifma {
     }
 }
 
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
 mod ifma {
     /// The IFMA leaf threshold: this target has no native IFMA leaf.
     pub fn ifma_threshold() -> usize {
@@ -68,7 +68,7 @@ pub fn mul(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
 pub fn mul_with(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64], t: usize) {
     debug_assert_eq!(out.len(), a.len() + b.len());
     let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
     if (IFMA_MIN..t.min(mul_ifma::MAX_LEN + 1)).contains(&a.len()) {
         return mul_ifma::avx512::mul(out, a, b, scratch);
     }

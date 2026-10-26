@@ -6,17 +6,18 @@ tools; they do not replace the source or imply coverage of later changes.
 
 | Record | Scope |
 | --- | --- |
-| [Proofs](proofs.json) | 40 distinct selected Kani harnesses: 4 tiny-production, 31 parser/arithmetic, 5 capacity/lemma; commands, solver/compiler identities and raw-log hashes |
-| [Harness results](harnesses.csv) | Individual proof names and results; the production code is checked under its stated scalar domains |
-| [Sanitizers](sanitizers.json) | Careful ASan/LSan fuzz execution and replay, native TSan concurrency and native Rust MSan; frozen source/corpus/tool hashes and explicit excluded setup results |
-| [Source and verification status](status.json) | Local closure checks and distinct earlier Miri/detector records |
+| [Local dispatcher verification](local-ci.md) / [derived receipt](local-ci.json) | Earlier full matrix, outlined-source proofs/sanitizers and the later cfg-only portability fix; exact inputs, commands and remaining platform limits |
+| [Historical proofs](proofs.json) | 40 distinct selected Kani harnesses: 4 tiny-production, 31 parser/arithmetic, 5 capacity/lemma; commands, solver/compiler identities and raw-log hashes |
+| [Historical harness results](harnesses.csv) | Individual proof names and results; the production code is checked under its stated scalar domains |
+| [Historical sanitizers](sanitizers.json) | Careful ASan/LSan fuzz execution and replay, native TSan concurrency and native Rust MSan; frozen source/corpus/tool hashes and explicit excluded setup results |
+| [Historical source and verification status](status.json) | Local closure checks and distinct earlier Miri/detector records |
 
-The proof snapshot includes the inverse-scale contract check and independent
+The historical proof snapshot includes the inverse-scale contract check and independent
 tests. Later packaging and documentation-only differences are recorded rather
 than presented as new proof runs. The sanitizer snapshot includes the three
 prepared-transform/divisor assertions; it predates the added inverse-scale
-assertion and proof tests. The receipts preserve that distinction. Release
-arithmetic and dispatch were not changed by these additions.
+assertion and proof tests. The receipts preserve that distinction. These older records
+do not verify the later normalized-dispatch refactor.
 
 Full source archives, models, instrumented binaries, corpora and raw local logs
 are kept outside the active documentation tree. Recorded hashes support archival

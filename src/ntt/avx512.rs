@@ -16,7 +16,7 @@ use super::tables::{Prime, S, Twiddles};
 
 /// [`super::Kernels`] with the transforms and pointwise products written here, the rest
 /// from [`super::x86::kernels`], when this CPU has AVX-512F.
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 pub(crate) fn kernels() -> Option<super::Kernels> {
     if !crate::cpu::avx512f() {
         return None;
@@ -551,7 +551,7 @@ unsafe fn square_v<V: V16>(a: &mut [i32], p: Prime) {
 }
 
 /// The kernels on `__m512i`.
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod z {
     use super::{Prime, Twiddles, V16};
     use core::arch::x86_64::*;
@@ -867,7 +867,7 @@ mod tests {
     }
 
     /// Set `BASE58_REQUIRE_IFMA` to fail instead of skipping on CPUs without AVX-512.
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
     #[test]
     fn avx512_matches_portable() {
         if !crate::cpu::avx512f() {

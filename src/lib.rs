@@ -29,7 +29,7 @@ extern crate std;
 mod api;
 mod batched;
 mod common;
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod cpu;
 mod dc;
 mod encode;
@@ -40,7 +40,7 @@ mod malachite;
 mod malachite_tests;
 mod matrix;
 mod mul;
-#[cfg(any(target_arch = "x86_64", test, kani))]
+#[cfg(any(all(target_arch = "x86_64", target_feature = "sse2"), test, kani))]
 mod mul_ifma;
 pub mod no_alloc;
 mod ntt;
