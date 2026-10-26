@@ -4,9 +4,11 @@ Sources consulted during development, algorithm references, and measurement
 comparators have different roles. The source review covered reachable history,
 unmerged branches, related worktrees and the original development records.
 The [consultation receipt](docs/references/consultations.json) pins recovered
-revisions and file hashes. No wholesale upstream file copy was identified;
-the review does not establish independent authorship of every routine.
-The consulted [five8 license](docs/references/five8-LICENSE.txt) and Firedancer
+revisions and file hashes, with later reviews recorded separately. No wholesale
+copy of upstream runtime source files was identified. The review does not
+establish independent authorship of every routine.
+The consulted [five8 license](docs/references/five8-LICENSE.txt),
+[Bitcoin Core license](docs/references/bitcoin-core-LICENSE.txt) and Firedancer
 [license](docs/references/firedancer-LICENSE.txt) /
 [notice](docs/references/firedancer-NOTICE.txt) are retained with these credits.
 
@@ -29,6 +31,16 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt) and Firedancer
   [MIT license](https://github.com/kevinheavey/five8/blob/311279fb81461df36e730458a0463a6a322042d7/LICENSE).
   The original encoder and fixed-path development records confirm reads of
   this release's encoder and AVX helpers before the corresponding local writes.
+- **Bitcoin Core (MIT):** reviewed after implementation at revision `2b5b6fe2…`:
+  [conversion source](https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/base58.cpp),
+  [known-answer vectors](https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/test/data/base58_encode_decode.json),
+  [license](https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/COPYING).
+  Its bytewise Horner conversion is a simpler form of our batched recurrence.
+  The 21 upstream vectors are copied into [regression tests](tests/bitcoin_core.rs),
+  with local zero extensions for fixed 32/64-byte paths. No runtime code was copied.
+  Core accepts surrounding ASCII whitespace; our decoder deliberately rejects it.
+  No Core source read was recovered in the original development logs; that does
+  not establish that it was never consulted.
 - **Richard Brent and Paul Zimmermann, _Modern Computer Arithmetic_
   (Cambridge University Press, 2010):** `encode/dc.rs` implements Algorithm
   3.5, `ApproximateReciprocal`, with local storage and multiplier interfaces.

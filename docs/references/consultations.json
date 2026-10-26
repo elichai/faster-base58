@@ -261,5 +261,87 @@
     "explicit_small_routine_translation_statement_recovered": false
   },
   "normalization": "Remove cat -n / Read display line numbers; compare terminal-newline-insensitive bytes. The Firedancer template matched exactly after removing display numbering.",
-  "limit": "Consultation and similar techniques do not establish copying, independent authorship, or legal clearance."
+  "limit": "Consultation and similar techniques do not establish copying, independent authorship, or legal clearance.",
+  "subsequent_reviews": [
+    {
+      "date": "2026-10-26",
+      "repository": "bitcoin/bitcoin",
+      "revision": "2b5b6fe231ff45a09d9e24411e4420d51ed45cab",
+      "license": "MIT",
+      "role": "Source comparison after implementation; 21 known-answer vectors copied into tests. No runtime code copied.",
+      "files": [
+        {
+          "path": "src/base58.cpp",
+          "blob_sha1": "9582a11d51bf15653b9f23ed1364c4e2b6d22c8f",
+          "sha256": "c7bf90c6100c911fe4b3e1eac910475340f3e539f9e0ac793b31df3b492391be",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/base58.cpp"
+        },
+        {
+          "path": "src/base58.h",
+          "blob_sha1": "1656cbe1d394b675b630e663edb56fc64e17c585",
+          "sha256": "2755c9754adae174297d6838446898f61304b0ef67d79ead99028b25df6c1792",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/base58.h"
+        },
+        {
+          "path": "src/test/base58_tests.cpp",
+          "blob_sha1": "411d71fbe6ae57f3e7daa8e8f851ceb6ef54b50a",
+          "sha256": "bcb542eab90b21f6e80bbedea509d88d87a56548bf20a39abb8e6572e6b2b115",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/test/base58_tests.cpp"
+        },
+        {
+          "path": "src/test/data/base58_encode_decode.json",
+          "blob_sha1": "7255fd45c8003ad99ee95c507d8c54f49b50e4c2",
+          "sha256": "20d51011f49339714c28b9244cc5238f4c78bb9206dc8fc61500aed6fc2682ca",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/test/data/base58_encode_decode.json"
+        },
+        {
+          "path": "src/test/fuzz/base_encode_decode.cpp",
+          "blob_sha1": "3f9c2abbf2d349f896f96beeea0881ea54be8ea4",
+          "sha256": "947caa9c587d43ca340abebae0c6eb7a90a1ccf306faec8616ccf74aa98c1a14",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/test/fuzz/base_encode_decode.cpp"
+        },
+        {
+          "path": "src/util/strencodings.h",
+          "blob_sha1": "d9bc4d5ac0d63cd415290e508753d8d95790b875",
+          "sha256": "789fba87b99ea023456e7e42847aed3c26958f533a929d161ba252e7ac3a9fd1",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/util/strencodings.h"
+        },
+        {
+          "path": "src/util/string.h",
+          "blob_sha1": "b2be2e7f644f83744a2d77f1609ae5041a75a6ae",
+          "sha256": "70de6f21d04c0b1dfe4b26c00bb1a4553ff9bd5831005b0fffdd2aacd7074637",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/util/string.h"
+        },
+        {
+          "path": "COPYING",
+          "blob_sha1": "89960cbf2f221a29852ed162b25bda2afc0b2dd6",
+          "sha256": "b028769f3852a9368ab10bd754ff01ebb741f84a2fa658c9aff82a631bc6ecfc",
+          "url": "https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/COPYING"
+        }
+      ],
+      "historical_search": {
+        "scope": "The same 35 repository-linked original logs across five projects.",
+        "evidence_sha256": "8600f2f07f4c787d1daaafc7532d0847a10e527107ccec41415e5d475a00ab15",
+        "direct_bitcoin_core_source_matches": 0,
+        "indirect_reference": "basexx comments cite bitcoin/libbase58; that is a different repository, not a recovered Bitcoin Core source read.",
+        "limit": "No recovered source consultation does not establish that Bitcoin Core was never read."
+      },
+      "allocation_candidate": {
+        "status": "Not implemented or benchmarked; no runtime or total-memory gain is claimed.",
+        "definition": "z is the count of leading '1' bytes; d = input.len() - z.",
+        "output_capacity_bound": "z + ceil(733*d/1000), including d=0",
+        "arithmetic": "Use u128 or quotient/remainder arithmetic for the product; the resulting bound is at most input.len().",
+        "basis": "The numeric value is below 58^d and log_256(58) is below 733/1000.",
+        "tradeoff": "Asymptotic 26.7% reduction of the significant-input portion of the result allocation; an extra zero-prefix scan can add cost. Preserve late-invalid, Unicode and dispatch-boundary behavior."
+      },
+      "findings": [
+        "Byte-at-a-time quadratic Horner conversion; our batched path uses the same recurrence in larger chunks.",
+        "Core accepts surrounding six-character ASCII whitespace and rejects embedded NUL; our API remains strict about whitespace.",
+        "Core checks actual decoded length against max_ret_len; caller-provided output bounds already enforce this here.",
+        "Potential owned-helper improvement: decode_vec currently allocates input.len() bytes. A leading-zero-aware upper bound can reduce requested capacity by roughly 27% for long inputs with no leading ones. Not implemented or benchmarked; preserve zero prefixes and overflow checks.",
+        "Keep our full-width overflow-safe capacity arithmetic instead of copying Core integer counters or its coarser encoding estimate.",
+        "Base58Check remains outside the raw Base58 API."
+      ]
+    }
+  ]
 }

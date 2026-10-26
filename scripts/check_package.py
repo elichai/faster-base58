@@ -15,6 +15,7 @@ EXACT = {'Cargo.toml', 'Cargo.toml.orig', 'Cargo.lock', '.cargo_vcs_info.json',
          'docs/verification/proofs.json', 'docs/verification/sanitizers.json',
          'docs/verification/status.json', 'docs/references/consultations.json',
          'docs/references/firedancer-LICENSE.txt', 'docs/references/firedancer-NOTICE.txt',
+         'docs/references/bitcoin-core-LICENSE.txt',
          'docs/references/five8-LICENSE.txt'}
 REQUIRED = {'Cargo.toml', 'src/lib.rs', 'README.md', 'DESIGN.md', 'CORRECTNESS.md',
             'REFERENCES.md', 'LICENSE-MIT', 'LICENSE-APACHE'}
