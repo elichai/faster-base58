@@ -94,6 +94,7 @@ pub fn check_encode(data: &[u8], selector: usize) {
         assert_eq!(want, scalar, "independent u128 encode oracle");
     }
     assert!(want.len() <= faster_base58::max_encoded_len(data.len()));
+    assert_eq!(faster_base58::encode_string(data).as_bytes(), want);
     for &(name, encode) in ENCODERS {
         check_encoder(name, encode, data, &want, selector);
     }
@@ -182,4 +183,8 @@ pub fn check_decode(input: &str, selector: usize) {
     for &(name, decode) in DECODERS {
         check_decoder(name, decode, input, &want, selector);
     }
+    assert_eq!(
+        faster_base58::decode_vec(input),
+        want.map_err(|index| Error::InvalidCharacter { index })
+    );
 }

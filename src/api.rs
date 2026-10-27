@@ -74,16 +74,21 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     if input.len() <= 2 {
         return crate::batched::decode_short(input, output);
     }
-    let (zeros, digits) = crate::common::split_zeros(input.as_bytes());
+    let (zeros, _) = crate::common::split_zeros(input.as_bytes());
+    decode_parts(input, zeros, output)
+}
+
+fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
+    let digits = input.len() - zeros;
     #[cfg(not(feature = "cache"))]
     {
-        if digits.len() <= crate::dc::DC_THRESHOLD * crate::common::CHUNK {
+        if digits <= crate::dc::DC_THRESHOLD * crate::common::CHUNK {
             return crate::batched::decode_parts(input, zeros, output);
         }
         // Preserve the former medium/large boundary while avoiding matrix setup.
         // The historical measurements motivate this conservative boundary;
         // measurements of the complete dispatch do not establish optimality.
-        if digits.len() <= 5632 {
+        if digits <= 5632 {
             return crate::dc::decode_parts(
                 input,
                 zeros,
@@ -105,13 +110,13 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
         } else {
             1024
         };
-        if digits.len() < matrix_min {
+        if digits < matrix_min {
             return crate::batched::decode_parts(input, zeros, output);
         }
-        if digits.len() <= 5632 {
+        if digits <= 5632 {
             #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
             if crate::mul::ifma_threshold() != 0 {
-                if digits.len() > 5120 {
+                if digits > 5120 {
                     return crate::ntt::decode(input, zeros, output);
                 }
                 // Native AVX2 builds make Horner faster than matrix on the measured Zen 5.
@@ -173,11 +178,34 @@ pub fn decode_into<'a>(input: &str, output: &'a mut [u8]) -> Result<&'a mut [u8]
 }
 
 /// Decodes into an owned byte vector, preserving leading zero bytes.
+#[inline]
 pub fn decode_vec(input: &str) -> Result<Vec<u8>, Error> {
-    let mut output = vec![0; input.len()];
-    let len = decode(input, &mut output)?;
+    if input.is_empty() {
+        return Ok(Vec::new());
+    }
+    decode_vec_nonempty(input)
+}
+
+/// Requires nonempty input. Keep the nonempty decoder's frame off the empty path.
+#[inline(never)]
+fn decode_vec_nonempty(input: &str) -> Result<Vec<u8>, Error> {
+    debug_assert!(!input.is_empty());
+    if input.len() <= 2 {
+        let mut output = vec![0; input.len()];
+        let len = decode(input, &mut output)?;
+        output.truncate(len);
+        return Ok(output);
+    }
+    let (zeros, digits) = crate::common::split_zeros(input.as_bytes());
+    let mut output = vec![0; zeros + decoded_capacity(digits.len())];
+    let len = decode_parts(input, zeros, &mut output)?;
     output.truncate(len);
     Ok(output)
+}
+
+fn decoded_capacity(digits: usize) -> usize {
+    // 58^64 < 256^47; separate floors keep this above 47*digits/64 without overflow.
+    digits - digits / 4 - digits / 64
 }
 
 /// Decodes exactly `N` bytes, without adding or removing leading zeros.
@@ -195,4 +223,34 @@ pub fn decode_array<const N: usize>(input: &str) -> Result<[u8; N], Error> {
         });
     }
     Ok(output)
+}
+
+#[cfg(kani)]
+mod capacity_proofs {
+    use super::decoded_capacity;
+
+    #[kani::proof]
+    fn decoded_capacity_bounds_every_usize() {
+        let digits: usize = kani::any();
+        let bound = decoded_capacity(digits);
+        assert!(bound <= digits);
+        assert!(bound as u128 * 64 >= digits as u128 * 47);
+    }
+
+    #[kani::proof]
+    fn decoded_capacity_is_within_one_byte_of_ceil47() {
+        let digits: usize = kani::any();
+        let bound = decoded_capacity(digits);
+        let ceil = (digits as u128 * 47).div_ceil(64);
+        assert!(bound as u128 <= ceil + 1);
+    }
+
+    #[kani::proof]
+    fn decoded_capacity_prefix_sum_never_overflows() {
+        let digits: usize = kani::any();
+        let zeros: usize = kani::any();
+        kani::assume(zeros <= usize::MAX - digits);
+        let capacity = zeros + decoded_capacity(digits);
+        assert!(capacity <= zeros + digits);
+    }
 }
