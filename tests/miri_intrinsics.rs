@@ -6,6 +6,16 @@ mod arm {
     use core::arch::aarch64::*;
 
     #[test]
+    fn halving_subtract32() {
+        let a = [i32::MIN, i32::MAX, 0, -3];
+        let b = [i32::MAX, i32::MIN, 1, 0];
+        let result: [i32; 4] = unsafe {
+            core::mem::transmute(vhsubq_s32(core::mem::transmute(a), core::mem::transmute(b)))
+        };
+        assert_eq!(result, [i32::MIN, i32::MAX, -1, -2]);
+    }
+
+    #[test]
     fn rounded_shift32() {
         let result: [i32; 4] =
             unsafe { core::mem::transmute(vrshrq_n_s32::<26>(vdupq_n_s32(1 << 25))) };

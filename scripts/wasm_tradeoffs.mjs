@@ -118,6 +118,7 @@ async function inspectModules(directory, backends = BACKENDS) {
     const [header, ...lines] = sizesBytes.toString().trim().split(/\r?\n/).map(line => line.split(","));
     const modules = [];
     const buildMetadata = JSON.parse(await readFile(join(directory, "metadata.json"), "utf8"));
+    assert.equal(buildMetadata.count_allocations ?? false, false, "timing requires uninstrumented modules");
     const directions = ["encode", "decode", "both"].filter(direction => lines.some(row =>
         backends.includes(row[header.indexOf("backend")]) && row[header.indexOf("direction")] === direction));
     assert(directions.includes("both"), "timing requires both-direction modules");
@@ -132,6 +133,8 @@ async function inspectModules(directory, backends = BACKENDS) {
             const path = join(directory, `${backend}-${direction}-cdylib.wasm.stripped`);
             const bytes = await readFile(path);
             assert(WebAssembly.validate(bytes), `invalid module: ${path}`);
+            assert(!WebAssembly.Module.exports(new WebAssembly.Module(bytes)).some(entry => entry.name === "size_count_begin"),
+                   "timing requires uninstrumented modules: allocation hooks exported");
             assert.equal(bytes.length, Number(row.stripped_file_bytes));
             assert.equal(hash(bytes), row.stripped_sha256, `module changed: ${path}`);
             modules.push({ backend, direction, path, bytes: bytes.length, sha256: hash(bytes),

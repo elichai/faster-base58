@@ -176,6 +176,33 @@ mod verification {
         assert!(capacity_formula(len + 1) >= capacity_formula(len));
     }
 
+    #[kani::requires(product == len as u128 * (super::LOG58_2 + 1))]
+    #[kani::ensures(|result: &usize| *result == capacity_clamp(product))]
+    fn capacity_at_product(len: usize, product: u128) -> usize {
+        let _ = product;
+        max_encoded_len(len)
+    }
+
+    #[kani::proof_for_contract(capacity_at_product)]
+    fn capacity_at_product_lemma() {
+        let _ = capacity_at_product(kani::any(), kani::any());
+    }
+
+    #[kani::proof]
+    #[kani::stub_verified(capacity_affine_step)]
+    #[kani::stub_verified(capacity_shift_clamp_step)]
+    #[kani::stub_verified(capacity_at_product)]
+    fn encoded_capacity_adjacent_monotonicity_at_products() {
+        let len: usize = kani::any();
+        kani::assume(len < usize::MAX);
+        let product = len as u128 * (super::LOG58_2 + 1);
+        capacity_affine_step(len);
+        capacity_shift_clamp_step(product);
+        let here = capacity_at_product(len, product);
+        let next = capacity_at_product(len + 1, product + (super::LOG58_2 + 1));
+        assert!(next >= here);
+    }
+
     #[kani::proof]
     #[kani::unwind(12)]
     fn one_byte_borrowed_api_preserves_exact_array_contracts() {

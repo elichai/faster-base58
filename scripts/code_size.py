@@ -178,6 +178,8 @@ def main():
     parser.add_argument("--label", default="current")
     parser.add_argument("--strip-tool", default=shutil.which("llvm-strip") or "/opt/homebrew/opt/llvm/bin/llvm-strip")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--count-allocations", action="store_true", help="instrument Wasm cdylibs; never use for timing or linked-size comparisons")
+    parser.add_argument("--wasm-simd128", action="store_true", help="compile Wasm library and probe with +simd128")
     parser.add_argument("--cache", action="store_true", help="enable optional library caches in this cohort")
     args = parser.parse_args()
     if args.self_test:
@@ -198,6 +200,10 @@ def main():
         return
     if not args.output:
         parser.error("--output is required")
+    if args.count_allocations and (args.target != "wasm32-unknown-unknown" or args.kinds != "cdylib"):
+        parser.error("allocation instrumentation requires Wasm cdylibs")
+    if args.wasm_simd128 and args.target != "wasm32-unknown-unknown":
+        parser.error("--wasm-simd128 requires wasm32-unknown-unknown")
     source = args.source.resolve()
     external = (source / "tests/support/malachite.rs").exists()
     if "malachite" in args.backends.split(",") and not external:
@@ -239,6 +245,13 @@ incremental = false
     (work / "Cargo.toml").write_text(manifest)
     for name in ("lib.rs", "entry.rs", "main.rs"):
         shutil.copyfile(ROOT / "tools/code-size/src" / name, work / "src" / name)
+    if args.count_allocations:
+        allocation_source = (ROOT / "tools/code-size/src/allocations.rs").read_text()
+        allocator = ROOT / "tools/resource-profile/src/allocator.rs"
+        original = '#[path = "../../resource-profile/src/allocator.rs"]'
+        assert allocation_source.count(original) == 1
+        allocation_source = allocation_source.replace(original, f'#[path = {json.dumps(str(allocator))}]')
+        (work / "src/allocations.rs").write_text(allocation_source)
     adapter = f'#[path = {json.dumps(str(source / "tests/support/malachite.rs"))}]\nmod malachite_adapter;\n'
     (work / "src/malachite_adapter.rs").write_text(adapter)
     competitors = source / "tests/support/competitors.rs"
@@ -248,11 +261,15 @@ incremental = false
     (work / "src/competitors_adapter.rs").write_text(adapter)
     env = dict(os.environ, CARGO_TARGET_DIR=str(output / "target"))
     env["RUSTFLAGS"] = "" if args.cpu == "generic" else f"-C target-cpu={args.cpu}"
+    if args.wasm_simd128:
+        env["RUSTFLAGS"] = (env["RUSTFLAGS"] + " -C target-feature=+simd128").strip()
     env.pop("CARGO_ENCODED_RUSTFLAGS", None)
     target_cfg = ["rustc", "--print", "cfg", "--target", args.target,
                   "-C", f"opt-level={args.opt_level}", "-C", "debug-assertions=no"]
     if args.cpu != "generic":
         target_cfg += ["-C", f"target-cpu={args.cpu}"]
+    if args.wasm_simd128:
+        target_cfg += ["-C", "target-feature=+simd128"]
     metadata = {"label": args.label, "source": str(source), "target": args.target, "cache": args.cache,
                 "rustflags": env["RUSTFLAGS"], "profile": manifest,
                 "rustc": run(["rustc", "-Vv"]), "commands": [],
@@ -263,6 +280,8 @@ incremental = false
                 "strip_version": run([args.strip_tool, "--version"]),
                 "source_files_sha256": {}, "harness_files_sha256": {}}
     metadata["backend_semantics"] = {backend: backend_semantics(backend) for backend in args.backends.split(",")}
+    metadata["count_allocations"] = args.count_allocations
+    metadata["wasm_simd128"] = args.wasm_simd128
     metadata["decode_timing_contract"] = "prevalidated-utf8-repeat-v1"
     metadata["repeat_timing_contract"] = "opaque-slice-lengths-v1"
     metadata["checked_decode_exports"] = ["size_decode", "size_repeat_decode"]
@@ -284,6 +303,9 @@ incremental = false
     metadata["source_sha256"] = digest.hexdigest()
     for path in sorted((ROOT / "tools/code-size").rglob("*.rs")) + [Path(__file__), ROOT / "scripts/code_size_wasm.mjs"]:
         metadata["harness_files_sha256"][str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if args.count_allocations:
+        allocator = ROOT / "tools/resource-profile/src/allocator.rs"
+        metadata["harness_files_sha256"][str(allocator.relative_to(ROOT))] = hashlib.sha256(allocator.read_bytes()).hexdigest()
     rows = []
     csv_path = output / "sizes.csv"
     with (output / "build.log").open("w") as log:
@@ -308,6 +330,8 @@ incremental = false
                         command += ["--features", "cache"]
                     command += ["--", "--cfg", f'size_backend="{backend}"',
                                 "--cfg", f'size_direction="{direction}"']
+                    if args.count_allocations:
+                        command += ["--cfg", "size_count_allocations"]
                     if backend == "malachite" and external:
                         command += ["--cfg", "size_external_malachite"]
                     metadata["commands"].append(command)
@@ -325,6 +349,8 @@ incremental = false
                     data = artifact.read_bytes()
                     stripped_data = stripped.read_bytes()
                     row = dict(label=args.label, target=args.target, backend=backend,
+                               count_allocations=args.count_allocations,
+                               wasm_simd128=args.wasm_simd128,
                                direction=direction, kind=kind, opt_level=args.opt_level,
                                file_bytes=len(data), stripped_file_bytes=len(stripped_data),
                                stripped_gzip_bytes=len(gzip.compress(stripped_data, compresslevel=9, mtime=0)),

@@ -223,6 +223,32 @@ mod proofs {
         }
     }
 
+    // Status/buffer-safety conjunct only; numeric equivalence remains separate.
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn paired_update_all_return_success() {
+        let low: u64 = kani::any();
+        let top: u64 = kani::any();
+        let c1: u64 = kani::any();
+        let c2: u64 = kani::any();
+        kani::assume(top != 0 && c1 < BASE && c2 < BASE);
+        let mut paired = [low.to_le_bytes(), [0xA5; 8], [0xA5; 8]];
+        let mut sequential = paired;
+        let mut p = Value {
+            limbs: &mut paired,
+            len: 1,
+            top,
+        };
+        let mut s = Value {
+            limbs: &mut sequential,
+            len: 1,
+            top,
+        };
+        assert!(p.mul_add2(c1, c2).is_ok());
+        assert!(s.mul_add(c1).is_ok());
+        assert!(s.mul_add(c2).is_ok());
+    }
+
     #[kani::proof]
     #[kani::unwind(3)]
     #[kani::solver(z3)]

@@ -37,8 +37,8 @@ jobs:
           - { name: debug, args: '' }
           - { name: release, args: '--release' }
         caches:
-          - { name: off, features: '__internals', public_args: '' }
-          - { name: on, features: '__internals,cache', public_args: '--features cache' }
+          - { name: 'off', features: '__internals', public_args: '' }
+          - { name: 'on', features: '__internals,cache', public_args: '--features cache' }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -48,7 +48,7 @@ jobs:
       - name: Unit, API, and property tests
         run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
       - name: Public API without internal exports
-        run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+        run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Downstream API and internal namespace boundaries
         if: matrix.profile.name == 'debug' && matrix.caches.name == 'off'
         env:
@@ -57,9 +57,11 @@ jobs:
       - name: Documentation examples
         run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Compile every benchmark
-        run: cargo +stable check --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
+        run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 
   alternate_limb_width:
+    env:
+      PROPTEST_CASES: '512'
     strategy:
       fail-fast: false
       matrix:
@@ -78,20 +80,26 @@ jobs:
       fail-fast: false
       matrix:
         target: [wasm32-unknown-unknown, aarch64-unknown-linux-gnu]
+        profile:
+          - { name: debug, args: '' }
+          - { name: release, args: '--release' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup target add --toolchain stable ${{ matrix.target }}
-      - run: cargo +stable check --locked --lib --target ${{ matrix.target }}
-      - run: cargo +stable check --locked --lib --features cache --target ${{ matrix.target }}
-      - run: cargo +stable check --locked --lib --features __internals --target ${{ matrix.target }}
-      - run: cargo +stable check --locked --lib --features __internals,cache --target ${{ matrix.target }}
+      - run: cargo +stable build --locked --lib --target ${{ matrix.target }} ${{ matrix.profile.args }}
+      - run: cargo +stable build --locked --lib --features cache --target ${{ matrix.target }} ${{ matrix.profile.args }}
+      - run: cargo +stable build --locked --lib --features __internals --target ${{ matrix.target }} ${{ matrix.profile.args }}
+      - run: cargo +stable build --locked --lib --features __internals,cache --target ${{ matrix.target }} ${{ matrix.profile.args }}
 
   maximum_transform:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact
+      - run: |
+          set -e -o pipefail
+          cargo +stable test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact 2>&1 | tee "$RUNNER_TEMP/maximum-transform.log"
+          grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/maximum-transform.log"
 
   no_std:
     runs-on: ubuntu-latest
@@ -112,12 +120,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup toolchain install 1.95 --profile minimal
-      - run: cargo +1.95 check --locked --lib
-      - run: cargo +1.95 check --locked --lib --features std
-      - run: cargo +1.95 check --locked --lib --features cache
-      - run: cargo +1.95 check --locked --lib --features __internals
-      - run: cargo +1.95 check --locked --lib --all-features
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --features std
+      - run: cargo +1.95 build --locked --lib
+      - run: cargo +1.95 build --locked --lib --features std
+      - run: cargo +1.95 build --locked --lib --features cache
+      - run: cargo +1.95 build --locked --lib --features __internals
+      - run: cargo +1.95 build --locked --lib --all-features
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features std
+        env:
+          PROPTEST_CASES: '512'
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features cache
         env:
           PROPTEST_CASES: '512'
 
@@ -146,6 +157,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup component add clippy --toolchain stable
       - run: rustup component add rustfmt --toolchain stable
+      - run: python3 scripts/check_ci_tests.py
+      - run: python3 scripts/test_process_supervisor.py
+      - run: python3 scripts/test_kani_guard.py
+      - run: python3 -B -m unittest discover -s scripts -p test_custom_miri.py -v
       - run: cargo +stable fmt --all -- --check
       - run: cargo +stable fmt --manifest-path tools/resource-profile/Cargo.toml --all -- --check
       - run: cargo +stable fmt --manifest-path fuzz/Cargo.toml --all -- --check
@@ -178,6 +193,7 @@ jobs:
       - run: python3 scripts/backend_summary.py --self-test
       - run: python3 scripts/setup_clang23.py --self-test
       - run: python3 scripts/run_native_sanitizer.py --self-test
+      - run: python3 scripts/check_ci_tests.py --self-test
       - run: python3 scripts/benchmark_graphs.py --self-test
       - run: python3 scripts/compare_threshold.py --self-test
       - run: python3 scripts/ac_power_run.py --self-test
@@ -186,6 +202,7 @@ jobs:
       - run: python3 -m py_compile scripts/validate_wasm_tradeoffs.py
       - run: node --check scripts/code_size_wasm.mjs
       - run: node --check scripts/wasm_tradeoffs.mjs
+      - run: node --check scripts/wasm_allocations.mjs
 
   wasm_measurement_abi:
     runs-on: ubuntu-latest
@@ -206,6 +223,23 @@ jobs:
           --strip-tool "$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-strip"
       - name: Verify Wasm pointer, UTF-8 and output contracts
         run: node scripts/code_size_wasm.mjs "$RUNNER_TEMP"/base58-wasm-abi/*.wasm.stripped
+      - name: Counted Wasm allocator contracts for both policies
+        env:
+          RUSTUP_TOOLCHAIN: stable
+        run: |
+          python3 scripts/code_size.py --source . --output "$RUNNER_TEMP/base58-wasm-allocations-default" --target wasm32-unknown-unknown --cpu generic --backends empty,auto,no-alloc --directions both --kinds cdylib --count-allocations --strip-tool "$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-strip"
+          node scripts/wasm_allocations.mjs --self-test "$RUNNER_TEMP/base58-wasm-allocations-default"
+          python3 scripts/code_size.py --source . --output "$RUNNER_TEMP/base58-wasm-allocations-cache" --target wasm32-unknown-unknown --cpu generic --backends empty,auto,no-alloc --directions both --kinds cdylib --count-allocations --strip-tool "$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-strip" --cache
+          node scripts/wasm_allocations.mjs --self-test "$RUNNER_TEMP/base58-wasm-allocations-cache"
+      - name: Refuse counted modules in the timing driver
+        run: |
+          for cache_policy in default cache; do
+            if node scripts/wasm_tradeoffs.mjs --self-test "$RUNNER_TEMP/base58-wasm-allocations-$cache_policy" --backends empty,auto,no-alloc > "$RUNNER_TEMP/wasm-counted-rejection-$cache_policy.log" 2>&1; then
+              cat "$RUNNER_TEMP/wasm-counted-rejection-$cache_policy.log"
+              exit 1
+            fi
+            grep -F 'timing requires uninstrumented modules' "$RUNNER_TEMP/wasm-counted-rejection-$cache_policy.log"
+          done
 
   miri_supported:
     runs-on: ubuntu-latest
@@ -217,16 +251,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup toolchain install nightly-2026-10-26 --component miri --profile minimal
       - run: cargo +nightly-2026-10-26 miri setup --target x86_64-unknown-linux-gnu
-      - run: cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --features __internals --test miri
-      - run: cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --test tiny_inputs
-      - run: >-
-          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
-      - run: cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact
+      - run: |
+          set -e -o pipefail
+          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --features __internals --test miri 2>&1 | tee "$RUNNER_TEMP/miri-supported-buffers.log"
+          grep -Eq '^test result: ok\. 5 passed; 0 failed; 14 ignored;' "$RUNNER_TEMP/miri-supported-buffers.log"
+      - run: |
+          set -e -o pipefail
+          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --test tiny_inputs 2>&1 | tee "$RUNNER_TEMP/miri-supported-tiny.log"
+          grep -Eq '^test result: ok\. 2 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-tiny.log"
+      - run: |
+          set -e -o pipefail
+          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests:: 2>&1 | tee "$RUNNER_TEMP/miri-supported-core.log"
+          grep -Eq '^test result: ok\. 3 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-core.log"
+      - run: |
+          set -e -o pipefail
+          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact 2>&1 | tee "$RUNNER_TEMP/miri-supported-avx2.log"
+          grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-avx2.log"
       - name: Alternate alias model and seed
         env:
           MIRIFLAGS: -Zmiri-strict-provenance -Zmiri-tree-borrows -Zmiri-seed=1
-        run: >-
-          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
+        run: |
+          set -e -o pipefail
+          cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests:: 2>&1 | tee "$RUNNER_TEMP/miri-supported-tree.log"
+          grep -Eq '^test result: ok\. 3 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-tree.log"
 
   miri_arm_panel:
     runs-on: ubuntu-latest
@@ -240,8 +287,88 @@ jobs:
       - run: sudo apt-get install -y gcc-aarch64-linux-gnu
       - run: rustup toolchain install nightly-2026-10-26 --component miri --profile minimal
       - run: cargo +nightly-2026-10-26 miri setup --target aarch64-unknown-linux-gnu
-      - run: cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --lib matrix::neon::tests::panel_matches_portable -- --exact
-      - run: cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --features __internals,malachite-nz/32_bit_limbs --test miri forced_encoder_leaves -- --exact
+      - run: |
+          set -e -o pipefail
+          cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --lib matrix::neon::tests::panel_matches_portable -- --exact 2>&1 | tee "$RUNNER_TEMP/miri-arm-panel.log"
+          grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-arm-panel.log"
+      - run: |
+          set -e -o pipefail
+          cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --features __internals,malachite-nz/32_bit_limbs --test miri forced_encoder_leaves -- --exact 2>&1 | tee "$RUNNER_TEMP/miri-arm-forced-leaves.log"
+          grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-arm-forced-leaves.log"
+
+  miri_custom:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '1'
+      CARGO_INCREMENTAL: '0'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm, x86]
+        cache:
+          - { name: 'off', args: '' }
+          - { name: 'on', args: '--cache' }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: elichai/miri
+          ref: 52a3791566bfb72b99a59058527a3fcf6d38afa2
+          path: .custom-miri-source
+      - if: matrix.arch == 'arm'
+        run: sudo apt-get update
+      - if: matrix.arch == 'arm'
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+      - run: rustup toolchain install nightly-2026-10-26 --profile minimal
+      - name: Pinned compiler installer
+        run: >-
+          cargo +nightly-2026-10-26 install --locked
+          rustup-toolchain-install-master --version 1.12.2
+          --root "$RUNNER_TEMP/custom-miri-installer"
+      - name: Matching compiler in an isolated Rustup home
+        run: |
+          mkdir -p "$RUNNER_TEMP/custom-miri-rustup/toolchains"
+          RUSTUP_HOME="$RUNNER_TEMP/custom-miri-rustup" "$RUNNER_TEMP/custom-miri-installer/bin/rustup-toolchain-install-master" --channel nightly --name custom-miri-df87fa660 -c rust-src -c rustc-dev -c llvm-tools -- df87fa6604e33760d4703cccc777a2281bf15a2d
+      - name: Build reviewed development interpreter
+        run: |
+          compiler=$(RUSTUP_HOME="$RUNNER_TEMP/custom-miri-rustup" rustup run custom-miri-df87fa660 rustc --print sysroot)
+          pinned_cargo=$(rustup which --toolchain nightly-2026-10-26 cargo)
+          python3 scripts/build_custom_miri.py --source .custom-miri-source --compiler "$compiler" --cargo "$pinned_cargo" --output "$RUNNER_TEMP/custom-miri-build"
+      - name: All SIMD probes, kernels and named buffer cases
+        run: >-
+          python3 scripts/run_custom_miri.py
+          --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
+          --source . --output "$RUNNER_TEMP/custom-miri-all"
+          --target-dir "$RUNNER_TEMP/custom-miri-target"
+          --arch ${{ matrix.arch }} --alias-model tree --seed 1 --suite all
+          ${{ matrix.cache.args }}
+      - name: Alternate alias model and seed for actual kernels
+        run: >-
+          python3 scripts/run_custom_miri.py
+          --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
+          --source . --output "$RUNNER_TEMP/custom-miri-alternate"
+          --target-dir "$RUNNER_TEMP/custom-miri-target"
+          --sysroot "$RUNNER_TEMP/custom-miri-all/sysroot"
+          --arch ${{ matrix.arch }} --alias-model stacked --seed 7 --suite kernels
+          ${{ matrix.cache.args }}
+      - name: Retain custom interpreter records and artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: custom-miri-${{ matrix.arch }}-${{ matrix.cache.name }}
+          path: |
+            ${{ runner.temp }}/custom-miri-build/build.json
+            ${{ runner.temp }}/custom-miri-build/source.json
+            ${{ runner.temp }}/custom-miri-build/build-*.log
+            ${{ runner.temp }}/custom-miri-build/target/debug/miri
+            ${{ runner.temp }}/custom-miri-build/target/debug/cargo-miri
+            ${{ runner.temp }}/custom-miri-all/run.json
+            ${{ runner.temp }}/custom-miri-all/*.log
+            ${{ runner.temp }}/custom-miri-alternate/run.json
+            ${{ runner.temp }}/custom-miri-alternate/*.log
+          if-no-files-found: ignore
+          retention-days: 14
 
   miri_unsupported_simd:
     if: github.event_name == 'workflow_dispatch' && inputs.extended_miri
@@ -314,26 +441,69 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  fuzz_coverage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+      RUSTFLAGS: -Zextra-const-ub-checks -Zstrict-init-checks --cfg careful
+      CXXFLAGS: -fno-omit-frame-pointer
+    strategy:
+      fail-fast: false
+      matrix:
+        cache_args: ['', '--features cache']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: rustup toolchain install nightly-2026-10-26 --component llvm-tools-preview --profile minimal
+      - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      - run: |
+          python3 fuzz/test_seed_corpus.py
+          python3 fuzz/seed_corpus.py
+      # Source coverage uses prebuilt std; careful sanitizer builds run separately.
+      - name: Replay boundaries and report source coverage
+        run: |
+          llvm_dir="$(rustup run nightly-2026-10-26 rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin"
+          for target in encode_all decode_all; do
+            cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features ${{ matrix.cache_args }} --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
+            "$llvm_dir/llvm-cov" report "target/coverage/x86_64-unknown-linux-gnu/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/' > "fuzz/coverage/$target/report.txt"
+            "$llvm_dir/llvm-cov" export "target/coverage/x86_64-unknown-linux-gnu/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" --summary-only '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/' > "fuzz/coverage/$target/summary.json"
+          done
+      - name: Retain coverage records
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-coverage-${{ matrix.cache_args == '' && 'default' || 'cache' }}
+          path: fuzz/coverage
+          if-no-files-found: error
+          retention-days: 14
+
   native_sanitizers:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        sanitizer: [thread, memory]
+        include:
+          - { sanitizer: thread, cache: 'on' }
+          - { sanitizer: memory, cache: 'off' }
+          - { sanitizer: memory, cache: 'on' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
       - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
-      - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --log-dir "$RUNNER_TEMP/native-${{ matrix.sanitizer }}/logs"
+      - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --cache ${{ matrix.cache }} --log-dir "$RUNNER_TEMP/native-${{ matrix.sanitizer }}-${{ matrix.cache }}/logs"
       - name: Retain sanitizer records
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-${{ matrix.sanitizer }}
-          path: ${{ runner.temp }}/native-${{ matrix.sanitizer }}/logs
+          name: native-${{ matrix.sanitizer }}-${{ matrix.cache }}
+          path: ${{ runner.temp }}/native-${{ matrix.sanitizer }}-${{ matrix.cache }}/logs
           if-no-files-found: ignore
           retention-days: 14
 
@@ -347,10 +517,21 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install -y z3
       - name: Tiny production paths and alphabet domains
-        run: sh scripts/kani-production.sh
+        run: python3 scripts/kani_guard.py -- sh scripts/kani-production.sh
+      - name: Two-digit batched decoder
+        # SAT avoids Kani 0.68's SMT-lowering failure for this harness.
+        env:
+          CARGO_BUILD_JOBS: '1'
+          CARGO_INCREMENTAL: '0'
+          CARGO_PROFILE_DEV_OPT_LEVEL: '3'
+        run: >-
+          python3 scripts/kani_guard.py -- cargo kani --lib --exact
+          --harness verification::two_digit_batched_decoding_matches_radix_and_capacity
+          -Z function-contracts -Z stubbing -Z unstable-options
+          --harness-timeout 360s --output-format regular --solver cadical
       # Wider experimental obligations have separate documented timeout results.
       - run: >-
-          cargo kani --lib --harness ntt::proofs:: --harness matrix::proofs::
+          python3 scripts/kani_guard.py -- cargo kani --lib --harness ntt::proofs:: --harness matrix::proofs::
           --harness validity_matches_digit_table --harness leading_zero_split_is_exact
           --harness partial_chunk_matches_horner --harness two_limb_
           --harness wrapped_fold_preserves_residue --harness one_limb_production_multiply
@@ -360,16 +541,33 @@ jobs:
           --harness encoded_capacity_never_panics
           --harness full_chunk_invalid_rejection --harness digit_table_has_only_valid_values_or_sentinel
           -Z function-contracts -Z stubbing -Z unstable-options --harness-timeout 180s --jobs 2 --output-format terse
-      - name: Capacity conjuncts and proved mathematical lemmas
+      - name: Parser and capacity mathematical lemmas and compositions
         # Kani 0.68's optimized MIR can omit a contract closure on x86 Linux.
         env:
           CARGO_PROFILE_DEV_OPT_LEVEL: '0'
         run: >-
-          cargo kani --lib --solver z3 --harness encoded_capacity_covers_input
-          --harness encoded_capacity_endpoint_saturates --harness capacity_affine_step_lemma
-          --harness capacity_shift_clamp_step_lemma --harness capacity_formula_lemma
+          python3 scripts/kani_guard.py -- cargo kani --lib --solver z3 --harness encoded_capacity_covers_input
+          --harness encoded_capacity_endpoint_saturates --harness capacity_formula_lemma
+          --harness verification::ten_digit_split_identity_lemma
+          --harness verification::digit_range_lemma
+          --harness encode::verification::capacity_affine_step_lemma
+          --harness encode::verification::capacity_shift_clamp_step_lemma
+          --harness encode::verification::capacity_at_product_lemma
+          --harness encode::verification::encoded_capacity_adjacent_monotonicity_at_products
+          --harness api::capacity_proofs::decoded_capacity_bounds_every_usize
+          --harness api::capacity_proofs::decoded_capacity_is_within_one_byte_of_ceil47
+          --harness api::capacity_proofs::decoded_capacity_prefix_sum_never_overflows
           -Z function-contracts -Z stubbing -Z unstable-options --harness-timeout 180s --jobs 2 --output-format terse
           --cbmc-args --external-smt2-solver scripts/kani-z3-polynomial.sh
+      - name: Composed production parser and paired-update status
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: '0'
+        run: >-
+          python3 scripts/kani_guard.py -- cargo kani --lib --exact --solver cadical
+          --harness verification::full_chunk_numeric_pipeline_composed
+          --harness batched::proofs::paired_update_all_return_success
+          -Z function-contracts -Z stubbing -Z unstable-options
+          --harness-timeout 180s --output-format terse
 
   proofs_open:
     if: github.event_name == 'workflow_dispatch' && inputs.experimental_proofs
@@ -381,4 +579,4 @@ jobs:
       - run: cargo kani setup
       - run: sudo apt-get update
       - run: sudo apt-get install -y z3
-      - run: sh scripts/kani-open.sh
+      - run: python3 scripts/kani_guard.py -- sh scripts/kani-open.sh

@@ -1,0 +1,400 @@
+--- a/src/intrinsics/aarch64.rs
++++ b/src/intrinsics/aarch64.rs
+@@ -16,6 +16,84 @@
+         // Prefix should have already been checked.
+         let unprefixed_name = link_name.as_str().strip_prefix("llvm.aarch64.").unwrap();
+         match unprefixed_name {
++            // Signed halving subtraction. The difference needs one extra sign bit;
++            // round negative odd differences toward minus infinity before narrowing.
++            // Used by vhsubq_s32.
++            "neon.shsub.v4i32" => {
++                this.expect_target_feature_for_intrinsic(link_name, "neon")?;
++                let [left, right] = this.check_shim_sig_llvm_intrinsic(link_name, args)?;
++                let (left, left_len) = this.project_to_simd(left)?;
++                let (right, right_len) = this.project_to_simd(right)?;
++                let (dest, dest_len) = this.project_to_simd(dest)?;
++                assert_eq!([left_len, right_len, dest_len], [4; 3]);
++
++                for i in 0..dest_len {
++                    let left = this.read_scalar(&this.project_index(&left, i)?)?.to_i32()?;
++                    let right = this.read_scalar(&this.project_index(&right, i)?)?.to_i32()?;
++                    // The exact i32 difference lies in [-2^32 + 1, 2^32 - 1].
++                    let result = i64::from(left).strict_sub(i64::from(right)) >> 1;
++                    this.write_scalar(
++                        Scalar::from_i32(i32::try_from(result).unwrap()),
++                        &this.project_index(&dest, i)?,
++                    )?;
++                }
++            }
++            // Signed rounding shift, with the shift count taken from the signed low byte.
++            // Used by vrshlq_s32.
++            "neon.srshl.v4i32" => {
++                this.expect_target_feature_for_intrinsic(link_name, "neon")?;
++                let [values, shifts] = this.check_shim_sig_llvm_intrinsic(link_name, args)?;
++
++                let (values, values_len) = this.project_to_simd(values)?;
++                let (shifts, shifts_len) = this.project_to_simd(shifts)?;
++                let (dest, dest_len) = this.project_to_simd(dest)?;
++                assert_eq!([values_len, shifts_len, dest_len], [4; 3]);
++
++                for i in 0..dest_len {
++                    let value = this.read_scalar(&this.project_index(&values, i)?)?.to_i32()?;
++                    let shift = this.read_scalar(&this.project_index(&shifts, i)?)?.to_i32()?;
++                    let shift = shift.to_le_bytes()[0].cast_signed();
++                    let result = match shift {
++                        0..=31 => value.wrapping_shl(u32::try_from(shift).unwrap()),
++                        -31..=-1 => {
++                            let shift = u32::from(shift.unsigned_abs());
++                            // Widen before rounding so the addition cannot overflow.
++                            let rounded = i64::from(value).strict_add(1i64 << shift.strict_sub(1));
++                            i32::try_from(rounded >> shift).unwrap()
++                        }
++                        _ => 0,
++                    };
++                    this.write_scalar(Scalar::from_i32(result), &this.project_index(&dest, i)?)?;
++                }
++            }
++            // Shift left and insert, preserving the low bits of the first input.
++            // Used by vsliq_n_{s16,u16,s32,u32}.
++            "neon.vsli.v4i32" | "neon.vsli.v8i16" => {
++                this.expect_target_feature_for_intrinsic(link_name, "neon")?;
++                let [left, right, shift] = this.check_shim_sig_llvm_intrinsic(link_name, args)?;
++                let shift = this.read_scalar(shift)?.to_u32()?;
++
++                let (left, left_len) = this.project_to_simd(left)?;
++                let (right, right_len) = this.project_to_simd(right)?;
++                let (dest, dest_len) = this.project_to_simd(dest)?;
++                assert_eq!(left_len, right_len);
++                assert_eq!(left_len, dest_len);
++                let elem_size = dest.layout.field(this, 0).size;
++                assert!(u64::from(shift) < elem_size.bits());
++                let mask = (1u128 << shift).strict_sub(1);
++
++                for i in 0..dest_len {
++                    let left =
++                        this.read_scalar(&this.project_index(&left, i)?)?.to_uint(elem_size)?;
++                    let right =
++                        this.read_scalar(&this.project_index(&right, i)?)?.to_uint(elem_size)?;
++                    let result = (left & mask) | (right << shift);
++                    this.write_scalar(
++                        Scalar::from_uint(elem_size.truncate(result), elem_size),
++                        &this.project_index(&dest, i)?,
++                    )?;
++                }
++            }
+             // Used to implement the vpmaxq_u8 function.
+             // Computes the maximum of adjacent pairs; the first half of the output is produced from the
+             // `left` input, the second half of the output from the `right` input.
+@@ -179,7 +257,7 @@
+             }
+ 
+             // Vector table lookup: each index selects a byte from the table,
+-            // out-of-range -> 0.
++            // out-of-range -> 0 (TBL), or the corresponding fallback lane (TBX).
+             //
+             // Used to implement the vtblN, vqtblN and vqtblNq set of functions, e.g.:
+             //
+@@ -191,16 +269,19 @@
+             //
+             // LLVM does not have a portable shuffle that takes non-const indices
+             // so we need to implement this ourselves.
+-            _ if unprefixed_name.starts_with("neon.tbl") => {
++            _ if unprefixed_name.starts_with("neon.tbl")
++                || matches!(unprefixed_name, "neon.tbx1.v16i8" | "neon.tbx4.v16i8") =>
++            {
++                this.expect_target_feature_for_intrinsic(link_name, "neon")?;
+                 // The table segments always have 16 elements, the index vector and output vector
+                 // have either 8 or 16 elements.
+-                let (table_segments, indices) = match unprefixed_name {
++                let (fallback, table_segments, indices) = match unprefixed_name {
+                     "neon.tbl1.v8i8" | "neon.tbl1.v16i8" => {
+                         let [table, indices] =
+                             this.check_shim_sig_llvm_intrinsic(link_name, args)?;
+                         let (table, len) = this.project_to_simd(table)?;
+                         assert_eq!(len, 16);
+-                        (vec![table], indices)
++                        (None, vec![table], indices)
+                     }
+                     "neon.tbl2.v8i8" | "neon.tbl2.v16i8" => {
+                         let [table0, table1, indices] =
+@@ -208,7 +289,7 @@
+                         let (table0, len0) = this.project_to_simd(table0)?;
+                         let (table1, len1) = this.project_to_simd(table1)?;
+                         assert_eq!([len0, len1], [16; 2]);
+-                        (vec![table0, table1], indices)
++                        (None, vec![table0, table1], indices)
+                     }
+                     "neon.tbl3.v8i8" | "neon.tbl3.v16i8" => {
+                         let [table0, table1, table2, indices] =
+@@ -217,7 +298,7 @@
+                         let (table1, len1) = this.project_to_simd(table1)?;
+                         let (table2, len2) = this.project_to_simd(table2)?;
+                         assert_eq!([len0, len1, len2], [16; 3]);
+-                        (vec![table0, table1, table2], indices)
++                        (None, vec![table0, table1, table2], indices)
+                     }
+                     "neon.tbl4.v8i8" | "neon.tbl4.v16i8" => {
+                         let [table0, table1, table2, table3, indices] =
+@@ -227,7 +308,24 @@
+                         let (table2, len2) = this.project_to_simd(table2)?;
+                         let (table3, len3) = this.project_to_simd(table3)?;
+                         assert_eq!([len0, len1, len2, len3], [16; 4]);
+-                        (vec![table0, table1, table2, table3], indices)
++                        (None, vec![table0, table1, table2, table3], indices)
++                    }
++                    "neon.tbx1.v16i8" => {
++                        let [fallback, table, indices] =
++                            this.check_shim_sig_llvm_intrinsic(link_name, args)?;
++                        let (table, len) = this.project_to_simd(table)?;
++                        assert_eq!(len, 16);
++                        (Some(fallback), vec![table], indices)
++                    }
++                    "neon.tbx4.v16i8" => {
++                        let [fallback, table0, table1, table2, table3, indices] =
++                            this.check_shim_sig_llvm_intrinsic(link_name, args)?;
++                        let (table0, len0) = this.project_to_simd(table0)?;
++                        let (table1, len1) = this.project_to_simd(table1)?;
++                        let (table2, len2) = this.project_to_simd(table2)?;
++                        let (table3, len3) = this.project_to_simd(table3)?;
++                        assert_eq!([len0, len1, len2, len3], [16; 4]);
++                        (Some(fallback), vec![table0, table1, table2, table3], indices)
+                     }
+                     _ => unreachable!(),
+                 };
+@@ -235,6 +333,13 @@
+                 let (indices, idx_len) = this.project_to_simd(indices)?;
+                 let (dest, dest_len) = this.project_to_simd(dest)?;
+                 assert_eq!(idx_len, dest_len);
++                let fallback = if let Some(fallback) = fallback {
++                    let (fallback, len) = this.project_to_simd(fallback)?;
++                    assert_eq!(len, dest_len);
++                    Some(fallback)
++                } else {
++                    None
++                };
+ 
+                 for i in 0..dest_len {
+                     let idx = this.read_immediate(&this.project_index(&indices, i)?)?;
+@@ -246,6 +351,8 @@
+                         let lane = u64::from(idx.strict_rem(16));
+                         let t = this.read_immediate(&this.project_index(table, lane)?)?;
+                         t.to_scalar()
++                    } else if let Some(fallback) = &fallback {
++                        this.read_scalar(&this.project_index(fallback, i)?)?
+                     } else {
+                         Scalar::from_u8(0)
+                     };
+--- a/src/intrinsics/x86/avx512.rs
++++ b/src/intrinsics/x86/avx512.rs
+@@ -29,6 +29,32 @@
+                     _ => unreachable!(),
+                 };
+                 shift_simd_by_simd(this, left, right, which, dest)?;
++            }
++            // Used by _mm512_madd52{lo,hi}_epu64.
++            "vpmadd52l.uq.512" | "vpmadd52h.uq.512" => {
++                this.expect_target_feature_for_intrinsic(link_name, "avx512ifma")?;
++                let [acc, left, right] = this.check_shim_sig_llvm_intrinsic(link_name, args)?;
++
++                let (acc, acc_len) = this.project_to_simd(acc)?;
++                let (left, left_len) = this.project_to_simd(left)?;
++                let (right, right_len) = this.project_to_simd(right)?;
++                let (dest, dest_len) = this.project_to_simd(dest)?;
++                assert_eq!([acc_len, left_len, right_len, dest_len], [8; 4]);
++
++                let mask = (1u128 << 52).strict_sub(1);
++                for i in 0..dest_len {
++                    let acc = this.read_scalar(&this.project_index(&acc, i)?)?.to_u64()?;
++                    let left = this.read_scalar(&this.project_index(&left, i)?)?.to_u64()?;
++                    let right = this.read_scalar(&this.project_index(&right, i)?)?.to_u64()?;
++                    let product = (u128::from(left) & mask).strict_mul(u128::from(right) & mask);
++                    let product = match unprefixed_name {
++                        "vpmadd52l.uq.512" => product & mask,
++                        "vpmadd52h.uq.512" => product >> 52,
++                        _ => unreachable!(),
++                    };
++                    let result = acc.wrapping_add(u64::try_from(product).unwrap());
++                    this.write_scalar(Scalar::from_u64(result), &this.project_index(&dest, i)?)?;
++                }
+             }
+             // Used by the ternarylogic functions.
+             "pternlog.d.128" | "pternlog.d.256" | "pternlog.d.512" | "pternlog.q.128"
+--- a/tests/pass/shims/aarch64/intrinsics-aarch64-neon.rs
++++ b/tests/pass/shims/aarch64/intrinsics-aarch64-neon.rs
+@@ -16,7 +16,118 @@
+         test_vpadd();
+         test_vpaddl();
+         test_vqdmulh();
+-    }
++        test_vhsubq_s32();
++        test_vrshlq_s32();
++        test_vsliq();
++        test_tbx();
++    }
++}
++
++#[target_feature(enable = "neon")]
++unsafe fn test_vhsubq_s32() {
++    for (a, b, expected) in [
++        (
++            [i32::MIN, i32::MAX, i32::MIN, i32::MAX],
++            [i32::MAX, i32::MIN, i32::MIN, i32::MAX],
++            [i32::MIN, i32::MAX, 0, 0],
++        ),
++        ([0, 0, 3, -3], [1, -1, 0, 0], [-1, 0, 1, -2]),
++        (
++            [i32::MIN, i32::MAX, -1, 1],
++            [0, 0, i32::MAX, i32::MIN],
++            [-1_073_741_824, 1_073_741_823, -1_073_741_824, 1_073_741_824],
++        ),
++    ] {
++        let got: [i32; 4] = transmute(vhsubq_s32(transmute(a), transmute(b)));
++        assert_eq!(got, expected);
++    }
++    let values = [
++        i32::MIN,
++        i32::MIN + 1,
++        -(1 << 30),
++        -3,
++        -2,
++        -1,
++        0,
++        1,
++        2,
++        3,
++        1 << 30,
++        i32::MAX - 1,
++        i32::MAX,
++    ];
++    for a in values {
++        for b in values {
++            let want = ((i64::from(a) - i64::from(b)) >> 1) as i32;
++            let got: [i32; 4] = transmute(vhsubq_s32(vdupq_n_s32(a), vdupq_n_s32(b)));
++            assert_eq!(got, [want; 4], "{a} - {b}");
++        }
++    }
++}
++
++#[target_feature(enable = "neon")]
++unsafe fn test_vrshlq_s32() {
++    for (a, shifts, expected) in [
++        ([3, 5, -3, -5], [-1; 4], [2, 3, -1, -2]),
++        ([i32::MIN, i32::MAX, -1, 1], [-31, -31, -32, -32], [-1, 1, 0, 0]),
++        ([i32::MIN, i32::MAX, i32::MIN, i32::MAX], [-32, -32, -33, -33], [0; 4]),
++        ([i32::MIN, i32::MAX, -1, 1], [-33, -128, 32, 127], [0; 4]),
++        ([i32::MIN, i32::MAX, -1, 1], [0, 1, 31, 31], [i32::MIN, -2, i32::MIN, i32::MIN]),
++        // Only the signed low byte of each shift count is used.
++        ([3, -3, 123, -123], [255, -257, 256, -256], [2, -1, 123, -123]),
++    ] {
++        let got: [i32; 4] = transmute(vrshlq_s32(transmute(a), transmute(shifts)));
++        assert_eq!(got, expected);
++    }
++}
++
++#[target_feature(enable = "neon")]
++unsafe fn test_vsliq() {
++    let a = transmute([u32::MAX, 0x1234_5678, 0xaaaa_aaaa, 0]);
++    let b = transmute([0u32, u32::MAX, 0x0123_4567, 0x8765_4321]);
++    assert_eq!(transmute::<_, [u32; 4]>(vsliq_n_u32::<0>(a, b)), transmute::<_, [u32; 4]>(b));
++    assert_eq!(
++        transmute::<_, [u32; 4]>(vsliq_n_u32::<4>(a, b)),
++        [0xf, 0xffff_fff8, 0x1234_567a, 0x7654_3210],
++    );
++    assert_eq!(
++        transmute::<_, [u32; 4]>(vsliq_n_u32::<31>(a, b)),
++        [0x7fff_ffff, 0x9234_5678, 0xaaaa_aaaa, 0x8000_0000],
++    );
++
++    let a = transmute([0xffffu16, 0x1234, 0xaaaa, 0, 0xffff, 1, 0x8000, 0x5555]);
++    let b = transmute([0u16, 0xffff, 0x1234, 0x8001, 1, 0x8000, 0xffff, 0xaaaa]);
++    assert_eq!(transmute::<_, [u16; 8]>(vsliq_n_u16::<0>(a, b)), transmute::<_, [u16; 8]>(b));
++    assert_eq!(
++        transmute::<_, [u16; 8]>(vsliq_n_u16::<4>(a, b)),
++        [0xf, 0xfff4, 0x234a, 0x10, 0x1f, 1, 0xfff0, 0xaaa5],
++    );
++    assert_eq!(
++        transmute::<_, [u16; 8]>(vsliq_n_u16::<15>(a, b)),
++        [0x7fff, 0x9234, 0x2aaa, 0x8000, 0xffff, 1, 0x8000, 0x5555],
++    );
++}
++
++#[target_feature(enable = "neon")]
++unsafe fn test_tbx() {
++    let fallback = transmute([
++        100u8, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115,
++    ]);
++    let table0 = transmute([0u8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
++    let table1 = transmute([16u8, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
++    let table2 = transmute([32u8, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47]);
++    let table3 = transmute([48u8, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]);
++    let indices = transmute([0u8, 15, 16, 31, 32, 47, 48, 63, 64, 127, 128, 255, 1, 14, 62, 65]);
++
++    assert_eq!(
++        transmute::<_, [u8; 16]>(vqtbx1q_u8(fallback, table0, indices)),
++        [0, 15, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 1, 14, 114, 115],
++    );
++    let table = uint8x16x4_t(table0, table1, table2, table3);
++    assert_eq!(
++        transmute::<_, [u8; 16]>(vqtbx4q_u8(fallback, table, indices)),
++        [0, 15, 16, 31, 32, 47, 48, 63, 108, 109, 110, 111, 1, 14, 62, 115],
++    );
+ }
+ 
+ #[target_feature(enable = "neon")]
+--- a/tests/pass/shims/x86/intrinsics-x86-avx512.rs
++++ b/tests/pass/shims/x86/intrinsics-x86-avx512.rs
+@@ -1,6 +1,6 @@
+ // We're testing x86 target specific features
+ //@only-target: x86_64 i686
+-//@compile-flags: -C target-feature=+avx512f,+avx512vl,+avx512bw,+avx512bitalg,+avx512vpopcntdq,+avx512vnni,+avx512vbmi
++//@compile-flags: -C target-feature=+avx512f,+avx512vl,+avx512bw,+avx512bitalg,+avx512vpopcntdq,+avx512vnni,+avx512vbmi,+avx512ifma
+ //@run-native: ignore-output
+ 
+ #[cfg(target_arch = "x86")]
+@@ -24,6 +24,7 @@
+     assert!(is_x86_feature_detected!("avx512vpopcntdq"));
+     assert!(is_x86_feature_detected!("avx512vnni"));
+     assert!(is_x86_feature_detected!("avx512vbmi"));
++    assert!(is_x86_feature_detected!("avx512ifma"));
+ 
+     unsafe {
+         test_avx512();
+@@ -35,6 +36,7 @@
+         test_avx512vbmi();
+         test_avx512_shifts();
+         test_mm512_permutex2var_epi32();
++        test_avx512ifma();
+     }
+ }
+ 
+@@ -60,6 +62,30 @@
+     assert_eq!(
+         transmute::<_, [i32; 16]>(_mm512_permutex2var_epi32(a, indices, b)),
+         [0, 15, 16, 31, 0, 15, 16, 31, 31, 0, 17, 2, 30, 13, 29, 4],
++    );
++}
++
++#[target_feature(enable = "avx512ifma")]
++unsafe fn test_avx512ifma() {
++    const M: u64 = (1 << 52) - 1;
++    let src = transmute([0u64, 0, 0, u64::MAX, u64::MAX, 1 << 63, 0xabc0_0000_0000_0000, 7]);
++    let a = transmute([M, M, 1 << 52, M, 1, M, u64::MAX, 0]);
++    let b = transmute([M, 1 << 51, u64::MAX, M, M, M, u64::MAX, u64::MAX]);
++    assert_eq!(
++        transmute::<_, [u64; 8]>(_mm512_madd52lo_epu64(src, a, b)),
++        [1, 1 << 51, 0, 0, M - 1, (1 << 63) + 1, 0xabc0_0000_0000_0001, 7],
++    );
++    assert_eq!(
++        transmute::<_, [u64; 8]>(_mm512_madd52hi_epu64(src, a, b)),
++        [M - 1, (1 << 51) - 1, 0, M - 2, u64::MAX, (1 << 63) + M - 1, 0xabcf_ffff_ffff_fffe, 7],
++    );
++    assert_eq!(
++        transmute::<_, [u64; 8]>(_mm512_mask_madd52lo_epu64(src, 0x55, a, b)),
++        [1, 0, 0, u64::MAX, M - 1, 1 << 63, 0xabc0_0000_0000_0001, 7],
++    );
++    assert_eq!(
++        transmute::<_, [u64; 8]>(_mm512_maskz_madd52hi_epu64(0x55, src, a, b)),
++        [M - 1, 0, 0, 0, u64::MAX, 0, 0xabcf_ffff_ffff_fffe, 0],
+     );
+ }
+ 

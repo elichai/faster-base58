@@ -1,0 +1,24 @@
+{
+  "x86": {
+    "target": "x86_64-unknown-linux-gnu",
+    "rustflags": "-C target-cpu=x86-64 -C target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma",
+    "probes": ["x86::variable_right64", "x86::variable_left64", "x86::multiply_low52", "x86::multiply_high52", "x86::permute2_d512", "x86::permute2_b256", "x86::permute_q512", "x86::permute2_q512", "x86::permute_b256"],
+    "library_tests": ["ntt::miri_tests::selected_simd_transform_paths", "ntt::cache_policy_tests::feature_policy_and_owned_override_select_table_source", "mul_ifma::tests::finish_sequential_carry", "encode::matrix::x86::tests::alphabet_every_digit", "encode::matrix::x86::tests::shift_every_count", "matrix::x86::tests::kernels_match_portable"],
+    "features": "__internals",
+    "integration_tests": ["actual_ifma_shapes", "all_backends_malformed", "forced_encoder_leaves"]
+  },
+  "arm": {
+    "target": "aarch64-unknown-linux-gnu",
+    "rustflags": "-C target-cpu=generic",
+    "probes": ["arm::rounded_shift32", "arm::shift_insert32", "arm::shift_insert16", "arm::table_extend1", "arm::table_extend4", "arm::halving_subtract32"],
+    "library_tests": ["ntt::miri_tests::selected_simd_transform_paths", "ntt::cache_policy_tests::feature_policy_and_owned_override_select_table_source", "encode::matrix::neon::tests::matches_scalar", "matrix::neon::tests::parse_matches_portable", "matrix::neon::tests::panel_matches_portable"],
+    "features": "__internals,malachite-nz/32_bit_limbs",
+    "integration_tests": ["all_backends_malformed", "forced_encoder_leaves"]
+  },
+  "buffer_cases": [
+    "buffer_cases::bytes_0", "buffer_cases::bytes_1", "buffer_cases::bytes_7", "buffer_cases::bytes_8",
+    "buffer_cases::bytes_21", "buffer_cases::bytes_22", "buffer_cases::bytes_31", "buffer_cases::bytes_32",
+    "buffer_cases::bytes_33", "buffer_cases::bytes_63", "buffer_cases::bytes_64", "buffer_cases::bytes_65",
+    "buffer_cases::zeros_64", "buffer_cases::max_64"
+  ]
+}

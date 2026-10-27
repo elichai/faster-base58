@@ -45,6 +45,54 @@ fn full_chunk_matches_horner_and_rejects_invalid() {
     assert!(!valid || expected < BASE);
 }
 
+fn horner_digits(digits: &[u8]) -> u64 {
+    digits
+        .iter()
+        .fold(0, |value, &digit| value * 58 + digit as u64)
+}
+
+#[kani::ensures(|_: &()|
+    horner_digits(digits) == horner_digits(&digits[..5]) * 58u64.pow(5)
+        + horner_digits(&digits[5..]))]
+fn ten_digit_split_identity(digits: &[u8; CHUNK]) {
+    let _ = digits;
+}
+
+#[kani::proof_for_contract(ten_digit_split_identity)]
+#[kani::unwind(12)]
+fn ten_digit_split_identity_lemma() {
+    ten_digit_split_identity(&kani::any());
+}
+
+#[kani::ensures(|_: &()| DIGITS[byte as usize] < 58 || DIGITS[byte as usize] == u8::MAX)]
+fn digit_range(byte: u8) {
+    let _ = byte;
+}
+
+#[kani::proof_for_contract(digit_range)]
+fn digit_range_lemma() {
+    digit_range(kani::any());
+}
+
+#[kani::proof]
+#[kani::unwind(12)]
+#[kani::stub_verified(ten_digit_split_identity)]
+#[kani::stub_verified(digit_range)]
+fn full_chunk_numeric_pipeline_composed() {
+    let input: [u8; CHUNK] = kani::any();
+    let digits = input.map(|byte| DIGITS[byte as usize]);
+    for byte in input {
+        digit_range(byte);
+    }
+    ten_digit_split_identity(&digits);
+    let valid = digits.iter().all(|&digit| digit != u8::MAX);
+    let expected = horner_digits(&digits);
+    let mut got = common::chunks(&input);
+    assert_eq!(got.next(), Some(valid.then_some(expected)));
+    assert!(got.next().is_none());
+    assert!(!valid || expected < BASE);
+}
+
 // Together these two cases cover every input of the original full-chunk harness.
 // Keep that harness above as the monolithic reference obligation.
 #[kani::proof]
@@ -187,7 +235,7 @@ fn one_byte_batched_encoding_matches_radix_and_capacity() {
 }
 
 #[kani::proof]
-#[kani::unwind(12)]
+#[kani::unwind(6)]
 fn two_digit_batched_decoding_matches_radix_and_capacity() {
     let digits: [u8; 2] = kani::any();
     kani::assume(digits[0] < 58 && digits[1] < 58);

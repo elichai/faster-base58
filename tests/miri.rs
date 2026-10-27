@@ -2,16 +2,68 @@
 
 mod support;
 
+fn check_buffer_case(data: &[u8], selector: usize) {
+    support::check_encode(data, selector);
+    support::check_decode(&bs58::encode(data).into_string(), selector);
+}
+
+fn check_sized_buffer_case(len: usize) {
+    let data: Vec<u8> = (0..len).map(|i| (i * 73 + 19) as u8).collect();
+    check_buffer_case(&data, len);
+}
+
+// These extra entry points are ignored in the ordinary suite, which retains the
+// full sequence below. The custom runner selects one per interpreter process.
+mod buffer_cases {
+    macro_rules! sizes {
+        ($($name:ident: $len:literal),* $(,)?) => {
+            pub(super) const LENGTHS: &[usize] = &[$($len),*];
+
+            $(
+                #[test]
+                #[ignore = "run in a separate interpreter process with the custom Miri runner"]
+                fn $name() {
+                    super::check_sized_buffer_case($len);
+                }
+            )*
+        };
+    }
+
+    sizes! {
+        bytes_0: 0,
+        bytes_1: 1,
+        bytes_7: 7,
+        bytes_8: 8,
+        bytes_21: 21,
+        bytes_22: 22,
+        bytes_31: 31,
+        bytes_32: 32,
+        bytes_33: 33,
+        bytes_63: 63,
+        bytes_64: 64,
+        bytes_65: 65,
+    }
+
+    #[test]
+    #[ignore = "run in a separate interpreter process with the custom Miri runner"]
+    fn zeros_64() {
+        super::check_buffer_case(&[0; 64], 3);
+    }
+
+    #[test]
+    #[ignore = "run in a separate interpreter process with the custom Miri runner"]
+    fn max_64() {
+        super::check_buffer_case(&[0xFF; 64], 3);
+    }
+}
+
 #[test]
 fn all_backends_buffers() {
-    for len in [0, 1, 7, 8, 21, 22, 31, 32, 33, 63, 64, 65] {
-        let data: Vec<u8> = (0..len).map(|i| (i * 73 + 19) as u8).collect();
-        support::check_encode(&data, len);
-        support::check_decode(&bs58::encode(&data).into_string(), len);
+    for &len in buffer_cases::LENGTHS {
+        check_sized_buffer_case(len);
     }
     for data in [[0; 64], [0xFF; 64]] {
-        support::check_encode(&data, 3);
-        support::check_decode(&bs58::encode(&data).into_string(), 3);
+        check_buffer_case(&data, 3);
     }
 }
 

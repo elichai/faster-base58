@@ -600,6 +600,99 @@ fn inventory(operation: &str, size: usize) {
     caches("inventory");
 }
 
+fn owned_decode(text: &str, full_output: bool) -> Vec<u8> {
+    if full_output {
+        // The previous owned API's allocation policy, using the current borrowed kernel.
+        let mut output = vec![0; text.len()];
+        let len = b58::decode(text, &mut output).unwrap();
+        output.truncate(len);
+        output
+    } else {
+        b58::decode_vec(text).unwrap()
+    }
+}
+
+fn owned_worker(mode: &str, policy: &str, size: usize, zeros: usize, samples: usize) {
+    assert!(
+        size.checked_add(zeros)
+            .is_some_and(|n| n <= MAX_INPUT_BYTES)
+    );
+    assert!(samples > 0);
+    assert!(matches!(policy, "current" | "full-output"));
+    assert_eq!(mode == "allocations", cfg!(feature = "count-allocations"));
+    assert!(matches!(mode, "allocations" | "timing"));
+    assert_eq!(cache_bytes(), [0; 3]);
+    let full_output = policy == "full-output";
+    let mut input = vec![0; zeros];
+    input.extend(data(size));
+    let encoded = fixture(&input);
+    let text = std::str::from_utf8(&encoded).unwrap();
+    assert_eq!(cache_bytes(), [0; 3], "fixture initialized a cache");
+    println!(
+        "{{\"kind\":\"context\",\"operation\":\"decode-owned\",\"mode\":\"{mode}\",\"policy\":\"{policy}\",\"bytes\":{size},\"zero_prefix_bytes\":{zeros},\"encoded_chars\":{},\"data_fnv1a64\":\"{:016x}\",\"encoded_fnv1a64\":\"{:016x}\",\"timing_cold_scope\":\"allocate-decode-return\",\"timing_warm_scope\":\"allocate-decode-drop\",\"allocation_scope\":\"allocate-decode-return\"}}",
+        text.len(),
+        fnv1a64(&input),
+        fnv1a64(&encoded)
+    );
+    if mode == "allocations" {
+        #[cfg(feature = "count-allocations")]
+        for phase in ["cold", "warm"] {
+            let (output, stats) = allocator::measure(|| owned_decode(text, full_output));
+            assert_eq!(output, input);
+            println!(
+                "{{\"kind\":\"owned-output\",\"phase\":\"{phase}\",\"capacity_bytes\":{}}}",
+                output.capacity()
+            );
+            allocations(phase, stats);
+            caches(phase);
+        }
+    } else {
+        let cpu = cpu_ns();
+        let start = Instant::now();
+        let output = black_box(owned_decode(black_box(text), full_output));
+        let wall = start.elapsed().as_nanos();
+        let cpu = cpu_ns() - cpu;
+        assert_eq!(output, input);
+        timing_row("cold", 0, 1, wall, cpu);
+        drop(output);
+        let mut iterations = initial_iterations(cpu);
+        let mut sample = 0;
+        while sample < samples {
+            let (len, wall, cpu) = timed(
+                || black_box(owned_decode(black_box(text), full_output)).len(),
+                iterations,
+            );
+            assert_eq!(len, input.len());
+            assert_eq!(owned_decode(text, full_output), input);
+            let phase = if cpu >= MIN_BATCH_NS {
+                "warm"
+            } else {
+                "calibration"
+            };
+            timing_row(phase, sample, iterations, wall, cpu);
+            if phase == "warm" {
+                sample += 1;
+            } else {
+                iterations = more_iterations(iterations, cpu);
+            }
+        }
+        caches("warm");
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn owned_policies_match_the_independent_fixture() {
+    for size in [0, 1, 2, 32, 64, 513, 8193] {
+        let mut input = vec![0; 129];
+        input.extend(data(size));
+        let encoded = fixture(&input);
+        let text = std::str::from_utf8(&encoded).unwrap();
+        assert_eq!(owned_decode(text, false), input);
+        assert_eq!(owned_decode(text, true), input);
+    }
+}
+
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
@@ -656,6 +749,13 @@ fn main() {
             println!("self-check passed");
         }
         Some("inventory") if args.len() == 3 => inventory(&args[1], args[2].parse().unwrap()),
+        Some("owned") if args.len() == 6 => owned_worker(
+            &args[1],
+            &args[2],
+            args[3].parse().unwrap(),
+            args[4].parse().unwrap(),
+            args[5].parse().unwrap(),
+        ),
         Some("allocations" | "timing") if args.len() == 5 => worker(
             &args[0],
             &args[1],
@@ -664,7 +764,7 @@ fn main() {
             args[4].parse().unwrap(),
         ),
         _ => panic!(
-            "usage: resource-profile describe|list|self-check|fixture-metadata BYTES...|inventory encode|decode SIZE|allocations|timing encode|decode BACKEND BYTES SAMPLES"
+            "usage: resource-profile describe|list|self-check|fixture-metadata BYTES...|inventory encode|decode SIZE|allocations|timing encode|decode BACKEND BYTES SAMPLES|owned timing|allocations current|full-output BYTES ZERO_PREFIX SAMPLES"
         ),
     }
 }
