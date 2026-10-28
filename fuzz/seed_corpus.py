@@ -36,8 +36,9 @@ def write_seed(target, name, data):
 
 
 def main():
-    for target in ["encode_all", "decode_all", "encode_small", "decode_small"]:
+    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width"]:
         (ROOT / target).mkdir(parents=True, exist_ok=True)
+    write_seed("encode_full_width", "dense", b"\xa5")
     for length in LENGTHS:
         patterned = bytes((i * 73 + 1) % 256 for i in range(length))
         for label, data in [
@@ -79,7 +80,7 @@ def main():
         + sum(n <= SMALL_MAX_BYTES for n in LENGTHS) * 6
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
-        + 4
+        + 5
     )
     print(f"Prepared {count} deterministic seeds in {ROOT}")
 

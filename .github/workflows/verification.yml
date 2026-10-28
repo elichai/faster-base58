@@ -496,6 +496,16 @@ jobs:
         run: |
           cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
           cargo +nightly-2026-10-26 fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - name: Full-width native NTT mutations
+        if: matrix.sanitizer == 'address' && (matrix.label == 'default' || matrix.label == 'cache')
+        run: |
+          set -e -o pipefail
+          python3 fuzz/check_mutations.py --self-test
+          rustc +nightly-2026-10-26 --edition=2024 --test fuzz/full_width.rs -o "$RUNNER_TEMP/base58-full-width-tests"
+          "$RUNNER_TEMP/base58-full-width-tests"
+          mkdir -p fuzz/artifacts/encode_full_width
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address --no-default-features --features full-width${{ matrix.label == 'cache' && ',cache' || '' }} encode_full_width fuzz/corpus/encode_full_width -- -max_len=8193 -len_control=0 -max_total_time=180 -print_corpus_stats=1 -print_final_stats=1 -seed=1 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/artifacts/encode_full_width/campaign.log
+          python3 fuzz/check_mutations.py fuzz/artifacts/encode_full_width/campaign.log > fuzz/artifacts/encode_full_width/mutation-stats.json
       - name: Retain corpus and failures
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

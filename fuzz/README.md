@@ -47,6 +47,25 @@ the full boundary corpus exercises larger kernels without spending the entire
 mutation budget on the quadratic oracle. For sustained large-input fuzzing,
 replace `-runs=0` with `-max_total_time=3600`.
 
+`encode_full_width` adds structured large-input mutations. Each raw input repeats
+to exactly 65,537 bytes; its first byte has the high bit set. Empty input uses
+`0xA5`. Thus shrinking raw inputs cannot avoid the native IFMA host's NTT paths.
+It reuses the same encoding and generated-text decoding oracles, capacities,
+canaries and owned-helper checks. This periodic structured domain does not cover
+every 65,537-byte value. Unsupported CPU instructions are never forced.
+Threshold retuning must recheck the size needed to reach actual transforms.
+
+The fuzz-only `full-width` feature enables this slower target. CI runs it for
+180 seconds with careful ASan in the existing default/cache rows; general
+targets and complete boundary replays remain separate. The raw mutation cap is
+8,193 bytes. `-print_corpus_stats=1` supplies each base input's
+`InputInfo::NumExecutedMutations` from libFuzzer bundled in `libfuzzer-sys`
+0.4.13; its sum counts
+post-initialization mutation attempts. It excludes corpus initialization and
+leak-check repeats, and does not count distinct inputs. `check_mutations.py`
+requires a nonzero sum and retains callback counts separately. Campaign logs,
+statistics and corpora are uploaded with the existing fuzz artifacts.
+
 The generator preserves existing seeds and fails if a named seed was edited,
 including under `python3 -O`. New
 coverage seeds and crash artifacts are ignored by Git. Replay any crash with
