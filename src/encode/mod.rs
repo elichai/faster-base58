@@ -67,11 +67,11 @@ fn ten_digits(y: u64) -> [u8; 10] {
 }
 
 /// The five characters of `x < 58^5`.
-fn five_digits(d: &mut [u8], mut x: u32) {
-    for c in d.iter_mut().rev() {
-        *c = ALPHABET[(x % 58) as usize];
-        x /= 58;
-    }
+fn five_digits(d: &mut [u8], x: u32) {
+    // Reuse the two-character table to emit the low four digits with one division.
+    const FOUR: u32 = 58u32.pow(4);
+    d[0] = ALPHABET[(x / FOUR) as usize];
+    d[1..].copy_from_slice(&matrix::four_digits((x % FOUR) as u64));
 }
 
 #[cfg(kani)]
