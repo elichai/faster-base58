@@ -18,6 +18,8 @@ slowdown. Code-size and allocation counts are separate measurements.
 | Dataset | Coverage and interpretation |
 | --- | --- |
 | [Public API survey, 2026-10-27](benchmarks/2026-10-27/public-tables.md) | Current README tables and SVGs: ordinary M5 and Wasm consumers, 29 payload sizes through 4 MiB, default/cache/no_alloc, bs58 and five8. The [figure receipt](benchmarks/2026-10-27/public-graphs.json) keeps timing and linked-size source epochs separate. |
+| [Complete backend/resource grid](benchmarks/2026-10-27/README.md) | Frozen4e5 M5/Wasm plus complete GCP generic/native: 7,540 measured/skipped comparison cells, 928 separate temporal Auto controls, all four full-backend SVG sets and per-backend heap/code tables. Interrupted/older cloud epochs remain separate. |
+| [Final compact timings](benchmarks/2026-10-27/final-compact-304dc/README.md) | Actual final304dc ordinary consumers on one EPYC9B45 VM, 2026-10-28 UTC: 232 feature cells, all 56 identical-content controls, five pairs each and matched linked costs. One fixed inode controls the observed two-file coupling; all variation remains reported. |
 | [Final compact linked size](benchmarks/2026-10-27/final-size-304dc/README.md) | Separate final304dc source: 32 ordinary Auto/empty artifacts, M5/scalar Wasm/generic x86/explicit znver5, cache/compact features and actual compiler fingerprints. Linked code/storage only; no new timings or heap measurements. |
 | [Centralized dispatch](benchmarks/dispatch/README.md) | Local 2026-10-26 routing cleanup. Separate internal-worker survey, ordinary-consumer outlining experiment and zero-prefix allocation comparison. |
 | [Fixed decoding](benchmarks/fixed-decode/README.md) | Portable fixed-matrix prototypes were slower and larger on M5; retained as a rejected experiment. |
@@ -28,7 +30,7 @@ slowdown. Code-size and allocation counts are separate measurements.
 | [Migration controls](benchmarks/production/README.md) | Earlier no_std/rename comparison and source-identical rebuild/load-path controls. These do not isolate a source-level performance cause. |
 | [Assembly](assembly.md), [SIMD](simd.md) | Newer baseline `7c6ffa325164`, resource identity `17ab5f264ed4`. Each experiment retains its own candidate, compiler and feature bindings. |
 
-The backend grid has 3,480 result-or-skip cells and retains all 9,252 process
+The archived 2026-10-24 backend grid has 3,480 result-or-skip cells and retains all 9,252 process
 medians. Its readable tables bold the lowest observed median, including exact
 ties. Bold type is not a statistical significance claim. Native workers link
 the backends through `__internals`; historical names can share kernels or take

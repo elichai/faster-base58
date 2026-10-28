@@ -1,0 +1,114 @@
+{
+  "status": "complete new-boot grid validated; no old-boot rows pooled",
+  "source_resource_sha256": "4e5ac8830ccf82a69488cb8e351060bf8e97fa8c3d108f63bebffc1c4c41e760",
+  "received_sha256": "5f4f2c338a211fa57ea0283da5be048e3237aa0d6b0d1c887b0c9320d1f32b33",
+  "inputs": {
+    "timing/generic-default/public": {
+      "jobs": 462,
+      "skips": 78,
+      "raw_sha256": "e3fbbeb5b84747050e19bc00425b9f7ba1b950f25b95c56eb928cf622f0d7f1d",
+      "metadata_sha256": "e2d377c28d6c4a93371c37550351206e9cdc017a4671526cfd05d8b418cf5eed"
+    },
+    "timing/generic-default/ntt": {
+      "jobs": 1293,
+      "skips": 33,
+      "raw_sha256": "32deb5decd2fb0da99f9ca49dd99641042cb3dc196714770d41ad39e3ebb8547",
+      "metadata_sha256": "740a978ce57ce31314b746059f2f2fe65983ffd0fdbebbf032d613edc402891d"
+    },
+    "timing/generic-default/development": {
+      "jobs": 1044,
+      "skips": 0,
+      "raw_sha256": "e114faf48fcca0446c6148bb9b27d856ec5721221422fcaef331c8463b687eb5",
+      "metadata_sha256": "2b9fa566c9dfb89e70ed351dcf947eea2b0bd8105bfbb315c532b0f47a7bde08"
+    },
+    "allocations/generic-default": {
+      "jobs": 817,
+      "skips": 111,
+      "raw_sha256": "8e8bb96df046d947347ca3d2ea576a8a99cfcc8094672a345840a0ce7eb639c2",
+      "metadata_sha256": "8660152f20ad9d31e64430e731d9d3219a4234588944d025593f6e9c4f83b519"
+    },
+    "timing/generic-cache/public": {
+      "jobs": 462,
+      "skips": 78,
+      "raw_sha256": "0dc54c6814503720ae668a0a9ed2573e288baa1e07df502c4bcfbf783ce8cbf8",
+      "metadata_sha256": "efa92e0c9f4174a57cbacb9a6e3d909a11ebd8b4aa6c132b5762ce6a849ab653"
+    },
+    "timing/generic-cache/ntt": {
+      "jobs": 1293,
+      "skips": 33,
+      "raw_sha256": "76713bbbd18f70f6797e01f9cbe764c1a1e4eb1a3d474dabd14253cfa1dd8e11",
+      "metadata_sha256": "a38be49e0bac20c09b5b345bfe9c9969334b1ec22dddd926677a3bacbb5e143e"
+    },
+    "timing/generic-cache/development": {
+      "jobs": 1044,
+      "skips": 0,
+      "raw_sha256": "3b1aa4bacc1915f2d2c54e0c14c32f7b8c3156b7bc9ae427ef7e31d5a556cf96",
+      "metadata_sha256": "9d8130a3d559e493a80179351ef227fad342da64551bb86d333517fed83aeacb"
+    },
+    "allocations/generic-cache": {
+      "jobs": 817,
+      "skips": 111,
+      "raw_sha256": "fc3102fbb117b9d3b5bb92403351d8e2b0b02e105e847a950f2a5a21b4ba1eff",
+      "metadata_sha256": "5f9ec580208f72908300c74af30036a8128716f59d662b62ff7c8559cc3df42e"
+    },
+    "timing/native-default/public": {
+      "jobs": 462,
+      "skips": 78,
+      "raw_sha256": "09ba90d1e2ad8f9f1f92d41369e7122ca0649438cc4ec481e933b26d79c7fc3c",
+      "metadata_sha256": "b2f029ad285af103d8140e999ce3d1e9c3736898c246cd51f42e3e10b0fde73d"
+    },
+    "timing/native-default/ntt": {
+      "jobs": 1293,
+      "skips": 33,
+      "raw_sha256": "445913df995b080acb82cdbf124869c7c642ec596402891b96639506362cb2b7",
+      "metadata_sha256": "20c246d654f3c77f9a508027699f84bf7c54e545fda2ff361174c9dea3a122d9"
+    },
+    "timing/native-default/development": {
+      "jobs": 1044,
+      "skips": 0,
+      "raw_sha256": "d470781adce11ad869836d7ac7e04a9c88b2bfc822f9594c053432b21aba4fae",
+      "metadata_sha256": "84b6c9acf517b46b78656d81887c0fee075f527968547fce25bf7604888e92d5"
+    },
+    "allocations/native-default": {
+      "jobs": 817,
+      "skips": 111,
+      "raw_sha256": "8e8bb96df046d947347ca3d2ea576a8a99cfcc8094672a345840a0ce7eb639c2",
+      "metadata_sha256": "267c63bd55dcc89a6a9bdd4984487f4cfae51a680141b587a4be0c8b503caecc"
+    },
+    "timing/native-cache/public": {
+      "jobs": 462,
+      "skips": 78,
+      "raw_sha256": "7ffff625d086d0c390f47439419530ae42334020b196e65637c3549ba3e64ed3",
+      "metadata_sha256": "39ca92da9c48cbefbfd668c5cf9dfb8ab5e7c004834fe1f758f2b2aba171884d"
+    },
+    "timing/native-cache/ntt": {
+      "jobs": 1293,
+      "skips": 33,
+      "raw_sha256": "3494085a6f5999915b0659a03f5740515dcef0cd6688843cb4cf99aa5dc954c5",
+      "metadata_sha256": "58cf0329645fd526480042914ce46bf48dd2d54eaae78d72ebe08083e3d8bb0b"
+    },
+    "timing/native-cache/development": {
+      "jobs": 1044,
+      "skips": 0,
+      "raw_sha256": "78960bba0e3e0aed960a87aee70b7577977fec44fc7fd6392a0edad517284162",
+      "metadata_sha256": "b33d07ef9ddab4f9d8078fcb0cff096b3f506b9a307a289029e78cf49b6235f2"
+    },
+    "allocations/native-cache": {
+      "jobs": 817,
+      "skips": 111,
+      "raw_sha256": "d2448ed9067f9cefdbfe9962f1ea2317b856d50734481bf0f436f7effd2eec2a",
+      "metadata_sha256": "8372accee9de79bd9413249d912a170ded8d347196fc95630db5b83989c4cb05"
+    }
+  },
+  "comparison_rows": 3712,
+  "measured_cells": 3268,
+  "explicit_skips": 444,
+  "separate_temporal_controls": 464,
+  "requested_layout_rows": 6536,
+  "script_sha256": "1576ba91323bf74bc1011d6239ca964de62081e075fb098e9bbc02281e0045ac",
+  "route_model_sha256": "889243a4433a8a92c98cfbe1e77bb765f671898a788235be69b8e321cd04fbd7",
+  "fixture_fingerprints_sha256": "88caba5ab53e2dfb7f9447a16824683fcda646f1a74b92870aa4aba90ea747d5",
+  "fixture_scope": "Same independent Natural fixture lengths and FNV diagnostic fingerprints as the frozen M5 worker; not a claim that FNV alone proves byte equality. Each worker checks its full independent golden output.",
+  "metric_scope": "Native process CPU; medians of9warm batches from3fresh processes. RequestedGlobalAlloc layouts are not allocator usable size/RSS. RepeatedAuto units are temporal controls, never pooled.",
+  "limitations": "One immutable worker perCPU/cache; unpinned original protocol. No new poison/canary claim for frozenworker. Tiny call/context and temporal effects remain; descriptive rankings are not significance/causal bounds."
+}

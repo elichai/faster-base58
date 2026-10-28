@@ -1,0 +1,372 @@
+{
+  "status": "complete, closed, retrieved and exact-domain/metric validated",
+  "source_resource_sha256": "4e5ac8830ccf82a69488cb8e351060bf8e97fa8c3d108f63bebffc1c4c41e760",
+  "measurement_date_utc": "2026-10-28",
+  "started_utc": "2026-10-28T04:15:30.209133+00:00",
+  "finished_utc": "2026-10-28T05:03:44.824889+00:00",
+  "boot_id": "5674cef7-d961-4e6e-bf2b-65b3b0d86eab",
+  "archive_sha256": "b69a9c45e22639430104c1926cb28499feeb6aa51714f48ef454aa45892905e0",
+  "archive_manifest_sha256": "278f9b98afecb2ede2b3578c05b08c25fa1ebb78ade15336c89bc03c3a9f72d0",
+  "archived_members": 171,
+  "timed_processes": 11196,
+  "counted_cases": 3268,
+  "controller_absent": true,
+  "owned_group_and_session_empty": true,
+  "closure_scope": "Qualified ec46 owned_process contexts exited and direct children were waited/reaped; controller PID/group/session now absent. No independent descendant-reaping proof. Frozen workers create no asynchronous descendants.",
+  "workers": [
+    {
+      "logical_artifact": "survey-v1/workers/generic-default/timing",
+      "binary_sha256": "d92ec383e875d1cd6d9eaf471f0db486290d1be65d2b6462aa8cb8d1f2a91abe",
+      "build_metadata_sha256": "442d6a071f6dd18fc67035f2b131fde96d4510bee34054b1613c7ba2f9d9a259"
+    },
+    {
+      "logical_artifact": "survey-v1/workers/generic-default/counted",
+      "binary_sha256": "d8eb7f4339f335b356417322edc475500f9be5d55db1575deec55312db7fd517",
+      "build_metadata_sha256": "82ea289d9353dbf43c50a60fc85c6e548bb969d9ffabda7793d93aeaa00bbc38"
+    },
+    {
+      "logical_artifact": "survey-v1/workers/generic-cache/timing",
+      "binary_sha256": "d06c752a881c3d3ae4f66409611895aa1700b983ad5eb1aebb8ed44ea11d1248",
+      "build_metadata_sha256": "bc391a21aef8e45560b1636fe45d1a3503211a1697e1248c67db559ad7e3f939"
+    },
+    {
+      "logical_artifact": "survey-v1/workers/generic-cache/counted",
+      "binary_sha256": "d70d4d90d4d81434af42355f5ec5b42bccb0caed96a2c046cda947d490ff779a",
+      "build_metadata_sha256": "fd09f400c184ad54ac6e8e0066dd67f2ef877d1537a251b1b4ec1c56494e38d9"
+    },
+    {
+      "logical_artifact": "survey-v1/workers/native-default/timing",
+      "binary_sha256": "029dd3f8266956d688b9e259c0e01f1f80adb414eb1d5ffaa5522aec39192123",
+      "build_metadata_sha256": "0f265ace89d6f17515217c5d068ea7b816fdba73eb36464a5f8d1db7ace8953e"
+    },
+    {
+      "logical_artifact": "survey-v1/workers/native-default/counted",
+      "binary_sha256": "5bedc434bdad7283c27c27e4cbea6349aeb777b6633f83c31acf23dbcd079dfb",
+      "build_metadata_sha256": "41d07db61c339323c9e8575239d001a67a4ecbc00f1cd05f99e27086eca47986"
+    },
+    {
+      "logical_artifact": "survey-v1/workers/native-cache/timing",
+      "binary_sha256": "a3e6440f9c42685d557c58ee724199861b2b8303ef15d1637f522f47f4dafc11",
+      "build_metadata_sha256": "eb924466f04fb1e28e13d5b5499896d54205689d3aec30347523133d21fefc53"
+    },
+    {
+      "logical_artifact": "survey-v1/workers/native-cache/counted",
+      "binary_sha256": "fd7a3e4999b5dd8cd1e9a64e700dd52b9c10122f5ff2bbfaaef260f36091bfac",
+      "build_metadata_sha256": "af25035d5c0aae44fbfb0a35fa2cf4ffc523d8498da620a00e72d65655c8f486"
+    }
+  ],
+  "units": [
+    {
+      "label": "timing-generic-default-public",
+      "cpu": "generic",
+      "policy": "default",
+      "group": "public",
+      "mode": "timing",
+      "expected_processes": 462,
+      "elapsed_seconds": 152.02358147500127,
+      "completed_processes": 462,
+      "raw_rows": 10685,
+      "primary_phase_rows": {
+        "cold": 462,
+        "second": 462,
+        "warm": 1386
+      },
+      "metadata_sha256": "e2d377c28d6c4a93371c37550351206e9cdc017a4671526cfd05d8b418cf5eed",
+      "log_sha256": "31660c1341bef036ba3a73233c612099f6ed6c51e56dbaabe94e48ab0033b86f"
+    },
+    {
+      "label": "timing-generic-default-ntt",
+      "cpu": "generic",
+      "policy": "default",
+      "group": "ntt",
+      "mode": "timing",
+      "expected_processes": 1293,
+      "elapsed_seconds": 218.0292192600009,
+      "completed_processes": 1293,
+      "raw_rows": 29704,
+      "primary_phase_rows": {
+        "cold": 1293,
+        "second": 1293,
+        "warm": 3879
+      },
+      "metadata_sha256": "740a978ce57ce31314b746059f2f2fe65983ffd0fdbebbf032d613edc402891d",
+      "log_sha256": "9074cb6d914adc25460f5d0080a3ac4dfde5fc6b5d9ce628665d34a2b5e130fe"
+    },
+    {
+      "label": "timing-generic-default-development",
+      "cpu": "generic",
+      "policy": "default",
+      "group": "development",
+      "mode": "timing",
+      "expected_processes": 1044,
+      "elapsed_seconds": 300.0345420679987,
+      "completed_processes": 1044,
+      "raw_rows": 23886,
+      "primary_phase_rows": {
+        "cold": 1044,
+        "second": 1044,
+        "warm": 3132
+      },
+      "metadata_sha256": "2b9fa566c9dfb89e70ed351dcf947eea2b0bd8105bfbb315c532b0f47a7bde08",
+      "log_sha256": "9cb61efb1be30db02304ee5a52293499a84c9c4a43301585a031217bbcb06f6c"
+    },
+    {
+      "label": "timing-generic-cache-public",
+      "cpu": "generic",
+      "policy": "cache",
+      "group": "public",
+      "mode": "timing",
+      "expected_processes": 462,
+      "elapsed_seconds": 150.02270754100027,
+      "completed_processes": 462,
+      "raw_rows": 10728,
+      "primary_phase_rows": {
+        "cold": 462,
+        "second": 462,
+        "warm": 1386
+      },
+      "metadata_sha256": "efa92e0c9f4174a57cbacb9a6e3d909a11ebd8b4aa6c132b5762ce6a849ab653",
+      "log_sha256": "31660c1341bef036ba3a73233c612099f6ed6c51e56dbaabe94e48ab0033b86f"
+    },
+    {
+      "label": "timing-generic-cache-ntt",
+      "cpu": "generic",
+      "policy": "cache",
+      "group": "ntt",
+      "mode": "timing",
+      "expected_processes": 1293,
+      "elapsed_seconds": 214.0290107810015,
+      "completed_processes": 1293,
+      "raw_rows": 30024,
+      "primary_phase_rows": {
+        "cold": 1293,
+        "second": 1293,
+        "warm": 3879
+      },
+      "metadata_sha256": "a38be49e0bac20c09b5b345bfe9c9969334b1ec22dddd926677a3bacbb5e143e",
+      "log_sha256": "9074cb6d914adc25460f5d0080a3ac4dfde5fc6b5d9ce628665d34a2b5e130fe"
+    },
+    {
+      "label": "timing-generic-cache-development",
+      "cpu": "generic",
+      "policy": "cache",
+      "group": "development",
+      "mode": "timing",
+      "expected_processes": 1044,
+      "elapsed_seconds": 298.0343907540009,
+      "completed_processes": 1044,
+      "raw_rows": 24099,
+      "primary_phase_rows": {
+        "cold": 1044,
+        "second": 1044,
+        "warm": 3132
+      },
+      "metadata_sha256": "9d8130a3d559e493a80179351ef227fad342da64551bb86d333517fed83aeacb",
+      "log_sha256": "9cb61efb1be30db02304ee5a52293499a84c9c4a43301585a031217bbcb06f6c"
+    },
+    {
+      "label": "timing-native-default-public",
+      "cpu": "native",
+      "policy": "default",
+      "group": "public",
+      "mode": "timing",
+      "expected_processes": 462,
+      "elapsed_seconds": 136.02212617199984,
+      "completed_processes": 462,
+      "raw_rows": 10718,
+      "primary_phase_rows": {
+        "cold": 462,
+        "second": 462,
+        "warm": 1386
+      },
+      "metadata_sha256": "b2f029ad285af103d8140e999ce3d1e9c3736898c246cd51f42e3e10b0fde73d",
+      "log_sha256": "31660c1341bef036ba3a73233c612099f6ed6c51e56dbaabe94e48ab0033b86f"
+    },
+    {
+      "label": "timing-native-default-ntt",
+      "cpu": "native",
+      "policy": "default",
+      "group": "ntt",
+      "mode": "timing",
+      "expected_processes": 1293,
+      "elapsed_seconds": 154.02406452600007,
+      "completed_processes": 1293,
+      "raw_rows": 29757,
+      "primary_phase_rows": {
+        "cold": 1293,
+        "second": 1293,
+        "warm": 3879
+      },
+      "metadata_sha256": "20c246d654f3c77f9a508027699f84bf7c54e545fda2ff361174c9dea3a122d9",
+      "log_sha256": "9074cb6d914adc25460f5d0080a3ac4dfde5fc6b5d9ce628665d34a2b5e130fe"
+    },
+    {
+      "label": "timing-native-default-development",
+      "cpu": "native",
+      "policy": "default",
+      "group": "development",
+      "mode": "timing",
+      "expected_processes": 1044,
+      "elapsed_seconds": 310.03464594900106,
+      "completed_processes": 1044,
+      "raw_rows": 23911,
+      "primary_phase_rows": {
+        "cold": 1044,
+        "second": 1044,
+        "warm": 3132
+      },
+      "metadata_sha256": "84b6c9acf517b46b78656d81887c0fee075f527968547fce25bf7604888e92d5",
+      "log_sha256": "9cb61efb1be30db02304ee5a52293499a84c9c4a43301585a031217bbcb06f6c"
+    },
+    {
+      "label": "timing-native-cache-public",
+      "cpu": "native",
+      "policy": "cache",
+      "group": "public",
+      "mode": "timing",
+      "expected_processes": 462,
+      "elapsed_seconds": 136.0218628269995,
+      "completed_processes": 462,
+      "raw_rows": 10746,
+      "primary_phase_rows": {
+        "cold": 462,
+        "second": 462,
+        "warm": 1386
+      },
+      "metadata_sha256": "39ca92da9c48cbefbfd668c5cf9dfb8ab5e7c004834fe1f758f2b2aba171884d",
+      "log_sha256": "31660c1341bef036ba3a73233c612099f6ed6c51e56dbaabe94e48ab0033b86f"
+    },
+    {
+      "label": "timing-native-cache-ntt",
+      "cpu": "native",
+      "policy": "cache",
+      "group": "ntt",
+      "mode": "timing",
+      "expected_processes": 1293,
+      "elapsed_seconds": 150.0239499039999,
+      "completed_processes": 1293,
+      "raw_rows": 30100,
+      "primary_phase_rows": {
+        "cold": 1293,
+        "second": 1293,
+        "warm": 3879
+      },
+      "metadata_sha256": "58cf0329645fd526480042914ce46bf48dd2d54eaae78d72ebe08083e3d8bb0b",
+      "log_sha256": "9074cb6d914adc25460f5d0080a3ac4dfde5fc6b5d9ce628665d34a2b5e130fe"
+    },
+    {
+      "label": "timing-native-cache-development",
+      "cpu": "native",
+      "policy": "cache",
+      "group": "development",
+      "mode": "timing",
+      "expected_processes": 1044,
+      "elapsed_seconds": 308.0339012100012,
+      "completed_processes": 1044,
+      "raw_rows": 24139,
+      "primary_phase_rows": {
+        "cold": 1044,
+        "second": 1044,
+        "warm": 3132
+      },
+      "metadata_sha256": "b33d07ef9ddab4f9d8078fcb0cff096b3f506b9a307a289029e78cf49b6235f2",
+      "log_sha256": "9cb61efb1be30db02304ee5a52293499a84c9c4a43301585a031217bbcb06f6c"
+    },
+    {
+      "label": "allocations-generic-default",
+      "cpu": "generic",
+      "policy": "default",
+      "group": null,
+      "mode": "allocations",
+      "expected_processes": 817,
+      "elapsed_seconds": 96.01945805499963,
+      "completed_processes": 817,
+      "raw_rows": 28595,
+      "primary_phase_rows": {
+        "cold": 817,
+        "warm": 817
+      },
+      "metadata_sha256": "8660152f20ad9d31e64430e731d9d3219a4234588944d025593f6e9c4f83b519",
+      "log_sha256": "488d8a09ddf66aeeafbd46ef953390d0fa052d2cebdba50cce05b5d78cd71c49"
+    },
+    {
+      "label": "allocations-generic-cache",
+      "cpu": "generic",
+      "policy": "cache",
+      "group": null,
+      "mode": "allocations",
+      "expected_processes": 817,
+      "elapsed_seconds": 96.01953611600038,
+      "completed_processes": 817,
+      "raw_rows": 28683,
+      "primary_phase_rows": {
+        "cold": 817,
+        "warm": 817
+      },
+      "metadata_sha256": "5f9ec580208f72908300c74af30036a8128716f59d662b62ff7c8559cc3df42e",
+      "log_sha256": "488d8a09ddf66aeeafbd46ef953390d0fa052d2cebdba50cce05b5d78cd71c49"
+    },
+    {
+      "label": "allocations-native-default",
+      "cpu": "native",
+      "policy": "default",
+      "group": null,
+      "mode": "allocations",
+      "expected_processes": 817,
+      "elapsed_seconds": 88.01876334299959,
+      "completed_processes": 817,
+      "raw_rows": 28595,
+      "primary_phase_rows": {
+        "cold": 817,
+        "warm": 817
+      },
+      "metadata_sha256": "267c63bd55dcc89a6a9bdd4984487f4cfae51a680141b587a4be0c8b503caecc",
+      "log_sha256": "488d8a09ddf66aeeafbd46ef953390d0fa052d2cebdba50cce05b5d78cd71c49"
+    },
+    {
+      "label": "allocations-native-cache",
+      "cpu": "native",
+      "policy": "cache",
+      "group": null,
+      "mode": "allocations",
+      "expected_processes": 817,
+      "elapsed_seconds": 88.01875750699946,
+      "completed_processes": 817,
+      "raw_rows": 28683,
+      "primary_phase_rows": {
+        "cold": 817,
+        "warm": 817
+      },
+      "metadata_sha256": "8372accee9de79bd9413249d912a170ded8d347196fc95630db5b83989c4cb05",
+      "log_sha256": "488d8a09ddf66aeeafbd46ef953390d0fa052d2cebdba50cce05b5d78cd71c49"
+    }
+  ],
+  "inputs_sha256": {
+    "gcp-full-grid-boot2-collection-v1.json": "0282b95f7cdab46a90a2fe48c89e46c7315ec806931b9c997a12688e39f3bc3f",
+    "gcp-full-grid-boot2-received-v1.json": "5f4f2c338a211fa57ea0283da5be048e3237aa0d6b0d1c887b0c9320d1f32b33",
+    "gcp-full-grid-boot2-handoff-v1.json": "49d4785210302598657ac6564af3721b27d7433b77aed2f89e2cfa13a9cf8b92",
+    "analyze_gcp_grid_boot2_v1.py": "1576ba91323bf74bc1011d6239ca964de62081e075fb098e9bbc02281e0045ac",
+    "test_gcp_grid_analysis_v1.py": "660627e6b429f7f5798159b9bcd05789afc200b7c47026d00a80cbee229ab50e",
+    "gcp-preparation/collect_full_grid_boot2_v1.py": "35fbc53d8b0e09ced23048e97bda54214a34e41f6687e1f37b734ecbbb95063c",
+    "gcp-preparation/full_grid_boot2_v2.py": "4c7955427650a8207e1e8796ecdcec08b7a24a23e3c868054470f47f2297ae9e"
+  },
+  "protocol": {
+    "primary_clock": "process CPU",
+    "minimum_warm_batch_cpu_ns": 3000000,
+    "max_iterations": 10000000,
+    "fresh_processes_per_timing_cell": 3,
+    "warm_samples_per_process": 3,
+    "case_order_seed": 20261024,
+    "case_order_algorithm": "xorshift32-fisher-yates-v1",
+    "per_worker_administrative_timeout_seconds": 1800,
+    "counted_case_scope": "One fresh process, cold plus warm operation windows; caller/oracle allocations outside each window.",
+    "cpu_affinity": "Original unpinned protocol, allowedguestCPU0\u20133; not the separately pinned finalC observer.",
+    "fixture_scope": "Same independent Natural fixture lengths and FNV diagnostic fingerprints as the frozen M5 worker; not a claim that FNV alone proves byte equality. Each worker checks its full independent golden output.",
+    "consumer_scope": "One immutable __internals worker per CPU/cache. Separate counted/uncounted executables.",
+    "guards": "Same boot, source/binary/buildmetadata identities pre/post everyunit, actual metadata.binary binding, old-epoch input hashes,2GiBfloor, immutable deadline/reserves.",
+    "original_worker_limit": "Full golden output checks after every batch; no claim of newly poisoned output or canaries in the frozen worker."
+  },
+  "interrupted_epoch": "Prior boot contains7completeunits plus1interrupted NTT prefix. Preserved separately; none of its rows, values or elapsed times enter this complete cohort.",
+  "public_scope": "Selected fields and logical IDs from raw receipts. Input hashes identify original bytes; public views do not claim byte-identical path redaction.",
+  "reproducing_source": "Restore frozen4e5 using final-compact-304dc/source-304dc-to-07ec.patch plus earlier proof/API patches. Current main or finalC source304dc must not silently replace4e5."
+}

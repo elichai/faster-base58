@@ -1,0 +1,9 @@
+platform,cache,segment,min_ratio,min_bytes,min_operation,max_ratio,max_bytes,max_operation
+gcp-generic,default,ntt,0.9482612530694883,21,decode,1.0244775485185256,31,decode
+gcp-generic,default,development,0.9474998368729172,21,decode,1.0382198597366057,23,decode
+gcp-generic,cache,ntt,0.9611215102013301,8,decode,1.0218024831525538,8,encode
+gcp-generic,cache,development,0.9546238105882168,8,decode,1.0232013240475555,21,encode
+gcp-native,default,ntt,0.8951293547470166,32,encode,1.027465192920812,128,decode
+gcp-native,default,development,0.946806955794103,32,decode,1.0343870744867583,1,encode
+gcp-native,cache,ntt,0.9540529084549316,22,decode,1.0376406002907472,8,decode
+gcp-native,cache,development,0.9570342060200188,23,decode,1.0684900889162066,63,decode

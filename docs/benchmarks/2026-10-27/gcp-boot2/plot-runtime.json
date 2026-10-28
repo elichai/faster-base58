@@ -1,0 +1,78 @@
+{
+  "status": "exact approved plotting runtime; local rendering only",
+  "python": "3.14.10 (main, Oct 25 2026, 17:12:00) [Clang 21.0.0 (clang-2100.3.34.2)]",
+  "machine": "arm64",
+  "matplotlib": "3.11.2",
+  "distributions": [
+    {
+      "name": "contourpy",
+      "version": "1.4.0",
+      "installed_record_sha256": "a5b7c8e4f6469647125f1377f97c63f0a0bd5e2417835602642673be283518dd"
+    },
+    {
+      "name": "cycler",
+      "version": "0.12.1",
+      "installed_record_sha256": "cbcbee5f18d75bd4935199b135aa33c3ed62df14991110a35c428883798d7979"
+    },
+    {
+      "name": "fonttools",
+      "version": "4.67.0",
+      "installed_record_sha256": "5e558777aa85b8e3415bf63a38c0ee2c7dc87378ecf714d08c83d2dd7d301700"
+    },
+    {
+      "name": "kiwisolver",
+      "version": "1.5.1",
+      "installed_record_sha256": "e42ff143dee8a98d2d3ff876af5d4ba9b821c9eae31367c0f1c78b098b00e0a0"
+    },
+    {
+      "name": "matplotlib",
+      "version": "3.11.2",
+      "installed_record_sha256": "32249b4f969529a52ca7cea79fac617252c43709c80af7e37bae4f5b1d218bbd"
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.4",
+      "installed_record_sha256": "1f9d1fd99a269ad44c8d9f82bd960e39dc3b90dd1d19d02ffcae9e7bff6b9773"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "installed_record_sha256": "1b8655965b0d83e9a067fd7f84b977bd1e117e0fb9f2874b2572781bdc9e2147"
+    },
+    {
+      "name": "pillow",
+      "version": "13.0.0",
+      "installed_record_sha256": "6032f216e595d275091a168ebe96f64701daa5a0c48061f07dbbc8db0ae74c9f"
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.3.3",
+      "installed_record_sha256": "dbc82867d6a4a3b935f9a9f3f2c876e3056dfffb104e1c8b3a3117d90aa21ad3"
+    },
+    {
+      "name": "python-dateutil",
+      "version": "3.0.0",
+      "installed_record_sha256": "a17d86766c46a890c3d8b1c4ccfa5bb1c6014919f3a3a9da4b8c597f47bf5b33"
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "installed_record_sha256": "d16e50f347969b1e1919fb0c88bac4b9c644f5305bcfcfb00f72b646dbd4065d"
+    },
+    {
+      "name": "tzdata",
+      "version": "2026.5",
+      "installed_record_sha256": "bc03ea1afd3394eb010013e6112f91d884785445c8453b7d56ddb7ba0cc4939d"
+    }
+  ],
+  "source": "PyPI normal HTTPS package source; uv system certificate store, TLS verification enabled",
+  "requirements_sha256": "c5d14508dfbe43bf87354fbc4af25b9d9002f9d8061091ad488ac1199ea421d6",
+  "successful_install_log_sha256": "e5cd3b36d7cda895498572e7f8160b4ffa383ccac1677b6a37f7c1d15177a18e",
+  "font": {
+    "logical_package_path": "matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf",
+    "sha256": "3fdf69cabf06049ea70a00b5919340e2ce1e6d02b0cc3c4b44fb6801bd1e0d22"
+  },
+  "renderer_sha256": "befaa4ccda2b234cd3ee4b307789930e9b62b3058bfd0f2ea49412ce0c469e02",
+  "source_csv_sha256": "6df03250c091ccae831a01be21bc1361f570f9ef8b9d7da730dbbe59d147392f",
+  "scope": "New local environment, no repository dependencies or VM actions. Numeric measurements are unchanged; graph reproduction does not claim new measurement execution."
+}
