@@ -66,69 +66,63 @@ cargo test --locked --doc
 
 ## Fuzzing and sanitizers
 
-[Two differential targets](fuzz/README.md) compare all backend wrappers, Auto and
-`no_alloc`, checking values, capacities, suffixes, canaries and malformed input.
-Owned string/vector helpers share those oracles. Decode also maps bytes to valid
-digits and injects invalid ASCII or multibyte characters. The selector can
-choose late insertion positions. Smaller mutation
-corpora keep the quadratic oracles useful;
-separate boundary replays exercise larger recursive kernels.
+The [two general differential targets](fuzz/README.md) compare all backend
+wrappers, Auto and `no_alloc`: values, capacities, suffixes, canaries, owned
+helpers and malformed input. Decode also maps bytes to valid digits and inserts
+invalid ASCII or multibyte characters, including late positions. Small mutation
+inputs keep quadratic oracles useful; named boundary replay covers larger
+recursive kernels.
 
-The raw budgets are 65,537 binary bytes and `max_encoded_len(65_537) = 89,502`
-decode bytes. They cross 8192/8193-limb boundaries. Lossy UTF-8 and inserted
-characters can expand the decoded text. These are campaign budgets, not format
-limits; they do not exercise every transform size.
+General target budgets are 65,537 binary bytes and
+`max_encoded_len(65_537) = 89,502` decode bytes. Lossy UTF-8 and inserted
+characters can expand text. These budgets are not format limits or coverage of
+every transform size. The 8,193-byte native mutation cap does not reach real NTT
+thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
 
-The final owned-decoder source completed **59,718 AddressSanitizer** and
-**53,574 LeakSanitizer runs in mutation campaigns**, plus **1,508 runs in
-boundary replays**. These are libFuzzer's reported execution counters, including
-initial corpus processing and any repeated executions. They are not counts of
-distinct mutations or named seed files.
-ASan used 600 seconds per target/cache policy; LSan used 180. Both used
-`--careful`, rebuilt std, debug assertions and overflow checks. The later
-Kani-only unwind change leaves production conversion code unchanged.
-[Current receipts](docs/verification/local-ci-current.md) preserve that source distinction.
+The optional `encode_full_width` target expands every raw mutation into a
+periodic 65,537-byte value with its first bit set. It checks encoding and
+generated-text decoding against independent oracles. The pinned-source geometry
+audit places those values above the native NTT thresholds. The two added
+native careful-ASan campaigns remain **unverified**. The cloud provider
+preempted the VM during the first build. Independent retrieval confirmed
+five helper passes and no completed build or campaign records. Recovery
+was prepared on the same VM, then automated screening ended the delegated
+agent turn before any recovery remote call, reporting "possible cybersecurity
+risk". No tool explicitly rejected a command; no ASan campaign result was
+produced. The recovered VM was later confirmed idle and stopped. Local
+helper tests and target builds are separate qualification; compilation is
+not campaign execution. This structured domain does not include every value
+at that width.
 
-Additional native x86 ASan campaigns completed 52,466 reported runs during
-mutation campaigns and 745 during boundary replays on the AMD EPYC 9B45 VM.
-Each target/cache policy used 180 seconds, with the same careful checks and
-full boundary inputs. The native and translated campaigns retain separate
-source, tool, corpus and execution counts.
+On the frozen implementation, existing careful-ASan campaigns passed default,
+cache, compact and cache+compact modes; LSan passed default/cache. Each target
+used 180 seconds followed by full named-boundary replay. Callbacks include
+initial corpus processing and possible repeats; they are not distinct mutations
+or seed-file counts. The new full-width stages additionally require a positive
+post-initialization mutation-attempt count from libFuzzer's corpus statistics.
 
-Separate unsanitized coverage builds replayed 5,008 accumulated corpus cases per
-cache policy against that source. They observed 2,628/3,669 library lines without
-cache and 2,721/3,777 with cache on translated x86 Linux. These are fuzz-only
-observations, including unexecuted AVX-512/IFMA code and convenience wrappers
-tested separately by public properties. No branch coverage was collected.
-CI also replays all 169 encode and 201 decode named boundary files per policy
-for source coverage; it retains profiles and reports.
+Four native Rust/std MSan variants (cache off/on × compact off/on) passed 20
+covered tests each, with IFMA required and zero ISA skips. Native Linux TSan
+passed five concurrency tests. The exact maximum transform passed at `2^23`
+points. Windows runtime checks remain unavailable.
 
-Rust MSan passed 19 covered tests per cache policy on translated Linux, with an
-explicit IFMA skip. Native GCP MSan passed 20 tests per policy, requiring IFMA
-and accepting no ISA skips. TSan passed five concurrency tests on each native
-macOS ARM and Linux x86 host. The Rosetta-only TSan startup failure remains
-recorded separately. The maximum-transform test also passed natively at
-`2^23` points with portable and selected vector kernels. Windows runtime
-checks remain unavailable.
+Both fresh named-boundary source-coverage rows replayed 169 encode and 201 decode
+files per cache policy. Per-target library line counts are 2608/3669 encode and
+1468/3669 decode without cache, and 2699/3777 encode and 1513/3777 decode with
+cache. The target denominators overlap and are not added. These are unsanitized,
+translated-x86 observations without branch instrumentation or native IFMA
+coverage. [Current local verification](docs/verification/local-ci-current.md)
+records source scopes, commands, tool hashes and counters. Earlier sanitizer and
+coverage records remain at their original sources in the
+[verification index](docs/verification/README.md).
 
-The historical 2026-10-26 careful AddressSanitizer campaign completed **450,058 executions in mutation campaigns**
-across default/cache encode/decode, plus full and supplemental boundary replays.
-Linux LeakSanitizer completed another **249,334 executions**. Both retain debug
-assertions and overflow checks. ThreadSanitizer passed five nonzero concurrency
-test invocations on each of Apple Silicon and Linux x86-64. Native Rust
-MemorySanitizer passed six guarded Matrix/NTT/IFMA kernel commands and the public
-API command on the AMD EPYC 9B45 VM, with rebuilt standard library/dependencies
-and no suppressions. Source identities and tool versions are retained in the
-[sanitizer receipt](docs/verification/sanitizers.json).
-
-The historical libFuzzer/MSan configuration failed in the fuzzer's file-discovery startup
-before the Base58 callback. It is not a successful fuzz campaign or an identified
-crate defect. Native Rust MSan avoids that C++ engine; it does not close that
-tooling gap. A current full MSan/libFuzzer campaign remains unverified; the
-current report records the execution-tool limitation. No sanitizer runtime was
-patched to obtain the passing results.
-ThreadSanitizer does not fully model synchronization through atomic fences or
-inline assembly; its results supplement the other checks.
+A historical full MSan/libFuzzer configuration failed in file-discovery startup
+before the Base58 callback. A later full campaign was rejected by automatic
+execution review, which stated "possible cybersecurity risk"; that campaign was
+not run. Neither is a passing campaign or an identified crate defect. Passing
+Rust/std MSan avoids that C++ engine and does not close the gap. No sanitizer
+runtime was patched to obtain the passes. TSan does not fully model atomic
+fences or inline assembly; its results supplement the other checks.
 
 ## Miri
 
@@ -169,27 +163,31 @@ differences agree with native ARM execution. Custom-interpreter results remain
 separate from stock results. Its runner checks exact test selection and splits
 all 14 original buffer cases across processes to bound interpreter memory.
 
-[Current Miri evidence](docs/verification/miri-current.md) records 150 passing
-custom-interpreter executions across both targets, cache settings and alias
-models; 16 supported-stock executions; and 15 separate cold-Linux-driver probes.
-The receipt includes exact frozen inputs and the later Kani-only source change.
-SIMD multiplication uses owned tables; shared-table initialization and reuse
-have separate policy checks. These are concrete interpreter runs, not native
-x86 execution or complete-domain proofs.
+The final frozen implementation passed **186 custom-interpreter test
+executions** plus eight discovery commands, and **16 supported-stock executions**.
+Tree Borrows covers full ARM/x86 suites under both cache policies; Stacked
+Borrows covers kernels. Compact x86 kernels run under both models and policies.
+The disjoint union reuses 72 exactly matched kernel invocations once. All 14
+original buffer cases run separately; no ISA-skip output is accepted.
 
-The owned-decoder wrapper then passed 28 focused custom-Miri executions across
-both targets, cache settings and alias models. Those later runs and their source
-bridge are separate from the original 150 in the current local receipt.
+[Latest local verification](docs/verification/local-ci-current.md) binds those
+selections and the audited reuse of the pinned Linux cold setup. These current
+tests are M5-host interpretations of Linux targets. The
+[historical Miri component](docs/verification/miri-current.md) retains its earlier
+150 custom executions, 16 stock executions, 15 setup probes and original source
+bridges. SIMD multiplication uses owned tables; native oracle and cache-history
+tests supply broader shared-transform coverage. These are concrete executions,
+not native x86 execution or complete-domain proofs.
 
 ## Kani proofs
 
-The selected suite has passing records for **50 distinct harnesses** with
-Kani 0.68.0 and CBMC 6.11.0 on aarch64 macOS and translated x86 Linux, both with
-64-bit `usize`. The original 49 and the additional decoder proof have distinct
-compiled input manifests. Repeated capacity checks are not additional harnesses.
-Memory, overflow and unwinding checks remain enabled. Default unwind is one;
-finite loops have explicit bounds. The receipts retain per-target counts and
-solver versions; these are local executions.
+The frozen implementation passed **50 distinct required harnesses** plus three
+overlapping compact executions with Kani 0.68.0 and CBMC 6.11.0 on translated
+x86 Linux (64-bit `usize`). The run produced 18,744 default checks and 8,096 compact
+checks. Repeated bodies are not additional proofs. Earlier M5 components retain
+their own source maps. Memory, overflow and unwinding checks remain enabled;
+finite loops have explicit bounds. The local scheduling-only `--jobs 1`
+adaptation preserves domains, solvers and the original 60/180/360-second budgets.
 
 | Obligation family | Proven domain or property |
 | --- | --- |
@@ -199,7 +197,7 @@ solver versions; these are local executions.
 | Limb arithmetic | Full-width two-limb carry/borrow; one-limb multiplication; single radix updates; three limbs folded into one modulo `2^64 - 1`; exact Toom division by three |
 | NTT scalar operations | Reduction for every `i32`, normalization in `(-q,q)`, loading for every `u32`, all three primes; plan bounds and scale at every power-of-two length 1 through `2^23` |
 | Matrix / IFMA models | Two-column carries; eight-column radix-52 carry; 13 limbs ↔ 16 radix-52 digits through a scalar vector model |
-| Capacity | Actual encoded-bound safety, coverage of input count, endpoint saturation and full adjacent monotonicity; owned decoded-bound arithmetic and safe prefix addition for every `usize64` |
+| Capacity | Actual encoded-bound safety, coverage of input count, endpoint saturation and full adjacent monotonicity; owned decoded-bound arithmetic and safe prefix addition for every 64-bit `usize` |
 | Paired update safety | Full-width stored limb and nonzero top, two spare limb slots, both digits below `58^10`: interleaved and sequential updates succeed; numeric equality remains open |
 
 The parser composition checks the unchanged production parser. Its digit-range
@@ -209,16 +207,24 @@ The logarithmic argument connecting either capacity bound to actual conversion
 length remains outside Kani's scope. Scalar models do not prove emitted SIMD,
 arbitrary-length conversions or concurrent-cache correctness.
 
-[The current receipt](docs/verification/proofs-current.json) lists all 50 names,
+[Historical per-target components](docs/verification/proofs-current.json) list all 50 names,
 domains, dependencies, portable command recipes, input hashes and raw-log hashes.
 [Earlier proof records](docs/verification/README.md) remain historical evidence.
-The production script and workflow select the required obligations.
+The production script and workflow select the required obligations. The
+[latest local receipt](https://github.com/elichai/faster-base58/blob/main/docs/verification/data/local-ci-current.json) binds the fresh Linux component.
 
 For the two-digit query, reducing unwind 12 to 6 removed excessive symbolic
 iterator expansion. All 14 unwinding assertions then passed, so the original
 input domain remains covered. CaDiCaL avoided a CBMC SMT-conversion failure.
 It proved 1,352 checks, including 54 unreachable, on each target. M5 completed in
-147 seconds; translated Linux needed 254 seconds and a 360-second budget.
+147 seconds and the earlier Linux run in 254 seconds. The fresh final-source
+command completed in 316.85 seconds within the same 360-second budget.
+
+A separate optional encoder-split query kept its original full domain and
+production body, using opt0 Z3/polynomial normalization. It reached solving
+and timed out at 90 seconds, without a theorem or counterexample. This is
+distinct from paired-query lowering errors. All eight selectors remain
+open; the [latest receipt](https://github.com/elichai/faster-base58/blob/main/docs/verification/data/local-ci-current.json) retains the scoped attempt index.
 
 Wider paired numeric equality, encoder split/step and fixed carries, actual
 Barrett division and the public borrowed-array wrapper remain unresolved.
@@ -235,7 +241,8 @@ verified composition and are no longer classified as open.
    results separate, including strict provenance and both alias models.
 2. Discharge the wider Kani obligations through further decomposition. There is
    no arbitrary-length end-to-end proof of each backend.
-3. Repair or replace the libFuzzer/MSan integration before claiming MSan fuzzing.
+3. Complete the two unverified full-width native ASan stages. Repair or
+   replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
    are finite. Run the native Windows tests when a host is available.
 4. Repeat deployment-specific performance, peak memory and linked-size checks.

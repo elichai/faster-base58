@@ -6,10 +6,10 @@ tools; they do not replace the source or imply coverage of later changes.
 
 | Record | Scope |
 | --- | --- |
-| [Latest local checks](local-ci-current.md) / [receipt](data/local-ci-current.json) | Workflow rows, owned-decoder checks, fuzz/coverage observations, source bridges and unavailable or failed platform checks |
-| [Current proofs](proofs-current.json) | 50 distinct Kani harnesses on aarch64 macOS and translated Linux across separately recorded source snapshots; original 49 records preserved, two-digit proof added, eight queries open |
+| [Latest local checks](local-ci-current.md) / [receipt](https://github.com/elichai/faster-base58/blob/main/docs/verification/data/local-ci-current.json) | Workflow rows, owned-decoder checks, fuzz/coverage observations, source bridges and unavailable or failed platform checks |
+| [Earlier per-target proofs](proofs-current.json) | Historical 50-body macOS/Linux components; the latest local receipt adds fresh Linux 50 + compact 3 results; M5 retains its source and eight queries remain open |
 | [Guard source bridge](guard-source-bridge.json) / [patch](guard-cancellation.patch) | Reconstructs the prior verification tools; only cancellation ownership changed, with all Rust proof inputs preserved |
-| [Current Miri](miri-current.md) / [receipt](miri-current.json) | 150 custom-interpreter executions across targets/cache/alias models, 16 supported-stock executions and 15 separate Linux-driver probes; exact inputs and remaining interpretation limits |
+| [Historical Miri component](miri-current.md) / [receipt](miri-current.json) | Earlier 150 custom executions, 16 stock and 15 Linux setup probes; latest local verification records fresh 186 custom + 16 stock on its frozen source |
 | [Local dispatcher verification](local-ci.md) / [derived receipt](local-ci.json) | Earlier full matrix, outlined-source proofs/sanitizers and the later cfg-only portability fix; exact inputs, commands and remaining platform limits |
 | [Historical proofs](proofs.json) | 40 distinct selected Kani harnesses: 4 tiny-production, 31 parser/arithmetic, 5 capacity/lemma; commands, solver/compiler identities and raw-log hashes |
 | [Historical harness results](harnesses.csv) | Individual proof names and results; the production code is checked under its stated scalar domains |

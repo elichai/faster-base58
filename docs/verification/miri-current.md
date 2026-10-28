@@ -1,9 +1,15 @@
-# Current Miri evidence
+# Historical Miri component
+
+This record preserves earlier executions and their original source bridges.
+[Latest local verification](local-ci-current.md) records separate final-source
+186 custom and 16 supported-stock executions.
 
 All executions used frozen Cargo manifests and `src/`/`tests/` inputs from
 `a113f210f55734c8c5eb177ef76d6d6ba16c0755833474109871be2df16bd9b0`.
 The JSON includes their complete per-file source map. A separate byte comparison
-bridges these inputs to current `main`: its sole difference is the additional
+bridges these inputs to historical source map
+`a7160e6940abeeaa12a72dd4f8e301232c53b5193e4e36698af66904eb8972b7`:
+its sole difference is the additional
 `paired_update_all_return_success` proof inside `#[cfg(kani)] mod proofs` in
 `src/batched.rs`. Removing exactly that item reproduces the frozen file; every
 other checked file matches. This proof is excluded from Miri compilation.
@@ -13,7 +19,7 @@ The original run source hashes and counts remain unchanged.
 and raw-log hashes. Historical runs on `0986262` are excluded. This receipt
 establishes no native x86 execution; consult separate CI records.
 
-The required custom matrix has **150/150 concrete test executions complete**.
+The historical custom matrix has **150/150 concrete test executions complete**.
 All rows use strict provenance. Counts exclude setup and test discovery.
 
 | Target | Cache | Tree Borrows, seed 1 (full) | Stacked Borrows, seed 7 (kernels) |
@@ -64,4 +70,4 @@ one newly selected policy test has separate supplemental receipts. The final
 nine synthetic wrapper regressions check bookkeeping, not Rust correctness.
 
 The interrupted historical broad ARM run remains interrupted. All fourteen
-original cases subsequently passed as separate current-source processes.
+original cases subsequently passed as separate processes on the recorded source.
