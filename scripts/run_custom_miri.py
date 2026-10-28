@@ -52,6 +52,7 @@ def main():
     parser.add_argument('--suite', choices=['all', 'probes', 'kernels', 'buffers'], default='all')
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--cache', action='store_true')
+    parser.add_argument('--compact', action='store_true')
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--sysroot', type=Path, help='reuse an explicit compatible sysroot without setup')
     parser.add_argument('--target-dir', type=Path, help='reuse an isolated Cargo target directory')
@@ -117,7 +118,7 @@ def main():
     toolchain_files = {str(path): digest(path) for path in [compiler / 'bin/rustc', Path(record['cargo'])]}
     sysroot_manifest = sysroot_files(sysroot, selected['target']) if args.sysroot else None
     base = [str(tools['cargo-miri']), 'miri', 'test', '--locked', '--target', selected['target'],
-            '--features', selected['features'] + (',cache' if args.cache else '')]
+            '--features', selected['features'] + (',cache' if args.cache else '') + (',compact' if args.compact else '')]
     commands = []
     if not args.sysroot:
         commands.append(('setup', [str(tools['cargo-miri']), 'miri', 'setup', '--target', selected['target']], None))
@@ -138,6 +139,7 @@ def main():
             # Expose successful-test output so an ISA-skip early return cannot hide.
             command.append('--show-output')
     receipt = dict(build_record_sha256=digest(args.build_record), pins=pins, arch=args.arch,
+        cache=args.cache, compact=args.compact,
         actual_compiler_version=compiler_version, actual_cargo_version=cargo_version, toolchain_files=toolchain_files,
         alias_model=args.alias_model, seed=args.seed, suite=args.suite, environment=configured,
         coverage_sha256=digest(repository / 'ci/miri/coverage.json'), source_files=snapshots,

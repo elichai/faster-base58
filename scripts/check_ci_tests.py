@@ -34,20 +34,20 @@ def check_lists(workflow, expected):
             if len(names) != len(set(names)) or set(names) != expected:
                 raise ValueError('public test list mismatch: ' + repr(names) + '; expected ' + repr(sorted(expected)))
             lists.append(names)
-    if len(lists) != 3:
-        raise ValueError('expected the stable, MSRV std, and MSRV cache explicit test lists')
+    if len(lists) != 7:
+        raise ValueError('expected seven stable/MSRV public test lists, including compact configurations')
     return lists
 
 
 def self_test():
     good = '\n'.join('      - run: cargo +' + tool + ' test --locked --test api --test owned_output'
-                     for tool in ['stable', '1.95', '1.95'])
+                     for tool in ['stable'] * 3 + ['1.95'] * 4)
     expected = {'api', 'owned_output'}
-    if len(check_lists(good, expected)) != 3:
+    if len(check_lists(good, expected)) != 7:
         raise AssertionError('valid test lists rejected')
     for bad in [good.replace(' --test owned_output', '', 1),
                 good.replace('--test owned_output', '--test api', 1),
-                '\n'.join(good.splitlines()[:2])]:
+                '\n'.join(good.splitlines()[:-1])]:
         try:
             check_lists(bad, expected)
         except ValueError:

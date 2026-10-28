@@ -82,6 +82,7 @@ def main():
     parser.add_argument('--target', choices=[TARGET, 'aarch64-apple-darwin'], default=TARGET)
     parser.add_argument('--toolchain', default=TOOLCHAIN)
     parser.add_argument('--cache', choices=['off', 'on'], default='on')
+    parser.add_argument('--compact', action='store_true')
     parser.add_argument('--require-ifma', action='store_true')
     parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
@@ -112,8 +113,11 @@ def main():
     version = subprocess.check_output(['rustup', 'run', args.toolchain, 'rustc', '-vV'], env=env, text=True)
     (logs / 'tool.json').write_text(json.dumps({'rustc': version, 'rustflags': flags,
         'git_revision': env.get('GITHUB_SHA'), 'require_ifma': args.require_ifma,
-        'target': args.target, 'cache': args.cache, 'proptest_cases': env['PROPTEST_CASES']}, indent=2) + '\n')
+        'target': args.target, 'cache': args.cache, 'compact': args.compact,
+        'proptest_cases': env['PROPTEST_CASES']}, indent=2) + '\n')
     features = '__internals,cache' if args.cache == 'on' else '__internals'
+    if args.compact:
+        features += ',compact'
     base = ['cargo', '+' + args.toolchain, 'test', '--locked', '-Zbuild-std', '--target', args.target,
             '--no-default-features', '--features', features]
     tests = MEMORY_TESTS if args.sanitizer == 'memory' else THREAD_TESTS

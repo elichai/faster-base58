@@ -59,6 +59,28 @@ jobs:
       - name: Compile every benchmark
         run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 
+  compact:
+    env:
+      PROPTEST_CASES: '512'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        caches:
+          - { name: 'off', features: '__internals,compact', public_args: '--features compact' }
+          - { name: 'on', features: '__internals,cache,compact', public_args: '--features cache,compact' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup update stable --no-self-update
+      - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests
+      - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests --release
+      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output ${{ matrix.caches.public_args }}
+      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output ${{ matrix.caches.public_args }} --release
+      - run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }}
+      - run: cargo +stable build --locked --release --features ${{ matrix.caches.features }} --benches
+
   alternate_limb_width:
     env:
       PROPTEST_CASES: '512'
@@ -125,10 +147,18 @@ jobs:
       - run: cargo +1.95 build --locked --lib --features cache
       - run: cargo +1.95 build --locked --lib --features __internals
       - run: cargo +1.95 build --locked --lib --all-features
+      - run: cargo +1.95 build --locked --lib --features compact
+      - run: cargo +1.95 build --locked --lib --features compact,cache
       - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features std
         env:
           PROPTEST_CASES: '512'
       - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features cache
+        env:
+          PROPTEST_CASES: '512'
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features std,compact
+        env:
+          PROPTEST_CASES: '512'
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features cache,compact
         env:
           PROPTEST_CASES: '512'
 
@@ -169,6 +199,9 @@ jobs:
       - run: cargo +stable clippy --locked --lib --features cache -- -D warnings
       - run: cargo +stable clippy --locked --lib --features __internals -- -D warnings
       - run: cargo +stable clippy --locked --lib --all-features -- -D warnings
+      - run: cargo +stable clippy --locked --lib --features compact -- -D warnings
+      - run: cargo +stable clippy --locked --lib --features std,compact -- -D warnings
+      - run: cargo +stable clippy --locked --lib --features cache,compact -- -D warnings
       - name: Public and internal API documentation
         env:
           RUSTDOCFLAGS: -D warnings
@@ -187,6 +220,10 @@ jobs:
       - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features count-allocations ${{ matrix.cache_args }}
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }} -- self-check
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features count-allocations ${{ matrix.cache_args }} -- self-check
+      - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact ${{ matrix.cache_args }}
+      - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact,count-allocations ${{ matrix.cache_args }}
+      - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact ${{ matrix.cache_args }} -- self-check
+      - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact,count-allocations ${{ matrix.cache_args }} -- self-check
       - run: python3 scripts/resource_report.py self-test
       - run: python3 scripts/cache_tradeoffs.py --self-test
       - run: python3 scripts/code_size.py --self-test
@@ -352,6 +389,26 @@ jobs:
           --sysroot "$RUNNER_TEMP/custom-miri-all/sysroot"
           --arch ${{ matrix.arch }} --alias-model stacked --seed 7 --suite kernels
           ${{ matrix.cache.args }}
+      - name: Compact IFMA kernels with Tree Borrows
+        if: matrix.arch == 'x86'
+        run: >-
+          python3 scripts/run_custom_miri.py
+          --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
+          --source . --output "$RUNNER_TEMP/custom-miri-compact-tree"
+          --target-dir "$RUNNER_TEMP/custom-miri-target"
+          --sysroot "$RUNNER_TEMP/custom-miri-all/sysroot"
+          --arch x86 --alias-model tree --seed 1 --suite kernels --compact
+          ${{ matrix.cache.args }}
+      - name: Compact IFMA kernels with Stacked Borrows
+        if: matrix.arch == 'x86'
+        run: >-
+          python3 scripts/run_custom_miri.py
+          --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
+          --source . --output "$RUNNER_TEMP/custom-miri-compact-stacked"
+          --target-dir "$RUNNER_TEMP/custom-miri-target"
+          --sysroot "$RUNNER_TEMP/custom-miri-all/sysroot"
+          --arch x86 --alias-model stacked --seed 7 --suite kernels --compact
+          ${{ matrix.cache.args }}
       - name: Retain custom interpreter records and artifacts
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -367,6 +424,10 @@ jobs:
             ${{ runner.temp }}/custom-miri-all/*.log
             ${{ runner.temp }}/custom-miri-alternate/run.json
             ${{ runner.temp }}/custom-miri-alternate/*.log
+            ${{ runner.temp }}/custom-miri-compact-tree/run.json
+            ${{ runner.temp }}/custom-miri-compact-tree/*.log
+            ${{ runner.temp }}/custom-miri-compact-stacked/run.json
+            ${{ runner.temp }}/custom-miri-compact-stacked/*.log
           if-no-files-found: ignore
           retention-days: 14
 
@@ -400,8 +461,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sanitizer: [address, leak]
-        cache_args: ['', '--features cache']
+        include:
+          - { sanitizer: address, cache_args: '', label: default }
+          - { sanitizer: address, cache_args: '--features cache', label: cache }
+          - { sanitizer: leak, cache_args: '', label: default }
+          - { sanitizer: leak, cache_args: '--features cache', label: cache }
+          - { sanitizer: address, cache_args: '--features compact', label: compact }
+          - { sanitizer: address, cache_args: '--features cache,compact', label: cache-compact }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
@@ -434,7 +500,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: fuzz-${{ matrix.sanitizer }}-${{ matrix.cache_args == '' && 'default' || 'cache' }}
+          name: fuzz-${{ matrix.sanitizer }}-${{ matrix.label }}
           path: |
             fuzz/corpus
             fuzz/artifacts
@@ -488,22 +554,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { sanitizer: thread, cache: 'on' }
-          - { sanitizer: memory, cache: 'off' }
-          - { sanitizer: memory, cache: 'on' }
+          - { sanitizer: thread, cache: 'on', compact_args: '', label: thread-on }
+          - { sanitizer: memory, cache: 'off', compact_args: '', label: memory-off }
+          - { sanitizer: memory, cache: 'on', compact_args: '', label: memory-on }
+          - { sanitizer: memory, cache: 'off', compact_args: '--compact', label: memory-off-compact }
+          - { sanitizer: memory, cache: 'on', compact_args: '--compact', label: memory-on-compact }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
       - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
-      - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --cache ${{ matrix.cache }} --log-dir "$RUNNER_TEMP/native-${{ matrix.sanitizer }}-${{ matrix.cache }}/logs"
+      - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --cache ${{ matrix.cache }} ${{ matrix.compact_args }} --log-dir "$RUNNER_TEMP/native-${{ matrix.label }}/logs"
       - name: Retain sanitizer records
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-${{ matrix.sanitizer }}-${{ matrix.cache }}
-          path: ${{ runner.temp }}/native-${{ matrix.sanitizer }}-${{ matrix.cache }}/logs
+          name: native-${{ matrix.label }}
+          path: ${{ runner.temp }}/native-${{ matrix.label }}/logs
           if-no-files-found: ignore
           retention-days: 14
 
@@ -566,6 +634,14 @@ jobs:
           python3 scripts/kani_guard.py -- cargo kani --lib --exact --solver cadical
           --harness verification::full_chunk_numeric_pipeline_composed
           --harness batched::proofs::paired_update_all_return_success
+          -Z function-contracts -Z stubbing -Z unstable-options
+          --harness-timeout 180s --output-format terse
+
+      - name: IFMA scalar obligations with compact windows
+        run: >-
+          python3 scripts/kani_guard.py -- cargo kani --lib --features compact --solver cadical
+          --harness carry_preserves_radix52_columns --harness radix52_unpack_pack_roundtrip
+          --harness one_limb_production_multiply
           -Z function-contracts -Z stubbing -Z unstable-options
           --harness-timeout 180s --output-format terse
 

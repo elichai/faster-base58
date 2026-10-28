@@ -84,7 +84,15 @@ def role(backend):
             else "development-adapter" if backend == "malachite" else "public-entry")
 
 
+def require_legacy_features(metadata):
+    build = metadata.get("build", metadata)
+    compiled = build.get("worker", {}).get("compiled_features", {})
+    require(not build.get("compact", False) and not compiled.get("compact", False),
+            "compact builds are outside this historical report's scope")
+
+
 def core_hashes(metadata):
+    require_legacy_features(metadata)
     if "build" in metadata:
         return {item["path"]: item["sha256"] for item in metadata["build"]["source"]["files"]
                 if item["path"].startswith("src/")}
@@ -168,6 +176,8 @@ def load_native(snapshot, config, prefix, size_dir, inputs, sizes, metrics, camp
         inputs.update(directory / name for name in ("metadata.json", "skipped.csv", "io.csv"))
     require(tm["status"] == am["status"] == "complete", "incomplete native campaign")
     require(tm["build"]["source"] == am["build"]["source"], "native source mismatch")
+    require(tm["build"]["worker"].get("compiled_features", {}) == am["build"]["worker"].get("compiled_features", {}),
+            "native compiled features mismatch")
     require(not tm["build"]["worker"]["count_allocations"] and am["build"]["worker"]["count_allocations"],
             "counted timing build")
     for field in ("platform", "machine", "hostname", "rustc", "flags", "cargo_configs"):
@@ -493,8 +503,10 @@ def build(args):
     for name in SIZE_DIRS:
         directory = snapshot / name
         inputs.update(directory / filename for filename in ("sizes.csv", "metadata.json"))
+        metadata = json.loads((directory / "metadata.json").read_text())
+        require_legacy_features(metadata)
         if not name.startswith("before"):
-            hashes = core_hashes(json.loads((directory / "metadata.json").read_text()))
+            hashes = core_hashes(metadata)
             require(baseline_hashes is None or hashes == baseline_hashes, "size Rust snapshots differ")
             baseline_hashes = hashes
         for row in rows(directory / "sizes.csv"):
@@ -565,6 +577,16 @@ def build(args):
 
 
 def self_test():
+    legacy = {"source_files_sha256": {"src/lib.rs": "same"}}
+    require(core_hashes(legacy) == {"src/lib.rs": "same"}, "legacy feature metadata")
+    for metadata in [dict(legacy, compact=True),
+                     {"build": {"worker": {"compiled_features": {"compact": True}}}}]:
+        try:
+            core_hashes(metadata)
+        except ValueError as error:
+            require("historical report" in str(error), "wrong feature rejection")
+        else:
+            raise AssertionError("compact measurements accepted by historical report")
     require(dominates([1, 2], [2, 2]), "strict objective")
     require(not dominates([1, 2], [1, 2]), "ties must survive")
     require(not dominates([1, 3], [2, 2]), "tradeoff must survive")

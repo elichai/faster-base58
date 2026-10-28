@@ -17,7 +17,7 @@ const _: () = assert!(digits(MAX_LEN) == 2048);
 const M52: u64 = (1 << 52) - 1;
 
 /// Largest kernel window, in vectors of 8 columns: `2 NW_MAX` accumulators.
-const NW_MAX: usize = 12;
+const NW_MAX: usize = if cfg!(feature = "compact") { 8 } else { 12 };
 
 /// Digits of `n` limbs.
 const fn digits(n: usize) -> usize {
@@ -64,19 +64,14 @@ type Kernel = unsafe fn(c: *mut u64, a: *const u64, groups: usize, b: *const u64
 /// The function `$f::<NW>` for `NW = $nw`, as a [`Kernel`].
 macro_rules! pick {
     ($f:ident, $nw:expr) => {
+        core::cfg_select! {
+            feature = "compact" => { pick!(@windows $f, $nw; 1, 2, 3, 4, 5, 6, 7, 8) }
+            _ => { pick!(@windows $f, $nw; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) }
+        }
+    };
+    (@windows $f:ident, $nw:expr; $($width:literal),+) => {
         match $nw {
-            1 => $f::<1>,
-            2 => $f::<2>,
-            3 => $f::<3>,
-            4 => $f::<4>,
-            5 => $f::<5>,
-            6 => $f::<6>,
-            7 => $f::<7>,
-            8 => $f::<8>,
-            9 => $f::<9>,
-            10 => $f::<10>,
-            11 => $f::<11>,
-            12 => $f::<12>,
+            $($width => $f::<$width>,)+
             nw => panic!("window {nw}"),
         }
     };
@@ -87,8 +82,9 @@ pub(crate) mod avx512;
 
 /// Scratch limbs native `mul` needs for `a.len() == na` and `b.len() == nb`.
 ///
-/// With `ma <= mb` digits and `chunks <= mb / 88 + 2`: `blen <= mb + 8 chunks + 14` and
-/// `clen <= ma + mb + 21`, so this is at most `(3 + 1/11) mb + 58 < 3.9 nb + 62`.
+/// With `ma <= mb` digits and `k = NW_MAX - 1 >= 7`, `chunks <= mb / (8 k) + 2`.
+/// Then `blen <= mb + 8 chunks + 14` and `clen <= ma + mb + 21`, so this is at most
+/// `(3 + 1/k) mb + 58 < 3.9 nb + 62` for both window limits.
 #[cfg(any(test, feature = "__internals"))]
 pub const fn scratch_len(na: usize, nb: usize) -> usize {
     Shape::new(na, nb).scratch()
@@ -614,9 +610,9 @@ mod tests {
     /// Shapes around every window and chunk boundary, through `f`.
     fn check_shapes(f: impl Fn(&mut [u64], &[u64], &[u64], &mut [u64])) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(3);
-        let nas = (8..=40).chain([47, 48, 63, 64, 71, 72, 73, 89, 90, 100, 129, 200, 300]);
+        let nas = (8..=40).chain([46, 47, 48, 63, 64, 71, 72, 73, 89, 90, 100, 129, 200, 300]);
         for na in nas {
-            // `b` of 72 limbs is the longest without chunks.
+            // Include the default 72/73 boundary; the compact 46/47 cases use `na` above.
             for nb in [
                 na,
                 na + 1,
@@ -636,7 +632,7 @@ mod tests {
                 }
             }
         }
-        // Every chunk split and last-chunk window, including window 1 (787 limbs).
+        // Every chunk split and last-chunk window for either window limit.
         for na in [8, 16] {
             for nb in na..=1000 {
                 check(&f, &limbs(&mut rng, na), &limbs(&mut rng, nb), "rand");

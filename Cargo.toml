@@ -21,6 +21,8 @@ default = []
 std = []
 # Opt in to process-wide matrix tables and bounded NTT twiddle retention.
 cache = ["std"]
+# Use smaller x86 IFMA windows to reduce linked code.
+compact = []
 # Unstable hooks for this repository's tests and measurement tools.
 __internals = []
 

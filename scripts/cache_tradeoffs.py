@@ -8,6 +8,8 @@ import json
 import math
 from pathlib import Path
 import statistics
+import sys
+import tempfile
 
 
 def read_rows(directory, filename):
@@ -53,6 +55,7 @@ def compare(args):
     assert not time_meta["build"]["worker"]["count_allocations"]
     assert alloc_meta["build"]["worker"]["arch"] == time_meta["build"]["worker"]["arch"]
     assert alloc_meta["build"]["worker"]["ifma_threshold"] == time_meta["build"]["worker"]["ifma_threshold"]
+    assert alloc_meta["build"]["worker"].get("compiled_features", {}) == time_meta["build"]["worker"].get("compiled_features", {}), "compiled features differ"
     for field in ["platform", "machine", "hostname", "rustc", "flags", "cargo_configs"]:
         assert alloc_meta["build"]["environment"][field] == time_meta["build"]["environment"][field], field
     allocations = groups(read_rows(allocation_dir, "allocations.csv"))
@@ -136,6 +139,27 @@ def main():
         assert estimate(100, 400, 20, 50, True)[1:] == (None, None, "no_positive_warm_savings")
         assert estimate(100, 400, 50, 20, False)[1:] == (None, None, "no_dynamic_table")
         assert estimate(100, 80, 50, 20, True)[2] == 1
+        with tempfile.TemporaryDirectory(prefix="base58-cache-join-") as directory:
+            root = Path(directory)
+            timing = {"status": "complete", "build": {"source": {"sha256": "same"},
+                      "worker": {"count_allocations": False, "arch": "x86_64", "ifma_threshold": 384,
+                                 "compiled_features": {"cache": False, "compact": False}}}}
+            for name in ["allocations", "timings"]:
+                (root / name).mkdir()
+            (root / "timings/metadata.json").write_text(json.dumps(timing))
+            for feature in ["cache", "compact"]:
+                allocation = json.loads(json.dumps(timing))
+                allocation["build"]["worker"]["count_allocations"] = True
+                allocation["build"]["worker"]["compiled_features"][feature] = True
+                (root / "allocations/metadata.json").write_text(json.dumps(allocation))
+                try:
+                    compare(argparse.Namespace(allocations=root / "allocations", timings=root / "timings",
+                                               output=root / "result.csv"))
+                except AssertionError as error:
+                    assert str(error) == "compiled features differ"
+                else:
+                    raise AssertionError("mixed-feature measurements accepted")
+                assert not (root / "result.csv").exists()
         print("cache_tradeoffs self-test passed")
     else:
         assert args.allocations and args.timings and args.output
@@ -143,4 +167,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if sys.flags.optimize:
+        raise SystemExit("run without Python -O: validation uses assertions")
     main()

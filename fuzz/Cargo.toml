@@ -9,6 +9,7 @@ cargo-fuzz = true
 
 [features]
 cache = ["faster-base58/cache"]
+compact = ["faster-base58/compact"]
 
 [dependencies]
 faster-base58 = { path = "..", features = ["__internals"] }

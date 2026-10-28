@@ -95,6 +95,8 @@ def build(args):
         features.append("count-allocations")
     if args.cache:
         features.append("cache")
+    if args.compact:
+        features.append("compact")
     if features:
         invocation += ["--features", ",".join(features)]
     env = dict(os.environ, RESOURCE_SOURCE_SHA256=identity["sha256"])
@@ -112,6 +114,9 @@ def build(args):
         binary = retained
     description = json.loads(command([str(binary), "describe"]))
     assert description["source_sha256"] == identity["sha256"]
+    assert description["compiled_features"]["cache"] == args.cache
+    assert description["compiled_features"]["compact"] == args.compact
+    assert description["count_allocations"] == args.count_allocations
     encoded_flags = env.get("CARGO_ENCODED_RUSTFLAGS")
     if encoded_flags is not None:
         flags = encoded_flags.split("\x1f") if encoded_flags else []
@@ -328,10 +333,20 @@ def self_test():
     assert shuffle_jobs(list(range(5)), 20261024) == [4, 2, 3, 0, 1]
     assert sorted(shuffle_jobs(list(range(10)), 20261024)) == list(range(10))
     assert source_identity() == source_identity()
+    for flag in ["-O", "-OO"]:
+        result = subprocess.run([sys.executable, flag, str(Path(__file__).resolve()), "--help"],
+                                capture_output=True, text=True)
+        assert result.returncode != 0 and "requires Python assertions" in result.stderr
+    for level in ["1", "2"]:
+        result = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--help"],
+                                env=dict(os.environ, PYTHONOPTIMIZE=level), capture_output=True, text=True)
+        assert result.returncode != 0 and "requires Python assertions" in result.stderr
     print("resource_report self-test passed")
 
 
 def main():
+    if sys.flags.optimize:
+        raise SystemExit("resource_report requires Python assertions; unset PYTHONOPTIMIZE and omit -O")
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("fingerprint")
@@ -341,6 +356,7 @@ def main():
     build_parser.add_argument("--output", required=True, help="new build metadata JSON")
     build_parser.add_argument("--count-allocations", action="store_true")
     build_parser.add_argument("--cache", action="store_true", help="enable the library's optional process-wide caches")
+    build_parser.add_argument("--compact", action="store_true", help="enable the library's smaller IFMA kernels")
     build_parser.add_argument("--binary-output", help="retain the worker at a new path before another build reuses the target directory")
     run_parser = sub.add_parser("run")
     run_parser.add_argument("--build-metadata", required=True)

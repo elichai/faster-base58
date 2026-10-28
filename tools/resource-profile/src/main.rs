@@ -175,11 +175,12 @@ fn describe() {
         ",\"runtime_features\":{{\"sse4_1\":{sse4_1},\"avx2\":{avx2},\"avx512ifma\":{avx512ifma},\"avx512vbmi\":{avx512vbmi}}}"
     );
     println!(
-        ",\"compiled_features\":{{\"avx2\":{},\"neon\":{},\"little_endian\":{},\"cache\":{}}}}}",
+        ",\"compiled_features\":{{\"avx2\":{},\"neon\":{},\"little_endian\":{},\"cache\":{},\"compact\":{}}}}}",
         cfg!(target_feature = "avx2"),
         cfg!(target_feature = "neon"),
         cfg!(target_endian = "little"),
-        cfg!(feature = "cache")
+        cfg!(feature = "cache"),
+        cfg!(feature = "compact")
     );
 }
 

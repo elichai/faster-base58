@@ -10,6 +10,7 @@ publish = false
 default = ["bs58", "five8"]
 count-allocations = []
 cache = ["faster-base58/cache"]
+compact = ["faster-base58/compact"]
 bs58 = ["dep:bs58"]
 five8 = ["dep:five8"]
 

@@ -71,7 +71,7 @@ class CoverageGuardTests(unittest.TestCase):
         self.record.write_text(json.dumps(dict(pins=self.pins, prepared_only=False,
             compiler=str(self.compiler), cargo=str(self.compiler / 'bin/cargo'), artifacts=artifacts)))
 
-    def run_fixture(self, suite, listed, zero=False, skip=None):
+    def run_fixture(self, suite, listed, zero=False, skip=None, plan_only=False, compact=False):
         (self.fixture / 'ci/miri/coverage.json').write_text(json.dumps(self.coverage))
         env = os.environ.copy()
         env.update(FAKE_CARGO_COMMIT=self.pins['cargo_commit'], FAKE_RUSTC_COMMIT=self.pins['compiler_commit'],
@@ -88,10 +88,29 @@ class CoverageGuardTests(unittest.TestCase):
             '--build-record', str(self.record), '--source', str(self.source),
             '--output', str(self.root / 'result'), '--arch', 'x86', '--suite', suite,
             '--sysroot', str(self.sysroot)]
+        if plan_only:
+            command.append('--plan-only')
+        if compact:
+            command.append('--compact')
         with owned_process(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
             stdout, stderr = child.communicate(timeout=30)
-        self.assertNotEqual(child.returncode, 0, (stdout, stderr, str(self.root)))
+        if plan_only:
+            self.assertEqual(child.returncode, 0, (stdout, stderr, str(self.root)))
+        else:
+            self.assertNotEqual(child.returncode, 0, (stdout, stderr, str(self.root)))
         return stderr.decode()
+
+    def test_compact_feature_reaches_every_planned_kernel(self):
+        self.run_fixture('kernels', [], plan_only=True, compact=True)
+        result = json.loads((self.root / 'result/run.json').read_text())
+        self.assertTrue(result['compact'])
+        self.assertFalse(result['cache'])
+        commands = result['planned_commands']
+        self.assertTrue(commands)
+        for command in commands:
+            features = command[command.index('--features') + 1].split(',')
+            self.assertIn('compact', features)
+            self.assertIn('__internals', features)
 
     def test_empty_probe_suite_cannot_pass(self):
         self.coverage['x86']['probes'] = []

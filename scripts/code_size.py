@@ -166,6 +166,8 @@ def native_check(path, direction, backend):
 
 
 def main():
+    if sys.flags.optimize:
+        raise SystemExit("code_size requires Python assertions; unset PYTHONOPTIMIZE and omit -O")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path)
@@ -181,6 +183,7 @@ def main():
     parser.add_argument("--count-allocations", action="store_true", help="instrument Wasm cdylibs; never use for timing or linked-size comparisons")
     parser.add_argument("--wasm-simd128", action="store_true", help="compile Wasm library and probe with +simd128")
     parser.add_argument("--cache", action="store_true", help="enable optional library caches in this cohort")
+    parser.add_argument("--compact", action="store_true", help="enable smaller x86 IFMA windows")
     args = parser.parse_args()
     if args.self_test:
         assert uleb(bytes((0xE5, 0x8E, 0x26)), 0) == (624485, 3)
@@ -196,6 +199,14 @@ def main():
             pass
         else:
             raise AssertionError("truncated LEB128 accepted")
+        for flag in ["-O", "-OO"]:
+            result = subprocess.run([sys.executable, flag, str(Path(__file__).resolve()), "--help"],
+                                    capture_output=True, text=True)
+            assert result.returncode != 0 and "requires Python assertions" in result.stderr
+        for level in ["1", "2"]:
+            result = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--help"],
+                                    env=dict(os.environ, PYTHONOPTIMIZE=level), capture_output=True, text=True)
+            assert result.returncode != 0 and "requires Python assertions" in result.stderr
         print("code_size self-check passed")
         return
     if not args.output:
@@ -213,6 +224,7 @@ def main():
     work = output / "probe"
     (work / "src").mkdir(parents=True, exist_ok=True)
     feature = ', "faster-base58/__internals"' if external else ""
+    compact_feature = 'compact = ["faster-base58/compact"]\n' if args.compact else ""
     manifest = f'''[package]
 name = "base58-code-size"
 version = "0.0.0"
@@ -229,7 +241,7 @@ bs58 = ["dep:bs58"]
 five8 = ["dep:five8"]
 benchmark-controls = ["faster-base58/__internals"]
 cache = ["faster-base58/cache"]
-[lib]
+{compact_feature}[lib]
 crate-type = ["cdylib"]
 [[bin]]
 name = "base58-code-size"
@@ -271,6 +283,7 @@ incremental = false
     if args.wasm_simd128:
         target_cfg += ["-C", "target-feature=+simd128"]
     metadata = {"label": args.label, "source": str(source), "target": args.target, "cache": args.cache,
+                "compact": args.compact, "selected_cargo_features": {},
                 "rustflags": env["RUSTFLAGS"], "profile": manifest,
                 "rustc": run(["rustc", "-Vv"]), "commands": [],
                 "rustc_target_cfg": run(target_cfg),
@@ -322,12 +335,18 @@ incremental = false
                                "--lib" if kind == "cdylib" else "--bin"]
                     if kind == "bin":
                         command += ["base58-code-size"]
+                    features = []
                     if backend in ("malachite", "bs58", "five8"):
-                        command += ["--features", backend]
+                        features.append(backend)
                     if backend not in ("empty", "auto", "no-alloc", "malachite", "bs58", "five8"):
-                        command += ["--features", "benchmark-controls"]
+                        features.append("benchmark-controls")
                     if args.cache:
-                        command += ["--features", "cache"]
+                        features.append("cache")
+                    if args.compact:
+                        features.append("compact")
+                    if features:
+                        command += ["--features", ",".join(features)]
+                    metadata["selected_cargo_features"][backend] = features
                     command += ["--", "--cfg", f'size_backend="{backend}"',
                                 "--cfg", f'size_direction="{direction}"']
                     if args.count_allocations:

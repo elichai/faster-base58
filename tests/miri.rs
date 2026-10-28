@@ -105,7 +105,7 @@ fn actual_ifma_shapes() {
         ifma_mul, ifma_scratch_len, ifma_threshold, mul_with, scratch_len,
     };
     assert_ne!(ifma_threshold(), 0, "the requested IFMA path must execute");
-    for (na, nb) in [(8, 13), (13, 17), (17, 97)] {
+    for (na, nb) in [(8, 13), (13, 17), (17, 97), (46, 46), (47, 47), (47, 95)] {
         let a = vec![u64::MAX; na];
         let b: Vec<u64> = (0..nb).map(|i| u64::MAX - i as u64).collect();
         let mut want = vec![0; na + nb];

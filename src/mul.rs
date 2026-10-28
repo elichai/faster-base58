@@ -15,23 +15,38 @@ const _: () = assert!(8 <= IFMA_MIN && IFMA_MIN <= KARATSUBA_THRESHOLD);
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 pub(crate) mod ifma {
     use crate::mul_ifma::avx512 as mul_ifma;
-    use core::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+    core::cfg_select! {
+        any(test, feature = "__internals") => {
+            use core::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
-    /// Tuned on whole decodes on Zen 5.
-    static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(384);
+            /// Tuned on whole decodes on Zen 5.
+            static IFMA_THRESHOLD: AtomicUsize = AtomicUsize::new(384);
 
-    /// The IFMA leaf threshold `mul` uses: 0 (none) without AVX-512 IFMA.
-    pub fn ifma_threshold() -> usize {
-        if mul_ifma::available() {
-            return IFMA_THRESHOLD.load(Relaxed);
+            /// The IFMA leaf threshold `mul` uses: 0 (none) without AVX-512 IFMA.
+            pub fn ifma_threshold() -> usize {
+                if mul_ifma::available() {
+                    return IFMA_THRESHOLD.load(Relaxed);
+                }
+                0
+            }
+
+            /// Sets the IFMA leaf threshold of `mul`, for benchmarks; 0 turns the leaf off.
+            pub fn set_ifma_threshold(t: usize) {
+                IFMA_THRESHOLD.store(t, Relaxed);
+            }
         }
-        0
-    }
+        _ => {
+            const IFMA_THRESHOLD: usize = 384;
 
-    /// Sets the IFMA leaf threshold of `mul`, for benchmarks; 0 turns the leaf off.
-    #[cfg(any(test, feature = "__internals"))]
-    pub fn set_ifma_threshold(t: usize) {
-        IFMA_THRESHOLD.store(t, Relaxed);
+            /// The IFMA leaf threshold `mul` uses: 0 (none) without AVX-512 IFMA.
+            pub fn ifma_threshold() -> usize {
+                if mul_ifma::available() {
+                    IFMA_THRESHOLD
+                } else {
+                    0
+                }
+            }
+        }
     }
 }
 
