@@ -1,0 +1,1453 @@
+{
+  "schema_version": 2,
+  "status": "pass",
+  "date": "2026-10-27T18:01:45.151335+00:00",
+  "distinct_harnesses": 50,
+  "selected_harnesses": [
+    "api::capacity_proofs::decoded_capacity_bounds_every_usize",
+    "api::capacity_proofs::decoded_capacity_is_within_one_byte_of_ceil47",
+    "api::capacity_proofs::decoded_capacity_prefix_sum_never_overflows",
+    "batched::proofs::paired_update_all_return_success",
+    "batched::proofs::single_update_matches_wide_reference",
+    "dc::proofs::single_limb_update_matches_wide_reference",
+    "encode::batched::verification::encode_batched_reduce_is_exact",
+    "encode::verification::capacity_affine_step_lemma",
+    "encode::verification::capacity_at_product_lemma",
+    "encode::verification::capacity_formula_lemma",
+    "encode::verification::capacity_shift_clamp_step_lemma",
+    "encode::verification::encoded_capacity_adjacent_monotonicity_at_products",
+    "encode::verification::encoded_capacity_covers_input",
+    "encode::verification::encoded_capacity_endpoint_saturates",
+    "encode::verification::encoded_capacity_never_panics",
+    "matrix::proofs::carry32_preserves_value",
+    "matrix::proofs::carry64_preserves_value_and_length",
+    "mul_ifma::emulation::carry_preserves_radix52_columns",
+    "mul_ifma::emulation::radix52_unpack_pack_roundtrip",
+    "ntt::proofs::load_q1",
+    "ntt::proofs::load_q2",
+    "ntt::proofs::load_q3",
+    "ntt::proofs::normalize_q1",
+    "ntt::proofs::normalize_q2",
+    "ntt::proofs::normalize_q3",
+    "ntt::proofs::polynomial_plan_bounds",
+    "ntt::proofs::reduce_q1",
+    "ntt::proofs::reduce_q2",
+    "ntt::proofs::reduce_q3",
+    "ntt::proofs::scale_q1",
+    "ntt::proofs::scale_q2",
+    "ntt::proofs::scale_q3",
+    "toom3::proofs::div3_recovers_quotient_with_carry",
+    "verification::alphabet_character_roundtrips",
+    "verification::digit_range_lemma",
+    "verification::digit_table_has_only_valid_values_or_sentinel",
+    "verification::full_chunk_invalid_rejection",
+    "verification::full_chunk_numeric_pipeline_composed",
+    "verification::leading_zero_split_is_exact",
+    "verification::one_byte_batched_encoding_matches_radix_and_capacity",
+    "verification::one_limb_production_multiply_matches_u128",
+    "verification::partial_chunk_matches_horner_and_rejects_invalid",
+    "verification::ten_digit_split_identity_lemma",
+    "verification::two_byte_short_decode_preserves_radix_errors_and_canaries",
+    "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+    "verification::two_limb_add_matches_u128_with_carry",
+    "verification::two_limb_sub_matches_u128_with_borrow",
+    "verification::valid_digit_table_entries_roundtrip_to_character",
+    "verification::validity_matches_digit_table",
+    "verification::wrapped_fold_preserves_residue"
+  ],
+  "scope": "Selected proof evidence spans separately frozen source epochs. No execution of all 50 at one frozen manifest is claimed.",
+  "single_manifest_run": false,
+  "component_notes": [
+    "original_49_macos is the complete original proofs-current.json payload, unchanged.",
+    "original_49_linux is the retained separate Linux execution of the same 49 compiled inputs, unchanged.",
+    "Nested historical limits/open lists describe their capture time. The outer open list is current.",
+    "additional_two_digit owns its 07ec source, 0ea compiled map, SAT recipes, both target receipts and failed attempts."
+  ],
+  "components": {
+    "original_49_macos": {
+      "schema_version": 1,
+      "status": "PASS",
+      "date": "2026-10-27",
+      "distinct_harnesses": 49,
+      "checks_including_unreachable": 8423,
+      "unreachable_checks": 215,
+      "failed_checks": 0,
+      "host": {
+        "os": "macOS",
+        "target": "aarch64-apple-darwin",
+        "usize_bits": 64
+      },
+      "tools": {
+        "kani": "0.68.0",
+        "cbmc": "6.11.0",
+        "z3": "5.3.2",
+        "kani_compiler": "rustc 1.100.0-nightly (8925ea358 2026-08-20); LLVM 23.1.0",
+        "kani_compiler_sha256": "88c115b843454b7b16b53955b31c6bc81c0168e7bfc6fbf97d9b688e53c67154",
+        "cbmc_sha256": "db1a99dc5187df6f67be351555aa7951d10f37700eccc7ea726d441594675e77",
+        "z3_sha256": "85c69451111aa4659fa61ae0c021c8f7682175d826f6a208fc04075bd465cf25"
+      },
+      "source": {
+        "manifest_sha256": "bd031be64803e4443f182dda6b191741c61a44e1cce6ef5bb0e52db2a268fd95",
+        "manifest_hash_definition": "SHA256 of Python json.dumps(files, sort_keys=True), where files maps frozen relative paths to SHA256 digests",
+        "input_json_sha256": "b8cfdb513863d3494b3c554bd44954ac83ed64f79b11953d4d0478e591e29b13",
+        "verified_report_sha256": "31b1c9e19042c7a516b5ec8f3b1b138e75a525f6948a95cc80a8bb2d2c49e26f",
+        "postflight_sha256": "aede2a8c493320a93c460787fb7e88a465265fc3b6fe91c7055f42a0830b15eb",
+        "postflight": "Cargo/src and guard/solver scripts matched main byte-for-byte; workflow and unrelated sanitizer driver differed",
+        "compiled_input_files": {
+          "Cargo.lock": "76b923e5642b9899ed35b88016d80ee55b0f77e8304a30d9c52daf0854bd5638",
+          "Cargo.toml": "7ac2741c9e17e49df1cc08dca5ba19565115b9945ef05ab84638a81ccd1832bb",
+          "scripts/kani-z3-intblast.sh": "4cc56bec041921cb2f36e550152b130d38e3fe56333ad188824297c41ff9f0d2",
+          "scripts/kani-z3-polynomial.sh": "b0f9c5f53ecc796c4085aa52925860175fb628553c35fbde6b77aacb742509e5",
+          "scripts/kani_guard.py": "663e1c0a1b8c1a0e2b76898f5e53b6888fc4636164d60b2a6fc4f5dee0dba425",
+          "scripts/process_supervisor.py": "c4b237be388639bbe10f0c2bc93563fb8c03271683c76f1393975b0f0a6ae913",
+          "src/api.rs": "5422b05c655ac49dc00c18185b2e3b2e81ae770aa37d7c0c71ece97722052811",
+          "src/batched.rs": "b39f3c57de27372581cc5fd3d05c4877f55c0c1e9f0dee03444b7257e7225770",
+          "src/common.rs": "eb09f057af80bd1bdc7bed346625d632b64e494bfbcece0f4ee1f061e87440b8",
+          "src/cpu.rs": "61f792d4aba99fae306e92a770719756f6951f7f037dd98052b9f9318ff5e79e",
+          "src/dc.rs": "d70bff905e81742698cdff5a83a177a60f5dbb817f802649f367ac60a288c309",
+          "src/encode/batched.rs": "644e10ac82255fd1b6749b4f902e4c8b67e5ced30cf3cd79f8b68d2bbf1d45c8",
+          "src/encode/dc.rs": "e145074a9f8ea1962786846a767eb1c2d3fd64b17fff7eba1e73d1cce41ed4c9",
+          "src/encode/matrix/fixed/portable.rs": "d95dc3be8147ed4426bbc47b602c11e6b6ebb4b61ee83e287281ac1f1452daa5",
+          "src/encode/matrix/fixed.rs": "f6013e6e7193fa93cb009fa81af31d03fd6dad736e24273e1fd1260bd0ffb7ca",
+          "src/encode/matrix/neon.rs": "b19a0e64e8658569744520eccc72cc07d8975e80891daf061a8fb92e301f2bac",
+          "src/encode/matrix/table.rs": "b8554844c5806365bd861e1335ce33bce7ee5d7e6198233a75fb40e847625b76",
+          "src/encode/matrix/x86.rs": "93ee716a456a8cb84d2bba2cbc43b69b5e4eaded8f45733fa16e62e965e5f9f1",
+          "src/encode/matrix.rs": "f32a4fe962ef4794ba87fb00b85be5336db18fbc23b73064ee3c04e14e21663d",
+          "src/encode/mod.rs": "777f873d348fd35e0298bb4fa41ce8d03f5e4893a4509160627a5eb697cd9d4a",
+          "src/encode/tests.rs": "5b6815af380a0a1349010ed8c7d933c9bf0836271c69caa6560a119966247f8f",
+          "src/internals.rs": "e19d7d76f9a56aa3a1915675bd31f4f9669f059e40e9e7b9327c2b4da1c5c6af",
+          "src/lib.rs": "cf3fc3a1522a6e9d3b129a9088069f98f95cd402118742e7c3872102b1f3ff97",
+          "src/malachite_tests.rs": "f24ad25d54e62f92a031dc1187f1632d240d79c562b3ac65433761c1f2b78b28",
+          "src/matrix/mod.rs": "de838db0b80ab4417fda339e085a895242ccb9a56a899400fd6ccf16f968cc9c",
+          "src/matrix/neon.rs": "5e7fc2c22b43ac1d5d457fba3a5275dc1d4203f242cb12864368fe91eb012dee",
+          "src/matrix/portable.rs": "045c7835985da7b0904e46caacef7499c0383a7293fa78fa750365d9c52bf33c",
+          "src/matrix/proofs.rs": "bf63be27fe6e6827abe463c20d0bfdbd391ca6f73fb0ae1af711d3ccf3e1cc41",
+          "src/matrix/table.rs": "f6f1a74c8dbc862cd7bc5e2a1547492066336f962ab2d56a1ba41afffcc01348",
+          "src/matrix/x86.rs": "3e01ea69f102a36386f41f4e61c449f703953cd1510b7cbaeae5f000c3797167",
+          "src/mul.rs": "71d2528437c34fb835052c57a0a7c680cb8b01caaae9b06a6ba6fd129cf5def9",
+          "src/mul_ifma/avx512.rs": "ae05520d7f35632a0fe93b6e542c584e73d6cbd4373503c723ddab146fafca0b",
+          "src/mul_ifma.rs": "bc77c311070fd2863587be07ec7f77d1dfa0c421ecc601ae1ccf7c5586e1dbf5",
+          "src/no_alloc.rs": "ab367e8e06ef18aad572de0981d0dce12f204d5479a8129b8f9b4cb44e6fb9b4",
+          "src/ntt/avx512.rs": "390b1b6120eff2dc67fd241ec36c210f679e944a7bb4721355bf8d36fe27ddd3",
+          "src/ntt/cache_policy_tests.rs": "ec167dc1b5c8e278c14ded43db543bfdd17e5b1dbb08be688f45456a19e9c053",
+          "src/ntt/crt.rs": "6df34c036ab06116d228a7bc21f259b0f0aadafe30750491adac618e733965d4",
+          "src/ntt/internals/cached.rs": "8b9cc9ab8aabfb5495efe568a93fc92b46f1a3e19471a8db75870dd5f87f8737",
+          "src/ntt/internals/diagnostics.rs": "330ec391fcac7d44ae643c0d4533d0bd78647ab186ab65196ca2d1f9b1345dc5",
+          "src/ntt/internals/owned.rs": "a75c62e8e22879a4821f89b44402061a409f33c3ae12685e4909df1d17a6c73d",
+          "src/ntt/internals.rs": "76a94c6760ab649c8b5f3c66de67b74d6e03c63b53f39296b3407517c8f9dd21",
+          "src/ntt/miri_tests.rs": "2a67b0972f01cd49914d1a7c258b64203d173931c6a7d3b148156502f9e55951",
+          "src/ntt/mod.rs": "8b516c7ec4e8ca7eb62b8f87636564a9a5dd06aea05c7b51df394ba40fde9994",
+          "src/ntt/neon.rs": "af6baf67ac1da7cc59a7b5184926c7c2f86c9203320fe048eed1200b2d8e43ba",
+          "src/ntt/portable/kernels.rs": "bbb1efd10e5be532349d6f5485869e9ccbf17750f92e842e58a995b1be511ad9",
+          "src/ntt/portable.rs": "ddb3400a28e5ea313292576804ff45551a00f5bdbbeb56d9a325b0f3db90cfdf",
+          "src/ntt/proofs.rs": "534357c6443df8963ea5da180ac47f929fcdcb8ee0644f80ab746c66e83e9089",
+          "src/ntt/tables/cache.rs": "9c462b134b814a34489b375eba0494c381b3c2f8dfd45e4b0095f27516abefbd",
+          "src/ntt/tables.rs": "e560acc0ea5f3fb99a0a1c4bf704a5000d670e0a8c1ccb10e34b19cf2f939ba6",
+          "src/ntt/x86.rs": "86a5ec593c628895f8e07ce4eb5e28e91c0a432a2f5e2c89a9a44c06e91b6750",
+          "src/tests.rs": "c321f1e6d3b5606c937802bcedf82e1bbc8f5ef863b493f3a11efdaf4c5a458a",
+          "src/toom3.rs": "c2d24949059c240ce0e02326e9da6d0c3a9302c047302d4a2623fbbd0fb07a57",
+          "src/toom3_miri_tests.rs": "fe5f160470f6e3466638723c83d83c8d50d1c49a784f98671fb3300c8fcadeec",
+          "src/verification.rs": "a7ab64735e9b829f5de5c50a460a586caff42d259459e9ae9295c4b3c2730856"
+        },
+        "compiled_input_manifest_sha256": "d476a46da7708d5c1f1810077ef7f557ed65a1ae62163c70a286a5057c5579e3"
+      },
+      "archive": {
+        "required": "/private/tmp/base58-kani-final-0v5wtiwu",
+        "improvements": "/private/tmp/base58-kani-improve.fJOUo0",
+        "raw_log_lookup": "verified_report.json results map each fully qualified harness to its raw log and exact invocation"
+      },
+      "recipes": {
+        "tiny": {
+          "environment": {
+            "CARGO_TARGET_DIR": "{target_dir}",
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "3",
+            "BASE58_KANI_Z3_TIMEOUT_SECONDS": "60"
+          },
+          "argv": [
+            "rtk",
+            "proxy",
+            "python3",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "{harness}",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "60s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "cadical"
+          ]
+        },
+        "general": {
+          "environment": {
+            "CARGO_TARGET_DIR": "{target_dir}",
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "3",
+            "BASE58_KANI_Z3_TIMEOUT_SECONDS": "180"
+          },
+          "argv": [
+            "rtk",
+            "proxy",
+            "python3",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "{harness}",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular"
+          ]
+        },
+        "math": {
+          "environment": {
+            "CARGO_TARGET_DIR": "{target_dir}",
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+            "BASE58_KANI_Z3_TIMEOUT_SECONDS": "180"
+          },
+          "argv": [
+            "rtk",
+            "proxy",
+            "python3",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "{harness}",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "z3",
+            "--cbmc-args",
+            "--external-smt2-solver",
+            "scripts/kani-z3-polynomial.sh"
+          ]
+        },
+        "parser": {
+          "environment": {
+            "CARGO_TARGET_DIR": "{target_dir}",
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+            "BASE58_KANI_Z3_TIMEOUT_SECONDS": "180"
+          },
+          "argv": [
+            "rtk",
+            "proxy",
+            "python3",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "{harness}",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "cadical"
+          ]
+        },
+        "status": {
+          "environment": {
+            "CARGO_TARGET_DIR": "{target_dir}",
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+            "BASE58_KANI_Z3_TIMEOUT_SECONDS": "180"
+          },
+          "argv": [
+            "rtk",
+            "proxy",
+            "python3",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "{harness}",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "cadical"
+          ]
+        }
+      },
+      "recipe_notes": [
+        "Run one command per harness entry, substituting {harness} and a caller-chosen {target_dir}.",
+        "general omits --solver: source attributes select Z3 for the pack, div3 and two single-update proofs; other general proofs use default CaDiCaL.",
+        "Memory, overflow, unwinding and reachability checks stay enabled; default unwind is 1 with source-local bounds.",
+        "Current guard owns command groups and solver children, checks a 2GiB floor, and imposes a finite Z3 hard timeout; timeout/unknown is not proof."
+      ],
+      "composition_dependencies": [
+        {
+          "claim": "Exact production full-ten-byte parser numeric result and invalid rejection for every [u8;10]",
+          "consumer": "verification::full_chunk_numeric_pipeline_composed",
+          "requires_verified": [
+            "verification::ten_digit_split_identity_lemma",
+            "verification::digit_range_lemma"
+          ],
+          "scope": "Production common::chunks is unchanged; mathematical lemmas do not replace the parser."
+        },
+        {
+          "claim": "Actual max_encoded_len adjacent monotonicity for every usize below MAX",
+          "consumer": "encode::verification::encoded_capacity_adjacent_monotonicity_at_products",
+          "requires_verified": [
+            "encode::verification::capacity_affine_step_lemma",
+            "encode::verification::capacity_shift_clamp_step_lemma",
+            "encode::verification::capacity_at_product_lemma"
+          ],
+          "related_required": [
+            "encode::verification::encoded_capacity_covers_input",
+            "encode::verification::encoded_capacity_endpoint_saturates"
+          ],
+          "scope": "Each contract is independently proved over its full stated domain; the production function is called by the verified wrapper."
+        }
+      ],
+      "new_scope": {
+        "owned_capacity": "Every usize64: n-n/4-n/64 is safe, <=n, 64*bound>=47*n, <=ceil(47*n/64)+1; zeros+bound is safe when zeros+n<=usize::MAX.",
+        "paired_status": "Same arbitrary full-width low/top/c1/c2 and three-limb storage as original pair harness (top!=0,c1,c2<BASE). Status/buffer-safety only; numeric equality remains open."
+      },
+      "still_open_runner_selectors": [
+        "encode_batched_split_is_exact",
+        "encode_batched_step_limb_is_exact",
+        "fixed_scalar_carry_preserves_value",
+        "fixed_split_carry_matches_serial",
+        "barrett_divide_one_base_power_is_exact",
+        "paired_update_matches_sequential",
+        "paired_limb_update_matches_sequential",
+        "two_digit_batched_decoding_matches_radix_and_capacity",
+        "one_byte_borrowed_api_preserves_exact_array_contracts"
+      ],
+      "latest_open_attempts": [
+        {
+          "claim": "paired numeric equality",
+          "outcome": "SAT timeout90s",
+          "archive_relative_log": "runs/paired-values-only-sat/raw.log",
+          "raw_log_sha256": "edde48a6cb6a15a4d4823e38e28c7c4e15339f8365ad2bdaa84ee5c6b43ec20e"
+        },
+        {
+          "claim": "paired numeric equality",
+          "outcome": "CBMC status6 map::at SMT-lowering error; no solver verdict",
+          "archive_relative_log": "runs/paired-values-only-z3/raw.log",
+          "raw_log_sha256": "42133d0a64abb9c760821802df870d0cc3ea494656859a7574c85f2c278da635"
+        },
+        {
+          "claim": "actual Divisor::new(BASE)+divide for every two-limb value<BASE^2",
+          "outcome": "timeout180s during symbolic execution before Z3",
+          "archive_relative_log": "runs/barrett-base-original-z3/raw.log",
+          "raw_log_sha256": "32e4769fa2baec41c3452fbbe03fd0efc1e3e42c612b15e73ed7ab1358a930fc"
+        }
+      ],
+      "excluded_setup_attempts": [
+        "Initial snapshot missing declared benches failed Cargo manifest parsing before compilation; preserved separately.",
+        "Two exact IFMA selectors used proofs instead of emulation and matched no harness. Corrected invocations used the identical frozen input; both original errors remain archived."
+      ],
+      "limits": [
+        "Native macOS/usize64 run; no hosted CI or Linux execution claim.",
+        "Scalar/Emu obligations do not establish emitted SIMD instructions, arbitrary-length backend conversions or concurrent-cache correctness.",
+        "Capacity arithmetic does not prove the logarithmic relationship between output length and input length.",
+        "Nine retained wider/two-digit/public-wrapper queries have not all been discharged. Old monolithic parser/capacity formulations remain in source and their failed receipts remain archived; those properties are now closed by verified composition."
+      ],
+      "harnesses": [
+        {
+          "harness": "verification::one_byte_batched_encoding_matches_radix_and_capacity",
+          "recipe": "tiny",
+          "checks": 896,
+          "unreachable": 73,
+          "raw_log_sha256": "7dfa72ceb7f9178d3986d322a7fa0ab7f9d0ec494092ede1480d0903282c0a86"
+        },
+        {
+          "harness": "verification::two_byte_short_decode_preserves_radix_errors_and_canaries",
+          "recipe": "tiny",
+          "checks": 491,
+          "unreachable": 12,
+          "raw_log_sha256": "d3e3c5e1aaa585ba9a508fca1758eb87f6c207ac9196e219d9b4451b174fde9c"
+        },
+        {
+          "harness": "verification::alphabet_character_roundtrips",
+          "recipe": "tiny",
+          "checks": 12,
+          "unreachable": 0,
+          "raw_log_sha256": "5fc19b5bcaf8895c3a69bdd6eab7b145c920289e53059f353f879d6acd956dbc"
+        },
+        {
+          "harness": "verification::valid_digit_table_entries_roundtrip_to_character",
+          "recipe": "tiny",
+          "checks": 13,
+          "unreachable": 0,
+          "raw_log_sha256": "e0241d799d7a9383790dd32962ab8a761e1ca16cfa64fad8862ee70219e2fd10"
+        },
+        {
+          "harness": "ntt::proofs::reduce_q1",
+          "recipe": "general",
+          "checks": 62,
+          "unreachable": 0,
+          "raw_log_sha256": "9cc58a1a4fb9f9c00f12f5947e07424b512ab3d88a4dff46e77251d16bbe3109"
+        },
+        {
+          "harness": "ntt::proofs::normalize_q1",
+          "recipe": "general",
+          "checks": 4,
+          "unreachable": 0,
+          "raw_log_sha256": "90346043ca63494591fbc0b2c6bdf1442139fbea4781897f3300df5099b89a73"
+        },
+        {
+          "harness": "ntt::proofs::load_q1",
+          "recipe": "general",
+          "checks": 7,
+          "unreachable": 0,
+          "raw_log_sha256": "6db34c72d0bf246f792a14fcd6a6f6c6a5ffbb8934fc03530a788132b9bf39f1"
+        },
+        {
+          "harness": "ntt::proofs::scale_q1",
+          "recipe": "general",
+          "checks": 25,
+          "unreachable": 0,
+          "raw_log_sha256": "2073dbf0684d1be063463cb784a0fe3fec6c74f3ec69533a08eb8f573ff0bdb5"
+        },
+        {
+          "harness": "ntt::proofs::reduce_q2",
+          "recipe": "general",
+          "checks": 62,
+          "unreachable": 0,
+          "raw_log_sha256": "6ac93f8b2d7e2781d649fc64cc49b7bcc37049d89ec8d5c0cfe42717ad44b821"
+        },
+        {
+          "harness": "ntt::proofs::normalize_q2",
+          "recipe": "general",
+          "checks": 4,
+          "unreachable": 0,
+          "raw_log_sha256": "b2e2644d5aad2235a8e12d4e0e4a1d475dfbe1b65631e1ac0c4972b52836707f"
+        },
+        {
+          "harness": "ntt::proofs::load_q2",
+          "recipe": "general",
+          "checks": 7,
+          "unreachable": 0,
+          "raw_log_sha256": "3b4d37065f8224356b393db573441fc6ce8312e7941970ce6a5ae7a50276da3f"
+        },
+        {
+          "harness": "ntt::proofs::scale_q2",
+          "recipe": "general",
+          "checks": 25,
+          "unreachable": 0,
+          "raw_log_sha256": "a4e498615fa873d0f7f7ac0a173580f14d37b1d3925fb70f6feaaabe6d771425"
+        },
+        {
+          "harness": "ntt::proofs::reduce_q3",
+          "recipe": "general",
+          "checks": 62,
+          "unreachable": 0,
+          "raw_log_sha256": "1ac4f5b70c8069d50a0c717b21ab7b27e92613bd7474db6726846d352285b0a2"
+        },
+        {
+          "harness": "ntt::proofs::normalize_q3",
+          "recipe": "general",
+          "checks": 4,
+          "unreachable": 0,
+          "raw_log_sha256": "56fb017b4024e86024ec52f5835ffc055fdffa824045e9124ea0b61fda3980cb"
+        },
+        {
+          "harness": "ntt::proofs::load_q3",
+          "recipe": "general",
+          "checks": 7,
+          "unreachable": 0,
+          "raw_log_sha256": "e4d217f83f08f744d2ae86a0f545d66a14e127f3aaebf766d97505557fe70c04"
+        },
+        {
+          "harness": "ntt::proofs::scale_q3",
+          "recipe": "general",
+          "checks": 25,
+          "unreachable": 0,
+          "raw_log_sha256": "686f683f2e7ffb99493c23306b2de860bee6bd3152a01f027ee269e4a5ccca87"
+        },
+        {
+          "harness": "ntt::proofs::polynomial_plan_bounds",
+          "recipe": "general",
+          "checks": 162,
+          "unreachable": 1,
+          "raw_log_sha256": "5ceb3bee8712e29870c8eff8ada02cd420a7e73eb6fd51440e45245829b38faf"
+        },
+        {
+          "harness": "matrix::proofs::carry32_preserves_value",
+          "recipe": "general",
+          "checks": 94,
+          "unreachable": 1,
+          "raw_log_sha256": "a6356f84723420e9d933d07ec3d58b310ceac54e7476a5c4fe041d84b5925d5f"
+        },
+        {
+          "harness": "matrix::proofs::carry64_preserves_value_and_length",
+          "recipe": "general",
+          "checks": 173,
+          "unreachable": 2,
+          "raw_log_sha256": "59fd1786e90bc16554b6f64cfeb9e34a770d3fffc38d4481d0b389aa3ed012d6"
+        },
+        {
+          "harness": "verification::validity_matches_digit_table",
+          "recipe": "general",
+          "checks": 106,
+          "unreachable": 1,
+          "raw_log_sha256": "b519aad98f64e90b6379e7d64de815f1a0d1d1b7cbbe7148c4e61a9affb82698"
+        },
+        {
+          "harness": "verification::leading_zero_split_is_exact",
+          "recipe": "general",
+          "checks": 151,
+          "unreachable": 1,
+          "raw_log_sha256": "9847da04ec0627e7851c5476fce17172dd0573ba2d50cd8674f9ac8c4f9f6eae"
+        },
+        {
+          "harness": "verification::partial_chunk_matches_horner_and_rejects_invalid",
+          "recipe": "general",
+          "checks": 550,
+          "unreachable": 20,
+          "raw_log_sha256": "db73be279d1442bd815409ec03380b5e042eff471a6d90ef1210ec94501ba5d5"
+        },
+        {
+          "harness": "verification::two_limb_add_matches_u128_with_carry",
+          "recipe": "general",
+          "checks": 234,
+          "unreachable": 5,
+          "raw_log_sha256": "f22b6728a3aa8ec05e271e36988151ccddfa2776b084a6b4bb72ca142c28a51d"
+        },
+        {
+          "harness": "verification::two_limb_sub_matches_u128_with_borrow",
+          "recipe": "general",
+          "checks": 234,
+          "unreachable": 5,
+          "raw_log_sha256": "62fe9b8e9230360d53b56c2eae747f64bb6477a679e6445653d8fa209b699d1b"
+        },
+        {
+          "harness": "verification::wrapped_fold_preserves_residue",
+          "recipe": "general",
+          "checks": 273,
+          "unreachable": 5,
+          "raw_log_sha256": "912a445f95a40a8f304f1265a2e9ba12797f610ffcbaf5b7edfbaeafebff0175"
+        },
+        {
+          "harness": "verification::one_limb_production_multiply_matches_u128",
+          "recipe": "general",
+          "checks": 618,
+          "unreachable": 40,
+          "raw_log_sha256": "d2eaba4e57c621c318d0aa8cca968847f178768583a8d4d7d80444e956fb2f65"
+        },
+        {
+          "harness": "verification::full_chunk_invalid_rejection",
+          "recipe": "general",
+          "checks": 533,
+          "unreachable": 12,
+          "raw_log_sha256": "a0d12e5df4e6aeeb848a9ccec14773f00e84e1c4de354352f2d3fdc2efa2117c"
+        },
+        {
+          "harness": "verification::digit_table_has_only_valid_values_or_sentinel",
+          "recipe": "general",
+          "checks": 3,
+          "unreachable": 0,
+          "raw_log_sha256": "bc00259a73f7b76c2771fa740a8c50c2838459bfd4b75d22606ffd99c031bcf2"
+        },
+        {
+          "harness": "mul_ifma::emulation::carry_preserves_radix52_columns",
+          "recipe": "general",
+          "checks": 231,
+          "unreachable": 1,
+          "raw_log_sha256": "2feda8685ddd734ed9f36f98f769c21fb6df16f4043e19219f4ac31f4ce6d6c8"
+        },
+        {
+          "harness": "encode::batched::verification::encode_batched_reduce_is_exact",
+          "recipe": "general",
+          "checks": 4,
+          "unreachable": 0,
+          "raw_log_sha256": "2bfc2fb501245b7a4235d9149850a3748cc500b951b5587291e210fdac106865"
+        },
+        {
+          "harness": "mul_ifma::emulation::radix52_unpack_pack_roundtrip",
+          "recipe": "general",
+          "checks": 1050,
+          "unreachable": 7,
+          "raw_log_sha256": "1d81941aef2e755845097f28b1b47155802eb1b0f3dcf13c1c036bf7be30d4c3"
+        },
+        {
+          "harness": "toom3::proofs::div3_recovers_quotient_with_carry",
+          "recipe": "general",
+          "checks": 80,
+          "unreachable": 1,
+          "raw_log_sha256": "fa18792b4c5e1b0e3c68964d7bbbcbd40fbc522efa2a16bdf3632528de8c4d9b"
+        },
+        {
+          "harness": "batched::proofs::single_update_matches_wide_reference",
+          "recipe": "general",
+          "checks": 164,
+          "unreachable": 1,
+          "raw_log_sha256": "c1e0cd3088fbf0fd8ca948629197998a9a6d0b53d1208ff6deee7b34b5a51bd6"
+        },
+        {
+          "harness": "dc::proofs::single_limb_update_matches_wide_reference",
+          "recipe": "general",
+          "checks": 99,
+          "unreachable": 1,
+          "raw_log_sha256": "aeb0edb8c2c6dec8dbb994629a2e5d5607d1885726ffa1c0078ae529dedce043"
+        },
+        {
+          "harness": "encode::verification::encoded_capacity_never_panics",
+          "recipe": "general",
+          "checks": 2,
+          "unreachable": 0,
+          "raw_log_sha256": "2331a0e38461b873db8255d219153337e7ad32bd173b45d167b77649ef9f766f"
+        },
+        {
+          "harness": "encode::verification::encoded_capacity_covers_input",
+          "recipe": "math",
+          "checks": 5,
+          "unreachable": 0,
+          "raw_log_sha256": "1e0f603ab86e16004c41c2a374c8cf5b0f3a29773e5a6d066a1a9d30ba274d33"
+        },
+        {
+          "harness": "encode::verification::encoded_capacity_endpoint_saturates",
+          "recipe": "math",
+          "checks": 5,
+          "unreachable": 0,
+          "raw_log_sha256": "2cb575b67b84e0f5b5cc9fe4fe3efe6b06eaf47e00dfeba7e617a3d5dde2e279"
+        },
+        {
+          "harness": "encode::verification::capacity_formula_lemma",
+          "recipe": "math",
+          "checks": 92,
+          "unreachable": 0,
+          "raw_log_sha256": "ef39dcead6cb85b1ffab46c4d213d68e5a172ad0491f110f51f6e80203503994"
+        },
+        {
+          "harness": "encode::verification::capacity_affine_step_lemma",
+          "recipe": "math",
+          "checks": 129,
+          "unreachable": 0,
+          "raw_log_sha256": "a467d18987adc66c0a6810f18601e9b10cf0fd0b0d652935f3d651ed6e483b72"
+        },
+        {
+          "harness": "encode::verification::capacity_shift_clamp_step_lemma",
+          "recipe": "math",
+          "checks": 96,
+          "unreachable": 0,
+          "raw_log_sha256": "7b58ef1ed25168d490ec80e894e2d096d6f356641a9cbdc2664c238987ade6e3"
+        },
+        {
+          "harness": "encode::verification::capacity_at_product_lemma",
+          "recipe": "math",
+          "checks": 92,
+          "unreachable": 0,
+          "raw_log_sha256": "5cc60589ce874cc99aafb2d0164626613e527186f2db5fda7ebdd82017a3400b"
+        },
+        {
+          "harness": "encode::verification::encoded_capacity_adjacent_monotonicity_at_products",
+          "recipe": "math",
+          "checks": 169,
+          "unreachable": 4,
+          "raw_log_sha256": "64e0cedfa87c2ff4562dc86f4b4ba7f1703be126b99879858b4d6fd601189f0c"
+        },
+        {
+          "harness": "verification::ten_digit_split_identity_lemma",
+          "recipe": "math",
+          "checks": 169,
+          "unreachable": 6,
+          "raw_log_sha256": "2856fb7807a392170413f86cd748bf93ebcd3c3e571ee0e1815f3d145b10637e"
+        },
+        {
+          "harness": "verification::digit_range_lemma",
+          "recipe": "math",
+          "checks": 94,
+          "unreachable": 0,
+          "raw_log_sha256": "4e9321ff360211633c576daae475b33730b2403e24d554d68ac9ebc4811741a4"
+        },
+        {
+          "harness": "api::capacity_proofs::decoded_capacity_bounds_every_usize",
+          "recipe": "math",
+          "checks": 10,
+          "unreachable": 0,
+          "raw_log_sha256": "08b09759069aa4b17dbc2a446ddaa75e2a4ba52e61d1db483962fd38ab4d413f"
+        },
+        {
+          "harness": "api::capacity_proofs::decoded_capacity_is_within_one_byte_of_ceil47",
+          "recipe": "math",
+          "checks": 16,
+          "unreachable": 0,
+          "raw_log_sha256": "c78abd60953ae943e427ecc9e4d19b72a5852c8ca69639db173f9f2e3115de04"
+        },
+        {
+          "harness": "api::capacity_proofs::decoded_capacity_prefix_sum_never_overflows",
+          "recipe": "math",
+          "checks": 10,
+          "unreachable": 0,
+          "raw_log_sha256": "f5ba5db2f2735efb2aaf04f6fce651260dfecbd8076a98090e6cd677360ab253"
+        },
+        {
+          "harness": "verification::full_chunk_numeric_pipeline_composed",
+          "recipe": "parser",
+          "checks": 808,
+          "unreachable": 12,
+          "raw_log_sha256": "32635224771b6062d61e188c756d7e3d2182c15a7de128bab3715c0ff439c584"
+        },
+        {
+          "harness": "batched::proofs::paired_update_all_return_success",
+          "recipe": "status",
+          "checks": 261,
+          "unreachable": 4,
+          "raw_log_sha256": "d55e1884d91b351f4015e1897ffa59315ace98fc4afb93088cf5e8c76e474dfd"
+        }
+      ]
+    },
+    "original_49_linux": {
+      "status": "pass",
+      "execution": "local Linux x86_64 under Rosetta on M5",
+      "distinct_harnesses": 49,
+      "checks_including_unreachable": 17392,
+      "unreachable_checks": 5136,
+      "failed_checks": 0,
+      "compiled_input_files": {
+        "Cargo.lock": "76b923e5642b9899ed35b88016d80ee55b0f77e8304a30d9c52daf0854bd5638",
+        "Cargo.toml": "7ac2741c9e17e49df1cc08dca5ba19565115b9945ef05ab84638a81ccd1832bb",
+        "scripts/kani-z3-intblast.sh": "4cc56bec041921cb2f36e550152b130d38e3fe56333ad188824297c41ff9f0d2",
+        "scripts/kani-z3-polynomial.sh": "b0f9c5f53ecc796c4085aa52925860175fb628553c35fbde6b77aacb742509e5",
+        "scripts/kani_guard.py": "663e1c0a1b8c1a0e2b76898f5e53b6888fc4636164d60b2a6fc4f5dee0dba425",
+        "scripts/process_supervisor.py": "c4b237be388639bbe10f0c2bc93563fb8c03271683c76f1393975b0f0a6ae913",
+        "src/api.rs": "5422b05c655ac49dc00c18185b2e3b2e81ae770aa37d7c0c71ece97722052811",
+        "src/batched.rs": "b39f3c57de27372581cc5fd3d05c4877f55c0c1e9f0dee03444b7257e7225770",
+        "src/common.rs": "eb09f057af80bd1bdc7bed346625d632b64e494bfbcece0f4ee1f061e87440b8",
+        "src/cpu.rs": "61f792d4aba99fae306e92a770719756f6951f7f037dd98052b9f9318ff5e79e",
+        "src/dc.rs": "d70bff905e81742698cdff5a83a177a60f5dbb817f802649f367ac60a288c309",
+        "src/encode/batched.rs": "644e10ac82255fd1b6749b4f902e4c8b67e5ced30cf3cd79f8b68d2bbf1d45c8",
+        "src/encode/dc.rs": "e145074a9f8ea1962786846a767eb1c2d3fd64b17fff7eba1e73d1cce41ed4c9",
+        "src/encode/matrix/fixed/portable.rs": "d95dc3be8147ed4426bbc47b602c11e6b6ebb4b61ee83e287281ac1f1452daa5",
+        "src/encode/matrix/fixed.rs": "f6013e6e7193fa93cb009fa81af31d03fd6dad736e24273e1fd1260bd0ffb7ca",
+        "src/encode/matrix/neon.rs": "b19a0e64e8658569744520eccc72cc07d8975e80891daf061a8fb92e301f2bac",
+        "src/encode/matrix/table.rs": "b8554844c5806365bd861e1335ce33bce7ee5d7e6198233a75fb40e847625b76",
+        "src/encode/matrix/x86.rs": "93ee716a456a8cb84d2bba2cbc43b69b5e4eaded8f45733fa16e62e965e5f9f1",
+        "src/encode/matrix.rs": "f32a4fe962ef4794ba87fb00b85be5336db18fbc23b73064ee3c04e14e21663d",
+        "src/encode/mod.rs": "777f873d348fd35e0298bb4fa41ce8d03f5e4893a4509160627a5eb697cd9d4a",
+        "src/encode/tests.rs": "5b6815af380a0a1349010ed8c7d933c9bf0836271c69caa6560a119966247f8f",
+        "src/internals.rs": "e19d7d76f9a56aa3a1915675bd31f4f9669f059e40e9e7b9327c2b4da1c5c6af",
+        "src/lib.rs": "cf3fc3a1522a6e9d3b129a9088069f98f95cd402118742e7c3872102b1f3ff97",
+        "src/malachite_tests.rs": "f24ad25d54e62f92a031dc1187f1632d240d79c562b3ac65433761c1f2b78b28",
+        "src/matrix/mod.rs": "de838db0b80ab4417fda339e085a895242ccb9a56a899400fd6ccf16f968cc9c",
+        "src/matrix/neon.rs": "5e7fc2c22b43ac1d5d457fba3a5275dc1d4203f242cb12864368fe91eb012dee",
+        "src/matrix/portable.rs": "045c7835985da7b0904e46caacef7499c0383a7293fa78fa750365d9c52bf33c",
+        "src/matrix/proofs.rs": "bf63be27fe6e6827abe463c20d0bfdbd391ca6f73fb0ae1af711d3ccf3e1cc41",
+        "src/matrix/table.rs": "f6f1a74c8dbc862cd7bc5e2a1547492066336f962ab2d56a1ba41afffcc01348",
+        "src/matrix/x86.rs": "3e01ea69f102a36386f41f4e61c449f703953cd1510b7cbaeae5f000c3797167",
+        "src/mul.rs": "71d2528437c34fb835052c57a0a7c680cb8b01caaae9b06a6ba6fd129cf5def9",
+        "src/mul_ifma/avx512.rs": "ae05520d7f35632a0fe93b6e542c584e73d6cbd4373503c723ddab146fafca0b",
+        "src/mul_ifma.rs": "bc77c311070fd2863587be07ec7f77d1dfa0c421ecc601ae1ccf7c5586e1dbf5",
+        "src/no_alloc.rs": "ab367e8e06ef18aad572de0981d0dce12f204d5479a8129b8f9b4cb44e6fb9b4",
+        "src/ntt/avx512.rs": "390b1b6120eff2dc67fd241ec36c210f679e944a7bb4721355bf8d36fe27ddd3",
+        "src/ntt/cache_policy_tests.rs": "ec167dc1b5c8e278c14ded43db543bfdd17e5b1dbb08be688f45456a19e9c053",
+        "src/ntt/crt.rs": "6df34c036ab06116d228a7bc21f259b0f0aadafe30750491adac618e733965d4",
+        "src/ntt/internals/cached.rs": "8b9cc9ab8aabfb5495efe568a93fc92b46f1a3e19471a8db75870dd5f87f8737",
+        "src/ntt/internals/diagnostics.rs": "330ec391fcac7d44ae643c0d4533d0bd78647ab186ab65196ca2d1f9b1345dc5",
+        "src/ntt/internals/owned.rs": "a75c62e8e22879a4821f89b44402061a409f33c3ae12685e4909df1d17a6c73d",
+        "src/ntt/internals.rs": "76a94c6760ab649c8b5f3c66de67b74d6e03c63b53f39296b3407517c8f9dd21",
+        "src/ntt/miri_tests.rs": "2a67b0972f01cd49914d1a7c258b64203d173931c6a7d3b148156502f9e55951",
+        "src/ntt/mod.rs": "8b516c7ec4e8ca7eb62b8f87636564a9a5dd06aea05c7b51df394ba40fde9994",
+        "src/ntt/neon.rs": "af6baf67ac1da7cc59a7b5184926c7c2f86c9203320fe048eed1200b2d8e43ba",
+        "src/ntt/portable/kernels.rs": "bbb1efd10e5be532349d6f5485869e9ccbf17750f92e842e58a995b1be511ad9",
+        "src/ntt/portable.rs": "ddb3400a28e5ea313292576804ff45551a00f5bdbbeb56d9a325b0f3db90cfdf",
+        "src/ntt/proofs.rs": "534357c6443df8963ea5da180ac47f929fcdcb8ee0644f80ab746c66e83e9089",
+        "src/ntt/tables/cache.rs": "9c462b134b814a34489b375eba0494c381b3c2f8dfd45e4b0095f27516abefbd",
+        "src/ntt/tables.rs": "e560acc0ea5f3fb99a0a1c4bf704a5000d670e0a8c1ccb10e34b19cf2f939ba6",
+        "src/ntt/x86.rs": "86a5ec593c628895f8e07ce4eb5e28e91c0a432a2f5e2c89a9a44c06e91b6750",
+        "src/tests.rs": "c321f1e6d3b5606c937802bcedf82e1bbc8f5ef863b493f3a11efdaf4c5a458a",
+        "src/toom3.rs": "c2d24949059c240ce0e02326e9da6d0c3a9302c047302d4a2623fbbd0fb07a57",
+        "src/toom3_miri_tests.rs": "fe5f160470f6e3466638723c83d83c8d50d1c49a784f98671fb3300c8fcadeec",
+        "src/verification.rs": "a7ab64735e9b829f5de5c50a460a586caff42d259459e9ae9295c4b3c2730856"
+      },
+      "compiled_input_manifest_sha256": "d476a46da7708d5c1f1810077ef7f557ed65a1ae62163c70a286a5057c5579e3",
+      "tooling_sha256": "64966d296198a216be78cff949925aca219c173adc9875569a2930fcd11f023d",
+      "command_groups": [
+        {
+          "name": "proofs-0-5",
+          "harnesses": [
+            "verification::two_byte_short_decode_preserves_radix_errors_and_canaries",
+            "verification::valid_digit_table_entries_roundtrip_to_character",
+            "verification::one_byte_batched_encoding_matches_radix_and_capacity",
+            "verification::alphabet_character_roundtrips"
+          ],
+          "checks_including_unreachable": 1412,
+          "unreachable_checks": 85,
+          "seconds": 16.270854508009506,
+          "log_sha256": "d20df7fc2c3cffba50132e6db0f3546da458e9d8109c361531d90343a72e37b2",
+          "command_receipt_sha256": "0950f9e128dc1e12fe6fee027fd0329eee1228939e0ddd6e1bb90d7221f725d5"
+        },
+        {
+          "name": "proofs-0-6",
+          "harnesses": [
+            "ntt::proofs::normalize_q2",
+            "batched::proofs::single_update_matches_wide_reference",
+            "ntt::proofs::normalize_q1",
+            "ntt::proofs::normalize_q3",
+            "ntt::proofs::reduce_q2",
+            "dc::proofs::single_limb_update_matches_wide_reference",
+            "ntt::proofs::reduce_q1",
+            "ntt::proofs::reduce_q3",
+            "encode::batched::verification::encode_batched_reduce_is_exact",
+            "toom3::proofs::div3_recovers_quotient_with_carry",
+            "encode::verification::encoded_capacity_never_panics",
+            "matrix::proofs::carry64_preserves_value_and_length",
+            "matrix::proofs::carry32_preserves_value",
+            "mul_ifma::emulation::radix52_unpack_pack_roundtrip",
+            "verification::one_limb_production_multiply_matches_u128",
+            "mul_ifma::emulation::carry_preserves_radix52_columns",
+            "verification::wrapped_fold_preserves_residue",
+            "ntt::proofs::polynomial_plan_bounds",
+            "verification::two_limb_sub_matches_u128_with_borrow",
+            "verification::two_limb_add_matches_u128_with_carry",
+            "ntt::proofs::scale_q2",
+            "ntt::proofs::scale_q1",
+            "verification::partial_chunk_matches_horner_and_rejects_invalid",
+            "ntt::proofs::scale_q3",
+            "ntt::proofs::load_q1",
+            "ntt::proofs::load_q3",
+            "ntt::proofs::load_q2",
+            "verification::full_chunk_invalid_rejection",
+            "verification::leading_zero_split_is_exact",
+            "verification::validity_matches_digit_table",
+            "verification::digit_table_has_only_valid_values_or_sentinel"
+          ],
+          "checks_including_unreachable": 14024,
+          "unreachable_checks": 5025,
+          "seconds": 118.82443547001458,
+          "log_sha256": "dc4d9c307f4f3e2005842b7a2fbd731f73dcdeeb13ee90fe88d541379fe74ab5",
+          "command_receipt_sha256": "c360f10f119c3b492a215e6f88ac0bc010a18d103ce102aab481e782e7e08090"
+        },
+        {
+          "name": "proofs-0-7",
+          "harnesses": [
+            "api::capacity_proofs::decoded_capacity_prefix_sum_never_overflows",
+            "encode::verification::capacity_formula_lemma",
+            "api::capacity_proofs::decoded_capacity_is_within_one_byte_of_ceil47",
+            "encode::verification::capacity_affine_step_lemma",
+            "encode::verification::encoded_capacity_endpoint_saturates",
+            "encode::verification::encoded_capacity_covers_input",
+            "verification::digit_range_lemma",
+            "api::capacity_proofs::decoded_capacity_bounds_every_usize",
+            "verification::ten_digit_split_identity_lemma",
+            "encode::verification::encoded_capacity_adjacent_monotonicity_at_products",
+            "encode::verification::capacity_at_product_lemma",
+            "encode::verification::capacity_shift_clamp_step_lemma"
+          ],
+          "checks_including_unreachable": 887,
+          "unreachable_checks": 10,
+          "seconds": 27.489417471020715,
+          "log_sha256": "5dee2ca9ff63832df8aed09e0db3b33ee0a7ef6f517a48c93b66003353d86062",
+          "command_receipt_sha256": "25412ab43157f77dac7d4fcf65e27859572c52132a607dc5da2bcdf10c2005d4"
+        },
+        {
+          "name": "proofs-0-8",
+          "harnesses": [
+            "batched::proofs::paired_update_all_return_success",
+            "verification::full_chunk_numeric_pipeline_composed"
+          ],
+          "checks_including_unreachable": 1069,
+          "unreachable_checks": 16,
+          "seconds": 46.93933993799146,
+          "log_sha256": "b68d95715e719408cfcca9a1b04a2d84b7d11ff0db0e297b18a1bbae8425f472",
+          "command_receipt_sha256": "b0b2678ff34d4db235ace10a895ec4b36b81ebf505a60ba46a7bacb2fd795c68"
+        }
+      ],
+      "setup_failure_retained": "linux-proofs/proofs-0-5.log",
+      "adaptation": "generic-runner empty RUSTFLAGS removed in retry01; all proof selectors/solvers/profiles/safety checks unchanged",
+      "scope": "required49 proof bodies only; paired numeric equivalence and retained open queries are not proved"
+    },
+    "additional_two_digit": {
+      "schema_version": 1,
+      "status": "pass_both_targets",
+      "date": "2026-10-27T17:43:34.877332+00:00",
+      "harness": "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+      "domain": "All 58^2 valid two-digit Base58 strings, capacities 0..3, original canaries and error/value contract; usize64",
+      "source_bridge": {
+        "base_manifest_sha256": "53bc18b60e72ae2b392d9259c18fbc93531676c5b0166a773fe24377b279aae3",
+        "base_resource_source_sha256": "0915a8395c3f9f92a8a98bf9fed06011285ebe501cc4436e77494180c6e8e360",
+        "base_compiled54_manifest_sha256": "926c05ad6b406a6fb0b139b1d8dc28501c3b04f269701d5b90526bf8dd8c1f13",
+        "candidate_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580",
+        "candidate_resource_source_sha256": "07ec12777e6065bd644baa75af4fd2cd0fe38fc39674957dc1eb220dc220f3b1",
+        "candidate_compiled54_manifest_sha256": "0ea0837b6582b2229e10320a9ba07f38a89318736eee7fbd272af1e71f11f4be",
+        "changed_compiled_inputs": [
+          "src/verification.rs"
+        ],
+        "unchanged_compiled_inputs": 53,
+        "before_sha256": "a7ab64735e9b829f5de5c50a460a586caff42d259459e9ae9295c4b3c2730856",
+        "after_sha256": "2fc1f0e7d6f918ee0ede42477e98dba6fe65855c163dfc8087f25646a575aecd",
+        "attribute_only_patch": "--- a/src/verification.rs\n+++ b/src/verification.rs\n@@ -235,7 +235,7 @@\n }\n \n #[kani::proof]\n-#[kani::unwind(12)]\n+#[kani::unwind(6)]\n fn two_digit_batched_decoding_matches_radix_and_capacity() {\n     let digits: [u8; 2] = kani::any();\n     kani::assume(digits[0] < 58 && digits[1] < 58);\n",
+        "attribute_only_patch_sha256": "c624fe5b2229c3e4b0012bcac4aed60fedb183efb7e88532f8588c80ae01161b",
+        "body_and_domains_unchanged": true,
+        "normal_runtime_exclusion": true
+      },
+      "compiled_input_files": {
+        "Cargo.lock": "76b923e5642b9899ed35b88016d80ee55b0f77e8304a30d9c52daf0854bd5638",
+        "Cargo.toml": "7ac2741c9e17e49df1cc08dca5ba19565115b9945ef05ab84638a81ccd1832bb",
+        "scripts/kani-z3-intblast.sh": "4cc56bec041921cb2f36e550152b130d38e3fe56333ad188824297c41ff9f0d2",
+        "scripts/kani-z3-polynomial.sh": "b0f9c5f53ecc796c4085aa52925860175fb628553c35fbde6b77aacb742509e5",
+        "scripts/kani_guard.py": "663e1c0a1b8c1a0e2b76898f5e53b6888fc4636164d60b2a6fc4f5dee0dba425",
+        "scripts/process_supervisor.py": "c4b237be388639bbe10f0c2bc93563fb8c03271683c76f1393975b0f0a6ae913",
+        "src/api.rs": "eaa2ecb66f3d57c11ddbfca603bad908c13797da900881671bfe421c9cd2ee28",
+        "src/batched.rs": "b39f3c57de27372581cc5fd3d05c4877f55c0c1e9f0dee03444b7257e7225770",
+        "src/common.rs": "eb09f057af80bd1bdc7bed346625d632b64e494bfbcece0f4ee1f061e87440b8",
+        "src/cpu.rs": "61f792d4aba99fae306e92a770719756f6951f7f037dd98052b9f9318ff5e79e",
+        "src/dc.rs": "d70bff905e81742698cdff5a83a177a60f5dbb817f802649f367ac60a288c309",
+        "src/encode/batched.rs": "644e10ac82255fd1b6749b4f902e4c8b67e5ced30cf3cd79f8b68d2bbf1d45c8",
+        "src/encode/dc.rs": "e145074a9f8ea1962786846a767eb1c2d3fd64b17fff7eba1e73d1cce41ed4c9",
+        "src/encode/matrix/fixed/portable.rs": "d95dc3be8147ed4426bbc47b602c11e6b6ebb4b61ee83e287281ac1f1452daa5",
+        "src/encode/matrix/fixed.rs": "f6013e6e7193fa93cb009fa81af31d03fd6dad736e24273e1fd1260bd0ffb7ca",
+        "src/encode/matrix/neon.rs": "b19a0e64e8658569744520eccc72cc07d8975e80891daf061a8fb92e301f2bac",
+        "src/encode/matrix/table.rs": "b8554844c5806365bd861e1335ce33bce7ee5d7e6198233a75fb40e847625b76",
+        "src/encode/matrix/x86.rs": "93ee716a456a8cb84d2bba2cbc43b69b5e4eaded8f45733fa16e62e965e5f9f1",
+        "src/encode/matrix.rs": "f32a4fe962ef4794ba87fb00b85be5336db18fbc23b73064ee3c04e14e21663d",
+        "src/encode/mod.rs": "777f873d348fd35e0298bb4fa41ce8d03f5e4893a4509160627a5eb697cd9d4a",
+        "src/encode/tests.rs": "5b6815af380a0a1349010ed8c7d933c9bf0836271c69caa6560a119966247f8f",
+        "src/internals.rs": "e19d7d76f9a56aa3a1915675bd31f4f9669f059e40e9e7b9327c2b4da1c5c6af",
+        "src/lib.rs": "cf3fc3a1522a6e9d3b129a9088069f98f95cd402118742e7c3872102b1f3ff97",
+        "src/malachite_tests.rs": "f24ad25d54e62f92a031dc1187f1632d240d79c562b3ac65433761c1f2b78b28",
+        "src/matrix/mod.rs": "de838db0b80ab4417fda339e085a895242ccb9a56a899400fd6ccf16f968cc9c",
+        "src/matrix/neon.rs": "5e7fc2c22b43ac1d5d457fba3a5275dc1d4203f242cb12864368fe91eb012dee",
+        "src/matrix/portable.rs": "045c7835985da7b0904e46caacef7499c0383a7293fa78fa750365d9c52bf33c",
+        "src/matrix/proofs.rs": "bf63be27fe6e6827abe463c20d0bfdbd391ca6f73fb0ae1af711d3ccf3e1cc41",
+        "src/matrix/table.rs": "f6f1a74c8dbc862cd7bc5e2a1547492066336f962ab2d56a1ba41afffcc01348",
+        "src/matrix/x86.rs": "3e01ea69f102a36386f41f4e61c449f703953cd1510b7cbaeae5f000c3797167",
+        "src/mul.rs": "71d2528437c34fb835052c57a0a7c680cb8b01caaae9b06a6ba6fd129cf5def9",
+        "src/mul_ifma/avx512.rs": "ae05520d7f35632a0fe93b6e542c584e73d6cbd4373503c723ddab146fafca0b",
+        "src/mul_ifma.rs": "bc77c311070fd2863587be07ec7f77d1dfa0c421ecc601ae1ccf7c5586e1dbf5",
+        "src/no_alloc.rs": "ab367e8e06ef18aad572de0981d0dce12f204d5479a8129b8f9b4cb44e6fb9b4",
+        "src/ntt/avx512.rs": "390b1b6120eff2dc67fd241ec36c210f679e944a7bb4721355bf8d36fe27ddd3",
+        "src/ntt/cache_policy_tests.rs": "ec167dc1b5c8e278c14ded43db543bfdd17e5b1dbb08be688f45456a19e9c053",
+        "src/ntt/crt.rs": "6df34c036ab06116d228a7bc21f259b0f0aadafe30750491adac618e733965d4",
+        "src/ntt/internals/cached.rs": "8b9cc9ab8aabfb5495efe568a93fc92b46f1a3e19471a8db75870dd5f87f8737",
+        "src/ntt/internals/diagnostics.rs": "330ec391fcac7d44ae643c0d4533d0bd78647ab186ab65196ca2d1f9b1345dc5",
+        "src/ntt/internals/owned.rs": "a75c62e8e22879a4821f89b44402061a409f33c3ae12685e4909df1d17a6c73d",
+        "src/ntt/internals.rs": "76a94c6760ab649c8b5f3c66de67b74d6e03c63b53f39296b3407517c8f9dd21",
+        "src/ntt/miri_tests.rs": "2a67b0972f01cd49914d1a7c258b64203d173931c6a7d3b148156502f9e55951",
+        "src/ntt/mod.rs": "8b516c7ec4e8ca7eb62b8f87636564a9a5dd06aea05c7b51df394ba40fde9994",
+        "src/ntt/neon.rs": "af6baf67ac1da7cc59a7b5184926c7c2f86c9203320fe048eed1200b2d8e43ba",
+        "src/ntt/portable/kernels.rs": "bbb1efd10e5be532349d6f5485869e9ccbf17750f92e842e58a995b1be511ad9",
+        "src/ntt/portable.rs": "ddb3400a28e5ea313292576804ff45551a00f5bdbbeb56d9a325b0f3db90cfdf",
+        "src/ntt/proofs.rs": "534357c6443df8963ea5da180ac47f929fcdcb8ee0644f80ab746c66e83e9089",
+        "src/ntt/tables/cache.rs": "9c462b134b814a34489b375eba0494c381b3c2f8dfd45e4b0095f27516abefbd",
+        "src/ntt/tables.rs": "e560acc0ea5f3fb99a0a1c4bf704a5000d670e0a8c1ccb10e34b19cf2f939ba6",
+        "src/ntt/x86.rs": "86a5ec593c628895f8e07ce4eb5e28e91c0a432a2f5e2c89a9a44c06e91b6750",
+        "src/tests.rs": "c321f1e6d3b5606c937802bcedf82e1bbc8f5ef863b493f3a11efdaf4c5a458a",
+        "src/toom3.rs": "c2d24949059c240ce0e02326e9da6d0c3a9302c047302d4a2623fbbd0fb07a57",
+        "src/toom3_miri_tests.rs": "fe5f160470f6e3466638723c83d83c8d50d1c49a784f98671fb3300c8fcadeec",
+        "src/verification.rs": "2fc1f0e7d6f918ee0ede42477e98dba6fe65855c163dfc8087f25646a575aecd"
+      },
+      "qualification": {
+        "base_manifest_sha256": "53bc18b60e72ae2b392d9259c18fbc93531676c5b0166a773fe24377b279aae3",
+        "base_resource_source_sha256": "0915a8395c3f9f92a8a98bf9fed06011285ebe501cc4436e77494180c6e8e360",
+        "candidate_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580",
+        "candidate_resource_source_sha256": "07ec12777e6065bd644baa75af4fd2cd0fe38fc39674957dc1eb220dc220f3b1",
+        "changed_inputs": [
+          "src/verification.rs"
+        ],
+        "before_sha256": "a7ab64735e9b829f5de5c50a460a586caff42d259459e9ae9295c4b3c2730856",
+        "after_sha256": "2fc1f0e7d6f918ee0ede42477e98dba6fe65855c163dfc8087f25646a575aecd",
+        "patch_sha256": "c624fe5b2229c3e4b0012bcac4aed60fedb183efb7e88532f8588c80ae01161b",
+        "runner_sha256": "b79332a2af00cb78fb657e3e540b7ed5cdea274d7816cd62414b604d081ce08d",
+        "domain_and_body_unchanged": true,
+        "safety": "All unwinding assertions, memory and overflow checks remain enabled; no CBMC unwind override, extra assumption, or stub",
+        "intended_configuration": "dev opt3, Z3 polynomial wrapper,180s hard harness budget",
+        "reasoning": "Canary tails<=4,text<=2,output<=3 gives no full8-byte limbs; only passing unwind assertions can justify6"
+      },
+      "passed": {
+        "host": {
+          "status": "pass",
+          "platform": "host",
+          "source_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580",
+          "resource_source_sha256": "07ec12777e6065bd644baa75af4fd2cd0fe38fc39674957dc1eb220dc220f3b1",
+          "compiled_input_manifest_sha256": "0ea0837b6582b2229e10320a9ba07f38a89318736eee7fbd272af1e71f11f4be",
+          "previous_compiled_input_manifest_sha256": "d476a46da7708d5c1f1810077ef7f557ed65a1ae62163c70a286a5057c5579e3",
+          "versions": {
+            "kani": "Kani Rust Verifier 0.68.0 (cargo plugin)\nCBMC 6.11.0\n",
+            "z3": "Z3 version 5.3.2 - 64 bit\n",
+            "cbmc": "6.11.0 (cbmc-6.11.0)\n",
+            "rustc": "rustc 1.100.0-nightly (8925ea358 2026-08-20)\nbinary: rustc\ncommit-hash: 8925ea358a0f265ca61026aadc7ecc506c545cbe\ncommit-date: 2026-08-20\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.0\n"
+          },
+          "environment": {
+            "CARGO_TARGET_DIR": "/private/tmp/base58-local-ci.aOXckS/owned-refresh.7udCL0Lt/target-kani-host",
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "3",
+            "BASE58_KANI_Z3_TIMEOUT_SECONDS": "180"
+          },
+          "safety": "Default memory, overflow, and unwind checks enabled; both digits0..57 and capacities0..3 unchanged; no stubs",
+          "results": [
+            {
+              "harness": "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+              "command": [
+                "rtk",
+                "proxy",
+                "/opt/homebrew/opt/python@3.15/bin/python3.15",
+                "scripts/kani_guard.py",
+                "--",
+                "cargo",
+                "kani",
+                "--lib",
+                "--exact",
+                "--harness",
+                "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+                "-Z",
+                "function-contracts",
+                "-Z",
+                "stubbing",
+                "-Z",
+                "unstable-options",
+                "--harness-timeout",
+                "180s",
+                "--output-format",
+                "regular",
+                "--solver",
+                "cadical"
+              ],
+              "passed": true,
+              "exit_code": 0,
+              "guard": null,
+              "seconds": 150.66112195898313,
+              "check_summaries": [
+                [
+                  "0",
+                  "1352",
+                  "54"
+                ]
+              ],
+              "log_sha256": "42d9df8dda8dfbf4db405b4bcc26f3aee4880f0da43e2ddacad6548a1f78c5e7",
+              "checked_harnesses": [
+                "verification::two_digit_batched_decoding_matches_radix_and_capacity"
+              ],
+              "source_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580"
+            }
+          ],
+          "raw_log_bytes": 1149060,
+          "passed_unwinding_assertions": [
+            "core::str::validations::run_utf8_validation.unwind.1",
+            "core::str::validations::run_utf8_validation.unwind.2",
+            "<core::slice::Iter<'_, u8> as core::iter::Iterator>::try_fold::<usize, {closure@<core::iter::TakeWhile<I, P> as core::iter::Iterator>::try_fold::check<'_, &u8, usize, core::ops::try_trait::NeverShortCircuit<usize>, {closure@src/common.rs:27:41: 27:46}, {closure@core::ops::try_trait::NeverShortCircuit<usize>::wrap_mut_2<usize, &u8, {closure@<core::iter::TakeWhile<core::slice::Iter<'_, u8>, {closure@src/common.rs:27:41: 27:46}> as core::iter::Iterator>::count::{closure#0}}>::{closure#0}}>::{closure#0}}, core::ops::ControlFlow<core::ops::try_trait::NeverShortCircuit<usize>, usize>>.unwind.0",
+            "common::chunks::{closure#1}.unwind.0",
+            "core::array::try_from_fn_erased::<core::ops::try_trait::NeverShortCircuit<u8>, &mut core::array::drain::Drain<'_, '_, u8, {closure@core::ops::try_trait::NeverShortCircuit<u8>::wrap_mut_1<u8, {closure@src/common.rs:46:23: 46:26}>::{closure#0}}>>.unwind.0",
+            "<core::slice::Iter<'_, u8> as core::iter::Iterator>::try_fold::<(), {closure@core::iter::adapters::copied::copy_try_fold<u8, (), core::ops::ControlFlow<usize>, {closure@core::iter::Iterator::position::check<'_, u8, {closure@src/common.rs:57:40: 57:43}>::{closure#0}}>::{closure#0}}, core::ops::ControlFlow<usize>>.unwind.0",
+            "<core::iter::Once<&[u8]> as core::iter::Iterator>::try_fold::<(), {closure@core::iter::Iterator::find::check<&[u8], &mut {closure@src/common.rs:35:40: 35:43}>::{closure#0}}, core::ops::ControlFlow<&[u8]>>.unwind.0",
+            "batched::Value::<'_>::mul_add.unwind.0",
+            "batched::Value::<'_>::mul_add2.unwind.0",
+            "batched::decode_parts.unwind.0",
+            "core::slice::<impl [T]>::reverse::revswap::<u8>.unwind.0",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity.unwind.0",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity.unwind.1",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity.unwind.2"
+          ],
+          "receipt_sha256": "139ba469805d5264f671c8528ad65710a585e16de8c78a282436009844a8859e",
+          "verification_seconds": [
+            "147.42773"
+          ]
+        },
+        "linux": {
+          "status": "pass",
+          "platform": "linux",
+          "source_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580",
+          "resource_source_sha256": "07ec12777e6065bd644baa75af4fd2cd0fe38fc39674957dc1eb220dc220f3b1",
+          "compiled_input_manifest_sha256": "0ea0837b6582b2229e10320a9ba07f38a89318736eee7fbd272af1e71f11f4be",
+          "previous_compiled_input_manifest_sha256": "d476a46da7708d5c1f1810077ef7f557ed65a1ae62163c70a286a5057c5579e3",
+          "versions": {
+            "kani": "Kani Rust Verifier 0.68.0 (cargo plugin)\nCBMC 6.11.0\n",
+            "z3": "Z3 version 4.13.3 - 64 bit\n",
+            "cbmc": "6.11.0 (cbmc-6.11.0)\n",
+            "rustc": "rustc 1.100.0-nightly (8925ea358 2026-08-20)\nbinary: rustc\ncommit-hash: 8925ea358a0f265ca61026aadc7ecc506c545cbe\ncommit-date: 2026-08-20\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.0\n"
+          },
+          "environment": {
+            "CARGO_TARGET_DIR": "/kani-owned-refresh.7udCL0Lt/target",
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "3",
+            "BASE58_KANI_Z3_TIMEOUT_SECONDS": "180"
+          },
+          "safety": "Default memory, overflow, and unwind checks enabled; both digits0..57 and capacities0..3 unchanged; no stubs",
+          "results": [
+            {
+              "harness": "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+              "command": [
+                "/usr/bin/python3",
+                "scripts/kani_guard.py",
+                "--",
+                "cargo",
+                "kani",
+                "--lib",
+                "--exact",
+                "--harness",
+                "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+                "-Z",
+                "function-contracts",
+                "-Z",
+                "stubbing",
+                "-Z",
+                "unstable-options",
+                "--harness-timeout",
+                "360s",
+                "--output-format",
+                "regular",
+                "--solver",
+                "cadical"
+              ],
+              "passed": true,
+              "exit_code": 0,
+              "guard": null,
+              "seconds": 258.8797024099913,
+              "check_summaries": [
+                [
+                  "0",
+                  "1352",
+                  "54"
+                ]
+              ],
+              "log_sha256": "3a8835ef7ae6d037e399736eb9e89f10abc66fb5441698266b91f3e8270c845f",
+              "checked_harnesses": [
+                "verification::two_digit_batched_decoding_matches_radix_and_capacity"
+              ],
+              "source_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580"
+            }
+          ],
+          "raw_log_bytes": 1143297,
+          "passed_unwinding_assertions": [
+            "core::str::validations::run_utf8_validation.unwind.1",
+            "core::str::validations::run_utf8_validation.unwind.2",
+            "<core::slice::Iter<'_, u8> as core::iter::Iterator>::try_fold::<usize, {closure@<core::iter::TakeWhile<I, P> as core::iter::Iterator>::try_fold::check<'_, &u8, usize, core::ops::try_trait::NeverShortCircuit<usize>, {closure@src/common.rs:27:41: 27:46}, {closure@core::ops::try_trait::NeverShortCircuit<usize>::wrap_mut_2<usize, &u8, {closure@<core::iter::TakeWhile<core::slice::Iter<'_, u8>, {closure@src/common.rs:27:41: 27:46}> as core::iter::Iterator>::count::{closure#0}}>::{closure#0}}>::{closure#0}}, core::ops::ControlFlow<core::ops::try_trait::NeverShortCircuit<usize>, usize>>.unwind.0",
+            "common::chunks::{closure#1}.unwind.0",
+            "core::array::try_from_fn_erased::<core::ops::try_trait::NeverShortCircuit<u8>, &mut core::array::drain::Drain<'_, '_, u8, {closure@core::ops::try_trait::NeverShortCircuit<u8>::wrap_mut_1<u8, {closure@src/common.rs:46:23: 46:26}>::{closure#0}}>>.unwind.0",
+            "<core::slice::Iter<'_, u8> as core::iter::Iterator>::try_fold::<(), {closure@core::iter::adapters::copied::copy_try_fold<u8, (), core::ops::ControlFlow<usize>, {closure@core::iter::Iterator::position::check<'_, u8, {closure@src/common.rs:57:40: 57:43}>::{closure#0}}>::{closure#0}}, core::ops::ControlFlow<usize>>.unwind.0",
+            "<core::iter::Once<&[u8]> as core::iter::Iterator>::try_fold::<(), {closure@core::iter::Iterator::find::check<&[u8], &mut {closure@src/common.rs:35:40: 35:43}>::{closure#0}}, core::ops::ControlFlow<&[u8]>>.unwind.0",
+            "batched::Value::<'_>::mul_add.unwind.0",
+            "batched::Value::<'_>::mul_add2.unwind.0",
+            "batched::decode_parts.unwind.0",
+            "core::slice::<impl [T]>::reverse::revswap::<u8>.unwind.0",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity.unwind.0",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity.unwind.1",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity.unwind.2"
+          ],
+          "receipt_sha256": "1e67bc3645c64c8d1084e2ec78c84213c89f47ceee2fef106f8a8c8412e5f0e2",
+          "verification_seconds": [
+            "254.0552"
+          ]
+        }
+      },
+      "failed_attempts": [
+        {
+          "harness": "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+          "command": [
+            "rtk",
+            "proxy",
+            "/opt/homebrew/opt/python@3.15/bin/python3.15",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "z3",
+            "--cbmc-args",
+            "--external-smt2-solver",
+            "scripts/kani-z3-polynomial.sh"
+          ],
+          "passed": false,
+          "exit_code": 1,
+          "guard": null,
+          "seconds": 182.75599149998743,
+          "check_summaries": [],
+          "log_sha256": "fa9d84dba297551bcc11d47d12fdf3183a917bd65256bef336074bba7459dca6",
+          "checked_harnesses": [
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity"
+          ],
+          "source_manifest_sha256": "53bc18b60e72ae2b392d9259c18fbc93531676c5b0166a773fe24377b279aae3",
+          "classification": "unwind12 opt0 Z3:180s symbolic-execution timeout",
+          "raw_log_bytes": 1392313,
+          "receipt_sha256": "295b20111888c2828d8da5f69eec13a4bea69d5de4b5a108abc5773acc736349"
+        },
+        {
+          "harness": "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+          "command": [
+            "rtk",
+            "proxy",
+            "/opt/homebrew/opt/python@3.15/bin/python3.15",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "z3",
+            "--cbmc-args",
+            "--external-smt2-solver",
+            "scripts/kani-z3-polynomial.sh"
+          ],
+          "passed": false,
+          "exit_code": 1,
+          "guard": null,
+          "seconds": 182.7972629580181,
+          "check_summaries": [],
+          "log_sha256": "b927b3dc321fb8501717a185f3757b6273a8461f0625f7c152637f87a3d682bd",
+          "checked_harnesses": [
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity"
+          ],
+          "source_manifest_sha256": "53bc18b60e72ae2b392d9259c18fbc93531676c5b0166a773fe24377b279aae3",
+          "classification": "unwind12 opt3 Z3:180s symbolic-execution timeout",
+          "raw_log_bytes": 1357267,
+          "receipt_sha256": "d547c274603878b2d4644da66dffaeda8254a28350011660db32840995bbc985"
+        },
+        {
+          "harness": "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+          "command": [
+            "rtk",
+            "proxy",
+            "/opt/homebrew/opt/python@3.15/bin/python3.15",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "z3",
+            "--cbmc-args",
+            "--external-smt2-solver",
+            "scripts/kani-z3-polynomial.sh"
+          ],
+          "passed": false,
+          "exit_code": 1,
+          "guard": null,
+          "seconds": 120.52860741701443,
+          "check_summaries": [],
+          "log_sha256": "eff70088368409205f4177ee33ec1ec7c8e85351325f5abca9ba00cd8e0eff5c",
+          "checked_harnesses": [
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity"
+          ],
+          "source_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580",
+          "classification": "unwind6 opt3 Z3:CBMC status6 map::at SMT-lowering error",
+          "raw_log_bytes": 593623,
+          "receipt_sha256": "73906578de09032f42c9d4a30c8fb9c9c6943df43cdad653ae62e190ae9f2d39"
+        },
+        {
+          "harness": "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+          "command": [
+            "/usr/bin/python3",
+            "scripts/kani_guard.py",
+            "--",
+            "cargo",
+            "kani",
+            "--lib",
+            "--exact",
+            "--harness",
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity",
+            "-Z",
+            "function-contracts",
+            "-Z",
+            "stubbing",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "180s",
+            "--output-format",
+            "regular",
+            "--solver",
+            "cadical"
+          ],
+          "passed": false,
+          "exit_code": 1,
+          "guard": null,
+          "seconds": 186.5792811680003,
+          "check_summaries": [],
+          "log_sha256": "3ba4dc54c746cd98ea96e8a482782dd28dee9eababd6edacadec7c1e8d5068da",
+          "checked_harnesses": [
+            "verification::two_digit_batched_decoding_matches_radix_and_capacity"
+          ],
+          "source_manifest_sha256": "46773238024b2bfbc95e4dba5c4075606e86937069147f3b9de06813e396f580",
+          "classification": "unwind6 opt3 CaDiCaL:180s Rosetta timeout",
+          "raw_log_bytes": 591353,
+          "receipt_sha256": "ea76e269b7891648a90156ad9a8c49f2d6734caff77bc224c06f838077a061cc"
+        }
+      ],
+      "safety": "All 14 unwinding assertions SUCCESS on each target, together with normal memory/overflow checks; no stub or new assumption",
+      "limits": "One bounded-size generic decoder proof; no arbitrary-length conversion, 32-bit target, cache concurrency, or emitted SIMD proof",
+      "main_edited": false,
+      "live_jobs": "none",
+      "integration": "Separate CI step uses opt3, CaDiCaL, 360s. Existing 49-proof receipts remain unchanged; this is one additional distinct proof.",
+      "protocol_bridge": {
+        "main_compiled54_manifest_sha256": "0ea0837b6582b2229e10320a9ba07f38a89318736eee7fbd272af1e71f11f4be",
+        "main_compiled54_exactly_matches_both_proof_runs": true,
+        "open_runner_in_compiled54_map": false,
+        "workflow_sha256": "4775440951b379994e7ddd72dc81c83a754a9014f1a6f05124f53ddf0e30a556",
+        "workflow_plan_sha256": "a557592da5c48edea81185a214115bcd4f04f603c41b5f267e4d4a78f2a67627",
+        "step": {
+          "index": 6,
+          "name": "Two-digit batched decoder",
+          "condition": null,
+          "environment": {
+            "CARGO_BUILD_JOBS": "1",
+            "CARGO_INCREMENTAL": "0",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "3"
+          },
+          "script": "python3 scripts/kani_guard.py -- cargo kani --lib --exact --harness verification::two_digit_batched_decoding_matches_radix_and_capacity -Z function-contracts -Z stubbing -Z unstable-options --harness-timeout 360s --output-format regular --solver cadical"
+        },
+        "argv_exact_except_python_executable": true,
+        "unused_private_environment": "BASE58_KANI_Z3_TIMEOUT_SECONDS=180 is not used by CaDiCaL",
+        "platform_budgets": {
+          "native_macOS_arm": 180,
+          "translated_linux_amd64": 360,
+          "required_CI": 360
+        }
+      }
+    }
+  },
+  "multi_epoch_totals": {
+    "macos_arm": {
+      "scope": "Multi-epoch sum: original 49 plus one additional proof; not a single frozen run of all 50",
+      "original_49_checks": 8423,
+      "additional_proof_checks": 1352,
+      "checks_including_unreachable": 9775,
+      "original_49_unreachable": 215,
+      "additional_proof_unreachable": 54,
+      "unreachable_checks": 269,
+      "failed_checks_in_successful_components": 0,
+      "distinct_harnesses": 50
+    },
+    "linux_amd64_translated": {
+      "scope": "Multi-epoch sum: original 49 plus one additional proof; not a single frozen run of all 50",
+      "original_49_checks": 17392,
+      "additional_proof_checks": 1352,
+      "checks_including_unreachable": 18744,
+      "original_49_unreachable": 5136,
+      "additional_proof_unreachable": 54,
+      "unreachable_checks": 5190,
+      "failed_checks_in_successful_components": 0,
+      "distinct_harnesses": 50
+    }
+  },
+  "still_open_runner_selectors": [
+    "encode_batched_split_is_exact",
+    "encode_batched_step_limb_is_exact",
+    "fixed_scalar_carry_preserves_value",
+    "fixed_split_carry_matches_serial",
+    "barrett_divide_one_base_power_is_exact",
+    "paired_update_matches_sequential",
+    "paired_limb_update_matches_sequential",
+    "one_byte_borrowed_api_preserves_exact_array_contracts"
+  ],
+  "current_open_list_source": {
+    "path": "scripts/kani-open.sh",
+    "sha256": "e57dcf4873ab1a51acf3ca5d42e71348e09f3632cb09fa504c2c467ff4d26c49",
+    "selectors": 8
+  },
+  "non_distinct_refreshes": {
+    "harnesses": [
+      "api::capacity_proofs::decoded_capacity_bounds_every_usize",
+      "api::capacity_proofs::decoded_capacity_is_within_one_byte_of_ceil47",
+      "api::capacity_proofs::decoded_capacity_prefix_sum_never_overflows"
+    ],
+    "counted_again": false,
+    "scope": "The later owned-wrapper capacity refresh repeats three members of the original 49. It adds no distinct selector and is excluded from these sums."
+  },
+  "preservation": {
+    "original_49_record_sha256": "f14b350a0ba980040b89c62044e1841b73b38304b17f0d92ed3cc62f817dd022",
+    "original_49_linux_receipt_sha256": "f9514335bcaa5ecadbf9703cbff0c4fe1419470552ccf70e0a9d58e5813c5503",
+    "additional_record_sha256": "426e212bb3724ed2a90647043186797a16c3547c2fd84ab274ecce6fa142d21c"
+  },
+  "limits": [
+    "Counts combine successful components from different source snapshots; they are not a fresh result for all 50 at one manifest.",
+    "The recent two-digit proof and target records use 64-bit usize; no new 32-bit Kani result is added.",
+    "Finite/scalar proofs do not establish arbitrary-length conversion, emitted native SIMD or concurrent-cache correctness.",
+    "Eight retained wider/public-wrapper queries remain unresolved; see the current outer selector list."
+  ]
+}

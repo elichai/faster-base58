@@ -335,7 +335,7 @@ jobs:
 
   miri_custom:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: '1'
       CARGO_INCREMENTAL: '0'

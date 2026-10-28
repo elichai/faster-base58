@@ -1,0 +1,33 @@
+--- a/src/mul_ifma.rs
++++ b/src/mul_ifma.rs
+@@ -17,7 +17,7 @@
+ const M52: u64 = (1 << 52) - 1;
+ 
+ /// Largest kernel window, in vectors of 8 columns: `2 NW_MAX` accumulators.
+-const NW_MAX: usize = 12;
++const NW_MAX: usize = 8;
+ 
+ /// Digits of `n` limbs.
+ const fn digits(n: usize) -> usize {
+@@ -73,10 +73,6 @@
+             6 => $f::<6>,
+             7 => $f::<7>,
+             8 => $f::<8>,
+-            9 => $f::<9>,
+-            10 => $f::<10>,
+-            11 => $f::<11>,
+-            12 => $f::<12>,
+             nw => panic!("window {nw}"),
+         }
+     };
+@@ -87,8 +83,8 @@
+ 
+ /// Scratch limbs native `mul` needs for `a.len() == na` and `b.len() == nb`.
+ ///
+-/// With `ma <= mb` digits and `chunks <= mb / 88 + 2`: `blen <= mb + 8 chunks + 14` and
+-/// `clen <= ma + mb + 21`, so this is at most `(3 + 1/11) mb + 58 < 3.9 nb + 62`.
++/// With `ma <= mb` digits and `chunks <= mb / 56 + 2`: `blen <= mb + 8 chunks + 14` and
++/// `clen <= ma + mb + 21`, so this is at most `(3 + 1/7) mb + 58 < 3.9 nb + 62`.
+ #[cfg(any(test, feature = "__internals"))]
+ pub const fn scratch_len(na: usize, nb: usize) -> usize {
+     Shape::new(na, nb).scratch()

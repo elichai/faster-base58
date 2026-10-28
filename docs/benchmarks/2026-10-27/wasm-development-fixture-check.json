@@ -1,0 +1,81 @@
+{
+  "status": "all completed bands checked",
+  "checked": [
+    {
+      "policy": "default",
+      "band": "small",
+      "fixtures": 23,
+      "completed_processes": 828,
+      "complete_sha256": "34a88b2e861d50689175bc4f98f00312b2786047c841f33c44675c8c36d185b5"
+    },
+    {
+      "policy": "default",
+      "band": "middle",
+      "fixtures": 3,
+      "completed_processes": 108,
+      "complete_sha256": "bfcc619d420c1f74f574f6859bb997d3246b9aaaa89e95b67d93fd5c041470e1"
+    },
+    {
+      "policy": "default",
+      "band": "1mib",
+      "fixtures": 1,
+      "completed_processes": 36,
+      "complete_sha256": "04dd1b1214480c4e7c4fb6263e96bdc04773e0343455ac1d46cd66ad7292a645"
+    },
+    {
+      "policy": "default",
+      "band": "2mib",
+      "fixtures": 1,
+      "completed_processes": 36,
+      "complete_sha256": "f1ecbd747e76a8469e3aecaba6e8c276f08512e161759e18064d1bcc9f428c7d"
+    },
+    {
+      "policy": "default",
+      "band": "4mib",
+      "fixtures": 1,
+      "completed_processes": 36,
+      "complete_sha256": "5b84c51341d38c2be7c9f23e4499e42c74c9e2618150b33f512462d4077e52ad"
+    },
+    {
+      "policy": "cache",
+      "band": "small",
+      "fixtures": 23,
+      "completed_processes": 828,
+      "complete_sha256": "79efde5da250670bcd189b9dd860b65c27d23ca59dbb1e8362afac0aaac31fa2"
+    },
+    {
+      "policy": "cache",
+      "band": "middle",
+      "fixtures": 3,
+      "completed_processes": 108,
+      "complete_sha256": "3a81fa59bf1d3b111ee08e53af628f3fa418979f6db11155e926e237f0145453"
+    },
+    {
+      "policy": "cache",
+      "band": "1mib",
+      "fixtures": 1,
+      "completed_processes": 36,
+      "complete_sha256": "b9428aa65826cf0f56103b826c10df4fd6d898b2e41e1df45747b93e266e3eaa"
+    },
+    {
+      "policy": "cache",
+      "band": "2mib",
+      "fixtures": 1,
+      "completed_processes": 36,
+      "complete_sha256": "3cbdb5d953d1baf2e3523da43240f41cbdf3cf6167c6660dc1ee19d4f4eadaae"
+    },
+    {
+      "policy": "cache",
+      "band": "4mib",
+      "fixtures": 1,
+      "completed_processes": 36,
+      "complete_sha256": "145c5a78281542fcb82d5fc2d5615801736efd8987e5d9d02ef26363b330c1c2"
+    }
+  ],
+  "completed_bands": 10,
+  "pending_bands": 0,
+  "independent_manifest_sha256": "fa7a46103ec7d87b1b758fb3a4ccb56e059bd400c678e82df216143b4495a48f",
+  "plan_sha256": "0fe38f15ff3fb80282ca4456ae52effb5084f3d42403f3cfab54d7203a9de447",
+  "script_sha256": "792ba21f972d05fb895085b335079ace236749ad57ca3a58fe5ba6016f319f8f",
+  "scope": "Native Natural conversion is independent of the Wasm Auto fixture encoder; byte files and hashes both match."
+}

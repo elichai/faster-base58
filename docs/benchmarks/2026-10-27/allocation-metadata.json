@@ -1,0 +1,15 @@
+{
+  "status": "complete",
+  "inputs": {
+    "m5-default": "f64ec7955b27b2400141c481bd28d6d0013f94ab0047ed43b317c90591cc50d7",
+    "m5-cache": "a341414bc9e68962a98cb42ae5d38f09592cd6f2838389052c1412386e271152",
+    "wasm-default": "3de7e5cde5135f6e73cfdf4b9f24653bf798347d10560462ac91477ae7d4bbe9",
+    "wasm-cache": "f75b448578a046a3e434e2ed159c71a2488a747f35400965666f1d338e564b83"
+  },
+  "script_sha256": "5cc4bdeebb1552cef5cf413107cd7a4d5b04024aef07ab3b3061dcae414841cb",
+  "rows": 6768,
+  "requested_layouts": "Rust GlobalAlloc requested byte counts; excludes allocator headers/slack and is not RSS",
+  "caller_buffers": "Outside operation windows; native IO vectors include a separate oracle fixture, Wasm buffers include guards and separate JS fixtures are outside Wasm",
+  "native_static_headers": "Resource worker contains all backends, so its static-header inventory is not per-consumer linked footprint",
+  "wasm_retained": "Fresh instance before caller buffers, so live_after minus guarded IO allocations measures retained backend heap; no output Vec is returned by these borrowed APIs"
+}

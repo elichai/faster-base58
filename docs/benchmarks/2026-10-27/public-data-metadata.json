@@ -1,0 +1,14 @@
+{
+  "status": "complete",
+  "inputs": {
+    "analysis/native-public-thin-wrapper/summary.csv": "88b5dd33025b9480f84034f184dbe387a40599ca37c3fa1082b0c82fb8f38280",
+    "timing/public/wasm-default/complete.json": "9d191379fde6e4fde7cfa68daeb594c8bfd791ee3c953c55d0f5b8aff7c22aae",
+    "timing/public/wasm-cache/complete.json": "a7f6b1d8ecdc86c9a671ca97b76b94f07716165ced76a43f4b70299e1a23a638"
+  },
+  "rows": 1160,
+  "measured_rows": 848,
+  "script_sha256": "85fb8fe7625f1a08dc577d3d763f4302db48e8dbdfea81755623d014ebfc0e18",
+  "public_sha256": "bda2bc9ded3753d255ea0bf660fd7fd3a892aa5ed0e79c13b3f03bb94b49cc7a",
+  "estimator": "Median of three fresh-process medians; each process has three warm batches",
+  "epochs": "Native ordinary sourcea479; Wasm ordinary source4e5. Kernel/borrowed dispatch bodies unchanged; owned API differs. No GCP blend."
+}

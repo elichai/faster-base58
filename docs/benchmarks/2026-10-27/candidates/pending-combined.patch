@@ -1,0 +1,53 @@
+--- a/src/api.rs
++++ b/src/api.rs
+@@ -89,13 +89,7 @@
+         // The historical measurements motivate this conservative boundary;
+         // measurements of the complete dispatch do not establish optimality.
+         if digits <= 5632 {
+-            return crate::dc::decode_parts(
+-                input,
+-                zeros,
+-                output,
+-                &mut crate::dc::Karatsuba,
+-                crate::dc::Leaf::Horner,
+-            );
++            return crate::dc::decode_medium(input, zeros, output);
+         }
+     }
+     #[cfg(feature = "cache")]
+--- a/src/dc.rs
++++ b/src/dc.rs
+@@ -99,6 +99,12 @@
+             fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
+                 mul::mul(out, a, b, scratch);
+             }
++        }
++
++        // Only the automatic medium route calls this; keep its power arrays off tiny entries.
++        #[inline(never)]
++        pub(crate) fn decode_medium(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
++            decode_parts(input, zeros, output, &mut Karatsuba, Leaf::Horner)
+         }
+     }
+     _ => {}
+--- a/src/encode/dc.rs
++++ b/src/encode/dc.rs
+@@ -164,6 +164,7 @@
+     leaves: Leaves,
+ ) -> Result<usize, BufferTooSmall> {
+     check_leaf(leaf, leaves);
++    assert!(cfg!(any(feature = "cache", test, feature = "__internals", kani)) || leaves == Leaves::Horner, "production no-cache leaves must be Horner");
+     assert!(!x.is_empty() && x[0] != 0, "expected a nonzero value");
+     let min = min_digits(bits(x));
+     let (ones, out) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
+@@ -441,7 +442,9 @@
+     m: &mut impl Multiplier,
+ ) -> Result<(), BufferTooSmall> {
+     if n <= t.leaf {
+-        return match t.leaves {
++        // Closed production no-cache dispatch always uses Horner; tuning keeps both policies.
++        let leaves = if cfg!(any(feature = "cache", test, feature = "__internals", kani)) { t.leaves } else { Leaves::Horner };
++        return match leaves {
+             Leaves::Horner => leaf(x, n, pad, out),
+             Leaves::Matrix => leaf_matrix(x, n, pad, out),
+         };

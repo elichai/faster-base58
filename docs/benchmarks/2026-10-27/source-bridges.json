@@ -1,0 +1,17 @@
+{
+  "status": "verified",
+  "current_proof_source_fingerprint": "07ec12777e6065bd644baa75af4fd2cd0fe38fc39674957dc1eb220dc220f3b1",
+  "prior_selected_public_bridge": {
+    "path": "selected-main-bridge.json",
+    "sha256": "4e8eb7df3bbc32e3b06437a5dbfdc2289f25224ffbe811f00d8758f56c5ff241"
+  },
+  "proof_only_bridge": {
+    "path": "proof-source-bridge.json",
+    "sha256": "a4afa7646991633bf6cf42dd3dd5cea709b88238f53230284f23f061c99c7105"
+  },
+  "original_backend_replay": {
+    "path": "source-epoch-replay.json",
+    "sha256": "b044381bddfe0af8e189d65090cfc6dce587a2252584f174cea0e45c57fa5e60"
+  },
+  "note": "Dated observation epochs remain immutable; these receipts explain later source equivalence only."
+}

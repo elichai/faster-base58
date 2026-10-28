@@ -1,0 +1,17 @@
+[package]
+name = "base58-fixture-export"
+version = "0.0.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+malachite-base = "=0.14.0"
+malachite-nz = "=0.14.0"
+
+[profile.release]
+lto = "fat"
+
+[[bin]]
+name = "base58-fixture-export"
+path = "main.rs"

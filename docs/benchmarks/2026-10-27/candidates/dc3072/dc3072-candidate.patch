@@ -1,0 +1,11 @@
+--- a/src/encode/dc.rs
++++ b/src/encode/dc.rs
+@@ -31,7 +31,7 @@
+     /// Inputs of more than this many bytes use divide and conquer, with leaves of at most
+     /// [`DC_LEAF`] chunks, when multiplying with Karatsuba or Toom-3. Tuned on an M5 Pro
+     /// against [`crate::encode::encode_batched`], in one binary; the NTT and malachite have their own.
+-    pub(crate) const DC_THRESHOLD: usize = 5120;
++    pub(crate) const DC_THRESHOLD: usize = 3072;
+     pub(crate) const DC_LEAF: usize = 96;
+ 
+     /// [`DC_LEAF`] when Karatsuba has the AVX-512 IFMA leaf, which makes products cheaper and

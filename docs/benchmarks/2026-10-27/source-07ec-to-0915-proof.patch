@@ -1,0 +1,11 @@
+--- a/src/verification.rs
++++ b/src/verification.rs
+@@ -235,7 +235,7 @@
+ }
+ 
+ #[kani::proof]
+-#[kani::unwind(6)]
++#[kani::unwind(12)]
+ fn two_digit_batched_decoding_matches_radix_and_capacity() {
+     let digits: [u8; 2] = kani::any();
+     kani::assume(digits[0] < 58 && digits[1] < 58);

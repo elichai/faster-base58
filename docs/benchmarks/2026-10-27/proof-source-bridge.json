@@ -1,0 +1,16 @@
+{
+  "status": "verified",
+  "prior_resource_fingerprint": "0915a8395c3f9f92a8a98bf9fed06011285ebe501cc4436e77494180c6e8e360",
+  "later_resource_fingerprint": "07ec12777e6065bd644baa75af4fd2cd0fe38fc39674957dc1eb220dc220f3b1",
+  "changed_file": "src/verification.rs",
+  "old_file_sha256": "a7ab64735e9b829f5de5c50a460a586caff42d259459e9ae9295c4b3c2730856",
+  "new_file_sha256": "2fc1f0e7d6f918ee0ede42477e98dba6fe65855c163dfc8087f25646a575aecd",
+  "exact_change": "Only kani::unwind(12) -> kani::unwind(6) on two_digit_batched_decoding_matches_radix_and_capacity",
+  "normal_compile_scope": "The entire verification module is cfg(kani). No ordinary executable body, Cargo input or observer changes.",
+  "replay": "Forward and reverse patches both reproduce the exact whole resource fingerprint in an isolated source directory",
+  "patches": {
+    "source-0915-to-07ec-proof.patch": "c624fe5b2229c3e4b0012bcac4aed60fedb183efb7e88532f8588c80ae01161b",
+    "source-07ec-to-0915-proof.patch": "4fe37c77e8a3dbd43cca2561a5be214064bb5208d0bb92ac95ac189a2c7e2a4b"
+  },
+  "numeric_data": "No old timing, size, allocation, image or source identity is retargeted. Public native remainsa479; backend/Wasm remains4e5."
+}

@@ -1,0 +1,41 @@
+{
+  "status": "complete",
+  "summaries": [
+    {
+      "policy": "default",
+      "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+      "function_symbols_scanned": 141,
+      "direct_call_or_jump_sites": 1414,
+      "got_call_or_jump_sites": 187,
+      "unresolved_rip_sites": 0,
+      "register_or_aggregate_indirect_sites": 71,
+      "recognizable_panic_sites": 387,
+      "memcpy_got_sites": 26,
+      "mutable_internal_threshold_atomic_present": false
+    },
+    {
+      "policy": "cache",
+      "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+      "function_symbols_scanned": 148,
+      "direct_call_or_jump_sites": 1291,
+      "got_call_or_jump_sites": 145,
+      "unresolved_rip_sites": 0,
+      "register_or_aggregate_indirect_sites": 71,
+      "recognizable_panic_sites": 355,
+      "memcpy_got_sites": 21,
+      "mutable_internal_threshold_atomic_present": false
+    }
+  ],
+  "source_fingerprint": "4e5ac8830ccf82a69488cb8e351060bf8e97fa8c3d108f63bebffc1c4c41e760",
+  "source_files": {
+    "src/ntt/x86.rs": "86a5ec593c628895f8e07ce4eb5e28e91c0a432a2f5e2c89a9a44c06e91b6750",
+    "src/ntt/mod.rs": "8b516c7ec4e8ca7eb62b8f87636564a9a5dd06aea05c7b51df394ba40fde9994",
+    "src/mul.rs": "71d2528437c34fb835052c57a0a7c680cb8b01caaae9b06a6ba6fd129cf5def9"
+  },
+  "input_metadata_sha256": "6c39a9af5fd2d5a0e4b058e2ddb9447ebf28b236dfa2e290d6993759e79340c7",
+  "script_sha256": "e19fcb5f3c8f964066aa13d42e9484856204bd5280902c128ceda64fcd405fa9",
+  "duplicate_groups": 16,
+  "raw_byte_identical_groups": 0,
+  "normalized_candidate_nominal_body_bytes": 586,
+  "caveat": "Static site counts are not execution counts. Register/aggregate indirection includes calls, tail dispatch and computed jump tables; only reviewed offsets can be called kernel function pointers. Panic reachability is not a proof that valid user input panics. Normalized instruction equality alone is not semantic or byte equality. No deduplication or detector hoist is merged."
+}

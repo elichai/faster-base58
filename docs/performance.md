@@ -5,16 +5,25 @@ not establish one fastest backend for every size, input distribution or build.
 [DESIGN.md](../DESIGN.md) describes the current dispatcher and backend costs;
 [CORRECTNESS.md](../CORRECTNESS.md) describes verification coverage.
 
+Identical-artifact controls have also produced repeatable timing differences on
+GCP, including after CPU pinning and longer batches. In a focused control, two
+files differed by about 27%, while two aliases to the same file were near parity.
+This implicates file identity or loading context; the hardware cause is unresolved.
+The retained medians describe the observed runs; close differences and paired
+source comparisons do not establish which source change caused a speedup or
+slowdown. Code-size and allocation counts are separate measurements.
+
 ## Datasets and source generations
 
 | Dataset | Coverage and interpretation |
 | --- | --- |
+| [Public API survey, 2026-10-27](benchmarks/2026-10-27/public-tables.md) | Current README tables and SVGs: ordinary M5 and Wasm consumers, 29 payload sizes through 4 MiB, default/cache/no_alloc, bs58 and five8. The [figure receipt](benchmarks/2026-10-27/public-graphs.json) keeps timing and linked-size source epochs separate. |
 | [Centralized dispatch](benchmarks/dispatch/README.md) | Local 2026-10-26 routing cleanup. Separate internal-worker survey, ordinary-consumer outlining experiment and zero-prefix allocation comparison. |
 | [Fixed decoding](benchmarks/fixed-decode/README.md) | Portable fixed-matrix prototypes were slower and larger on M5; retained as a rejected experiment. |
 | [Backend grid](benchmarks/backend-grid/README.md) | 2026-10-24 source: 29 decoded sizes from empty through 4 MiB; M5 native, GCP generic/native and M5 Wasm. Includes backend wrappers, forced-kernel controls, bs58 and five8. This predates the cache-feature split, no_std and rename. |
 | [Backend resources](benchmarks/backend-resources/README.md) | Earlier 2026-10-23 timing, allocation and linked-size associations across five runtime configurations, including Wasm on GCP. Its cache policy was unbounded; its retained heap is historical. |
-| [Public modes](benchmarks/public-modes/README.md) | 2026-10-25 Auto, Auto+cache, no_alloc and bs58 comparison. These exact timing inputs feed the README graphs. M5 timings were rerun on sampled AC power; cloud timings retain their matched earlier cohorts. |
-| [Allocation layout](benchmarks/allocation-layout/README.md) | Storage refactor v000→v011, before no_std and rename. Includes normal-consumer public timings, separate instrumented allocation measurements and the final linked-size inputs used in the README. |
+| [Earlier public modes](benchmarks/public-modes/README.md) | 2026-10-25 Auto, Auto+cache, no_alloc and bs58 comparison. These inputs feed the retained historical encode/decode graphs. Cloud timings retain their matched earlier cohorts. |
+| [Allocation layout](benchmarks/allocation-layout/README.md) | Storage refactor v000→v011, before no_std and rename. Includes normal-consumer public timings, separate instrumented allocation measurements and historical linked-size inputs. |
 | [Migration controls](benchmarks/production/README.md) | Earlier no_std/rename comparison and source-identical rebuild/load-path controls. These do not isolate a source-level performance cause. |
 | [Assembly](assembly.md), [SIMD](simd.md) | Newer baseline `7c6ffa325164`, resource identity `17ab5f264ed4`. Each experiment retains its own candidate, compiler and feature bindings. |
 
@@ -31,6 +40,9 @@ VM, `c4d-highcpu-4`; generic builds retain runtime feature selection, while
 native builds use `-C target-cpu=native`. The M5 grid uses
 `-C target-cpu=apple-m4`. Wasm timings use Node/V8 and an elapsed clock.
 Exact compiler versions, flags and runtime identities remain in each dataset.
+The newer README figures use compiler-default flags on M5 and separate source
+snapshots for native timing, Wasm timing and linked size. Their source bridges
+do not relabel older GCP measurements as current.
 
 Quadratic entries, including bs58 and the measured no_alloc mode, stop at
 64 KiB by benchmark policy. This is not a format or API limit. Auto includes
@@ -80,8 +92,10 @@ Native code, read-only data, initialized data and BSS are separate from stripped
 file size. Wasm CODE/DATA sections and 64 KiB linear-memory pages are different
 again. A linked probe includes its runtime and scaffold; subtracting an empty
 probe is useful but does not produce exact crate-only instruction bytes.
-[Linked sizes](benchmarks/allocation-layout/sizes.csv) distinguish Auto,
-Auto+cache, no_alloc and bs58. The
+[Current linked probes](benchmarks/2026-10-27/figure-linked-sizes.csv) distinguish
+Auto, Auto+cache, no_alloc and bs58 for the README; the
+[allocation-layout sizes](benchmarks/allocation-layout/sizes.csv) retain the
+earlier source. The
 [all-backend size grid](benchmarks/backend-resources/linked-sizes.csv) retains
 the earlier complete comparison. Reachable APIs, LTO, compiler and feature
 unification can change an application's result.
@@ -116,6 +130,16 @@ worker metadata; `run --mode timing` uses an uncounted build, and
 The default 29-size grid includes 4 MiB and retains policy skips. Set compiler
 flags before the build; use `--cache` in a separate cohort. These are internal
 resource workers, not ordinary public-consumer binaries.
+
+The same worker also accepts
+`owned timing|allocations current|full-output BYTES ZERO_PREFIX SAMPLES`.
+It measures `decode_vec` against the previous full-text-size output allocation
+using the current borrowed decoder. Fixtures use independent Malachite radix
+conversion. Cold timing ends when the result returns; warm timing includes
+allocation, decoding and destruction. Counted windows retain the returned
+vector, so their retained delta includes its capacity plus any shared tables.
+Use a fresh process per policy and size; this control isolates allocation policy,
+not the performance of an older library revision.
 
 `scripts/public_api_campaign.py` has separate `build`, `measure` and
 `allocations` phases for Auto/cache/no_alloc/bs58. Its timing phase also uses

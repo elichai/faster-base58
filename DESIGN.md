@@ -109,7 +109,13 @@ allow LLVM vectorization, while AVX-512 kernels are hand-written. `*_portable`
 hooks replace a kernel family, not every downstream fallback, and do not promise
 scalar assembly. [SIMD results](docs/simd.md) include the mixed Wasm `+simd128`
 tradeoff. [Assembly review](docs/assembly.md) covers callbacks, detector loads,
-panic paths and size; the IFMA tuning atomic already folds in ordinary consumers.
+panic paths and size. Ordinary builds use a constant IFMA threshold; only tests
+and `__internals` retain its tuning atomic. Earlier ordinary artifacts already
+folded that atomic away, so the source cleanup is not a demonstrated speedup.
+Generic x86 builds still read cached CPU feature flags in the NTT short-product
+fallback. [Broader state plumbing](docs/benchmarks/decisions/README.md) has no
+established overall benefit; narrower reuse of the constructor's choice still
+needs controlled measurements.
 
 ## Heap, stack and cache costs
 
@@ -119,6 +125,17 @@ reference layout of 2208 bytes on 64-bit targets; emitted binary bytes can diffe
 `decode_array::<N>` constructs an `N`-byte local result. General Matrix uses about
 30 KiB encoder / 14 KiB decoder stack; recursive encoder leaves add about 8 KiB.
 These are source estimates, not measured stack high-water marks.
+
+`encode_string` reserves `max_encoded_len(input.len())` bytes and truncates the
+length after conversion; it retains that capacity, including for zero-heavy input.
+`decode_vec` reserves one byte per leading `'1'`, then `d - d/4 - d/64` bytes
+for the remaining `d` text bytes. The integer bound follows from `58^64 < 256^47`
+and cannot overflow. It asymptotically saves 26.6% of the significant-text output
+capacity against allocating the full text length; backend scratch is additional. The
+prefix scan is shared with dispatch, and truncation does not reallocate. Tiny
+inputs of at most two bytes retain the short route. Empty input returns before
+entering the nonempty decoder. The [owned-result measurements](docs/benchmarks/2026-10-27/README.md)
+retain size-specific timings and unchanged-binary controls that limit attribution.
 
 Matrix construction reuses eight scratch rows. One table has three allocations:
 temporary rows, retained panel metadata and retained coefficients. Combining all
@@ -131,7 +148,7 @@ Encoder divisors borrow one pre-sized payload for normalized powers and
 reciprocals; construction scratch and original powers are dropped before
 prepared transforms and conversion scratch. Each prepared NTT operand owns one
 vector containing all three prime transforms. A shared prepared-power arena
-saved little peak memory and regressed GCP encoding, so it was rejected.
+saved little peak memory and had no established overall benefit, so it was not retained.
 Karatsuba scratch is `5*n + 64` limbs; NTT scratch is `16*n + 64` for the operand
 bound of those interfaces. Neither formula bounds total conversion memory.
 
@@ -151,8 +168,9 @@ Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. A 4 MiB significant encode can require
 96 MiB of owned twiddles per call. The allocation-layout measurement reduced
 its extra requested live heap from 284,269,528 to 201,582,112 bytes, with zero
-retention in the cache-off build. Realloc-copy overlap and RSS are not measured.
-Wasm page high-water is a separate metric. [Allocation data](docs/benchmarks/allocation-layout/README.md)
+retention in the cache-off build. Those counts exclude allocator-internal
+reallocation overlap and RSS. [Current process peaks](docs/benchmarks/2026-10-27/README.md)
+and Wasm page high-water are separate metrics. [Allocation data](docs/benchmarks/allocation-layout/README.md)
 retain exact source and measurement identities.
 
 Precomputing every general cache table would embed roughly 41.8 MiB before dead
@@ -165,13 +183,21 @@ Measure a stripped consumer with matched compiler, target features, direction,
 scaffold and LTO. An `.rlib` is not deployment size. Dead stripping removes
 unreachable implementations, so deleting an unused backend does not recover its
 source size from a consumer. Auto links more code than `no_alloc`, which supplies
-the compact path without another feature. Fixed-only five8 has a narrower contract.
+a smaller general path. Fixed-only five8 has a narrower contract.
+
+The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to
+eight vector groups. It removes four large unrolled kernel bodies and increases
+the chunk count for some operand shapes. A matched prototype saved about 93 KiB
+of linked code; that comparison is separate from the older platform size tables.
+It preserves format, API and allocation contracts. Speed depends on operand shape;
+the default retains all twelve widths. Other production architectures do not use
+these IFMA kernels.
 
 [Per-platform backend sizes](docs/benchmarks/backend-resources/README.md),
 [public-mode sizes](docs/benchmarks/public-modes/README.md) and
 [later allocation-layout sizes](docs/benchmarks/allocation-layout/README.md)
 preserve distinct source generations. Use their section deltas as well as total
 file bytes. The [README](README.md#linked-size) has the short bs58 comparison.
-No further size feature is justified by the rejected loop or explicit Wasm-panel
-experiments. See [verification limits](CORRECTNESS.md#remaining-work) before making
+The rejected loop and explicit Wasm-panel experiments do not justify further size
+features. See [verification limits](CORRECTNESS.md#remaining-work) before making
 claims about all inputs or architectures.

@@ -1,0 +1,7 @@
+{
+  "status": "complete",
+  "rows": 96,
+  "input_sha256": "b467c726039c2d449f406bdbde23cfc60b092f89ade99b44fdce0d409a7cf292",
+  "script_sha256": "8d3899191bf45742537207589cc86b589b60533d07f907dcdb939e72e70f05bf",
+  "interpretation": "Three alternating matched fresh-process pairs per case; descriptive ratios only. No-internals production paths; normal 512-case integration qualification is separate and still required."
+}

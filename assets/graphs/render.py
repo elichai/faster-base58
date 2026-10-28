@@ -140,21 +140,24 @@ data = dict(snapshot="2026-10-25, before package rename and no_std", timing_sour
 outputs = {"encode.svg": figure("encode"), "decode.svg": figure("decode"), "data.json": json.dumps(data, indent=2) + "\n", "tables.md": performance + "\n\n" + size_table + "\n"}
 inputs = {str(p.relative_to(ROOT)): digest(p) for p in [TIMINGS, SIZES]}
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--check", action="store_true", help="check committed graphs, input hashes and README table cells")
+parser.add_argument("--check", action="store_true", help="check historical outputs plus current public graph inputs and README tables")
 parser.add_argument("--output", type=Path, help="render into a new directory, preserving existing assets")
 args = parser.parse_args()
 require(not (args.check and args.output), "--output cannot be combined with --check")
 destination = args.output.resolve() if args.output else HERE
 if args.output:
     destination.mkdir(parents=True, exist_ok=False)
+current_result = None
 if args.check:
     receipt = json.loads((HERE / "receipt.json").read_text())
     require(receipt["inputs"] == inputs and receipt["renderer_sha256"] == digest(Path(__file__)), "Renderer/input hash mismatch")
     for name, content in outputs.items():
         require((HERE / name).read_text() == content, "Generated output differs: " + name)
         require(receipt["outputs"][name] == digest(HERE / name), "Receipt output hash mismatch")
-    guide = (ROOT / "README.md").read_text()
-    require(performance in guide and size_table in guide, "README table differs from frozen numeric inputs")
+    # The 2026-10-25 outputs remain historical and reproducible.
+    # The current README binds to the separately source-labeled public figures.
+    from current import check as check_current
+    current_result = check_current(ROOT)
 else:
     require(all(not (destination / n).exists() for n in [*outputs, "receipt.json"]), "Refusing to overwrite generated files")
     for name, content in outputs.items():
@@ -176,4 +179,4 @@ for name in ["encode.svg", "decode.svg"]:
                 continue
             for number in re.findall(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", node.attrib[key]):
                 require("e" not in number.lower() and ("." not in number or len(number.split(".")[1]) <= 2), "Unquantized SVG coordinate")
-print(json.dumps(dict(status="pass", mode="check" if args.check else "render", timing_points=len(points), linked_size_cells=len(size_data))))
+print(json.dumps(dict(status="pass", mode="check" if args.check else "render", timing_points=len(points), linked_size_cells=len(size_data), current_public=current_result)))

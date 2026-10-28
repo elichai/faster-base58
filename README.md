@@ -79,19 +79,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 This module shares the root error and buffer contracts. It has no owned-result
 helpers. Enabling `cache` does not change its allocation guarantee.
 
+Auto trades workspace for large-input speed. At 4 MiB, the M5 measurements with
+default features peak at about 192 MiB of extra requested heap for encoding and
+105 MiB for decoding, excluding caller buffers. [Allocation details](DESIGN.md#heap-stack-and-cache-costs).
+
 ## Optional caching
 
 Add `features = ["cache"]` to the dependency to retain reusable tables. This
 feature enables `std`. Caching is off by default; it changes dispatch as well as
-retention. First use builds tables, so cached warm timings exclude that setup.
-In the snapshot below, M5 1 KiB encoding improves from 7.55 to 1.94 µs warm, while
-first-call wall time rises from 13.08 to 109.79 µs. Caching is not uniformly faster:
-GCP generic 4 KiB decoding takes 33.39 µs versus 27.46 µs by default.
+retention. First use builds tables; the warm timings below exclude that setup.
+[Cold calls and cache tradeoffs](docs/benchmarks/2026-10-27/README.md) help assess
+whether reuse repays the setup and memory cost for your workload.
 
 Tables are lazy **heap** allocations. Recorded capacity bounds are 18,617,760 bytes
 for matrix tables and 25,164,288 bytes for production NTT twiddles: **41.8 MiB**
 together, depending on call history. All cache families also use **6,280 bytes of
 static headers** in the recorded 64-bit layout; these stores are absent by default.
+Dead stripping can remove headers for cache families a consumer does not use.
 Fixed 32/64-byte constants are separate (2,208 bytes of reference layout).
 These are payload capacities, not RSS. Allocator overhead, construction scratch,
 large per-call tables and concurrent conversions add memory; this is not a bound
@@ -99,41 +103,64 @@ on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-co
 
 ## Performance
 
-**Measured build: 2026-10-25.** Warm raw conversions reuse caller buffers; owned helpers are excluded.
-Native uses process CPU time; Wasm uses elapsed time. Bold marks the lowest
-observed median, not a statistical result. [Methods, ranges and newer measurements](docs/performance.md).
+**Measured 2026-10-27, Rust 1.99.1, default target flags.** Warm calls reuse output
+buffers and include Auto's workspace allocations. Owned helpers are measured
+separately. Native uses process CPU time; Wasm uses V8 elapsed time.
+[Methods, ranges, source snapshots and earlier GCP results](docs/performance.md).
 
-| Host / operation (4 KiB) | Auto | Auto + `cache` | `no_alloc` | bs58 |
-| --- | ---: | ---: | ---: | ---: |
-| M5 Pro / encode | 105.31 µs | **28.68 µs** | 106.48 µs | 15.23 ms |
-| M5 Pro / decode | 38.37 µs | **24.89 µs** | 37.29 µs | 5.01 ms |
-| GCP AMD EPYC 9B45 (generic) / encode | 51.45 µs | **41.27 µs** | 247.16 µs | 18.05 ms |
-| GCP AMD EPYC 9B45 (generic) / decode | **27.46 µs** | 33.39 µs | 72.40 µs | 5.87 ms |
-| GCP AMD EPYC 9B45 (native) / encode | 49.47 µs | **38.88 µs** | 228.19 µs | 14.90 ms |
-| GCP AMD EPYC 9B45 (native) / decode | **22.03 µs** | 22.37 µs | 38.56 µs | 5.97 ms |
-| Wasm / V8 on M5 Pro / encode | 458.00 µs | **149.54 µs** | 465.10 µs | 15.75 ms |
-| Wasm / V8 on M5 Pro / decode | 214.61 µs | **125.10 µs** | 293.05 µs | 5.06 ms |
+### Apple M5 Pro
 
-![Encoding time across public APIs and bs58](assets/graphs/encode.svg)
+| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
+|---|---:|---:|---:|---:|---:|
+| 32 B | 11.9 ns / 15.2 ns | 11.5 ns / **14.1 ns** | **9.79 ns** / 14.4 ns | 779 ns / 324 ns | 33.3 ns / 31.2 ns |
+| 64 B | 24.4 ns / 27.2 ns | 24.3 ns / **27.2 ns** | **24 ns** / 28 ns | 3.08 µs / 1.17 µs | 76.9 ns / 94.1 ns |
+| 512 B | 2.16 µs / 671 ns | **566 ns** / **595 ns** | 2.18 µs / 668 ns | 239 µs / 75.8 µs | — / — |
+| 4 KiB | 110 µs / 39.9 µs | **28.3 µs** / **25.2 µs** | 109 µs / 38.6 µs | 15.1 ms / 5.34 ms | — / — |
+| 64 KiB | 2.77 ms / 1.15 ms | **2.31 ms** / **1.01 ms** | 24.9 ms / 8.89 ms | 3.9 s / 1.37 s | — / — |
+| 1 MiB | 62.9 ms / 28.3 ms | **58 ms** / **27.4 ms** | — / — | — / — | — / — |
+| 4 MiB | 298 ms / 142 ms | **280 ms** / **139 ms** | — / — | — / — | — / — |
 
-![Decoding time across public APIs and bs58](assets/graphs/decode.svg)
+### WebAssembly on Apple M5 Pro (Node/V8)
+
+| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
+|---|---:|---:|---:|---:|---:|
+| 32 B | 25.7 ns / 54.7 ns | 25.6 ns / 53.8 ns | **25.5 ns** / 50.6 ns | 635 ns / 212 ns | 44.8 ns / **41.2 ns** |
+| 64 B | 99.1 ns / 133 ns | 99.6 ns / 133 ns | 101 ns / **126 ns** | 2.87 µs / 833 ns | **94 ns** / 127 ns |
+| 512 B | 7.76 µs / 5.04 µs | **2.84 µs** / **2.65 µs** | 7.71 µs / 5 µs | 237 µs / 72.1 µs | — / — |
+| 4 KiB | 489 µs / 217 µs | **149 µs** / **124 µs** | 486 µs / 281 µs | 15.4 ms / 5.35 ms | — / — |
+| 64 KiB | 14.1 ms / 6.58 ms | **14 ms** / **6.45 ms** | 116 ms / 70.6 ms | 3.9 s / 1.31 s | — / — |
+| 1 MiB | 339 ms / 168 ms | **339 ms** / **167 ms** | — / — | — / — | — / — |
+| 4 MiB | **1.61 s** / 819 ms | 1.62 s / **818 ms** | — / — | — / — | — / — |
+
+Each cell is **encode / decode**. Bold marks the lowest observed median, not
+statistical significance. `no_alloc` and bs58 stop at 64 KiB by benchmark policy;
+five8 supports the measured 32/64-byte cases. All sizes remain in the data report.
+
+![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
+
+![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
 
 ## Linked size
 
-**Measured build: 2026-10-25, after the allocation-layout changes.**
-Stripped encode+decode consumers, **KiB**, including scaffolding/runtime. Native
-rows are executables; Wasm is a module. Padding and link choices affect totals.
+Code and data linked **above an empty consumer**, in KiB. Both API directions,
+opt3/fat LTO. These deltas include associated code and metadata. Full files also
+contain runtime, scaffolding and platform padding.
 
-| Target | Auto | Auto + `cache` | `no_alloc` | bs58 |
-| --- | ---: | ---: | ---: | ---: |
-| M5 Pro | 360.4 | 376.5 | 295.8 | 295.7 |
-| GCP AMD EPYC 9B45 (generic) | 602.0 | 600.1 | 317.6 | 284.3 |
-| GCP AMD EPYC 9B45 (native) | 584.1 | 572.3 | 307.8 | 285.6 |
-| Wasm / V8 on M5 Pro | 101.4 | 103.5 | 39.2 | 19.6 |
+| Consumer | M5 code / readonly | Wasm code / data section |
+|---|---:|---:|
+| Auto | 58.5 KiB / 22.6 KiB | 70.1 KiB / 14.4 KiB |
+| Auto + cache | 60.8 KiB / 25.0 KiB | 71.8 KiB / 15.2 KiB |
+| No allocation | 9.6 KiB / 4.1 KiB | 13.5 KiB / 9.6 KiB |
+| bs58 | 1.3 KiB / 0.9 KiB | 2.7 KiB / 0.8 KiB |
 
-[Exact sections, empty-scaffold deltas and hashes](docs/benchmarks/allocation-layout/README.md)
-are retained with the measurements. Timing and size tables use distinct recorded
-source snapshots; see [methodology and scope](docs/performance.md).
+[Per-backend and platform sizes, allocations, RSS and source bindings](docs/benchmarks/2026-10-27/README.md)
+give the full cost comparison. Cache headers and retained heap are additional
+costs described above. `no_alloc` supplies the smallest general implementation.
+
+On x86-64, `features = ["compact"]` keeps eight IFMA kernel widths instead of
+twelve. This reduces linked code and uses more chunks for some multiplications.
+It preserves the API and allocation contracts; the speed tradeoff depends on
+operand size. Other production targets do not use these IFMA kernels.
 
 ## Development and license
 

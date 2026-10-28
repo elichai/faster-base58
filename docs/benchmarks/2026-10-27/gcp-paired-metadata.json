@@ -1,0 +1,42 @@
+{
+  "status": "complete",
+  "rows": 584,
+  "fresh_processes": 3504,
+  "inputs": [
+    {
+      "cpu": "generic",
+      "study": "actual",
+      "metadata_sha256": "e25ec74cfe63a66a6da0f05f384c7be124daf37433f7bfb76b2c0760fc04d144",
+      "raw_sha256": "b0f19496735140c67451deac541e46479dd04e938482324498a90fcbe190f3ce",
+      "elapsed_seconds": 122.79333415200017,
+      "processes": 1176
+    },
+    {
+      "cpu": "generic",
+      "study": "ablations",
+      "metadata_sha256": "56c6c48509839c7c0e89b5ebe33bb4d9a85eb4b2d9baf02a1208dd8163920901",
+      "raw_sha256": "61b70240cf1b4443a0f4a55bbaa2749a5bf6397b352489ef1a7cbe90319e231d",
+      "elapsed_seconds": 82.18711364699993,
+      "processes": 576
+    },
+    {
+      "cpu": "native",
+      "study": "actual",
+      "metadata_sha256": "078e9df4dfa7d0a022dda79279b0cfffd69231f5477479f9eee92769c3358dc2",
+      "raw_sha256": "8c49f07cfa31145b7b668b95640c0a567850a43fea874b77335f17a01b3fddac",
+      "elapsed_seconds": 120.87042839399874,
+      "processes": 1176
+    },
+    {
+      "cpu": "native",
+      "study": "ablations",
+      "metadata_sha256": "bae8f87c77f07f6fcf44b98ddb85487229aebcaad8841b8e7480c4eb1832f261",
+      "raw_sha256": "8605d07e88cbba023783d243a67283e90bb86431c875c32e0935577f9de70eb0",
+      "elapsed_seconds": 79.98136407099992,
+      "processes": 576
+    }
+  ],
+  "script_sha256": "9a31c7f27c1ec0a67998450d6b7621d166a505f251d617fcc5bc1bc01b307c27",
+  "estimator": "Median3 alternating fresh-process ratios; each process reports median3warm batches. Ranges descriptive, not confidence intervals.",
+  "source_scope": "Actual098 versus selecteda479 owned/borrowed; separate frozen4e5 versus leaf/outline/combined normal consumers. No pooling across studies."
+}

@@ -1,0 +1,10 @@
+{
+  "status": "complete",
+  "inputs": {
+    "public_csv": "bda2bc9ded3753d255ea0bf660fd7fd3a892aa5ed0e79c13b3f03bb94b49cc7a",
+    "sizes_csv": "c478dd265079c08df6b88471b0c3dcb4ccf439165d0013cb2425826f58e71e81"
+  },
+  "renderer_sha256": "fa8799069abb7462ace3d382ee04192e3c8f85cb8bbbfb10163e1da1a6038711",
+  "matplotlib": "3.11.2",
+  "scope": "Ordinary public consumers without __internals. M5/native sourcea479, Wasm source4e5; three-process medians with three batches each. Native clockCPU and Wasm elapsed stay separate. Linked-size table is the explicitly separate4e5 snapshot; no GCP data is blended."
+}

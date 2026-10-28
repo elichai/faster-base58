@@ -1,0 +1,32 @@
+--- a/src/api.rs
++++ b/src/api.rs
+@@ -89,13 +89,7 @@
+         // The historical measurements motivate this conservative boundary;
+         // measurements of the complete dispatch do not establish optimality.
+         if digits <= 5632 {
+-            return crate::dc::decode_parts(
+-                input,
+-                zeros,
+-                output,
+-                &mut crate::dc::Karatsuba,
+-                crate::dc::Leaf::Horner,
+-            );
++            return crate::dc::decode_medium(input, zeros, output);
+         }
+     }
+     #[cfg(feature = "cache")]
+--- a/src/dc.rs
++++ b/src/dc.rs
+@@ -99,6 +99,12 @@
+             fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
+                 mul::mul(out, a, b, scratch);
+             }
++        }
++
++        // Only the automatic medium route calls this; keep its power arrays off tiny entries.
++        #[inline(never)]
++        pub(crate) fn decode_medium(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
++            decode_parts(input, zeros, output, &mut Karatsuba, Leaf::Horner)
+         }
+     }
+     _ => {}

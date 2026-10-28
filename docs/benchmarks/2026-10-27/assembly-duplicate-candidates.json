@@ -1,0 +1,1082 @@
+[
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#0} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52760",
+        "bytes": 51,
+        "emitted_bytes_sha256": "720336a071d3a8a1ae07a254516b6139bd4d7a27ae41eabd312c4b539ab02a53",
+        "external_references": [
+          {
+            "instruction_address": "0x52789",
+            "instruction": "callq 0x584c0 <faster_base58::ntt::x86::kernels::tf_load>",
+            "target_address": "0x584c0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52760: subq $0x38, %rsp",
+          "52764: movq %rdi, 0x8(%rsp)",
+          "52769: movq %rsi, 0x10(%rsp)",
+          "5276e: movq %rdx, 0x18(%rsp)",
+          "52773: movq %rcx, 0x20(%rsp)",
+          "52778: leaq 0x28(%rsp), %rax",
+          "5277d: movups (%r8), %xmm0",
+          "52781: movups %xmm0, 0x28(%rsp)",
+          "52786: movq %rax, %r8",
+          "52789: callq 0x584c0 <faster_base58::ntt::x86::kernels::tf_load>",
+          "5278e: addq $0x38, %rsp",
+          "52792: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#12} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52910",
+        "bytes": 51,
+        "emitted_bytes_sha256": "bd80a2cd070405841cc4db8f05f3a7ab97d3b679c80847cceb10a362a24f491e",
+        "external_references": [
+          {
+            "instruction_address": "0x52939",
+            "instruction": "callq 0x54ef0 <faster_base58::ntt::x86::kernels::tf_load>",
+            "target_address": "0x54ef0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52910: subq $0x38, %rsp",
+          "52914: movq %rdi, 0x8(%rsp)",
+          "52919: movq %rsi, 0x10(%rsp)",
+          "5291e: movq %rdx, 0x18(%rsp)",
+          "52923: movq %rcx, 0x20(%rsp)",
+          "52928: leaq 0x28(%rsp), %rax",
+          "5292d: movups (%r8), %xmm0",
+          "52931: movups %xmm0, 0x28(%rsp)",
+          "52936: movq %rax, %r8",
+          "52939: callq 0x54ef0 <faster_base58::ntt::x86::kernels::tf_load>",
+          "5293e: addq $0x38, %rsp",
+          "52942: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 51,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#4} as core::ops::function::FnOnce<(&mut [i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x527d0",
+        "bytes": 12,
+        "emitted_bytes_sha256": "0bc19fcac232d1c1d0fdb7a0588e561d88ccfd88e6298c41f90ed89c29db3f0c",
+        "external_references": [
+          {
+            "instruction_address": "0x527d7",
+            "instruction": "jmp 0x56d40 <faster_base58::ntt::x86::kernels::tf_square>",
+            "target_address": "0x56d40",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_square",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "527d0: movl (%rdx), %eax",
+          "527d2: movl 0x4(%rdx), %ecx",
+          "527d5: movl %eax, %edx",
+          "527d7: jmp 0x56d40 <faster_base58::ntt::x86::kernels::tf_square>"
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#16} as core::ops::function::FnOnce<(&mut [i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52980",
+        "bytes": 12,
+        "emitted_bytes_sha256": "194341b36146c070a0f0c596bb0ebb4494f6a97b59e9b4ac365035f946b6e8c5",
+        "external_references": [
+          {
+            "instruction_address": "0x52987",
+            "instruction": "jmp 0x53f00 <faster_base58::ntt::x86::kernels::tf_square>",
+            "target_address": "0x53f00",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_square",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52980: movl (%rdx), %eax",
+          "52982: movl 0x4(%rdx), %ecx",
+          "52985: movl %eax, %edx",
+          "52987: jmp 0x53f00 <faster_base58::ntt::x86::kernels::tf_square>"
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 12,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#5} as core::ops::function::FnOnce<([&mut [i32]; 3],)>>::call_once",
+        "address": "0x527e0",
+        "bytes": 5,
+        "emitted_bytes_sha256": "70d5c4ad58516ed9ed5abf5748fa4db44747b8967486b7c3c6f32012b5e13a31",
+        "external_references": [
+          {
+            "instruction_address": "0x527e0",
+            "instruction": "jmp 0x567c0 <faster_base58::ntt::x86::kernels::tf_garner>",
+            "target_address": "0x567c0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_garner",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "527e0: jmp 0x567c0 <faster_base58::ntt::x86::kernels::tf_garner>"
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#17} as core::ops::function::FnOnce<([&mut [i32]; 3],)>>::call_once",
+        "address": "0x52990",
+        "bytes": 5,
+        "emitted_bytes_sha256": "1a704a786cba07976e1ad76a883c669935e3fa8a57dfa35003e0631fee75f06c",
+        "external_references": [
+          {
+            "instruction_address": "0x52990",
+            "instruction": "jmp 0x53b70 <faster_base58::ntt::x86::kernels::tf_garner>",
+            "target_address": "0x53b70",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_garner",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52990: jmp 0x53b70 <faster_base58::ntt::x86::kernels::tf_garner>"
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 5,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#6} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, &[i32], &[i32])>>::call_once",
+        "address": "0x527f0",
+        "bytes": 51,
+        "emitted_bytes_sha256": "2db732f729719f9064e5a1b7a3e925ebdc811e90d0d558481af2e2857cd091a4",
+        "external_references": [
+          {
+            "instruction_address": "0x52819",
+            "instruction": "callq 0x56560 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+            "target_address": "0x56560",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "527f0: subq $0x28, %rsp",
+          "527f4: movaps 0x30(%rsp), %xmm0",
+          "527f9: movq 0x40(%rsp), %r11",
+          "527fe: movl (%r8), %eax",
+          "52801: movl 0xc(%r8), %r10d",
+          "52805: movq %r11, 0x18(%rsp)",
+          "5280a: movups %xmm0, 0x8(%rsp)",
+          "5280f: movq %r9, (%rsp)",
+          "52813: movl %eax, %r8d",
+          "52816: movl %r10d, %r9d",
+          "52819: callq 0x56560 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+          "5281e: addq $0x28, %rsp",
+          "52822: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#18} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, &[i32], &[i32])>>::call_once",
+        "address": "0x529a0",
+        "bytes": 51,
+        "emitted_bytes_sha256": "a0738dc95b8334c14ca6b0f04419f60202f5d07f55bd939c85ca3277090e5843",
+        "external_references": [
+          {
+            "instruction_address": "0x529c9",
+            "instruction": "callq 0x53920 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+            "target_address": "0x53920",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "529a0: subq $0x28, %rsp",
+          "529a4: movaps 0x30(%rsp), %xmm0",
+          "529a9: movq 0x40(%rsp), %r11",
+          "529ae: movl (%r8), %eax",
+          "529b1: movl 0xc(%r8), %r10d",
+          "529b5: movq %r11, 0x18(%rsp)",
+          "529ba: movups %xmm0, 0x8(%rsp)",
+          "529bf: movq %r9, (%rsp)",
+          "529c3: movl %eax, %r8d",
+          "529c6: movl %r10d, %r9d",
+          "529c9: callq 0x53920 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+          "529ce: addq $0x28, %rsp",
+          "529d2: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 51,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#7} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, bool)>>::call_once",
+        "address": "0x52830",
+        "bytes": 55,
+        "emitted_bytes_sha256": "9c7220bba71acd24c665ed3c6d2059b8059067a67fd7f860dc19f39f85227611",
+        "external_references": [
+          {
+            "instruction_address": "0x5285d",
+            "instruction": "callq 0x56210 <faster_base58::ntt::x86::kernels::tf_load_add>",
+            "target_address": "0x56210",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_add",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52830: subq $0x38, %rsp",
+          "52834: movq %rdi, (%rsp)",
+          "52838: movq %rsi, 0x8(%rsp)",
+          "5283d: movq %rdx, 0x10(%rsp)",
+          "52842: movq %rcx, 0x18(%rsp)",
+          "52847: leaq 0x20(%rsp), %rax",
+          "5284c: movups (%r8), %xmm0",
+          "52850: movups %xmm0, 0x20(%rsp)",
+          "52855: movb %r9b, 0x30(%rsp)",
+          "5285a: movq %rax, %r8",
+          "5285d: callq 0x56210 <faster_base58::ntt::x86::kernels::tf_load_add>",
+          "52862: addq $0x38, %rsp",
+          "52866: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#19} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, bool)>>::call_once",
+        "address": "0x529e0",
+        "bytes": 55,
+        "emitted_bytes_sha256": "260557e4395025ddb556a697caa116954f5802961d88e37fb3c5b23d82212546",
+        "external_references": [
+          {
+            "instruction_address": "0x52a0d",
+            "instruction": "callq 0x53630 <faster_base58::ntt::x86::kernels::tf_load_add>",
+            "target_address": "0x53630",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_add",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "529e0: subq $0x38, %rsp",
+          "529e4: movq %rdi, (%rsp)",
+          "529e8: movq %rsi, 0x8(%rsp)",
+          "529ed: movq %rdx, 0x10(%rsp)",
+          "529f2: movq %rcx, 0x18(%rsp)",
+          "529f7: leaq 0x20(%rsp), %rax",
+          "529fc: movups (%r8), %xmm0",
+          "52a00: movups %xmm0, 0x20(%rsp)",
+          "52a05: movb %r9b, 0x30(%rsp)",
+          "52a0a: movq %rax, %r8",
+          "52a0d: callq 0x53630 <faster_base58::ntt::x86::kernels::tf_load_add>",
+          "52a12: addq $0x38, %rsp",
+          "52a16: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 55,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#8} as core::ops::function::FnOnce<(&mut [i32], &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52870",
+        "bytes": 18,
+        "emitted_bytes_sha256": "e6329102c130efba25fd5db26a054d7035200e742ed53dccf80a5bcbfc4fec24",
+        "external_references": [
+          {
+            "instruction_address": "0x5287b",
+            "instruction": "callq 0x56040 <faster_base58::ntt::x86::kernels::tf_twist>",
+            "target_address": "0x56040",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52870: pushq %rax",
+          "52871: movq 0x10(%rsp), %rax",
+          "52876: movl (%rax), %eax",
+          "52878: movl %eax, (%rsp)",
+          "5287b: callq 0x56040 <faster_base58::ntt::x86::kernels::tf_twist>",
+          "52880: popq %rax",
+          "52881: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#20} as core::ops::function::FnOnce<(&mut [i32], &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52a20",
+        "bytes": 18,
+        "emitted_bytes_sha256": "955bc27a6e73a644e985dbf8e48ad73b14bfcd0db7ca2fa029d887f3d309ba4e",
+        "external_references": [
+          {
+            "instruction_address": "0x52a2b",
+            "instruction": "callq 0x53500 <faster_base58::ntt::x86::kernels::tf_twist>",
+            "target_address": "0x53500",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52a20: pushq %rax",
+          "52a21: movq 0x10(%rsp), %rax",
+          "52a26: movl (%rax), %eax",
+          "52a28: movl %eax, (%rsp)",
+          "52a2b: callq 0x53500 <faster_base58::ntt::x86::kernels::tf_twist>",
+          "52a30: popq %rax",
+          "52a31: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 18,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#9} as core::ops::function::FnOnce<(&mut [i32], &[i32], usize, bool, faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52890",
+        "bytes": 26,
+        "emitted_bytes_sha256": "60022c751107db6c9ad731e90c31499bd07feb9a52904ae00661390ef40c2453",
+        "external_references": [
+          {
+            "instruction_address": "0x5289f",
+            "instruction": "callq 0x55c40 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+            "target_address": "0x55c40",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_fold_sub",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52890: pushq %rax",
+          "52891: movq 0x10(%rsp), %rax",
+          "52896: movl (%rax), %r10d",
+          "52899: movl 0x8(%rax), %eax",
+          "5289c: pushq %rax",
+          "5289d: pushq %r10",
+          "5289f: callq 0x55c40 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+          "528a4: addq $0x10, %rsp",
+          "528a8: popq %rax",
+          "528a9: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#21} as core::ops::function::FnOnce<(&mut [i32], &[i32], usize, bool, faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52a40",
+        "bytes": 26,
+        "emitted_bytes_sha256": "f413ef0313317d5f34edc9956214c26aa2fbd942495c8ff864794a9f0553f15f",
+        "external_references": [
+          {
+            "instruction_address": "0x52a4f",
+            "instruction": "callq 0x53240 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+            "target_address": "0x53240",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_fold_sub",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52a40: pushq %rax",
+          "52a41: movq 0x10(%rsp), %rax",
+          "52a46: movl (%rax), %r10d",
+          "52a49: movl 0x8(%rax), %eax",
+          "52a4c: pushq %rax",
+          "52a4d: pushq %r10",
+          "52a4f: callq 0x53240 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+          "52a54: addq $0x10, %rsp",
+          "52a58: popq %rax",
+          "52a59: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 26,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "default",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#11} as core::ops::function::FnOnce<(&mut [i32], usize, &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x528c0",
+        "bytes": 75,
+        "emitted_bytes_sha256": "0f8342138861babc3a74a57ee5f1aaa01baac4eab32f06260621b7b68a9e02c5",
+        "external_references": [
+          {
+            "instruction_address": "0x52901",
+            "instruction": "callq 0x550e0 <faster_base58::ntt::x86::kernels::tf_pair>",
+            "target_address": "0x550e0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_pair",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "528c0: subq $0x48, %rsp",
+          "528c4: movq 0x58(%rsp), %rax",
+          "528c9: movq 0x50(%rsp), %r10",
+          "528ce: movq %rdi, (%rsp)",
+          "528d2: movq %rsi, 0x8(%rsp)",
+          "528d7: movq %rdx, 0x30(%rsp)",
+          "528dc: movq %rcx, 0x10(%rsp)",
+          "528e1: movq %r8, 0x18(%rsp)",
+          "528e6: movq %r9, 0x20(%rsp)",
+          "528eb: movq %r10, 0x28(%rsp)",
+          "528f0: leaq 0x38(%rsp), %r11",
+          "528f5: movups (%rax), %xmm0",
+          "528f8: movups %xmm0, 0x38(%rsp)",
+          "528fd: pushq %r11",
+          "528ff: pushq %r10",
+          "52901: callq 0x550e0 <faster_base58::ntt::x86::kernels::tf_pair>",
+          "52906: addq $0x58, %rsp",
+          "5290a: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#23} as core::ops::function::FnOnce<(&mut [i32], usize, &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x52a70",
+        "bytes": 75,
+        "emitted_bytes_sha256": "0ccdcf296569e7e1aca20e36f5378dc86d85be581433a24f4b582598fc48b4fc",
+        "external_references": [
+          {
+            "instruction_address": "0x52ab1",
+            "instruction": "callq 0x52ac0 <faster_base58::ntt::x86::kernels::tf_pair>",
+            "target_address": "0x52ac0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_pair",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "52a70: subq $0x48, %rsp",
+          "52a74: movq 0x58(%rsp), %rax",
+          "52a79: movq 0x50(%rsp), %r10",
+          "52a7e: movq %rdi, (%rsp)",
+          "52a82: movq %rsi, 0x8(%rsp)",
+          "52a87: movq %rdx, 0x30(%rsp)",
+          "52a8c: movq %rcx, 0x10(%rsp)",
+          "52a91: movq %r8, 0x18(%rsp)",
+          "52a96: movq %r9, 0x20(%rsp)",
+          "52a9b: movq %r10, 0x28(%rsp)",
+          "52aa0: leaq 0x38(%rsp), %r11",
+          "52aa5: movups (%rax), %xmm0",
+          "52aa8: movups %xmm0, 0x38(%rsp)",
+          "52aad: pushq %r11",
+          "52aaf: pushq %r10",
+          "52ab1: callq 0x52ac0 <faster_base58::ntt::x86::kernels::tf_pair>",
+          "52ab6: addq $0x58, %rsp",
+          "52aba: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 75,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#0} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e280",
+        "bytes": 51,
+        "emitted_bytes_sha256": "720336a071d3a8a1ae07a254516b6139bd4d7a27ae41eabd312c4b539ab02a53",
+        "external_references": [
+          {
+            "instruction_address": "0x4e2a9",
+            "instruction": "callq 0x53fe0 <faster_base58::ntt::x86::kernels::tf_load>",
+            "target_address": "0x53fe0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e280: subq $0x38, %rsp",
+          "4e284: movq %rdi, 0x8(%rsp)",
+          "4e289: movq %rsi, 0x10(%rsp)",
+          "4e28e: movq %rdx, 0x18(%rsp)",
+          "4e293: movq %rcx, 0x20(%rsp)",
+          "4e298: leaq 0x28(%rsp), %rax",
+          "4e29d: movups (%r8), %xmm0",
+          "4e2a1: movups %xmm0, 0x28(%rsp)",
+          "4e2a6: movq %rax, %r8",
+          "4e2a9: callq 0x53fe0 <faster_base58::ntt::x86::kernels::tf_load>",
+          "4e2ae: addq $0x38, %rsp",
+          "4e2b2: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#12} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e430",
+        "bytes": 51,
+        "emitted_bytes_sha256": "bd80a2cd070405841cc4db8f05f3a7ab97d3b679c80847cceb10a362a24f491e",
+        "external_references": [
+          {
+            "instruction_address": "0x4e459",
+            "instruction": "callq 0x50a10 <faster_base58::ntt::x86::kernels::tf_load>",
+            "target_address": "0x50a10",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e430: subq $0x38, %rsp",
+          "4e434: movq %rdi, 0x8(%rsp)",
+          "4e439: movq %rsi, 0x10(%rsp)",
+          "4e43e: movq %rdx, 0x18(%rsp)",
+          "4e443: movq %rcx, 0x20(%rsp)",
+          "4e448: leaq 0x28(%rsp), %rax",
+          "4e44d: movups (%r8), %xmm0",
+          "4e451: movups %xmm0, 0x28(%rsp)",
+          "4e456: movq %rax, %r8",
+          "4e459: callq 0x50a10 <faster_base58::ntt::x86::kernels::tf_load>",
+          "4e45e: addq $0x38, %rsp",
+          "4e462: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 51,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#4} as core::ops::function::FnOnce<(&mut [i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e2f0",
+        "bytes": 12,
+        "emitted_bytes_sha256": "0bc19fcac232d1c1d0fdb7a0588e561d88ccfd88e6298c41f90ed89c29db3f0c",
+        "external_references": [
+          {
+            "instruction_address": "0x4e2f7",
+            "instruction": "jmp 0x52860 <faster_base58::ntt::x86::kernels::tf_square>",
+            "target_address": "0x52860",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_square",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e2f0: movl (%rdx), %eax",
+          "4e2f2: movl 0x4(%rdx), %ecx",
+          "4e2f5: movl %eax, %edx",
+          "4e2f7: jmp 0x52860 <faster_base58::ntt::x86::kernels::tf_square>"
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#16} as core::ops::function::FnOnce<(&mut [i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e4a0",
+        "bytes": 12,
+        "emitted_bytes_sha256": "194341b36146c070a0f0c596bb0ebb4494f6a97b59e9b4ac365035f946b6e8c5",
+        "external_references": [
+          {
+            "instruction_address": "0x4e4a7",
+            "instruction": "jmp 0x4fa20 <faster_base58::ntt::x86::kernels::tf_square>",
+            "target_address": "0x4fa20",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_square",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e4a0: movl (%rdx), %eax",
+          "4e4a2: movl 0x4(%rdx), %ecx",
+          "4e4a5: movl %eax, %edx",
+          "4e4a7: jmp 0x4fa20 <faster_base58::ntt::x86::kernels::tf_square>"
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 12,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#5} as core::ops::function::FnOnce<([&mut [i32]; 3],)>>::call_once",
+        "address": "0x4e300",
+        "bytes": 5,
+        "emitted_bytes_sha256": "70d5c4ad58516ed9ed5abf5748fa4db44747b8967486b7c3c6f32012b5e13a31",
+        "external_references": [
+          {
+            "instruction_address": "0x4e300",
+            "instruction": "jmp 0x522e0 <faster_base58::ntt::x86::kernels::tf_garner>",
+            "target_address": "0x522e0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_garner",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e300: jmp 0x522e0 <faster_base58::ntt::x86::kernels::tf_garner>"
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#17} as core::ops::function::FnOnce<([&mut [i32]; 3],)>>::call_once",
+        "address": "0x4e4b0",
+        "bytes": 5,
+        "emitted_bytes_sha256": "1a704a786cba07976e1ad76a883c669935e3fa8a57dfa35003e0631fee75f06c",
+        "external_references": [
+          {
+            "instruction_address": "0x4e4b0",
+            "instruction": "jmp 0x4f690 <faster_base58::ntt::x86::kernels::tf_garner>",
+            "target_address": "0x4f690",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_garner",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e4b0: jmp 0x4f690 <faster_base58::ntt::x86::kernels::tf_garner>"
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 5,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#6} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, &[i32], &[i32])>>::call_once",
+        "address": "0x4e310",
+        "bytes": 51,
+        "emitted_bytes_sha256": "2db732f729719f9064e5a1b7a3e925ebdc811e90d0d558481af2e2857cd091a4",
+        "external_references": [
+          {
+            "instruction_address": "0x4e339",
+            "instruction": "callq 0x52080 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+            "target_address": "0x52080",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e310: subq $0x28, %rsp",
+          "4e314: movaps 0x30(%rsp), %xmm0",
+          "4e319: movq 0x40(%rsp), %r11",
+          "4e31e: movl (%r8), %eax",
+          "4e321: movl 0xc(%r8), %r10d",
+          "4e325: movq %r11, 0x18(%rsp)",
+          "4e32a: movups %xmm0, 0x8(%rsp)",
+          "4e32f: movq %r9, (%rsp)",
+          "4e333: movl %eax, %r8d",
+          "4e336: movl %r10d, %r9d",
+          "4e339: callq 0x52080 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+          "4e33e: addq $0x28, %rsp",
+          "4e342: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#18} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, &[i32], &[i32])>>::call_once",
+        "address": "0x4e4c0",
+        "bytes": 51,
+        "emitted_bytes_sha256": "a0738dc95b8334c14ca6b0f04419f60202f5d07f55bd939c85ca3277090e5843",
+        "external_references": [
+          {
+            "instruction_address": "0x4e4e9",
+            "instruction": "callq 0x4f440 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+            "target_address": "0x4f440",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e4c0: subq $0x28, %rsp",
+          "4e4c4: movaps 0x30(%rsp), %xmm0",
+          "4e4c9: movq 0x40(%rsp), %r11",
+          "4e4ce: movl (%r8), %eax",
+          "4e4d1: movl 0xc(%r8), %r10d",
+          "4e4d5: movq %r11, 0x18(%rsp)",
+          "4e4da: movups %xmm0, 0x8(%rsp)",
+          "4e4df: movq %r9, (%rsp)",
+          "4e4e3: movl %eax, %r8d",
+          "4e4e6: movl %r10d, %r9d",
+          "4e4e9: callq 0x4f440 <faster_base58::ntt::x86::kernels::tf_load_twist>",
+          "4e4ee: addq $0x28, %rsp",
+          "4e4f2: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 51,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#7} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, bool)>>::call_once",
+        "address": "0x4e350",
+        "bytes": 55,
+        "emitted_bytes_sha256": "9c7220bba71acd24c665ed3c6d2059b8059067a67fd7f860dc19f39f85227611",
+        "external_references": [
+          {
+            "instruction_address": "0x4e37d",
+            "instruction": "callq 0x51d30 <faster_base58::ntt::x86::kernels::tf_load_add>",
+            "target_address": "0x51d30",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_add",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e350: subq $0x38, %rsp",
+          "4e354: movq %rdi, (%rsp)",
+          "4e358: movq %rsi, 0x8(%rsp)",
+          "4e35d: movq %rdx, 0x10(%rsp)",
+          "4e362: movq %rcx, 0x18(%rsp)",
+          "4e367: leaq 0x20(%rsp), %rax",
+          "4e36c: movups (%r8), %xmm0",
+          "4e370: movups %xmm0, 0x20(%rsp)",
+          "4e375: movb %r9b, 0x30(%rsp)",
+          "4e37a: movq %rax, %r8",
+          "4e37d: callq 0x51d30 <faster_base58::ntt::x86::kernels::tf_load_add>",
+          "4e382: addq $0x38, %rsp",
+          "4e386: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#19} as core::ops::function::FnOnce<(&mut [i32], &[u64], faster_base58::ntt::tables::Prime, bool)>>::call_once",
+        "address": "0x4e500",
+        "bytes": 55,
+        "emitted_bytes_sha256": "260557e4395025ddb556a697caa116954f5802961d88e37fb3c5b23d82212546",
+        "external_references": [
+          {
+            "instruction_address": "0x4e52d",
+            "instruction": "callq 0x4f150 <faster_base58::ntt::x86::kernels::tf_load_add>",
+            "target_address": "0x4f150",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_load_add",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e500: subq $0x38, %rsp",
+          "4e504: movq %rdi, (%rsp)",
+          "4e508: movq %rsi, 0x8(%rsp)",
+          "4e50d: movq %rdx, 0x10(%rsp)",
+          "4e512: movq %rcx, 0x18(%rsp)",
+          "4e517: leaq 0x20(%rsp), %rax",
+          "4e51c: movups (%r8), %xmm0",
+          "4e520: movups %xmm0, 0x20(%rsp)",
+          "4e525: movb %r9b, 0x30(%rsp)",
+          "4e52a: movq %rax, %r8",
+          "4e52d: callq 0x4f150 <faster_base58::ntt::x86::kernels::tf_load_add>",
+          "4e532: addq $0x38, %rsp",
+          "4e536: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 55,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#8} as core::ops::function::FnOnce<(&mut [i32], &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e390",
+        "bytes": 18,
+        "emitted_bytes_sha256": "e6329102c130efba25fd5db26a054d7035200e742ed53dccf80a5bcbfc4fec24",
+        "external_references": [
+          {
+            "instruction_address": "0x4e39b",
+            "instruction": "callq 0x51b60 <faster_base58::ntt::x86::kernels::tf_twist>",
+            "target_address": "0x51b60",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e390: pushq %rax",
+          "4e391: movq 0x10(%rsp), %rax",
+          "4e396: movl (%rax), %eax",
+          "4e398: movl %eax, (%rsp)",
+          "4e39b: callq 0x51b60 <faster_base58::ntt::x86::kernels::tf_twist>",
+          "4e3a0: popq %rax",
+          "4e3a1: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#20} as core::ops::function::FnOnce<(&mut [i32], &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e540",
+        "bytes": 18,
+        "emitted_bytes_sha256": "955bc27a6e73a644e985dbf8e48ad73b14bfcd0db7ca2fa029d887f3d309ba4e",
+        "external_references": [
+          {
+            "instruction_address": "0x4e54b",
+            "instruction": "callq 0x4f020 <faster_base58::ntt::x86::kernels::tf_twist>",
+            "target_address": "0x4f020",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_twist",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e540: pushq %rax",
+          "4e541: movq 0x10(%rsp), %rax",
+          "4e546: movl (%rax), %eax",
+          "4e548: movl %eax, (%rsp)",
+          "4e54b: callq 0x4f020 <faster_base58::ntt::x86::kernels::tf_twist>",
+          "4e550: popq %rax",
+          "4e551: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 18,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#9} as core::ops::function::FnOnce<(&mut [i32], &[i32], usize, bool, faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e3b0",
+        "bytes": 26,
+        "emitted_bytes_sha256": "60022c751107db6c9ad731e90c31499bd07feb9a52904ae00661390ef40c2453",
+        "external_references": [
+          {
+            "instruction_address": "0x4e3bf",
+            "instruction": "callq 0x51760 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+            "target_address": "0x51760",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_fold_sub",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e3b0: pushq %rax",
+          "4e3b1: movq 0x10(%rsp), %rax",
+          "4e3b6: movl (%rax), %r10d",
+          "4e3b9: movl 0x8(%rax), %eax",
+          "4e3bc: pushq %rax",
+          "4e3bd: pushq %r10",
+          "4e3bf: callq 0x51760 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+          "4e3c4: addq $0x10, %rsp",
+          "4e3c8: popq %rax",
+          "4e3c9: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#21} as core::ops::function::FnOnce<(&mut [i32], &[i32], usize, bool, faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e560",
+        "bytes": 26,
+        "emitted_bytes_sha256": "f413ef0313317d5f34edc9956214c26aa2fbd942495c8ff864794a9f0553f15f",
+        "external_references": [
+          {
+            "instruction_address": "0x4e56f",
+            "instruction": "callq 0x4ed60 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+            "target_address": "0x4ed60",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_fold_sub",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e560: pushq %rax",
+          "4e561: movq 0x10(%rsp), %rax",
+          "4e566: movl (%rax), %r10d",
+          "4e569: movl 0x8(%rax), %eax",
+          "4e56c: pushq %rax",
+          "4e56d: pushq %r10",
+          "4e56f: callq 0x4ed60 <faster_base58::ntt::x86::kernels::tf_fold_sub>",
+          "4e574: addq $0x10, %rsp",
+          "4e578: popq %rax",
+          "4e579: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 26,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  },
+  {
+    "policy": "cache",
+    "members": [
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#11} as core::ops::function::FnOnce<(&mut [i32], usize, &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e3e0",
+        "bytes": 75,
+        "emitted_bytes_sha256": "0f8342138861babc3a74a57ee5f1aaa01baac4eab32f06260621b7b68a9e02c5",
+        "external_references": [
+          {
+            "instruction_address": "0x4e421",
+            "instruction": "callq 0x50c00 <faster_base58::ntt::x86::kernels::tf_pair>",
+            "target_address": "0x50c00",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_pair",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx512f",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e3e0: subq $0x48, %rsp",
+          "4e3e4: movq 0x58(%rsp), %rax",
+          "4e3e9: movq 0x50(%rsp), %r10",
+          "4e3ee: movq %rdi, (%rsp)",
+          "4e3f2: movq %rsi, 0x8(%rsp)",
+          "4e3f7: movq %rdx, 0x30(%rsp)",
+          "4e3fc: movq %rcx, 0x10(%rsp)",
+          "4e401: movq %r8, 0x18(%rsp)",
+          "4e406: movq %r9, 0x20(%rsp)",
+          "4e40b: movq %r10, 0x28(%rsp)",
+          "4e410: leaq 0x38(%rsp), %r11",
+          "4e415: movups (%rax), %xmm0",
+          "4e418: movups %xmm0, 0x38(%rsp)",
+          "4e41d: pushq %r11",
+          "4e41f: pushq %r10",
+          "4e421: callq 0x50c00 <faster_base58::ntt::x86::kernels::tf_pair>",
+          "4e426: addq $0x58, %rsp",
+          "4e42a: retq "
+        ]
+      },
+      {
+        "name": "<faster_base58::ntt::x86::kernels::{closure#23} as core::ops::function::FnOnce<(&mut [i32], usize, &[i32], &[i32], faster_base58::ntt::tables::Prime)>>::call_once",
+        "address": "0x4e590",
+        "bytes": 75,
+        "emitted_bytes_sha256": "0ccdcf296569e7e1aca20e36f5378dc86d85be581433a24f4b582598fc48b4fc",
+        "external_references": [
+          {
+            "instruction_address": "0x4e5d1",
+            "instruction": "callq 0x4e5e0 <faster_base58::ntt::x86::kernels::tf_pair>",
+            "target_address": "0x4e5e0",
+            "target_symbol": "faster_base58::ntt::x86::kernels::tf_pair",
+            "relocation": null
+          }
+        ],
+        "source_feature": "avx2",
+        "capture_abi": "Noncapturing safe function-pointer adapter; target_feature kernel selected after runtime detection",
+        "instructions": [
+          "4e590: subq $0x48, %rsp",
+          "4e594: movq 0x58(%rsp), %rax",
+          "4e599: movq 0x50(%rsp), %r10",
+          "4e59e: movq %rdi, (%rsp)",
+          "4e5a2: movq %rsi, 0x8(%rsp)",
+          "4e5a7: movq %rdx, 0x30(%rsp)",
+          "4e5ac: movq %rcx, 0x10(%rsp)",
+          "4e5b1: movq %r8, 0x18(%rsp)",
+          "4e5b6: movq %r9, 0x20(%rsp)",
+          "4e5bb: movq %r10, 0x28(%rsp)",
+          "4e5c0: leaq 0x38(%rsp), %r11",
+          "4e5c5: movups (%rax), %xmm0",
+          "4e5c8: movups %xmm0, 0x38(%rsp)",
+          "4e5cd: pushq %r11",
+          "4e5cf: pushq %r10",
+          "4e5d1: callq 0x4e5e0 <faster_base58::ntt::x86::kernels::tf_pair>",
+          "4e5d6: addq $0x58, %rsp",
+          "4e5da: retq "
+        ]
+      }
+    ],
+    "emitted_bytes_identical": false,
+    "normalized_candidate_only": true,
+    "distinct_addresses": true,
+    "nominal_redundant_body_bytes": 75,
+    "merge_status": "Unqualified: raw bytes/targets, target_feature context and separate ISA latency/size measurements must all be considered."
+  }
+]

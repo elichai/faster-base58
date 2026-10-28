@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "status": "complete",
+  "snapshot": "2026-10-27",
+  "inputs": {
+    "docs/benchmarks/2026-10-27/public.csv": "bda2bc9ded3753d255ea0bf660fd7fd3a892aa5ed0e79c13b3f03bb94b49cc7a",
+    "docs/benchmarks/2026-10-27/public-data-metadata.json": "1c49027204c29ebece75f8c01be655e70908aca78bb549eff36d247ceb30ac91",
+    "docs/benchmarks/2026-10-27/figure-linked-sizes.csv": "c478dd265079c08df6b88471b0c3dcb4ccf439165d0013cb2425826f58e71e81",
+    "docs/benchmarks/2026-10-27/public-original-render-metadata.json": "8582a31805ae26053fff077bc4bce0ce4b95825ea2566357b29df1834de4f562",
+    "docs/benchmarks/2026-10-27/selected-main-bridge.json": "4e8eb7df3bbc32e3b06437a5dbfdc2289f25224ffbe811f00d8758f56c5ff241",
+    "assets/graphs/current.py": "385d9da4949f979ffb343d0260f5e74340800fb325260b2445e7ae677312cb26",
+    "assets/graphs/render_current.py": "1af2ed92e6933c9b02ce330e745c01b93c0bd04adc2cb5e9b97e2e85d48806d5",
+    "assets/graphs/requirements.txt": "2adcc52a05b95faf88a4212dc48f1f1aad0410301ff296820b2fce001df3e06f",
+    "assets/graphs/render.py": "65da81be545ff077217733cf4aa291d985f7c8d6761122a58a3e5ab5a5731939",
+    "assets/graphs/receipt.json": "e15472d5faf3fe3315324889cb14b037d2014299764e28659547ad63eed39aca"
+  },
+  "outputs": {
+    "docs/benchmarks/2026-10-27/public-tables.md": "0fc369151ce3cdb618541e08c94895c8b8dce847462d9fa4a19fb50f1f13dc8a",
+    "assets/graphs/m5-public.svg": "41d014a4af646171584e24907a94d2adcb5cce808e0f3d94c3053218cd272cbb",
+    "assets/graphs/wasm-public.svg": "4725fa7248e0e702bbc6aba731def10b30558d89942a3b0b370e2d2def1e9d36"
+  },
+  "source_fingerprints": {
+    "m5": "a479a1430a4fafa254edc8471b3cdd0c29486572ad0ebed434367adfeb7f474d",
+    "wasm": "4e5ac8830ccf82a69488cb8e351060bf8e97fa8c3d108f63bebffc1c4c41e760"
+  },
+  "source_bridge": "The later0915 main differs from selecteda479 in one API documentation line only. All other src, Cargo and resource observer files match; both already delegate owned measurements to the actual public API.",
+  "linked_size_epoch": "The figure size table is the separate frozen4e5 snapshot for both platforms.",
+  "original_render": {
+    "matplotlib": "3.11.2",
+    "renderer_sha256": "fa8799069abb7462ace3d382ee04192e3c8f85cb8bbbfb10163e1da1a6038711",
+    "metadata": "public-original-render-metadata.json",
+    "scope": "The original workspace-specific renderer is archived privately; its hash records provenance. Use portable render_current.py for regeneration."
+  },
+  "check_scope": "Hash binding of retained input/output artifacts, source/consumer/sampling domains, independent numeric table regeneration and SVG XML parsing. No CI pixel regeneration claim.",
+  "regenerate": "Install assets/graphs/requirements.txt in a separate environment; run assets/graphs/render_current.py --output NEW_DIRECTORY. The portable renderer fixes SVG identifiers/date for future generations; it does not retarget original v3 hashes."
+}

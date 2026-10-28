@@ -1,0 +1,21 @@
+--- a/src/api.rs
++++ b/src/api.rs
+@@ -178,7 +178,18 @@
+ }
+ 
+ /// Decodes into an owned byte vector, preserving leading zero bytes.
++#[inline]
+ pub fn decode_vec(input: &str) -> Result<Vec<u8>, Error> {
++    if input.is_empty() {
++        return Ok(Vec::new());
++    }
++    decode_vec_nonempty(input)
++}
++
++/// Requires nonempty input; the public wrapper handles the empty result without a frame.
++#[inline(never)]
++fn decode_vec_nonempty(input: &str) -> Result<Vec<u8>, Error> {
++    debug_assert!(!input.is_empty());
+     if input.len() <= 2 {
+         let mut output = vec![0; input.len()];
+         let len = decode(input, &mut output)?;

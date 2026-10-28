@@ -5,7 +5,7 @@
     "docs/benchmarks/public-modes/timings.csv": "811af8ca18ab75ac7d633979ffa7b6a98d03dac868047986ab58a86bc812092b",
     "docs/benchmarks/allocation-layout/sizes.csv": "decde0d009be5555aca114ea96b09ff863a8486d4e2a78e05bad59b155857984"
   },
-  "renderer_sha256": "da9f0f18d60537899ec9f9b7fc5ddbdda6bc2f1c288c84bb21d5de2cdd3e5b1e",
+  "renderer_sha256": "65da81be545ff077217733cf4aa291d985f7c8d6761122a58a3e5ab5a5731939",
   "python": "3.15.1 (main, Oct 21 2026, 05:55:12) [Clang 21.0.0 (clang-2100.3.34.2)]",
   "timing_points": 192,
   "linked_size_cells": 16,

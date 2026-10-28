@@ -1,0 +1,2 @@
+# Regeneration only. The normal --check path uses the Python standard library.
+matplotlib==3.11.2

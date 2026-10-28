@@ -1,0 +1,3135 @@
+[
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "faster_base58::ntt::mul_with",
+    "address": "0x45b80",
+    "state_references": [
+      "45be4: movzbl 0x4e566(%rip), %eax     # 0x94151 <faster_base58::cpu::detect_ifma::STORAGE (.0)>"
+    ],
+    "initial_instructions": [
+      [
+        285568,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        285569,
+        "pushq",
+        "%r15"
+      ],
+      [
+        285571,
+        "pushq",
+        "%r14"
+      ],
+      [
+        285573,
+        "pushq",
+        "%r13"
+      ],
+      [
+        285575,
+        "pushq",
+        "%r12"
+      ],
+      [
+        285577,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        285578,
+        "subq",
+        "$0x68, %rsp"
+      ],
+      [
+        285582,
+        "movq",
+        "%r9, %r11"
+      ],
+      [
+        285585,
+        "movq",
+        "%rsi, %r14"
+      ],
+      [
+        285588,
+        "movq",
+        "0xc0(%rsp), %rsi"
+      ],
+      [
+        285596,
+        "movq",
+        "0xa8(%rsp), %rax"
+      ],
+      [
+        285604,
+        "movq",
+        "%rax, 0x10(%rsp)"
+      ],
+      [
+        285609,
+        "movq",
+        "0xa0(%rsp), %r12"
+      ],
+      [
+        285617,
+        "cmpq",
+        "%r9, %rcx"
+      ],
+      [
+        285620,
+        "movq",
+        "%r9, %r10"
+      ],
+      [
+        285623,
+        "cmovbq",
+        "%rcx, %r10"
+      ],
+      [
+        285627,
+        "movq",
+        "%rdx, %rax"
+      ],
+      [
+        285630,
+        "cmovaq",
+        "%r8, %rax"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x45c8e",
+        "instruction": "callq *0x4d33c(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45d4b",
+        "instruction": "callq *0x4d27f(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x46340",
+        "instruction": "callq 0x1a790 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x1a790 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x46354",
+        "instruction": "callq 0x1c340 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x1c340 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x463cb",
+        "instruction": "callq 0x1a790 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x1a790 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "faster_base58::ntt::transform",
+    "address": "0x46420",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        287776,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        287777,
+        "pushq",
+        "%r15"
+      ],
+      [
+        287779,
+        "pushq",
+        "%r14"
+      ],
+      [
+        287781,
+        "pushq",
+        "%r13"
+      ],
+      [
+        287783,
+        "pushq",
+        "%r12"
+      ],
+      [
+        287785,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        287786,
+        "subq",
+        "$0x268, %rsp            # imm = 0x268"
+      ],
+      [
+        287793,
+        "movq",
+        "%r8, 0x38(%rsp)"
+      ],
+      [
+        287798,
+        "movq",
+        "%rcx, %rbp"
+      ],
+      [
+        287801,
+        "movq",
+        "%rdx, 0x50(%rsp)"
+      ],
+      [
+        287806,
+        "movq",
+        "%rsi, 0xd0(%rsp)"
+      ],
+      [
+        287814,
+        "movabsq",
+        "$0x3ffffffffffffff8, %r15 # imm = 0x3FFFFFFFFFFFFFF8"
+      ],
+      [
+        287824,
+        "leaq",
+        "(%r9,%rcx), %rax"
+      ],
+      [
+        287828,
+        "leaq",
+        "(%rax,%rax), %rcx"
+      ],
+      [
+        287832,
+        "movq",
+        "%rcx, %rdx"
+      ],
+      [
+        287835,
+        "andq",
+        "%r15, %rdx"
+      ],
+      [
+        287838,
+        "addq",
+        "$0x8, %rdx"
+      ],
+      [
+        287842,
+        "testb",
+        "$0x3, %al"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x466b4",
+        "instruction": "callq *0xc0(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0xc0(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x466d6",
+        "instruction": "callq *0x70(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x70(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x46739",
+        "instruction": "callq *0x20(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x20(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x46759",
+        "instruction": "callq *0x78(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x78(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x467d6",
+        "instruction": "callq *0x10(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x10(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x46815",
+        "instruction": "callq *0x20(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x20(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4683d",
+        "instruction": "callq *0x78(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x78(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x46860",
+        "instruction": "callq *0x10(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x10(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x468f4",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x469f7",
+        "instruction": "callq *0x4c5d3(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x46b04",
+        "instruction": "callq *0x4c4c6(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x46e0a",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x471cf",
+        "instruction": "callq *0x88(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x88(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47371",
+        "instruction": "callq *0x240(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x240(%rsp)",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x46c6c",
+        "instruction": "callq 0x1a790 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x1a790 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x4738e",
+        "instruction": "callq 0x1c340 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x1c340 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x473a6",
+        "instruction": "callq 0x1a790 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x1a790 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare_power",
+    "address": "0x47be0",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        293856,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        293857,
+        "pushq",
+        "%r15"
+      ],
+      [
+        293859,
+        "pushq",
+        "%r14"
+      ],
+      [
+        293861,
+        "pushq",
+        "%r13"
+      ],
+      [
+        293863,
+        "pushq",
+        "%r12"
+      ],
+      [
+        293865,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        293866,
+        "subq",
+        "$0x168, %rsp            # imm = 0x168"
+      ],
+      [
+        293873,
+        "movq",
+        "%rcx, %rbp"
+      ],
+      [
+        293876,
+        "movq",
+        "%rsi, %r15"
+      ],
+      [
+        293879,
+        "movq",
+        "%rdi, %r12"
+      ],
+      [
+        293882,
+        "cmpq",
+        "0x1b0(%rdi), %rcx"
+      ],
+      [
+        293889,
+        "jb",
+        "0x47c3d <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare_power+0x5d>"
+      ],
+      [
+        293891,
+        "addq",
+        "%r8, %r8"
+      ],
+      [
+        293894,
+        "cmpq",
+        "$0x9, %r8"
+      ],
+      [
+        293898,
+        "movl",
+        "$0x8, %eax"
+      ],
+      [
+        293903,
+        "cmovaeq",
+        "%r8, %rax"
+      ],
+      [
+        293907,
+        "cmpl",
+        "$0x1, 0x140(%r12)"
+      ],
+      [
+        293916,
+        "jne",
+        "0x47fda <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare_power+0x3fa>"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x47d4d",
+        "instruction": "callq *0x4b285(%rip)          # 0x92fd8 <write+0x92fd8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47df4",
+        "instruction": "callq *%rbp",
+        "kind": "register/aggregate indirect",
+        "target": "*%rbp",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47e30",
+        "instruction": "callq *0x4b1ca(%rip)          # 0x93000 <write+0x93000>",
+        "kind": "GOT/library relocation",
+        "slot": "0x93000",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "calloc"
+        },
+        "target": "calloc",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47e92",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47ea6",
+        "instruction": "callq *0x150(%r12)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x150(%r12)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47eee",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47f00",
+        "instruction": "callq *0x150(%r12)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x150(%r12)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47f40",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47f55",
+        "instruction": "callq *0x150(%r12)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x150(%r12)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x47f9c",
+        "instruction": "callq *0x4b056(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4805f",
+        "instruction": "callq *0x4af93(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x47fed",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x48028",
+        "instruction": "callq 0x1c44c <core::panicking::panic_bounds_check>",
+        "kind": "direct",
+        "target": "0x1c44c <core::panicking::panic_bounds_check>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul",
+    "address": "0x48070",
+    "state_references": [
+      "480bd: movzbl 0x4c08d(%rip), %eax     # 0x94151 <faster_base58::cpu::detect_ifma::STORAGE (.0)>"
+    ],
+    "initial_instructions": [
+      [
+        295024,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        295025,
+        "pushq",
+        "%r15"
+      ],
+      [
+        295027,
+        "pushq",
+        "%r14"
+      ],
+      [
+        295029,
+        "pushq",
+        "%r13"
+      ],
+      [
+        295031,
+        "pushq",
+        "%r12"
+      ],
+      [
+        295033,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        295034,
+        "subq",
+        "$0x138, %rsp            # imm = 0x138"
+      ],
+      [
+        295041,
+        "movq",
+        "%rdi, %rbx"
+      ],
+      [
+        295044,
+        "movq",
+        "0x180(%rsp), %r15"
+      ],
+      [
+        295052,
+        "movq",
+        "0x178(%rsp), %r11"
+      ],
+      [
+        295060,
+        "movq",
+        "0x170(%rsp), %r10"
+      ],
+      [
+        295068,
+        "cmpq",
+        "%r8, %r10"
+      ],
+      [
+        295071,
+        "movq",
+        "%r8, %rax"
+      ],
+      [
+        295074,
+        "cmovbq",
+        "%r10, %rax"
+      ],
+      [
+        295078,
+        "movq",
+        "0x1a8(%rdi), %rbp"
+      ],
+      [
+        295085,
+        "cmpq",
+        "$0x1, %rbp"
+      ],
+      [
+        295089,
+        "movq",
+        "%rbp, %rdi"
+      ],
+      [
+        295092,
+        "adcq",
+        "$0x0, %rdi"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x4812a",
+        "instruction": "callq *0x4aea8(%rip)          # 0x92fd8 <write+0x92fd8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x48218",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare",
+    "address": "0x48220",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        295456,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        295457,
+        "pushq",
+        "%r15"
+      ],
+      [
+        295459,
+        "pushq",
+        "%r14"
+      ],
+      [
+        295461,
+        "pushq",
+        "%r13"
+      ],
+      [
+        295463,
+        "pushq",
+        "%r12"
+      ],
+      [
+        295465,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        295466,
+        "subq",
+        "$0xb8, %rsp"
+      ],
+      [
+        295473,
+        "movl",
+        "0x1b8(%rdi), %eax"
+      ],
+      [
+        295479,
+        "cmpl",
+        "$0x4, %eax"
+      ],
+      [
+        295482,
+        "jbe",
+        "0x484a9 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare+0x289>"
+      ],
+      [
+        295488,
+        "movq",
+        "%rdi, %rbx"
+      ],
+      [
+        295491,
+        "addq",
+        "%rsi, %rsi"
+      ],
+      [
+        295494,
+        "cmpq",
+        "$0x9, %rsi"
+      ],
+      [
+        295498,
+        "movl",
+        "$0x8, %ecx"
+      ],
+      [
+        295503,
+        "cmovaeq",
+        "%rsi, %rcx"
+      ],
+      [
+        295507,
+        "decq",
+        "%rcx"
+      ],
+      [
+        295510,
+        "bsrq",
+        "%rcx, %rcx"
+      ],
+      [
+        295514,
+        "incl",
+        "%ecx"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x4837f",
+        "instruction": "callq *0x4ac73(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4838d",
+        "instruction": "callq *0x4ac65(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4839d",
+        "instruction": "callq *0x4ac55(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x483ad",
+        "instruction": "callq *0x4ac45(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x483bd",
+        "instruction": "callq *0x4ac35(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x483d0",
+        "instruction": "callq *0x4ac22(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x483e3",
+        "instruction": "callq *0x4ac0f(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x483f6",
+        "instruction": "callq *0x4abfc(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x48409",
+        "instruction": "callq *0x4abe9(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4841f",
+        "instruction": "callq *0x4abd3(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x48435",
+        "instruction": "callq *0x4abbd(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4844b",
+        "instruction": "callq *0x4aba7(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x48493",
+        "instruction": "callq *%rbx",
+        "kind": "register/aggregate indirect",
+        "target": "*%rbx",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x484fc",
+        "instruction": "callq 0x1a790 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x1a790 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len",
+    "address": "0x486d0",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        296656,
+        "pushq",
+        "%rax"
+      ],
+      [
+        296657,
+        "cmpq",
+        "0x1a8(%rdi), %rsi"
+      ],
+      [
+        296664,
+        "jb",
+        "0x48735 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len+0x65>"
+      ],
+      [
+        296666,
+        "movq",
+        "%rdx, %rax"
+      ],
+      [
+        296669,
+        "movl",
+        "$0x4, %edx"
+      ],
+      [
+        296674,
+        "cmpq",
+        "$0x2, %rsi"
+      ],
+      [
+        296678,
+        "jb",
+        "0x48706 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len+0x36>"
+      ],
+      [
+        296680,
+        "decq",
+        "%rsi"
+      ],
+      [
+        296683,
+        "bsrq",
+        "%rsi, %rcx"
+      ],
+      [
+        296687,
+        "notl",
+        "%ecx"
+      ],
+      [
+        296689,
+        "movq",
+        "$-0x1, %rsi"
+      ],
+      [
+        296696,
+        "shrq",
+        "%cl, %rsi"
+      ],
+      [
+        296699,
+        "incq",
+        "%rsi"
+      ],
+      [
+        296702,
+        "cmpq",
+        "$0x5, %rsi"
+      ],
+      [
+        296706,
+        "cmovaeq",
+        "%rsi, %rdx"
+      ],
+      [
+        296710,
+        "cmpl",
+        "$0x1, 0x140(%rdi)"
+      ],
+      [
+        296717,
+        "jne",
+        "0x48841 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len+0x171>"
+      ],
+      [
+        296723,
+        "leaq",
+        "(%rdx,%rdx), %rsi"
+      ]
+    ],
+    "indirect_calls": [],
+    "panic_examples": [
+      {
+        "address": "0x48854",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x48859",
+        "instruction": "callq 0x1c430 <core::num::imp::int_log10::panic_for_nonpositive_argument>",
+        "kind": "direct",
+        "target": "0x1c430 <core::num::imp::int_log10::panic_for_nonpositive_argument>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul_power",
+    "address": "0x48860",
+    "state_references": [
+      "48910: movzbl 0x4b83a(%rip), %eax     # 0x94151 <faster_base58::cpu::detect_ifma::STORAGE (.0)>"
+    ],
+    "initial_instructions": [
+      [
+        297056,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        297057,
+        "pushq",
+        "%r15"
+      ],
+      [
+        297059,
+        "pushq",
+        "%r14"
+      ],
+      [
+        297061,
+        "pushq",
+        "%r13"
+      ],
+      [
+        297063,
+        "pushq",
+        "%r12"
+      ],
+      [
+        297065,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        297066,
+        "subq",
+        "$0x138, %rsp            # imm = 0x138"
+      ],
+      [
+        297073,
+        "movq",
+        "%r9, %rax"
+      ],
+      [
+        297076,
+        "movq",
+        "%rdi, %rbx"
+      ],
+      [
+        297079,
+        "movq",
+        "0x188(%rsp), %r12"
+      ],
+      [
+        297087,
+        "movq",
+        "0x180(%rsp), %r15"
+      ],
+      [
+        297095,
+        "movq",
+        "0x178(%rsp), %r9"
+      ],
+      [
+        297103,
+        "movq",
+        "0x170(%rsp), %r10"
+      ],
+      [
+        297111,
+        "cmpq",
+        "0x10(%rdi), %rax"
+      ],
+      [
+        297115,
+        "jae",
+        "0x488ef <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul_power+0x8f>"
+      ],
+      [
+        297117,
+        "movq",
+        "0x8(%rbx), %r11"
+      ],
+      [
+        297121,
+        "leaq",
+        "(%rax,%rax,2), %rax"
+      ],
+      [
+        297125,
+        "shlq",
+        "$0x4, %rax"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x48979",
+        "instruction": "callq *0x4a659(%rip)          # 0x92fd8 <write+0x92fd8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x48aa0",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x48ab8",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "faster_base58::mul::mul_with",
+    "address": "0x58b90",
+    "state_references": [
+      "58be2: movzbl 0x3b568(%rip), %eax     # 0x94151 <faster_base58::cpu::detect_ifma::STORAGE (.0)>"
+    ],
+    "initial_instructions": [
+      [
+        363408,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        363409,
+        "pushq",
+        "%r15"
+      ],
+      [
+        363411,
+        "pushq",
+        "%r14"
+      ],
+      [
+        363413,
+        "pushq",
+        "%r13"
+      ],
+      [
+        363415,
+        "pushq",
+        "%r12"
+      ],
+      [
+        363417,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        363418,
+        "subq",
+        "$0x98, %rsp"
+      ],
+      [
+        363425,
+        "cmpq",
+        "%r9, %rcx"
+      ],
+      [
+        363428,
+        "movq",
+        "%r9, %r15"
+      ],
+      [
+        363431,
+        "cmovbq",
+        "%rcx, %r15"
+      ],
+      [
+        363435,
+        "movq",
+        "%rdx, %rbx"
+      ],
+      [
+        363438,
+        "cmovaq",
+        "%r8, %rbx"
+      ],
+      [
+        363442,
+        "movq",
+        "0xe0(%rsp), %r10"
+      ],
+      [
+        363450,
+        "cmovaq",
+        "%rcx, %r9"
+      ],
+      [
+        363454,
+        "cmovaq",
+        "%rdx, %r8"
+      ],
+      [
+        363458,
+        "cmpq",
+        "$0xc, %r15"
+      ],
+      [
+        363462,
+        "setae",
+        "%al"
+      ],
+      [
+        363465,
+        "cmpq",
+        "%r10, %r15"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x58c2f",
+        "instruction": "callq *0x3a39b(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x58d93",
+        "instruction": "callq *0x3a23f(%rip)          # 0x92fd8 <write+0x92fd8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x58da5",
+        "instruction": "callq *0x3a225(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x58e2f",
+        "instruction": "callq *0x3a1a3(%rip)          # 0x92fd8 <write+0x92fd8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x58e41",
+        "instruction": "callq *0x3a189(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x58e81",
+        "instruction": "callq *0x3a149(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x59732",
+        "instruction": "callq 0x1c340 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x1c340 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x5974a",
+        "instruction": "callq 0x1a790 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x1a790 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x5975e",
+        "instruction": "callq 0x1c340 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x1c340 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "default",
+    "artifact_sha256": "0dfb3d9a111887f303933e351428dd862f5b5e5e99748a75c1111cda1493b696",
+    "function": "faster_base58::api::decode",
+    "address": "0x599f0",
+    "state_references": [
+      "5b0ab: movzbl 0x3909f(%rip), %eax     # 0x94151 <faster_base58::cpu::detect_ifma::STORAGE (.0)>"
+    ],
+    "initial_instructions": [
+      [
+        367088,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        367089,
+        "pushq",
+        "%r15"
+      ],
+      [
+        367091,
+        "pushq",
+        "%r14"
+      ],
+      [
+        367093,
+        "pushq",
+        "%r13"
+      ],
+      [
+        367095,
+        "pushq",
+        "%r12"
+      ],
+      [
+        367097,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        367098,
+        "subq",
+        "$0x1000, %rsp           # imm = 0x1000"
+      ],
+      [
+        367105,
+        "movq",
+        "$0x0, (%rsp)"
+      ],
+      [
+        367113,
+        "subq",
+        "$0x98, %rsp"
+      ],
+      [
+        367120,
+        "movq",
+        "%rdx, %r15"
+      ],
+      [
+        367123,
+        "cmpq",
+        "$0x3, %rdx"
+      ],
+      [
+        367127,
+        "jae",
+        "0x59a61 <faster_base58::api::decode+0x71>"
+      ],
+      [
+        367129,
+        "testq",
+        "%r15, %r15"
+      ],
+      [
+        367132,
+        "je",
+        "0x59f46 <faster_base58::api::decode+0x556>"
+      ],
+      [
+        367138,
+        "movzbl",
+        "(%rsi), %edx"
+      ],
+      [
+        367141,
+        "leaq",
+        "-0x4cb25(%rip), %rax    # 0xcf07 <core::unicode::unicode_data::cf::SHORT_OFFSET_RUNS+0x252f>"
+      ],
+      [
+        367148,
+        "movzbl",
+        "(%rdx,%rax), %r9d"
+      ],
+      [
+        367153,
+        "cmpq",
+        "$0x1, %r15"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x5a8fa",
+        "instruction": "callq *0x386d8(%rip)          # 0x92fd8 <write+0x92fd8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x5acd2",
+        "instruction": "callq *0x38328(%rip)          # 0x93000 <write+0x93000>",
+        "kind": "GOT/library relocation",
+        "slot": "0x93000",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "calloc"
+        },
+        "target": "calloc",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x5adef",
+        "instruction": "callq *0x381db(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x5b025",
+        "instruction": "callq *0x37fa5(%rip)          # 0x92fd0 <write+0x92fd0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92fd0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x5b259",
+        "instruction": "callq *0x37d99(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x5b47b",
+        "instruction": "callq *0x37b77(%rip)          # 0x92ff8 <write+0x92ff8>",
+        "kind": "GOT/library relocation",
+        "slot": "0x92ff8",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x5a068",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x5a8a5",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x5a9d5",
+        "instruction": "callq 0x1d070 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1d070 <core::option::expect_failed>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "faster_base58::ntt::mul_with",
+    "address": "0x430e0",
+    "state_references": [
+      "43144: movq 0x5144d(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "4315b: movq 0x51436(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "438d5: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>",
+      "43907: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>"
+    ],
+    "initial_instructions": [
+      [
+        274656,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        274657,
+        "pushq",
+        "%r15"
+      ],
+      [
+        274659,
+        "pushq",
+        "%r14"
+      ],
+      [
+        274661,
+        "pushq",
+        "%r13"
+      ],
+      [
+        274663,
+        "pushq",
+        "%r12"
+      ],
+      [
+        274665,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        274666,
+        "subq",
+        "$0x68, %rsp"
+      ],
+      [
+        274670,
+        "movq",
+        "%r9, %r11"
+      ],
+      [
+        274673,
+        "movq",
+        "%rsi, %r14"
+      ],
+      [
+        274676,
+        "movq",
+        "0xc0(%rsp), %rsi"
+      ],
+      [
+        274684,
+        "movq",
+        "0xa8(%rsp), %rax"
+      ],
+      [
+        274692,
+        "movq",
+        "%rax, 0x18(%rsp)"
+      ],
+      [
+        274697,
+        "movq",
+        "0xa0(%rsp), %r12"
+      ],
+      [
+        274705,
+        "cmpq",
+        "%r9, %rcx"
+      ],
+      [
+        274708,
+        "movq",
+        "%r9, %r10"
+      ],
+      [
+        274711,
+        "cmovbq",
+        "%rcx, %r10"
+      ],
+      [
+        274715,
+        "movq",
+        "%rdx, %rax"
+      ],
+      [
+        274718,
+        "cmovaq",
+        "%r8, %rax"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x43203",
+        "instruction": "callq *0x4df97(%rip)          # 0x911a0 <write+0x911a0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x911a0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x432c0",
+        "instruction": "callq *0x4deda(%rip)          # 0x911a0 <write+0x911a0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x911a0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x438b0",
+        "instruction": "callq 0x17d30 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x17d30 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x438c4",
+        "instruction": "callq 0x198e0 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x198e0 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x43970",
+        "instruction": "callq 0x17d30 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x17d30 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "faster_base58::ntt::transform",
+    "address": "0x439c0",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        276928,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        276929,
+        "pushq",
+        "%r15"
+      ],
+      [
+        276931,
+        "pushq",
+        "%r14"
+      ],
+      [
+        276933,
+        "pushq",
+        "%r13"
+      ],
+      [
+        276935,
+        "pushq",
+        "%r12"
+      ],
+      [
+        276937,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        276938,
+        "subq",
+        "$0x268, %rsp            # imm = 0x268"
+      ],
+      [
+        276945,
+        "movq",
+        "%r8, 0x38(%rsp)"
+      ],
+      [
+        276950,
+        "movq",
+        "%rcx, %rbp"
+      ],
+      [
+        276953,
+        "movq",
+        "%rdx, 0x50(%rsp)"
+      ],
+      [
+        276958,
+        "movq",
+        "%rsi, 0xd0(%rsp)"
+      ],
+      [
+        276966,
+        "movabsq",
+        "$0x3ffffffffffffff8, %r15 # imm = 0x3FFFFFFFFFFFFFF8"
+      ],
+      [
+        276976,
+        "leaq",
+        "(%r9,%rcx), %rax"
+      ],
+      [
+        276980,
+        "leaq",
+        "(%rax,%rax), %rcx"
+      ],
+      [
+        276984,
+        "movq",
+        "%rcx, %rdx"
+      ],
+      [
+        276987,
+        "andq",
+        "%r15, %rdx"
+      ],
+      [
+        276990,
+        "addq",
+        "$0x8, %rdx"
+      ],
+      [
+        276994,
+        "testb",
+        "$0x3, %al"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x43c54",
+        "instruction": "callq *0xc0(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0xc0(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43c76",
+        "instruction": "callq *0x70(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x70(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43cd9",
+        "instruction": "callq *0x20(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x20(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43cf9",
+        "instruction": "callq *0x78(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x78(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43d76",
+        "instruction": "callq *0x10(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x10(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43db5",
+        "instruction": "callq *0x20(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x20(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43ddd",
+        "instruction": "callq *0x78(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x78(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43e00",
+        "instruction": "callq *0x10(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x10(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43e94",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x43f97",
+        "instruction": "callq *0x4d203(%rip)          # 0x911a0 <write+0x911a0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x911a0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x440a4",
+        "instruction": "callq *0x4d0f6(%rip)          # 0x911a0 <write+0x911a0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x911a0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x443aa",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4476f",
+        "instruction": "callq *0x88(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x88(%rsp)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x44911",
+        "instruction": "callq *0x240(%rsp)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x240(%rsp)",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x4420c",
+        "instruction": "callq 0x17d30 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x17d30 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x4492e",
+        "instruction": "callq 0x198e0 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x198e0 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x44946",
+        "instruction": "callq 0x17d30 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x17d30 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare_power",
+    "address": "0x45180",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        283008,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        283009,
+        "pushq",
+        "%r15"
+      ],
+      [
+        283011,
+        "pushq",
+        "%r14"
+      ],
+      [
+        283013,
+        "pushq",
+        "%r13"
+      ],
+      [
+        283015,
+        "pushq",
+        "%r12"
+      ],
+      [
+        283017,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        283018,
+        "subq",
+        "$0x178, %rsp            # imm = 0x178"
+      ],
+      [
+        283025,
+        "movq",
+        "%rcx, %r13"
+      ],
+      [
+        283028,
+        "movq",
+        "%rsi, %r15"
+      ],
+      [
+        283031,
+        "movq",
+        "%rdi, %r12"
+      ],
+      [
+        283034,
+        "cmpq",
+        "0x1b0(%rdi), %rcx"
+      ],
+      [
+        283041,
+        "jb",
+        "0x451db <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare_power+0x5b>"
+      ],
+      [
+        283043,
+        "addq",
+        "%r8, %r8"
+      ],
+      [
+        283046,
+        "cmpq",
+        "$0x9, %r8"
+      ],
+      [
+        283050,
+        "movl",
+        "$0x8, %eax"
+      ],
+      [
+        283055,
+        "cmovaeq",
+        "%r8, %rax"
+      ],
+      [
+        283059,
+        "cmpl",
+        "$0x1, 0x140(%r12)"
+      ],
+      [
+        283068,
+        "jne",
+        "0x45641 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare_power+0x4c1>"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x45383",
+        "instruction": "callq *%r13",
+        "kind": "register/aggregate indirect",
+        "target": "*%r13",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x453b3",
+        "instruction": "callq *0x4bdbf(%rip)          # 0x91178 <write+0x91178>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91178",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4548f",
+        "instruction": "callq *0x4bccb(%rip)          # 0x91160 <write+0x91160>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91160",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "calloc"
+        },
+        "target": "calloc",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x454f2",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45506",
+        "instruction": "callq *0x150(%r12)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x150(%r12)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x4554e",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45564",
+        "instruction": "callq *0x150(%r12)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x150(%r12)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x455a3",
+        "instruction": "callq *%rax",
+        "kind": "register/aggregate indirect",
+        "target": "*%rax",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x455bc",
+        "instruction": "callq *0x150(%r12)",
+        "kind": "register/aggregate indirect",
+        "target": "*0x150(%r12)",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45604",
+        "instruction": "callq *0x4bb5e(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x456f2",
+        "instruction": "callq *0x4ba70(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x45654",
+        "instruction": "callq 0x1a610 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1a610 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x45698",
+        "instruction": "callq 0x1a610 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1a610 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x456b9",
+        "instruction": "callq 0x199ec <core::panicking::panic_bounds_check>",
+        "kind": "direct",
+        "target": "0x199ec <core::panicking::panic_bounds_check>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul",
+    "address": "0x45700",
+    "state_references": [
+      "4574a: movq 0x4ee47(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "45761: movq 0x4ee30(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "45936: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>",
+      "45997: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>"
+    ],
+    "initial_instructions": [
+      [
+        284416,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        284417,
+        "pushq",
+        "%r15"
+      ],
+      [
+        284419,
+        "pushq",
+        "%r14"
+      ],
+      [
+        284421,
+        "pushq",
+        "%r13"
+      ],
+      [
+        284423,
+        "pushq",
+        "%r12"
+      ],
+      [
+        284425,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        284426,
+        "subq",
+        "$0x148, %rsp            # imm = 0x148"
+      ],
+      [
+        284433,
+        "movq",
+        "0x190(%rsp), %r12"
+      ],
+      [
+        284441,
+        "movq",
+        "0x188(%rsp), %r15"
+      ],
+      [
+        284449,
+        "movq",
+        "0x180(%rsp), %r10"
+      ],
+      [
+        284457,
+        "cmpq",
+        "%r8, %r10"
+      ],
+      [
+        284460,
+        "movq",
+        "%r8, %rax"
+      ],
+      [
+        284463,
+        "cmovbq",
+        "%r10, %rax"
+      ],
+      [
+        284467,
+        "movq",
+        "0x1a8(%rdi), %r13"
+      ],
+      [
+        284474,
+        "cmpq",
+        "$0x1, %r13"
+      ],
+      [
+        284478,
+        "movq",
+        "%r13, %r11"
+      ],
+      [
+        284481,
+        "adcq",
+        "$0x0, %r11"
+      ],
+      [
+        284485,
+        "cmpq",
+        "%r11, %rax"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x4587f",
+        "instruction": "callq *0x4b8f3(%rip)          # 0x91178 <write+0x91178>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91178",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memcpy"
+        },
+        "target": "memcpy",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x45980",
+        "instruction": "callq 0x1a610 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1a610 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x45a13",
+        "instruction": "callq 0x1a610 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1a610 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x45a41",
+        "instruction": "callq 0x17d30 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x17d30 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare",
+    "address": "0x45aa0",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        285344,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        285345,
+        "pushq",
+        "%r15"
+      ],
+      [
+        285347,
+        "pushq",
+        "%r14"
+      ],
+      [
+        285349,
+        "pushq",
+        "%r13"
+      ],
+      [
+        285351,
+        "pushq",
+        "%r12"
+      ],
+      [
+        285353,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        285354,
+        "subq",
+        "$0xb8, %rsp"
+      ],
+      [
+        285361,
+        "movl",
+        "0x1c0(%rdi), %eax"
+      ],
+      [
+        285367,
+        "cmpl",
+        "$0x4, %eax"
+      ],
+      [
+        285370,
+        "jbe",
+        "0x45d29 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare+0x289>"
+      ],
+      [
+        285376,
+        "movq",
+        "%rdi, %rbx"
+      ],
+      [
+        285379,
+        "addq",
+        "%rsi, %rsi"
+      ],
+      [
+        285382,
+        "cmpq",
+        "$0x9, %rsi"
+      ],
+      [
+        285386,
+        "movl",
+        "$0x8, %ecx"
+      ],
+      [
+        285391,
+        "cmovaeq",
+        "%rsi, %rcx"
+      ],
+      [
+        285395,
+        "decq",
+        "%rcx"
+      ],
+      [
+        285398,
+        "bsrq",
+        "%rcx, %rcx"
+      ],
+      [
+        285402,
+        "incl",
+        "%ecx"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x45bff",
+        "instruction": "callq *0x4b563(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c0d",
+        "instruction": "callq *0x4b555(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c1d",
+        "instruction": "callq *0x4b545(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c2d",
+        "instruction": "callq *0x4b535(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c3d",
+        "instruction": "callq *0x4b525(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c50",
+        "instruction": "callq *0x4b512(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c63",
+        "instruction": "callq *0x4b4ff(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c76",
+        "instruction": "callq *0x4b4ec(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c89",
+        "instruction": "callq *0x4b4d9(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45c9f",
+        "instruction": "callq *0x4b4c3(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45cb5",
+        "instruction": "callq *0x4b4ad(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45ccb",
+        "instruction": "callq *0x4b497(%rip)          # 0x91168 <write+0x91168>",
+        "kind": "GOT/library relocation",
+        "slot": "0x91168",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "free"
+        },
+        "target": "free",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x45d13",
+        "instruction": "callq *%rbx",
+        "kind": "register/aggregate indirect",
+        "target": "*%rbx",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x45d7c",
+        "instruction": "callq 0x17d30 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x17d30 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len",
+    "address": "0x45f50",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        286544,
+        "pushq",
+        "%rax"
+      ],
+      [
+        286545,
+        "cmpq",
+        "0x1a8(%rdi), %rsi"
+      ],
+      [
+        286552,
+        "jb",
+        "0x45fb5 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len+0x65>"
+      ],
+      [
+        286554,
+        "movq",
+        "%rdx, %rax"
+      ],
+      [
+        286557,
+        "movl",
+        "$0x4, %edx"
+      ],
+      [
+        286562,
+        "cmpq",
+        "$0x2, %rsi"
+      ],
+      [
+        286566,
+        "jb",
+        "0x45f86 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len+0x36>"
+      ],
+      [
+        286568,
+        "decq",
+        "%rsi"
+      ],
+      [
+        286571,
+        "bsrq",
+        "%rsi, %rcx"
+      ],
+      [
+        286575,
+        "notl",
+        "%ecx"
+      ],
+      [
+        286577,
+        "movq",
+        "$-0x1, %rsi"
+      ],
+      [
+        286584,
+        "shrq",
+        "%cl, %rsi"
+      ],
+      [
+        286587,
+        "incq",
+        "%rsi"
+      ],
+      [
+        286590,
+        "cmpq",
+        "$0x5, %rsi"
+      ],
+      [
+        286594,
+        "cmovaeq",
+        "%rsi, %rdx"
+      ],
+      [
+        286598,
+        "cmpl",
+        "$0x1, 0x140(%rdi)"
+      ],
+      [
+        286605,
+        "jne",
+        "0x460c1 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len+0x171>"
+      ],
+      [
+        286611,
+        "leaq",
+        "(%rdx,%rdx), %rsi"
+      ]
+    ],
+    "indirect_calls": [],
+    "panic_examples": [
+      {
+        "address": "0x460d4",
+        "instruction": "callq 0x1a610 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1a610 <core::option::expect_failed>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x460d9",
+        "instruction": "callq 0x199d0 <core::num::imp::int_log10::panic_for_nonpositive_argument>",
+        "kind": "direct",
+        "target": "0x199d0 <core::num::imp::int_log10::panic_for_nonpositive_argument>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul_power",
+    "address": "0x460e0",
+    "state_references": [],
+    "initial_instructions": [
+      [
+        286944,
+        "pushq",
+        "%r15"
+      ],
+      [
+        286946,
+        "pushq",
+        "%r14"
+      ],
+      [
+        286948,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        286949,
+        "movq",
+        "%r9, %r10"
+      ],
+      [
+        286952,
+        "movq",
+        "0x38(%rsp), %rbx"
+      ],
+      [
+        286957,
+        "movq",
+        "0x30(%rsp), %r11"
+      ],
+      [
+        286962,
+        "movq",
+        "0x28(%rsp), %rax"
+      ],
+      [
+        286967,
+        "movq",
+        "0x20(%rsp), %r9"
+      ],
+      [
+        286972,
+        "cmpq",
+        "0x10(%rdi), %r10"
+      ],
+      [
+        286976,
+        "jae",
+        "0x46152 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul_power+0x72>"
+      ],
+      [
+        286978,
+        "movq",
+        "0x8(%rdi), %r14"
+      ],
+      [
+        286982,
+        "leaq",
+        "(%r10,%r10,2), %r10"
+      ],
+      [
+        286986,
+        "shlq",
+        "$0x4, %r10"
+      ],
+      [
+        286990,
+        "cmpq",
+        "$-0x1, (%r14,%r10)"
+      ],
+      [
+        286995,
+        "je",
+        "0x46152 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul_power+0x72>"
+      ],
+      [
+        286997,
+        "addq",
+        "%r10, %r14"
+      ],
+      [
+        287000,
+        "cmpq",
+        "%r9, 0x18(%r14)"
+      ],
+      [
+        287004,
+        "jne",
+        "0x46152 <<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul_power+0x72>"
+      ]
+    ],
+    "indirect_calls": [],
+    "panic_examples": [
+      {
+        "address": "0x461cb",
+        "instruction": "callq 0x1a610 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1a610 <core::option::expect_failed>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "faster_base58::api::decode",
+    "address": "0x5a720",
+    "state_references": [
+      "5a7d1: movq 0x39dc0(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "5a7ec: movq 0x39da5(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "5a911: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>",
+      "5a92e: movq 0x39c63(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "5a97a: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>",
+      "5a9a8: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>"
+    ],
+    "initial_instructions": [
+      [
+        370464,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        370465,
+        "pushq",
+        "%r15"
+      ],
+      [
+        370467,
+        "pushq",
+        "%r14"
+      ],
+      [
+        370469,
+        "pushq",
+        "%r13"
+      ],
+      [
+        370471,
+        "pushq",
+        "%r12"
+      ],
+      [
+        370473,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        370474,
+        "pushq",
+        "%rax"
+      ],
+      [
+        370475,
+        "movq",
+        "%r8, %r14"
+      ],
+      [
+        370478,
+        "movq",
+        "%rcx, %rbx"
+      ],
+      [
+        370481,
+        "cmpq",
+        "$0x3, %rdx"
+      ],
+      [
+        370485,
+        "jae",
+        "0x5a77b <faster_base58::api::decode+0x5b>"
+      ],
+      [
+        370487,
+        "testq",
+        "%rdx, %rdx"
+      ],
+      [
+        370490,
+        "je",
+        "0x5a81c <faster_base58::api::decode+0xfc>"
+      ],
+      [
+        370496,
+        "movzbl",
+        "(%rsi), %r8d"
+      ],
+      [
+        370500,
+        "leaq",
+        "-0x4f563(%rip), %rax    # 0xb1e8 <core::unicode::unicode_data::cf::SHORT_OFFSET_RUNS+0x494>"
+      ],
+      [
+        370507,
+        "movzbl",
+        "(%r8,%rax), %ecx"
+      ],
+      [
+        370512,
+        "cmpq",
+        "$0x1, %rdx"
+      ],
+      [
+        370516,
+        "jne",
+        "0x5a830 <faster_base58::api::decode+0x110>"
+      ]
+    ],
+    "indirect_calls": [],
+    "panic_examples": [
+      {
+        "address": "0x5a8ff",
+        "instruction": "callq 0x198e0 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x198e0 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x5a9e1",
+        "instruction": "callq 0x1a610 <core::option::expect_failed>",
+        "kind": "direct",
+        "target": "0x1a610 <core::option::expect_failed>",
+        "recognizable_panic": true
+      }
+    ]
+  },
+  {
+    "policy": "cache",
+    "artifact_sha256": "fbe5d944bfba46d42fb41ce482d5f666fe08839e42c7546042b35a0268d9ec5a",
+    "function": "faster_base58::mul::mul_with",
+    "address": "0x5b4a0",
+    "state_references": [
+      "5b4ec: movq 0x390a5(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "5b507: movq 0x3908a(%rip), %rax     # 0x94598 <std_detect::detect::cache::CACHE (.0)>",
+      "5be95: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>",
+      "5bed8: callq 0x8cb60 <std_detect::detect::cache::detect_and_initialize>"
+    ],
+    "initial_instructions": [
+      [
+        373920,
+        "pushq",
+        "%rbp"
+      ],
+      [
+        373921,
+        "pushq",
+        "%r15"
+      ],
+      [
+        373923,
+        "pushq",
+        "%r14"
+      ],
+      [
+        373925,
+        "pushq",
+        "%r13"
+      ],
+      [
+        373927,
+        "pushq",
+        "%r12"
+      ],
+      [
+        373929,
+        "pushq",
+        "%rbx"
+      ],
+      [
+        373930,
+        "subq",
+        "$0x88, %rsp"
+      ],
+      [
+        373937,
+        "cmpq",
+        "%r9, %rcx"
+      ],
+      [
+        373940,
+        "movq",
+        "%r9, %r10"
+      ],
+      [
+        373943,
+        "cmovbq",
+        "%rcx, %r10"
+      ],
+      [
+        373947,
+        "movq",
+        "%rdx, %r12"
+      ],
+      [
+        373950,
+        "cmovaq",
+        "%r8, %r12"
+      ],
+      [
+        373954,
+        "movq",
+        "0xd0(%rsp), %r11"
+      ],
+      [
+        373962,
+        "cmovaq",
+        "%rcx, %r9"
+      ],
+      [
+        373966,
+        "cmovaq",
+        "%rdx, %r8"
+      ],
+      [
+        373970,
+        "cmpq",
+        "$0xc, %r10"
+      ],
+      [
+        373974,
+        "setae",
+        "%al"
+      ],
+      [
+        373977,
+        "cmpq",
+        "%r11, %r10"
+      ]
+    ],
+    "indirect_calls": [
+      {
+        "address": "0x5b566",
+        "instruction": "callq *0x35c34(%rip)          # 0x911a0 <write+0x911a0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x911a0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      },
+      {
+        "address": "0x5b91e",
+        "instruction": "callq *0x3587c(%rip)          # 0x911a0 <write+0x911a0>",
+        "kind": "GOT/library relocation",
+        "slot": "0x911a0",
+        "relocation": {
+          "kind": "R_X86_64_GLOB_DAT",
+          "target": "memset"
+        },
+        "target": "memset",
+        "recognizable_panic": false
+      }
+    ],
+    "panic_examples": [
+      {
+        "address": "0x5be5b",
+        "instruction": "callq 0x198e0 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x198e0 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x5be6f",
+        "instruction": "callq 0x198e0 <core::slice::index::slice_index_fail>",
+        "kind": "direct",
+        "target": "0x198e0 <core::slice::index::slice_index_fail>",
+        "recognizable_panic": true
+      },
+      {
+        "address": "0x5be87",
+        "instruction": "callq 0x17d30 <core::panicking::panic_fmt>",
+        "kind": "direct",
+        "target": "0x17d30 <core::panicking::panic_fmt>",
+        "recognizable_panic": true
+      }
+    ]
+  }
+]

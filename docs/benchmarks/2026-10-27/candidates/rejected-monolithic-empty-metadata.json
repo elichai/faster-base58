@@ -1,0 +1,9 @@
+{
+  "status": "complete",
+  "source_metadata_sha256": "357c825a3de25b0bb67380c91ee588d86b1e70b35543060079ec18dedc36a2ac",
+  "summary_sha256": "5f3e4ead49cbddd5abe30ed634a3dc938abc93b0a7498ece345f6e5124837f72",
+  "script_sha256": "569423bc17ba3b2065429bc52eceb85ec4b7bff01d4a84696e0fcdbfde6fa0f1",
+  "rows": 72,
+  "fresh_processes": 432,
+  "caveat": "Three alternating fresh-process pairs, three warm batches each. Descriptive ratios, not significance or universal regression bounds."
+}

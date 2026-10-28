@@ -6,6 +6,10 @@ tools; they do not replace the source or imply coverage of later changes.
 
 | Record | Scope |
 | --- | --- |
+| [Latest local checks](local-ci-current.md) / [receipt](data/local-ci-current.json) | Workflow rows, owned-decoder checks, fuzz/coverage observations, source bridges and unavailable or failed platform checks |
+| [Current proofs](proofs-current.json) | 50 distinct Kani harnesses on aarch64 macOS and translated Linux across separately recorded source snapshots; original 49 records preserved, two-digit proof added, eight queries open |
+| [Guard source bridge](guard-source-bridge.json) / [patch](guard-cancellation.patch) | Reconstructs the prior verification tools; only cancellation ownership changed, with all Rust proof inputs preserved |
+| [Current Miri](miri-current.md) / [receipt](miri-current.json) | 150 custom-interpreter executions across targets/cache/alias models, 16 supported-stock executions and 15 separate Linux-driver probes; exact inputs and remaining interpretation limits |
 | [Local dispatcher verification](local-ci.md) / [derived receipt](local-ci.json) | Earlier full matrix, outlined-source proofs/sanitizers and the later cfg-only portability fix; exact inputs, commands and remaining platform limits |
 | [Historical proofs](proofs.json) | 40 distinct selected Kani harnesses: 4 tiny-production, 31 parser/arithmetic, 5 capacity/lemma; commands, solver/compiler identities and raw-log hashes |
 | [Historical harness results](harnesses.csv) | Individual proof names and results; the production code is checked under its stated scalar domains |
@@ -27,6 +31,6 @@ their source commits are available in
 The separate manual open-proof and unsupported-Miri jobs are expected to expose
 the limits listed in CORRECTNESS.md.
 
-The published crate excludes benchmark datasets and bulk verification artifacts.
+The crate package excludes benchmark datasets and bulk verification artifacts.
 For those, use the repository's
 [online documentation](https://github.com/elichai/faster-base58/tree/main/docs).

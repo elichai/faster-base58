@@ -1,0 +1,1138 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "finite concrete interpreter tests; no full-domain or native x86 execution claim",
+  "host": "aarch64-apple-darwin; x86 and ARM Linux targets interpreted",
+  "source_snapshot_from_ci": "a113f210f55734c8c5eb177ef76d6d6ba16c0755833474109871be2df16bd9b0",
+  "source_manifest_sha256": "035ee402baa27908fa4f11d4898173e7f501597830c921d2b71aad7af4c282da",
+  "source_manifest_algorithm": "SHA256(json.dumps(per-file SHA256 map, sort_keys=True).encode())",
+  "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+  "exact_matrix_coverage_sets_audited": true,
+  "current_runner_sha256": "4c900cdd087b4392a7b292f83cd8c6bdd9670ae227d86b06e43630d8dbf6016c",
+  "current_builder_sha256": "969ddb1ee7db5c229b955fdc8382277ccd86ffa6108dd223a0450d6b199d14d5",
+  "stock_controller_sha256": "2586f0bf93e67273726556b8bf011cbfbf5235aa3960ad03814bc8ed148d9be2",
+  "build": {
+    "artifact": {
+      "id": "helper-build/build.json",
+      "sha256": "867455cce186b73383d078518cf55c89f29b223c9e3bed534019db9d69c93450"
+    },
+    "source_manifest": {
+      "id": "helper-build/source.json",
+      "sha256": "011e540fe86edbfb34863eb8e5638ee4347949e87f0bbede2685dd6e16770212"
+    },
+    "pins": {
+      "miri_repository": "https://github.com/elichai/miri.git",
+      "miri_commit": "52a3791566bfb72b99a59058527a3fcf6d38afa2",
+      "compiler_commit": "df87fa6604e33760d4703cccc777a2281bf15a2d",
+      "cargo_commit": "cad07cf8e597397fff5d0f6cb79c9f870c0b1dd2",
+      "cargo_toolchain": "nightly-2026-10-26",
+      "installer_version": "1.12.2",
+      "patch_sha256": "45eabdb61c77748ce15b209e429d66d94ad22643743b54889abaa7027f2d34f8",
+      "preserved_user_patch_sha256": "cb3fde8eda854eca0737789a7423f1e4b5b19aaa08cf75d04ab72462c3ab4374",
+      "new_shsub_patch_sha256": "c76424b76fa5a035b47b9b1c1beb74d5203337226f0ac09c7593886782ae22d2",
+      "features": [
+        "stack-cache"
+      ],
+      "native_lib": false,
+      "opt_level": 1,
+      "debug_info": 0,
+      "license": "MIT OR Apache-2.0"
+    },
+    "artifacts": {
+      "miri": "01e9ebd0dd8f3b4daeb247cbeacc06bac1c850fd63872150deb059c0668c9aeb",
+      "cargo-miri": "f568c34a1902e1a5ba1b1d25602abec72d357c61ed86a82613d7fbda69db8cb5"
+    },
+    "compiler_version": "rustc 1.101.0-nightly (df87fa660 2026-10-24)\nbinary: rustc\ncommit-hash: df87fa6604e33760d4703cccc777a2281bf15a2d\ncommit-date: 2026-10-24\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+    "cargo_version": "cargo 1.101.0-nightly (cad07cf8e 2026-10-23)\nrelease: 1.101.0-nightly\ncommit-hash: cad07cf8e597397fff5d0f6cb79c9f870c0b1dd2\ncommit-date: 2026-10-23\nhost: aarch64-apple-darwin\nlibgit2: 1.9.6 (sys:0.21.0 vendored)\nlibcurl: 8.7.1 (sys:0.4.90+curl-8.21.0 system ssl:(SecureTransport) LibreSSL/3.3.6)\nssl: OpenSSL 3.6.3 9 Jun 2026\nos: Mac OS 26.7.1 [64-bit]\n"
+  },
+  "custom_runs": [
+    {
+      "name": "helper-arm-probes",
+      "artifact": {
+        "id": "helper-arm-probes/run.json",
+        "sha256": "0f075db87ca03bb3cb606b869d15258f7adf3939d22e461d322f3f8ce903f450"
+      },
+      "arch": "arm",
+      "target": "aarch64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals,malachite-nz/32_bit_limbs",
+      "concrete_tests": 6,
+      "rustflags": [
+        "-C",
+        "target-cpu=generic"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "0404fb95bb48a7914570408ffdf2febe581a3a1532540ecf09acdc1552b381aa",
+      "sysroot_manifest_sha256": "badf39c44d3b1396ebfdac30108874fb097c53d5326c589be0dcfba744d724f8",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "a7b1f1b8d145d69ac44a7259c6da60ea1add6e43303f4e2a18c3de700591925a",
+      "commands_completed": 6,
+      "command_logs_manifest_sha256": "9ecc53798deeaa474834ddcccd8e86ff1389ce88f2afaaeee6801a11ab45d96a"
+    },
+    {
+      "name": "helper-arm-kernels-tree",
+      "artifact": {
+        "id": "helper-arm-kernels-tree/run.json",
+        "sha256": "d985b066a49358810d3b480346a3600905adb4ded5c3b467d1dbd71a87832c0f"
+      },
+      "arch": "arm",
+      "target": "aarch64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals,malachite-nz/32_bit_limbs",
+      "concrete_tests": 6,
+      "rustflags": [
+        "-C",
+        "target-cpu=generic"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "0404fb95bb48a7914570408ffdf2febe581a3a1532540ecf09acdc1552b381aa",
+      "sysroot_manifest_sha256": "badf39c44d3b1396ebfdac30108874fb097c53d5326c589be0dcfba744d724f8",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "dcf762a7f41a782c264dfd26183ff944409446fddd5585843cbe1bae129c8169",
+      "commands_completed": 6,
+      "command_logs_manifest_sha256": "965c5ac1d95f6fc703d11d9f7951ff86cc465b9ca0f633ecd6def82d993ae926"
+    },
+    {
+      "name": "helper-arm-buffers-tree",
+      "artifact": {
+        "id": "helper-arm-buffers-tree/run.json",
+        "sha256": "335150f0162f63f18b696e04c5c261f1c3e89ff8292a439f2f62ae2aa2e41f8c"
+      },
+      "arch": "arm",
+      "target": "aarch64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals,malachite-nz/32_bit_limbs",
+      "concrete_tests": 14,
+      "rustflags": [
+        "-C",
+        "target-cpu=generic"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "0404fb95bb48a7914570408ffdf2febe581a3a1532540ecf09acdc1552b381aa",
+      "sysroot_manifest_sha256": "badf39c44d3b1396ebfdac30108874fb097c53d5326c589be0dcfba744d724f8",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "1b8a25f806da8022e4c6ffc34d1db3acf92ecc429a0a32f62c4f79f880110cab",
+      "commands_completed": 15,
+      "command_logs_manifest_sha256": "a127a49f84c634ffb9410e5cc971ae16898d53a20cdd742beffd6ca03b877ff8"
+    },
+    {
+      "name": "helper-x86-probes",
+      "artifact": {
+        "id": "helper-x86-probes/run.json",
+        "sha256": "7b51be7fa08b95689c62993dcec4bb30b42955e0f3e79ab90a09c5de3bcd2a4a"
+      },
+      "arch": "x86",
+      "target": "x86_64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals",
+      "concrete_tests": 9,
+      "rustflags": [
+        "-C",
+        "target-cpu=x86-64",
+        "-C",
+        "target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "0404fb95bb48a7914570408ffdf2febe581a3a1532540ecf09acdc1552b381aa",
+      "sysroot_manifest_sha256": "4661c729c20d262ff01fcd3654c3f6c6c16bb65fe154fb59471707f7e28e3899",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "5e1bd6517b003da8c4964793e771c66e048a35339a282bae913f440673542cfc",
+      "commands_completed": 10,
+      "command_logs_manifest_sha256": "bd40df962660724048167fe1c7eaf5c304add1d2a9c151334bd25c110700bde2"
+    },
+    {
+      "name": "helper-x86-kernels-tree",
+      "artifact": {
+        "id": "helper-x86-kernels-tree/run.json",
+        "sha256": "701d17d79314f9f72513783caec76f5cc84b18c2d98c7c1d6f24b8c605ea8b40"
+      },
+      "arch": "x86",
+      "target": "x86_64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals",
+      "concrete_tests": 8,
+      "rustflags": [
+        "-C",
+        "target-cpu=x86-64",
+        "-C",
+        "target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "0404fb95bb48a7914570408ffdf2febe581a3a1532540ecf09acdc1552b381aa",
+      "sysroot_manifest_sha256": "4661c729c20d262ff01fcd3654c3f6c6c16bb65fe154fb59471707f7e28e3899",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "cff039afdd62c04e6e70ff20b170631900ded4d59aaa6a3c9900c90b49654b43",
+      "commands_completed": 8,
+      "command_logs_manifest_sha256": "cc37ca38411541ba5e20961e4b4623c208e23fb0a5b28b752a4564610b23adf9"
+    },
+    {
+      "name": "helper-x86-buffers-tree",
+      "artifact": {
+        "id": "helper-x86-buffers-tree/run.json",
+        "sha256": "37e844cd0b8c196a4431fefd8befab7223f2e20009d7da818494773b9e5bf8d3"
+      },
+      "arch": "x86",
+      "target": "x86_64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals",
+      "concrete_tests": 14,
+      "rustflags": [
+        "-C",
+        "target-cpu=x86-64",
+        "-C",
+        "target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "0404fb95bb48a7914570408ffdf2febe581a3a1532540ecf09acdc1552b381aa",
+      "sysroot_manifest_sha256": "4661c729c20d262ff01fcd3654c3f6c6c16bb65fe154fb59471707f7e28e3899",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "1b8a25f806da8022e4c6ffc34d1db3acf92ecc429a0a32f62c4f79f880110cab",
+      "commands_completed": 15,
+      "command_logs_manifest_sha256": "b32c50617a3b46dd190761eade5b76befeb0541de743d6436f44f9b26e2a2faa"
+    },
+    {
+      "name": "helper-arm-policy-tree",
+      "artifact": {
+        "id": "helper-arm-policy-tree/run.json",
+        "sha256": "796078d74be0956bdcd7218200772c47791ee9240af8b979a1225abdff857d55"
+      },
+      "arch": "arm",
+      "target": "aarch64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals,malachite-nz/32_bit_limbs",
+      "concrete_tests": 1,
+      "rustflags": [
+        "-C",
+        "target-cpu=generic"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "badf39c44d3b1396ebfdac30108874fb097c53d5326c589be0dcfba744d724f8",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "a1c70990095109a52633cc5c9ae2770946cf9b940b415b6891b6d5c9ecbb9b56",
+      "commands_completed": 1,
+      "command_logs_manifest_sha256": "24d4cdcdce0bdb878f9f2dc11f392412152de46d86d7985a8594cb1812b44015"
+    },
+    {
+      "name": "helper-x86-policy-tree",
+      "artifact": {
+        "id": "helper-x86-policy-tree/run.json",
+        "sha256": "1935eab90291d0c7b2e71630781ee4b15745fbae046079eaeabd1d34bf54d96c"
+      },
+      "arch": "x86",
+      "target": "x86_64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": false,
+      "features": "__internals",
+      "concrete_tests": 1,
+      "rustflags": [
+        "-C",
+        "target-cpu=x86-64",
+        "-C",
+        "target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "4661c729c20d262ff01fcd3654c3f6c6c16bb65fe154fb59471707f7e28e3899",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "a1c70990095109a52633cc5c9ae2770946cf9b940b415b6891b6d5c9ecbb9b56",
+      "commands_completed": 1,
+      "command_logs_manifest_sha256": "7ea1f858a5e7cb2aeb4d630c8c3bec2f81ae55bbadfb218a2156edeeeab23dfe"
+    },
+    {
+      "name": "helper-arm-all-tree-cache",
+      "artifact": {
+        "id": "helper-arm-all-tree-cache/run.json",
+        "sha256": "39c8a66992cda988d09f620a528e0e466b6faa40506306eccfce64fd2a2684bd"
+      },
+      "arch": "arm",
+      "target": "aarch64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": true,
+      "features": "__internals,malachite-nz/32_bit_limbs,cache",
+      "concrete_tests": 27,
+      "rustflags": [
+        "-C",
+        "target-cpu=generic"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "badf39c44d3b1396ebfdac30108874fb097c53d5326c589be0dcfba744d724f8",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "8fc6c1e86b4b5086f1db8084d074a813511b86b7313d4378129c9e35ca4474e5",
+      "commands_completed": 29,
+      "command_logs_manifest_sha256": "ee5e925268d17146c2b79855266a6fd454124e7a688ad174791107058cb70430"
+    },
+    {
+      "name": "helper-x86-all-tree-cache",
+      "artifact": {
+        "id": "helper-x86-all-tree-cache/run.json",
+        "sha256": "ab21e9dcb6f8ce6469e0ea11e183cbaa0c54d4b349c62b799a70eb942d4acbf0"
+      },
+      "arch": "x86",
+      "target": "x86_64-unknown-linux-gnu",
+      "alias_model": "tree",
+      "seed": 1,
+      "cache": true,
+      "features": "__internals,cache",
+      "concrete_tests": 32,
+      "rustflags": [
+        "-C",
+        "target-cpu=x86-64",
+        "-C",
+        "target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "4661c729c20d262ff01fcd3654c3f6c6c16bb65fe154fb59471707f7e28e3899",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "c739f6aec239e06ee9b233ca983ec0301b4864c19e44fdc0fe19229a10b39dec",
+      "commands_completed": 34,
+      "command_logs_manifest_sha256": "db84f148f812566d11dcf1ff463282f75424e3ec205001e42353555482fcb83b"
+    },
+    {
+      "name": "helper-arm-kernels-stacked",
+      "artifact": {
+        "id": "helper-arm-kernels-stacked/run.json",
+        "sha256": "2a895471d500f607755a34f17d3ee66adaff9fddd9cce45c6879acbb3327caf3"
+      },
+      "arch": "arm",
+      "target": "aarch64-unknown-linux-gnu",
+      "alias_model": "stacked",
+      "seed": 7,
+      "cache": false,
+      "features": "__internals,malachite-nz/32_bit_limbs",
+      "concrete_tests": 7,
+      "rustflags": [
+        "-C",
+        "target-cpu=generic"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "badf39c44d3b1396ebfdac30108874fb097c53d5326c589be0dcfba744d724f8",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "6451c15c62915f34ffb5ed7b0c5dfc1d4daf17839b8ee9c19dc858c09a67d6c5",
+      "commands_completed": 7,
+      "command_logs_manifest_sha256": "b519a13c4effdc66cb9f3be8fe7625d553c2b7749bcb03753f4bba6e2d72f752"
+    },
+    {
+      "name": "helper-x86-kernels-stacked",
+      "artifact": {
+        "id": "helper-x86-kernels-stacked/run.json",
+        "sha256": "53abff55712f2c3740bf02b8ce01cb59a2439a6618ac4bbe2770f444b58aa902"
+      },
+      "arch": "x86",
+      "target": "x86_64-unknown-linux-gnu",
+      "alias_model": "stacked",
+      "seed": 7,
+      "cache": false,
+      "features": "__internals",
+      "concrete_tests": 9,
+      "rustflags": [
+        "-C",
+        "target-cpu=x86-64",
+        "-C",
+        "target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "4661c729c20d262ff01fcd3654c3f6c6c16bb65fe154fb59471707f7e28e3899",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "2ea671fa13f8ec0232ff3a28b76ae080e3d88746e8734165dd1841c32a6aa6a2",
+      "commands_completed": 9,
+      "command_logs_manifest_sha256": "328b006698fdeee2340c62d88d362ea871ce697a9ef4f67e5d610bb43fdd300b"
+    },
+    {
+      "name": "helper-arm-kernels-stacked-cache",
+      "artifact": {
+        "id": "helper-arm-kernels-stacked-cache/run.json",
+        "sha256": "41fc411f3bbc0926eefdb2a312073df47edb61d94b07a091ad6ffa71dc861d91"
+      },
+      "arch": "arm",
+      "target": "aarch64-unknown-linux-gnu",
+      "alias_model": "stacked",
+      "seed": 7,
+      "cache": true,
+      "features": "__internals,malachite-nz/32_bit_limbs,cache",
+      "concrete_tests": 7,
+      "rustflags": [
+        "-C",
+        "target-cpu=generic"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "badf39c44d3b1396ebfdac30108874fb097c53d5326c589be0dcfba744d724f8",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "6451c15c62915f34ffb5ed7b0c5dfc1d4daf17839b8ee9c19dc858c09a67d6c5",
+      "commands_completed": 7,
+      "command_logs_manifest_sha256": "bfe7422a2eab73315b285bac84166ea7ff932b24508f717d3b8b5131bbf512bd"
+    },
+    {
+      "name": "helper-x86-kernels-stacked-cache",
+      "artifact": {
+        "id": "helper-x86-kernels-stacked-cache/run.json",
+        "sha256": "ccb0b24ab495d85d22a3fd3b972c23a1a31b7f7d222977ca492e13ff62b3692a"
+      },
+      "arch": "x86",
+      "target": "x86_64-unknown-linux-gnu",
+      "alias_model": "stacked",
+      "seed": 7,
+      "cache": true,
+      "features": "__internals,cache",
+      "concrete_tests": 9,
+      "rustflags": [
+        "-C",
+        "target-cpu=x86-64",
+        "-C",
+        "target-feature=+avx2,+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+avx512ifma"
+      ],
+      "strict_provenance": true,
+      "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+      "sysroot_manifest_sha256": "4661c729c20d262ff01fcd3654c3f6c6c16bb65fe154fb59471707f7e28e3899",
+      "sysroot_unchanged": true,
+      "selected_tests_manifest_sha256": "2ea671fa13f8ec0232ff3a28b76ae080e3d88746e8734165dd1841c32a6aa6a2",
+      "commands_completed": 9,
+      "command_logs_manifest_sha256": "7b9bd825797e25331a100502d72d1467fd7a9cc6bb1c2970cf8fa5d8514d94ae"
+    }
+  ],
+  "custom_test_executions": 150,
+  "expected_custom_test_executions": 150,
+  "custom_test_count_scope": "the four required Tree/cache matrix rows plus four alternate Stacked kernel rows; Linux setup qualification is separate",
+  "setup_and_discovery_counted_as_tests": false,
+  "runner_only_bridges": [
+    {
+      "run": "helper-arm-probes",
+      "visible_success_output": false,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-arm-kernels-tree",
+      "visible_success_output": false,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-arm-buffers-tree",
+      "visible_success_output": false,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-x86-probes",
+      "visible_success_output": false,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-x86-kernels-tree",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-x86-buffers-tree",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-arm-policy-tree",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-x86-policy-tree",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-arm-all-tree-cache",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-x86-all-tree-cache",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-arm-kernels-stacked",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-x86-kernels-stacked",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-arm-kernels-stacked-cache",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    },
+    {
+      "run": "helper-x86-kernels-stacked-cache",
+      "visible_success_output": true,
+      "final_skip_guard_matches": [],
+      "crate_source_unchanged": true,
+      "note": "runner-only coverage guards do not change the interpreter, source or test arguments"
+    }
+  ],
+  "stock_probe_diagnostic": {
+    "artifact": {
+      "id": "stock-probe-comparison/summary.json",
+      "sha256": "c038c9ff1e96a5a2784c4c4b3bd20fc62c3fbecbd23b9d9fe66cd88579af5455"
+    },
+    "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+    "driver_sha256": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+    "strict_provenance": true,
+    "alias_model": "tree",
+    "seed": 1,
+    "concrete_probes": 15,
+    "passed_probes": 3,
+    "unsupported_intrinsics": [
+      "llvm.aarch64.neon.shsub.v4i32",
+      "llvm.aarch64.neon.srshl.v4i32",
+      "llvm.aarch64.neon.tbx1.v16i8",
+      "llvm.aarch64.neon.tbx4.v16i8",
+      "llvm.aarch64.neon.vsli.v4i32",
+      "llvm.aarch64.neon.vsli.v8i16",
+      "llvm.x86.avx512.psllv.q.512",
+      "llvm.x86.avx512.psrlv.q.512",
+      "llvm.x86.avx512.vpermi2var.d.512",
+      "llvm.x86.avx512.vpermi2var.qi.256",
+      "llvm.x86.avx512.vpmadd52h.uq.512",
+      "llvm.x86.avx512.vpmadd52l.uq.512"
+    ],
+    "probe_source_sha256": "44a20201a3d226da1054dbce2f9c087c5e78dd58868f10577dab37ad95529251",
+    "raw_failures_retained": true,
+    "probes": [
+      {
+        "name": "arm::rounded_shift32",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.aarch64.neon.srshl.v4i32"
+        ],
+        "log_sha256": "c99fff773ee42e758cda80163ce07195630cf8939263f355c4aaacd8cb2f3000"
+      },
+      {
+        "name": "arm::shift_insert32",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.aarch64.neon.vsli.v4i32"
+        ],
+        "log_sha256": "0f77e9ac1a916b0bf595c2c4c0b9c00b2ffae294d3b51aa570e47a2e638e1e49"
+      },
+      {
+        "name": "arm::shift_insert16",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.aarch64.neon.vsli.v8i16"
+        ],
+        "log_sha256": "1bec185d43831bc2e997800c9b6d2f01cce18efecb19c43898927dc4baa2f2db"
+      },
+      {
+        "name": "arm::table_extend1",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.aarch64.neon.tbx1.v16i8"
+        ],
+        "log_sha256": "83bd706e18c3d93e65b3e203b70c9b8290170153d82e5de3d6da2dd1b515a232"
+      },
+      {
+        "name": "arm::table_extend4",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.aarch64.neon.tbx4.v16i8"
+        ],
+        "log_sha256": "5c9ad49596aad21749ec3dac6d03303e12b855de81409892499a891bea5d733b"
+      },
+      {
+        "name": "arm::halving_subtract32",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.aarch64.neon.shsub.v4i32"
+        ],
+        "log_sha256": "98e48488d7d52f4653f44fb96f72579609e379fc19bd0ae5ca7dfb1d6093b9f0"
+      },
+      {
+        "name": "x86::variable_right64",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.x86.avx512.psrlv.q.512"
+        ],
+        "log_sha256": "4e04d9725046ac62cf3f3a7bf61a620a6e43c2e378af8d63c5eae6c9c6f77a8d"
+      },
+      {
+        "name": "x86::variable_left64",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.x86.avx512.psllv.q.512"
+        ],
+        "log_sha256": "fd32d24a0343dff80e52f14109aef131f2c3f7c7229ef38f28e74a9820e6a60f"
+      },
+      {
+        "name": "x86::multiply_low52",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.x86.avx512.vpmadd52l.uq.512"
+        ],
+        "log_sha256": "0abe31fd98bf93f1569d77d1f202958214665326b6dc7dfd5035ebd76eb656c3"
+      },
+      {
+        "name": "x86::multiply_high52",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.x86.avx512.vpmadd52h.uq.512"
+        ],
+        "log_sha256": "59908305af6046285c59bc5edb1de614a7a4fdf83f77d40b15a76047d0ac88ee"
+      },
+      {
+        "name": "x86::permute2_d512",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.x86.avx512.vpermi2var.d.512"
+        ],
+        "log_sha256": "c4405076c183008f4974f03942b02d230d51616a7cfd21502b5030c850dc8a63"
+      },
+      {
+        "name": "x86::permute2_b256",
+        "actual_exit_code": 1,
+        "classification": "unsupported_intrinsic",
+        "missing_intrinsics": [
+          "llvm.x86.avx512.vpermi2var.qi.256"
+        ],
+        "log_sha256": "20b5966fb377727026bda2e652f00f208abd13118fee550ba41b05f552ccc8be"
+      },
+      {
+        "name": "x86::permute_q512",
+        "actual_exit_code": 0,
+        "classification": "supported",
+        "missing_intrinsics": [],
+        "log_sha256": "9bea655fd97a70c378cae9cf10778f07cfe6abe1557cb324b1cc1e31b399a47b"
+      },
+      {
+        "name": "x86::permute2_q512",
+        "actual_exit_code": 0,
+        "classification": "supported",
+        "missing_intrinsics": [],
+        "log_sha256": "ffbc8dc819a1849e537ac0e2f15c7b1a6ad0fed8d52a994b5d5896ca34c6dc74"
+      },
+      {
+        "name": "x86::permute_b256",
+        "actual_exit_code": 0,
+        "classification": "supported",
+        "missing_intrinsics": [],
+        "log_sha256": "a605fdb9db5d40d0dc2690ba933f8a7900e67bb508647ea4f595bcd434620c82"
+      }
+    ]
+  },
+  "stock_supported_refresh": {
+    "expected_commands": 7,
+    "expected_test_executions": 16,
+    "completed_commands": 7,
+    "completed_test_executions": 16,
+    "status": "pass",
+    "runs": [
+      {
+        "name": "x86-whole",
+        "artifact": {
+          "id": "stock-required-x86-whole/summary.json",
+          "sha256": "64843ca87bbb4c2dbd299658f4ef241b629daaa17a87d1a2332adfed5d22289c"
+        },
+        "concrete_tests": 5,
+        "log_sha256": "5cdc9557d005049a771bfa3b7ea29e4f2513e8ac319d87a97c2d40bce390dcce",
+        "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+        "tools": {
+          "miri": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+          "cargo-miri": "acaf54111baf72129da4f67d4f701a2b462b3ef23b92665c1a0d0a60306f32e6",
+          "cargo": "959424d506d29114460f3e57191963cd36787ba9045d6afe38de5d7546cd41e5",
+          "rustc": "db01fcabaf94abe85b3a53221e71f8fb59fd6186e635cb468e7d25925f68a5da"
+        },
+        "miriflags": "-Zmiri-strict-provenance",
+        "rustflags": [
+          "-C",
+          "target-cpu=x86-64",
+          "-C",
+          "target-feature=+avx2"
+        ],
+        "sysroot_manifest_sha256": "3991328d1c0e6ec4c2b5b32236ff4be448a40f5e6d653812f59bdb4ced2be66c",
+        "ignored_names": [
+          "buffer_cases::bytes_0",
+          "buffer_cases::bytes_1",
+          "buffer_cases::bytes_21",
+          "buffer_cases::bytes_22",
+          "buffer_cases::bytes_31",
+          "buffer_cases::bytes_32",
+          "buffer_cases::bytes_33",
+          "buffer_cases::bytes_63",
+          "buffer_cases::bytes_64",
+          "buffer_cases::bytes_65",
+          "buffer_cases::bytes_7",
+          "buffer_cases::bytes_8",
+          "buffer_cases::max_64",
+          "buffer_cases::zeros_64"
+        ]
+      },
+      {
+        "name": "x86-tiny",
+        "artifact": {
+          "id": "stock-required-x86-tiny/summary.json",
+          "sha256": "ac1ef63216b319b021fc0856b539275d6767f1406417c9126e02c0c754b490c8"
+        },
+        "concrete_tests": 2,
+        "log_sha256": "b8041475c4c04ef4141b808b8dfad2eef4172e52038c032dd1470e3aab9ae5b1",
+        "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+        "tools": {
+          "miri": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+          "cargo-miri": "acaf54111baf72129da4f67d4f701a2b462b3ef23b92665c1a0d0a60306f32e6",
+          "cargo": "959424d506d29114460f3e57191963cd36787ba9045d6afe38de5d7546cd41e5",
+          "rustc": "db01fcabaf94abe85b3a53221e71f8fb59fd6186e635cb468e7d25925f68a5da"
+        },
+        "miriflags": "-Zmiri-strict-provenance",
+        "rustflags": [
+          "-C",
+          "target-cpu=x86-64",
+          "-C",
+          "target-feature=+avx2"
+        ],
+        "sysroot_manifest_sha256": "3991328d1c0e6ec4c2b5b32236ff4be448a40f5e6d653812f59bdb4ced2be66c",
+        "ignored_names": []
+      },
+      {
+        "name": "x86-multipliers",
+        "artifact": {
+          "id": "stock-required-x86-multipliers/summary.json",
+          "sha256": "f78192b86d81fd21576b507f280eec16b4a5168dd64ad8f8ebdb30ec6198ae52"
+        },
+        "concrete_tests": 3,
+        "log_sha256": "f56e1b62ffe1d9f18dce91ab03babeb824134ba7a9f32d8decd0d252589b7d4f",
+        "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+        "tools": {
+          "miri": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+          "cargo-miri": "acaf54111baf72129da4f67d4f701a2b462b3ef23b92665c1a0d0a60306f32e6",
+          "cargo": "959424d506d29114460f3e57191963cd36787ba9045d6afe38de5d7546cd41e5",
+          "rustc": "db01fcabaf94abe85b3a53221e71f8fb59fd6186e635cb468e7d25925f68a5da"
+        },
+        "miriflags": "-Zmiri-strict-provenance",
+        "rustflags": [
+          "-C",
+          "target-cpu=x86-64",
+          "-C",
+          "target-feature=+avx2"
+        ],
+        "sysroot_manifest_sha256": "3991328d1c0e6ec4c2b5b32236ff4be448a40f5e6d653812f59bdb4ced2be66c",
+        "ignored_names": []
+      },
+      {
+        "name": "x86-panel",
+        "artifact": {
+          "id": "stock-required-x86-panel/summary.json",
+          "sha256": "095e1a98910c4b637b1489659d56567e3b07feee2c081194df6227338a1e087e"
+        },
+        "concrete_tests": 1,
+        "log_sha256": "bd48a5891322e426e10060e6d7a58968b292fbe64bef9ac1b23f09516daad37d",
+        "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+        "tools": {
+          "miri": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+          "cargo-miri": "acaf54111baf72129da4f67d4f701a2b462b3ef23b92665c1a0d0a60306f32e6",
+          "cargo": "959424d506d29114460f3e57191963cd36787ba9045d6afe38de5d7546cd41e5",
+          "rustc": "db01fcabaf94abe85b3a53221e71f8fb59fd6186e635cb468e7d25925f68a5da"
+        },
+        "miriflags": "-Zmiri-strict-provenance",
+        "rustflags": [
+          "-C",
+          "target-cpu=x86-64",
+          "-C",
+          "target-feature=+avx2"
+        ],
+        "sysroot_manifest_sha256": "3991328d1c0e6ec4c2b5b32236ff4be448a40f5e6d653812f59bdb4ced2be66c",
+        "ignored_names": []
+      },
+      {
+        "name": "x86-tree",
+        "artifact": {
+          "id": "stock-required-x86-tree/summary.json",
+          "sha256": "ce9787e560c83987cad2c47e1b867b7fec713d99c0fd8c701b4ebb62f3af3d55"
+        },
+        "concrete_tests": 3,
+        "log_sha256": "9f7817036d33c1599a99ff36b6e32492f2f34f17ccc397ef1a2eb61e2b8a9b94",
+        "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+        "tools": {
+          "miri": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+          "cargo-miri": "acaf54111baf72129da4f67d4f701a2b462b3ef23b92665c1a0d0a60306f32e6",
+          "cargo": "959424d506d29114460f3e57191963cd36787ba9045d6afe38de5d7546cd41e5",
+          "rustc": "db01fcabaf94abe85b3a53221e71f8fb59fd6186e635cb468e7d25925f68a5da"
+        },
+        "miriflags": "-Zmiri-strict-provenance -Zmiri-tree-borrows -Zmiri-seed=1",
+        "rustflags": [
+          "-C",
+          "target-cpu=x86-64",
+          "-C",
+          "target-feature=+avx2"
+        ],
+        "sysroot_manifest_sha256": "3991328d1c0e6ec4c2b5b32236ff4be448a40f5e6d653812f59bdb4ced2be66c",
+        "ignored_names": []
+      },
+      {
+        "name": "arm-panel",
+        "artifact": {
+          "id": "stock-required-arm-panel/summary.json",
+          "sha256": "db608489515838673085c70c4e3b6e7a5adf2b1b23f4c0156d842bdc97dbfc9a"
+        },
+        "concrete_tests": 1,
+        "log_sha256": "e31bf1aab5e0dedd96874f4c6724e0679a9a97e5fb72a591fe521d69a66d2982",
+        "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+        "tools": {
+          "miri": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+          "cargo-miri": "acaf54111baf72129da4f67d4f701a2b462b3ef23b92665c1a0d0a60306f32e6",
+          "cargo": "959424d506d29114460f3e57191963cd36787ba9045d6afe38de5d7546cd41e5",
+          "rustc": "db01fcabaf94abe85b3a53221e71f8fb59fd6186e635cb468e7d25925f68a5da"
+        },
+        "miriflags": "-Zmiri-strict-provenance",
+        "rustflags": [
+          "-C",
+          "target-cpu=generic"
+        ],
+        "sysroot_manifest_sha256": "f5c7161f02d6c57c1c24187f22d822f80dafed2e8233861636752c9148f53e34",
+        "ignored_names": []
+      },
+      {
+        "name": "arm-leaves",
+        "artifact": {
+          "id": "stock-required-arm-leaves/summary.json",
+          "sha256": "8d0119f17bdb98d1d22375cd324a60af408d8f28315ae1e5df381baa02f4b665"
+        },
+        "concrete_tests": 1,
+        "log_sha256": "e56c16bcfbc5bd148b44ffd4593b4711c22fcbf58ee00512c77a364688f65b05",
+        "compiler_version": "rustc 1.101.0-nightly (76456a688 2026-10-25)\nbinary: rustc\ncommit-hash: 76456a688bc0ed897fa23a677d4ddb5b3fdb575a\ncommit-date: 2026-10-25\nhost: aarch64-apple-darwin\nrelease: 1.101.0-nightly\nLLVM version: 23.1.4\n",
+        "tools": {
+          "miri": "c152c43e26eb3f47a648dc49fe557f4a143d5690c520ef276ac43d403404295f",
+          "cargo-miri": "acaf54111baf72129da4f67d4f701a2b462b3ef23b92665c1a0d0a60306f32e6",
+          "cargo": "959424d506d29114460f3e57191963cd36787ba9045d6afe38de5d7546cd41e5",
+          "rustc": "db01fcabaf94abe85b3a53221e71f8fb59fd6186e635cb468e7d25925f68a5da"
+        },
+        "miriflags": "-Zmiri-strict-provenance",
+        "rustflags": [
+          "-C",
+          "target-cpu=generic"
+        ],
+        "sysroot_manifest_sha256": "f5c7161f02d6c57c1c24187f22d822f80dafed2e8233861636752c9148f53e34",
+        "ignored_names": []
+      }
+    ]
+  },
+  "linux_bootstrap": {
+    "host": "local Linux x86_64 under Rosetta on M5; not native GCP",
+    "source_transport": "clean local minimal pinned bundle; public fork/revision availability verified separately",
+    "actual_compiler_acquisition_and_interpreter_build": true,
+    "commands": 11,
+    "receipt_id": "phase2-bootstrap.CZ9CI1/complete.json",
+    "receipt_sha256": "48e632bc8f82862e1e8c4fe2dc92cbe8a5d25cf380bda5b529aefdf0111d95bc",
+    "build_record_sha256": "8d4384358907db13662e366692d41528480d71a3a9a4a957e6ac2e3c30d22061",
+    "miri_source_manifest_sha256": "011e540fe86edbfb34863eb8e5638ee4347949e87f0bbede2685dd6e16770212",
+    "artifacts": {
+      "miri": "b2de04741b0c09f087ee6393c3d0fbb47b93440e64fd3e565ba71a31d98be791",
+      "cargo-miri": "225e735e0b20cb47e7ba1abc1a76cbe90a62e07fdd6053770f7d418a7dd380cb"
+    },
+    "runs": [
+      {
+        "artifact_id": "phase2-miri-linux-x86-probes/run.json",
+        "receipt_sha256": "1c9b61b42e6e998189c980d4b0a5004a89c8068d3296afdf3ff050e64d86d3c2",
+        "arch": "x86",
+        "concrete_probes": 9,
+        "commands": 11,
+        "alias_model": "tree",
+        "seed": 1,
+        "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+        "sysroot_manifest_sha256": "638650688fa640b823b5a2ff095cfc21ac141034106bec701dde3ee0a7adef63",
+        "sysroot_unchanged": true,
+        "logs": [
+          {
+            "name": "setup",
+            "sha256": "413f30a689c7df143bd9248c0d7bf115eb1b031f5bfe94cb0b49f63296694955"
+          },
+          {
+            "name": "discover-probes",
+            "sha256": "138d429ee56de441e7b0707955ce786b368f5785e84722da6b888a0916b96d03"
+          },
+          {
+            "name": "x86::variable_right64",
+            "sha256": "04ef2fe353cef7bd31ef421e0bdc02a711284b29ca81c76d2eee35cd864ab6b8"
+          },
+          {
+            "name": "x86::variable_left64",
+            "sha256": "72deccf06747e4205a481f49561baa09e58a57b1db51b71209202241a790f8a7"
+          },
+          {
+            "name": "x86::multiply_low52",
+            "sha256": "7a88a01aa3d6ad37c3fe90b23075eb82dc26c940f9471b6c384e427d427e50ce"
+          },
+          {
+            "name": "x86::multiply_high52",
+            "sha256": "2085c82bb3bba7efced1a109e57fbe25d13f126c77b86c6ca1a3f4cdb91ceb2c"
+          },
+          {
+            "name": "x86::permute2_d512",
+            "sha256": "5eea0493beba1c319c3926e54fafd3baa08d48783603d8e248b73d47f08f7142"
+          },
+          {
+            "name": "x86::permute2_b256",
+            "sha256": "92d62a04c77fe61cd775d5993d43f89d65ca656a7b7e02ef38477098f64219ca"
+          },
+          {
+            "name": "x86::permute_q512",
+            "sha256": "162e679f036cbe6a6658b8c5abd858667c5853c804dc3adc2b82fd6761a455ff"
+          },
+          {
+            "name": "x86::permute2_q512",
+            "sha256": "df7b1146f0f638f5a1c8fee6984a541b251042b145106840afe19cd434bf7a5f"
+          },
+          {
+            "name": "x86::permute_b256",
+            "sha256": "78d6d4ecddb5e80a2a8522aedd551bd5acb40f95138bb0ea950532d2037ebd4a"
+          }
+        ]
+      },
+      {
+        "artifact_id": "phase2-miri-linux-arm-probes-retry01/run.json",
+        "receipt_sha256": "1751239b4c7be61d09d42f944a313e8428f82f44f5742fcde89a4b54f30866a3",
+        "arch": "arm",
+        "concrete_probes": 6,
+        "commands": 7,
+        "alias_model": "tree",
+        "seed": 1,
+        "coverage_sha256": "e6ae39db71a23dad633a5292a983d7b613f7f43e15c1219d1eec6fb598f6e98f",
+        "sysroot_manifest_sha256": "b64c2673d8e4c82893b55d1c39ed9866f3b03628d58f2ba1129f8cb3bb60e0eb",
+        "sysroot_unchanged": true,
+        "logs": [
+          {
+            "name": "discover-probes",
+            "sha256": "f0364483146a4413a5a20c3251f0665d26a6f7aeac40ed5d7ed8824b5bd20d9b"
+          },
+          {
+            "name": "arm::rounded_shift32",
+            "sha256": "4b613652171d986403c742b00e7282df95535d85a686476af9d867821e4b4b2b"
+          },
+          {
+            "name": "arm::shift_insert32",
+            "sha256": "a274389aacf5edd05c1976f1340d0c0656cd203fc6b2082553596bc91dadc24c"
+          },
+          {
+            "name": "arm::shift_insert16",
+            "sha256": "abe85b3b2e56092c5cca211d7e26e6d203740887100cb0269b6415f427b50b4a"
+          },
+          {
+            "name": "arm::table_extend1",
+            "sha256": "d317e47a17b1e4682e0fb8d16826856e301a60dca6cc1fa2f0d83e36d9080a04"
+          },
+          {
+            "name": "arm::table_extend4",
+            "sha256": "293136465f27bb9b66c5f7b880a67c1752a5e1b292c079164c10a8814080977e"
+          },
+          {
+            "name": "arm::halving_subtract32",
+            "sha256": "55e6e0462beaadb17ec51924d882517da9ef2cdba3310ba6e831e2fb32940755"
+          }
+        ]
+      }
+    ],
+    "concrete_probes": 15,
+    "expected_concrete_probes": 15,
+    "failed_attempts": [
+      {
+        "artifact_id": "phase2-miri-linux-arm-probes/run.json",
+        "receipt_sha256": "9dcf0c462b5f0339bd871de4691968f1e8271563e3920bcfbfc4f0144f52715a",
+        "reason": "local container lacked aarch64-linux-gnu-gcc for the alloca dev-dependency; workflow already declares gcc-aarch64-linux-gnu installation",
+        "failed_command": "discover-probes",
+        "exit_code": 101,
+        "actual_probe_executions": 0,
+        "original_failure_retained": true
+      }
+    ]
+  },
+  "pending": [],
+  "final_provenance": {
+    "artifact": {
+      "id": "final-provenance-after-stock.json",
+      "sha256": "7ce16e069953eb0210a76b8a9c025e963ad7ccf3f6bdfa3b0966e3e8817655ff"
+    },
+    "user_source_files": 2629,
+    "user_source_and_metadata_unchanged": true,
+    "compiler_and_matching_libraries_unchanged": true,
+    "compiler_and_matching_library_sha256": {
+      "rustc": "b4ca197a40b068143f4d82d0e950e12127c880de9f94dd642ecb76ff3fe39000",
+      "libLLVM.dylib": "05b7ca528eb1db1558ddebe65ea689b538b223c29a0a0ec188aaee60b6bd8cd1",
+      "librustc_driver-c1bd1068e41a05b1.dylib": "f7a4800fdb08d3c13dd9503f91c49f3d95401cd82f6ed78e71ffb7a0e1db2ae9"
+    },
+    "rust_library_source_files": 3721,
+    "rust_library_source_manifest_sha256": "341f5e57c150fb77f7a56fc041b2320eefb9b262618904ff1bd70fd0677c68eb",
+    "rust_library_sources_unchanged": true
+  },
+  "complete": true,
+  "limitations": [
+    "This receipt establishes no native x86 execution; consult separate CI records",
+    "SIMD multiplication tests use owned NTT tables; policy tests check shared initialization/source/reuse without transforming a shared operand",
+    "custom interpreter disables optional native-lib; no FFI/full-Miri-test-suite claim",
+    "historical 0986262 evidence is excluded from these counts",
+    "interrupted broad ARM run remains interrupted; complete named shards retain all original cases"
+  ],
+  "custom_commands_completed": 157,
+  "compact_manifest_algorithm": "SHA256(json.dumps(ordered list, sort_keys=True).encode()); full lists remain bound in each raw receipt",
+  "source_files": {
+    "Cargo.toml": "7ac2741c9e17e49df1cc08dca5ba19565115b9945ef05ab84638a81ccd1832bb",
+    "Cargo.lock": "76b923e5642b9899ed35b88016d80ee55b0f77e8304a30d9c52daf0854bd5638",
+    "src/cpu.rs": "61f792d4aba99fae306e92a770719756f6951f7f037dd98052b9f9318ff5e79e",
+    "src/dc.rs": "d70bff905e81742698cdff5a83a177a60f5dbb817f802649f367ac60a288c309",
+    "src/internals.rs": "e19d7d76f9a56aa3a1915675bd31f4f9669f059e40e9e7b9327c2b4da1c5c6af",
+    "src/verification.rs": "a7ab64735e9b829f5de5c50a460a586caff42d259459e9ae9295c4b3c2730856",
+    "src/malachite_tests.rs": "f24ad25d54e62f92a031dc1187f1632d240d79c562b3ac65433761c1f2b78b28",
+    "src/lib.rs": "cf3fc3a1522a6e9d3b129a9088069f98f95cd402118742e7c3872102b1f3ff97",
+    "src/toom3.rs": "c2d24949059c240ce0e02326e9da6d0c3a9302c047302d4a2623fbbd0fb07a57",
+    "src/mul_ifma.rs": "bc77c311070fd2863587be07ec7f77d1dfa0c421ecc601ae1ccf7c5586e1dbf5",
+    "src/toom3_miri_tests.rs": "fe5f160470f6e3466638723c83d83c8d50d1c49a784f98671fb3300c8fcadeec",
+    "src/tests.rs": "c321f1e6d3b5606c937802bcedf82e1bbc8f5ef863b493f3a11efdaf4c5a458a",
+    "src/batched.rs": "80555a15428a07699e2d119f7b297c9c99b6336199c2b979afdb49dbbd653345",
+    "src/no_alloc.rs": "ab367e8e06ef18aad572de0981d0dce12f204d5479a8129b8f9b4cb44e6fb9b4",
+    "src/mul.rs": "71d2528437c34fb835052c57a0a7c680cb8b01caaae9b06a6ba6fd129cf5def9",
+    "src/api.rs": "5422b05c655ac49dc00c18185b2e3b2e81ae770aa37d7c0c71ece97722052811",
+    "src/common.rs": "eb09f057af80bd1bdc7bed346625d632b64e494bfbcece0f4ee1f061e87440b8",
+    "src/ntt/miri_tests.rs": "2a67b0972f01cd49914d1a7c258b64203d173931c6a7d3b148156502f9e55951",
+    "src/ntt/crt.rs": "6df34c036ab06116d228a7bc21f259b0f0aadafe30750491adac618e733965d4",
+    "src/ntt/neon.rs": "af6baf67ac1da7cc59a7b5184926c7c2f86c9203320fe048eed1200b2d8e43ba",
+    "src/ntt/internals.rs": "76a94c6760ab649c8b5f3c66de67b74d6e03c63b53f39296b3407517c8f9dd21",
+    "src/ntt/mod.rs": "8b516c7ec4e8ca7eb62b8f87636564a9a5dd06aea05c7b51df394ba40fde9994",
+    "src/ntt/proofs.rs": "534357c6443df8963ea5da180ac47f929fcdcb8ee0644f80ab746c66e83e9089",
+    "src/ntt/avx512.rs": "390b1b6120eff2dc67fd241ec36c210f679e944a7bb4721355bf8d36fe27ddd3",
+    "src/ntt/x86.rs": "86a5ec593c628895f8e07ce4eb5e28e91c0a432a2f5e2c89a9a44c06e91b6750",
+    "src/ntt/tables.rs": "e560acc0ea5f3fb99a0a1c4bf704a5000d670e0a8c1ccb10e34b19cf2f939ba6",
+    "src/ntt/cache_policy_tests.rs": "ec167dc1b5c8e278c14ded43db543bfdd17e5b1dbb08be688f45456a19e9c053",
+    "src/ntt/portable.rs": "ddb3400a28e5ea313292576804ff45551a00f5bdbbeb56d9a325b0f3db90cfdf",
+    "src/encode/dc.rs": "e145074a9f8ea1962786846a767eb1c2d3fd64b17fff7eba1e73d1cce41ed4c9",
+    "src/encode/matrix.rs": "f32a4fe962ef4794ba87fb00b85be5336db18fbc23b73064ee3c04e14e21663d",
+    "src/encode/mod.rs": "777f873d348fd35e0298bb4fa41ce8d03f5e4893a4509160627a5eb697cd9d4a",
+    "src/encode/tests.rs": "5b6815af380a0a1349010ed8c7d933c9bf0836271c69caa6560a119966247f8f",
+    "src/encode/batched.rs": "644e10ac82255fd1b6749b4f902e4c8b67e5ced30cf3cd79f8b68d2bbf1d45c8",
+    "src/matrix/neon.rs": "5e7fc2c22b43ac1d5d457fba3a5275dc1d4203f242cb12864368fe91eb012dee",
+    "src/matrix/mod.rs": "de838db0b80ab4417fda339e085a895242ccb9a56a899400fd6ccf16f968cc9c",
+    "src/matrix/proofs.rs": "bf63be27fe6e6827abe463c20d0bfdbd391ca6f73fb0ae1af711d3ccf3e1cc41",
+    "src/matrix/x86.rs": "3e01ea69f102a36386f41f4e61c449f703953cd1510b7cbaeae5f000c3797167",
+    "src/matrix/table.rs": "f6f1a74c8dbc862cd7bc5e2a1547492066336f962ab2d56a1ba41afffcc01348",
+    "src/matrix/portable.rs": "045c7835985da7b0904e46caacef7499c0383a7293fa78fa750365d9c52bf33c",
+    "src/mul_ifma/avx512.rs": "ae05520d7f35632a0fe93b6e542c584e73d6cbd4373503c723ddab146fafca0b",
+    "src/encode/matrix/fixed.rs": "f6013e6e7193fa93cb009fa81af31d03fd6dad736e24273e1fd1260bd0ffb7ca",
+    "src/encode/matrix/neon.rs": "b19a0e64e8658569744520eccc72cc07d8975e80891daf061a8fb92e301f2bac",
+    "src/encode/matrix/x86.rs": "93ee716a456a8cb84d2bba2cbc43b69b5e4eaded8f45733fa16e62e965e5f9f1",
+    "src/encode/matrix/table.rs": "b8554844c5806365bd861e1335ce33bce7ee5d7e6198233a75fb40e847625b76",
+    "src/encode/matrix/fixed/portable.rs": "d95dc3be8147ed4426bbc47b602c11e6b6ebb4b61ee83e287281ac1f1452daa5",
+    "src/ntt/tables/cache.rs": "9c462b134b814a34489b375eba0494c381b3c2f8dfd45e4b0095f27516abefbd",
+    "src/ntt/portable/kernels.rs": "bbb1efd10e5be532349d6f5485869e9ccbf17750f92e842e58a995b1be511ad9",
+    "src/ntt/internals/cached.rs": "8b9cc9ab8aabfb5495efe568a93fc92b46f1a3e19471a8db75870dd5f87f8737",
+    "src/ntt/internals/diagnostics.rs": "330ec391fcac7d44ae643c0d4533d0bd78647ab186ab65196ca2d1f9b1345dc5",
+    "src/ntt/internals/owned.rs": "a75c62e8e22879a4821f89b44402061a409f33c3ae12685e4909df1d17a6c73d",
+    "tests/public_properties.rs": "660eb1db542bd2ed1b055ee47062dc2336218c5079b122b97d16ca38f142e7a0",
+    "tests/miri.rs": "288285d88619c2092a67124f38b4bc8295f583c8c3d43e8622f3511ded18ebb5",
+    "tests/resource_preflight.rs": "d787d0fbb4f1f02876fb1fbbc847f7cb6eb553c6d8143bbe47c127b4d53a9249",
+    "tests/properties.rs": "2bbd983d5604c368874ca82490e984409a08cbd528d38bc394b5f3037ba76050",
+    "tests/bitcoin_core.rs": "7f3d066a36b97b6e9c93d0ff428588d642a2d0e91c5b697b5d033fce2384466f",
+    "tests/tiny_inputs.rs": "f3b7834099cb043c0ae0d106b9a9e94a7e194182c2f812faed07c1925bb4f89c",
+    "tests/matrix_cold.rs": "d784c68e4152f1b8e9489bd7374e37b5b2c77ed83779c21b27fc11f813e1c322",
+    "tests/miri_intrinsics.rs": "44a20201a3d226da1054dbce2f9c087c5e78dd58868f10577dab37ad95529251",
+    "tests/owned_output.rs": "04dd0d654f01d62037de588c8bc6a27eb3a533d3209c0fb7b3cae2cc660be9ee",
+    "tests/no_alloc.rs": "5f7105d3dbefc27be29d8da70da81f6233c63fbdcabce60cf8160908a852d86c",
+    "tests/api.rs": "1d71841c5e6ad65855a6708cc6b2a2009dba81583fe09baf67fea4f13eede803",
+    "tests/support/malachite.rs": "0bdc5d93eeed205f65e2bb78a13e81d39ccc797cbd6c8a5c2d6680f828cf7a0e",
+    "tests/support/scalar.rs": "e464fe21e7813f778b17a162a0a90f7677f3fde3672ce6337cf261f1be3d992e",
+    "tests/support/competitors.rs": "6ca31ca0ade185d4d8d64b99e3576fe81018556dcdde6b12a7806b356c2f6575",
+    "tests/support/mod.rs": "df4797389ffe792e82f103505bdb28caac5c85af25fc9ec3d1cc26fe492938fd"
+  },
+  "source_map_consistency": {
+    "custom_receipts": 14,
+    "stock_supported_receipts": 7,
+    "linux_driver_receipts": 2,
+    "all_raw_source_maps_identical": true,
+    "standalone_stock_probe_hash_matches": true
+  },
+  "live_main_bridge": {
+    "scope": "Cargo.toml, Cargo.lock and every file recursively under src/ and tests/",
+    "checked_files": 65,
+    "frozen_files_match_recorded_source_files": true,
+    "live_file_set_matches_frozen": true,
+    "unchanged_files": 64,
+    "changed_files": [
+      "src/batched.rs"
+    ],
+    "live_source_manifest_sha256": "a7160e6940abeeaa12a72dd4f8e301232c53b5193e4e36698af66904eb8972b7",
+    "changed_file": {
+      "path": "src/batched.rs",
+      "frozen_sha256": "80555a15428a07699e2d119f7b297c9c99b6336199c2b979afdb49dbbd653345",
+      "live_sha256": "b39f3c57de27372581cc5fd3d05c4877f55c0c1e9f0dee03444b7257e7225770",
+      "exclusion_reason": "The sole addition is paired_update_all_return_success inside the existing #[cfg(kani)] mod proofs. Ordinary Miri commands do not enable cfg(kani); the addition contributes no Miri-compiled body.",
+      "excluded_item": "proofs::paired_update_all_return_success",
+      "enclosing_cfg": "#[cfg(kani)] mod proofs",
+      "excluded_exact_bytes": "    // Status/buffer-safety conjunct only; numeric equivalence remains separate.\n    #[kani::proof]\n    #[kani::unwind(5)]\n    fn paired_update_all_return_success() {\n        let low: u64 = kani::any();\n        let top: u64 = kani::any();\n        let c1: u64 = kani::any();\n        let c2: u64 = kani::any();\n        kani::assume(top != 0 && c1 < BASE && c2 < BASE);\n        let mut paired = [low.to_le_bytes(), [0xA5; 8], [0xA5; 8]];\n        let mut sequential = paired;\n        let mut p = Value {\n            limbs: &mut paired,\n            len: 1,\n            top,\n        };\n        let mut s = Value {\n            limbs: &mut sequential,\n            len: 1,\n            top,\n        };\n        assert!(p.mul_add2(c1, c2).is_ok());\n        assert!(s.mul_add(c1).is_ok());\n        assert!(s.mul_add(c2).is_ok());\n    }\n\n",
+      "excluded_bytes": 824,
+      "excluded_lines": 26,
+      "excluded_sha256": "facb3684664c063676df37e0c41d7a74a267bbc880b83ea5ef44110397ae9c07",
+      "live_start_line": 226,
+      "normalized_live_sha256": "80555a15428a07699e2d119f7b297c9c99b6336199c2b979afdb49dbbd653345",
+      "normalized_live_is_byte_identical_to_frozen": true
+    },
+    "source_hash_scope": "Small crate sources only; no new compiler, library or sysroot hashing",
+    "bridge_type": "Metadata/source equivalence only; historical run source hashes and counts retained"
+  },
+  "augmentation": {
+    "original_json_sha256": "071a963deff228b946f0c51f19e0317e1754e54f446fd86b60ec6fc2f4055c20",
+    "original_prose_sha256": "d7304369c7d9db9352afa1369058c930d10dd6f4df852e0db5194be8cccfe7b5",
+    "original_files_preserved": true,
+    "execution_records_unchanged": true
+  }
+}
