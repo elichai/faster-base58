@@ -95,6 +95,14 @@ pub(crate) fn garner(r: [&mut [i32]; 3]) {
     unsafe { garner_neon(r) }
 }
 
+/// Two-prime Garner preprocessing: replace residues in `(-q1, q1)` and `(-q2, q2)`
+/// with `r1` in `[0, q1)` and `v2 = (r2 - r1) / q1 mod q2` in `[0, q2)`.
+/// Both slices must have the same length, divisible by four.
+pub(super) fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
+    // SAFETY: NEON is enabled for this build.
+    unsafe { garner_two_neon(r1, r2) }
+}
+
 pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq: &[i32]) {
     // SAFETY: NEON is enabled for this build.
     unsafe { load_twist_neon(dst, limbs, p, w, wq) }
@@ -327,6 +335,28 @@ fn garner_neon([r1, r2, r3]: [&mut [i32]; 3]) {
     }
 }
 
+#[target_feature(enable = "neon")]
+fn garner_two_neon(r1: &mut [i32], r2: &mut [i32]) {
+    let n = r1.len();
+    assert!(n == r2.len() && n.is_multiple_of(4));
+    let [p1, p2, _] = PRIMES;
+    let (q1, q2) = (vdupq_n_s32(p1.q), vdupq_n_s32(p2.q));
+    let (c12, c12q) = (vdupq_n_s32(GARNER.c12), vdupq_n_s32(GARNER.c12q));
+    for i in (0..n).step_by(4) {
+        // SAFETY: equal lengths divisible by four give `i + 4 <= n` in both slices.
+        unsafe {
+            let a = normalize(vld1q_s32(r1.as_ptr().add(i)), q1);
+            let b = vld1q_s32(r2.as_ptr().add(i));
+            // `-(q1 + q2) < b - a < q2`, and `q1 + q2 < 2^31`, so subtraction
+            // fits i32. The balanced c12 lets mont take this difference directly:
+            // its output has magnitude below 0.75 q2 and needs one normalization.
+            let v2 = normalize(mont(vsubq_s32(b, a), c12, c12q, q2), q2);
+            vst1q_s32(r1.as_mut_ptr().add(i), a);
+            vst1q_s32(r2.as_mut_ptr().add(i), v2);
+        }
+    }
+}
+
 /// The 32-bit halves of limbs `i / 2` to `i / 2 + 1` as `c mod q` with magnitude below
 /// `2^31` (`portable::lift`).
 ///
@@ -525,6 +555,97 @@ mod tests {
         let t = Tables::new(3);
         // SAFETY: NEON is enabled for this build.
         unsafe { inverse_stage::<false>(&mut [0; 16], 4, PRIMES[0], &t.tw[0]) }
+    }
+
+    #[test]
+    fn garner_two_matches_scalar() {
+        let [p1, p2, _] = PRIMES;
+        let edges = |q: i32| [1 - q, -q / 2 - 1, -q / 2, -1, 0, 1, q / 2, q - 1];
+        let (mut r1, mut r2) = (Vec::new(), Vec::new());
+        for a in edges(p1.q) {
+            for b in edges(p2.q) {
+                r1.push(a);
+                r2.push(b);
+            }
+        }
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(5806);
+        r1.extend_from_slice(&samples(&mut rng, p1.q, 4096)[..4096]);
+        r2.extend_from_slice(&samples(&mut rng, p2.q, 4096)[..4096]);
+        let (mut want1, mut want2) = (r1.clone(), r2.clone());
+        for (a, b) in want1.iter_mut().zip(&mut want2) {
+            *a = p1.normalize(*a);
+            // Compare with the original scalar expression, including its reduction.
+            *b = p2.normalize(p2.mont(p2.reduce(*b - *a), GARNER.c12, GARNER.c12q));
+        }
+        for offset in 0..4 {
+            let n = r1.len();
+            let (mut a, mut b) = (vec![i32::MAX; n + 8], vec![i32::MAX; n + 8]);
+            a[offset..offset + n].copy_from_slice(&r1);
+            b[offset..offset + n].copy_from_slice(&r2);
+            garner_two(&mut a[offset..offset + n], &mut b[offset..offset + n]);
+            assert_eq!(a[offset..offset + n], want1, "r1, offset {offset}");
+            assert_eq!(b[offset..offset + n], want2, "v2, offset {offset}");
+            for x in [&a, &b] {
+                assert!(
+                    x[..offset]
+                        .iter()
+                        .chain(&x[offset + n..])
+                        .all(|&v| v == i32::MAX)
+                );
+            }
+        }
+        garner_two(&mut [], &mut []);
+    }
+
+    #[test]
+    fn garner_two_reconstructs_coefficients() {
+        let [p1, p2, _] = PRIMES;
+        let modulus = p1.q as u64 * p2.q as u64;
+        let mut coefficients = vec![
+            0,
+            1,
+            p1.q as u64,
+            p2.q as u64,
+            modulus / 2,
+            modulus - 2,
+            modulus - 1,
+            0,
+        ];
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(5807);
+        coefficients.extend((0..4096).map(|_| rng.next_u64() % modulus));
+        let residues = |p: Prime, parity: usize| -> Vec<i32> {
+            coefficients
+                .iter()
+                .enumerate()
+                .map(|(i, &c)| {
+                    let r = (c % p.q as u64) as i32;
+                    if r != 0 && i % 2 == parity {
+                        r - p.q
+                    } else {
+                        r
+                    }
+                })
+                .collect()
+        };
+        let (mut r1, mut v2) = (residues(p1, 0), residues(p2, 1));
+        garner_two(&mut r1, &mut v2);
+        for ((&a, &b), &coefficient) in r1.iter().zip(&v2).zip(&coefficients) {
+            assert!((0..p1.q).contains(&a));
+            assert!((0..p2.q).contains(&b));
+            assert_eq!(a as u64 + p1.q as u64 * b as u64, coefficient);
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn garner_two_rejects_unequal_lengths() {
+        garner_two(&mut [0; 4], &mut [0; 8]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn garner_two_rejects_partial_vectors() {
+        garner_two(&mut [0; 3], &mut [0; 3]);
     }
 
     /// Each kernel gives exactly what the portable one gives.

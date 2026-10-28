@@ -29,6 +29,15 @@ mod neon;
 mod portable;
 #[cfg(kani)]
 mod proofs;
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    )
+))]
+mod radix;
 mod tables;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
@@ -88,16 +97,25 @@ pub(crate) fn decode(input: &str, zeros: usize, output: &mut [u8]) -> Result<usi
     )
 }
 
-/// Divide-and-conquer encoding with NTT multiplication and the feature-selected leaves.
-/// With `cache`, twiddles through log18 and selected matrix-leaf tables are retained;
-/// larger twiddles live for this call. Without `cache`, tables are owned and leaves
-/// use Horner. Tables are built only when a product uses transforms.
+/// Large encoding with NTT multiplication. NEON uses a multiplication tree in
+/// base 58^3 when transform padding and input size favor it. Other cases retain
+/// the division tree and feature-selected leaves. Both routes retain twiddles
+/// through log18 with `cache`; larger twiddles are owned per call. Powers,
+/// prepared transforms and scratch remain local to the conversion.
 #[inline(never)]
 pub(crate) fn encode(
     zeros: usize,
     x: &[u8],
     output: &mut [u8],
 ) -> Result<usize, crate::BufferTooSmall> {
+    #[cfg(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))]
+    if let Some(result) = radix::try_encode(zeros, x, output) {
+        return result;
+    }
     let m = &mut Ntt::new(Kernels::best());
     crate::encode::dc::encode_parts(zeros, x, output, m, CACHED_LEAF, Leaves::BEST)
 }
