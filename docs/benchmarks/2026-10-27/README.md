@@ -10,6 +10,8 @@ The ordinary M5 Auto path takes about 298 ms to encode 4 MiB and 142 ms to decod
 
 The full backend graphs cover [M5](graphs/m5-backends.svg) and [Wasm](graphs/wasm-backends.svg), with default/cache × encode/decode panels. The readable [algorithm](backend-tables/m5-default-algorithms.md) and [kernel-control](backend-tables/m5-default-kernel-controls.md) tables mark the lowest observed median in bold. [timings-local.csv](timings-local.csv) retains every local domain/cap/route label; [local-completion.json](local-completion.json) binds the complete data and figures. These internal comparisons remain separate from the ordinary public figures.
 
+The separate [final-source compact size supplement](final-size-304dc/README.md) records 32 ordinary Auto/empty artifacts on source304dc, with actual feature fingerprints and matched code/storage deltas. It adds static feature-wired evidence without replacing these timing or linked-size epochs.
+
 ## Source and platform contracts
 
 | Scope | Identity |
@@ -89,7 +91,7 @@ The [candidate ledger](candidates/README.md) retains every bounded experiment. T
 
 [linked-sizes.md](linked-sizes.md) compares every backend on four target formats; [linked-sizes.csv](linked-sizes.csv) retains all 408 artifact hashes and encode/decode/both sections. Matching empty probes separate observer/runtime scaffolds. Code/readonly/data/BSS are not interchangeable. ELF `SHF_WRITE` includes relocation-only `.data.rel.ro`; file alignment can dominate stripped ARM file lengths.
 
-An ordinary borrowed-only consumer can let the linker discard unused large backends. M5 no-allocation uses about 9.6 KiB of code above empty versus 58.5 KiB for Auto; bs58 uses 1.3 KiB. Wasm values are 13.5/70.1/2.7 KiB. These are linked consumers, not standalone crate sizes. The no-allocation API reduces deployment cost by avoiding Auto's large kernels. The separate x86 `compact` feature addresses Auto itself: its NW8 prototype saves about 93 KiB of linked code, roughly one third of the generic Auto delta, with mixed observed CPU outcomes. Wide12 remains the default. Prototype measurements are not final feature-wired measurements.
+An ordinary borrowed-only consumer can let the linker discard unused large backends. M5 no-allocation uses about 9.6 KiB of code above empty versus 58.5 KiB for Auto; bs58 uses 1.3 KiB. Wasm values are 13.5/70.1/2.7 KiB. These are linked consumers, not standalone crate sizes. The no-allocation API reduces deployment cost by avoiding Auto's large kernels. The separate x86 `compact` feature addresses Auto itself: its NW8 prototype saves about 93 KiB of linked code, roughly one third of the generic Auto delta, with mixed observed CPU outcomes. Wide12 remains the default. Prototype timings are not final feature-wired timings; the separate [final304dc size supplement](final-size-304dc/README.md) measures the actual feature wiring.
 
 Keep batched/fixed paths for small and no-allocation work, Karatsuba for recursive fallbacks, NTT for large conversions and Matrix for the opt-in cache's useful medium domain. Toom-3 remains experimental; Malachite remains a development adapter. Do not drop architecture fallbacks because wrapper timings tie: aliases and short fallback paths explain many ties. Evaluate policy specialization, decoder outlining and [detector-load hoisting](detector-hoist.md) with native x86/GCP evidence before merging further tuning.
 

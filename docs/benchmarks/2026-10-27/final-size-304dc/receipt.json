@@ -1,0 +1,879 @@
+{
+  "schema": 1,
+  "status": "pass",
+  "assembled_utc": "2026-10-28T02:09:32.513884+00:00",
+  "source_manifest_sha256": "7dcfc511e6c40bdcfb0943b50133bc6361ff8697bebbf5a50666f7c6270a6f0a",
+  "source_sha256": "d4de08eed731074240e6a80d090185ff2aca23d92794ace983410396f8c11a63",
+  "resource_source_sha256": "304dc4c5dbf18be9c6e1eab7a62b5dabb98022ff6532c1e5ba4fe5e6df000add",
+  "source_files_sha256": {
+    "Cargo.lock": "76b923e5642b9899ed35b88016d80ee55b0f77e8304a30d9c52daf0854bd5638",
+    "Cargo.toml": "aab285088122bb052afc8ec53a81b64a24a69dd19f8d855dd235dbdf41028556",
+    "src/api.rs": "eaa2ecb66f3d57c11ddbfca603bad908c13797da900881671bfe421c9cd2ee28",
+    "src/batched.rs": "b39f3c57de27372581cc5fd3d05c4877f55c0c1e9f0dee03444b7257e7225770",
+    "src/common.rs": "eb09f057af80bd1bdc7bed346625d632b64e494bfbcece0f4ee1f061e87440b8",
+    "src/cpu.rs": "61f792d4aba99fae306e92a770719756f6951f7f037dd98052b9f9318ff5e79e",
+    "src/dc.rs": "d70bff905e81742698cdff5a83a177a60f5dbb817f802649f367ac60a288c309",
+    "src/encode/batched.rs": "644e10ac82255fd1b6749b4f902e4c8b67e5ced30cf3cd79f8b68d2bbf1d45c8",
+    "src/encode/dc.rs": "e145074a9f8ea1962786846a767eb1c2d3fd64b17fff7eba1e73d1cce41ed4c9",
+    "src/encode/matrix/fixed/portable.rs": "d95dc3be8147ed4426bbc47b602c11e6b6ebb4b61ee83e287281ac1f1452daa5",
+    "src/encode/matrix/fixed.rs": "f6013e6e7193fa93cb009fa81af31d03fd6dad736e24273e1fd1260bd0ffb7ca",
+    "src/encode/matrix/neon.rs": "b19a0e64e8658569744520eccc72cc07d8975e80891daf061a8fb92e301f2bac",
+    "src/encode/matrix/table.rs": "b8554844c5806365bd861e1335ce33bce7ee5d7e6198233a75fb40e847625b76",
+    "src/encode/matrix/x86.rs": "93ee716a456a8cb84d2bba2cbc43b69b5e4eaded8f45733fa16e62e965e5f9f1",
+    "src/encode/matrix.rs": "f32a4fe962ef4794ba87fb00b85be5336db18fbc23b73064ee3c04e14e21663d",
+    "src/encode/mod.rs": "777f873d348fd35e0298bb4fa41ce8d03f5e4893a4509160627a5eb697cd9d4a",
+    "src/encode/tests.rs": "5b6815af380a0a1349010ed8c7d933c9bf0836271c69caa6560a119966247f8f",
+    "src/internals.rs": "e19d7d76f9a56aa3a1915675bd31f4f9669f059e40e9e7b9327c2b4da1c5c6af",
+    "src/lib.rs": "cf3fc3a1522a6e9d3b129a9088069f98f95cd402118742e7c3872102b1f3ff97",
+    "src/malachite_tests.rs": "f24ad25d54e62f92a031dc1187f1632d240d79c562b3ac65433761c1f2b78b28",
+    "src/matrix/mod.rs": "de838db0b80ab4417fda339e085a895242ccb9a56a899400fd6ccf16f968cc9c",
+    "src/matrix/neon.rs": "5e7fc2c22b43ac1d5d457fba3a5275dc1d4203f242cb12864368fe91eb012dee",
+    "src/matrix/portable.rs": "045c7835985da7b0904e46caacef7499c0383a7293fa78fa750365d9c52bf33c",
+    "src/matrix/proofs.rs": "bf63be27fe6e6827abe463c20d0bfdbd391ca6f73fb0ae1af711d3ccf3e1cc41",
+    "src/matrix/table.rs": "f6f1a74c8dbc862cd7bc5e2a1547492066336f962ab2d56a1ba41afffcc01348",
+    "src/matrix/x86.rs": "3e01ea69f102a36386f41f4e61c449f703953cd1510b7cbaeae5f000c3797167",
+    "src/mul.rs": "078c1bafc1bb7648e381d790af1a27632ec435146784cb040d4cd2f6198ae50b",
+    "src/mul_ifma/avx512.rs": "ae05520d7f35632a0fe93b6e542c584e73d6cbd4373503c723ddab146fafca0b",
+    "src/mul_ifma.rs": "8cdcadf3f452ad6005abf6816487cd1f5ecd359d74f3bf31232276c7316f75e6",
+    "src/no_alloc.rs": "ab367e8e06ef18aad572de0981d0dce12f204d5479a8129b8f9b4cb44e6fb9b4",
+    "src/ntt/avx512.rs": "390b1b6120eff2dc67fd241ec36c210f679e944a7bb4721355bf8d36fe27ddd3",
+    "src/ntt/cache_policy_tests.rs": "ec167dc1b5c8e278c14ded43db543bfdd17e5b1dbb08be688f45456a19e9c053",
+    "src/ntt/crt.rs": "6df34c036ab06116d228a7bc21f259b0f0aadafe30750491adac618e733965d4",
+    "src/ntt/internals/cached.rs": "8b9cc9ab8aabfb5495efe568a93fc92b46f1a3e19471a8db75870dd5f87f8737",
+    "src/ntt/internals/diagnostics.rs": "330ec391fcac7d44ae643c0d4533d0bd78647ab186ab65196ca2d1f9b1345dc5",
+    "src/ntt/internals/owned.rs": "a75c62e8e22879a4821f89b44402061a409f33c3ae12685e4909df1d17a6c73d",
+    "src/ntt/internals.rs": "76a94c6760ab649c8b5f3c66de67b74d6e03c63b53f39296b3407517c8f9dd21",
+    "src/ntt/miri_tests.rs": "2a67b0972f01cd49914d1a7c258b64203d173931c6a7d3b148156502f9e55951",
+    "src/ntt/mod.rs": "8b516c7ec4e8ca7eb62b8f87636564a9a5dd06aea05c7b51df394ba40fde9994",
+    "src/ntt/neon.rs": "af6baf67ac1da7cc59a7b5184926c7c2f86c9203320fe048eed1200b2d8e43ba",
+    "src/ntt/portable/kernels.rs": "bbb1efd10e5be532349d6f5485869e9ccbf17750f92e842e58a995b1be511ad9",
+    "src/ntt/portable.rs": "ddb3400a28e5ea313292576804ff45551a00f5bdbbeb56d9a325b0f3db90cfdf",
+    "src/ntt/proofs.rs": "534357c6443df8963ea5da180ac47f929fcdcb8ee0644f80ab746c66e83e9089",
+    "src/ntt/tables/cache.rs": "9c462b134b814a34489b375eba0494c381b3c2f8dfd45e4b0095f27516abefbd",
+    "src/ntt/tables.rs": "e560acc0ea5f3fb99a0a1c4bf704a5000d670e0a8c1ccb10e34b19cf2f939ba6",
+    "src/ntt/x86.rs": "86a5ec593c628895f8e07ce4eb5e28e91c0a432a2f5e2c89a9a44c06e91b6750",
+    "src/tests.rs": "c321f1e6d3b5606c937802bcedf82e1bbc8f5ef863b493f3a11efdaf4c5a458a",
+    "src/toom3.rs": "c2d24949059c240ce0e02326e9da6d0c3a9302c047302d4a2623fbbd0fb07a57",
+    "src/toom3_miri_tests.rs": "fe5f160470f6e3466638723c83d83c8d50d1c49a784f98671fb3300c8fcadeec",
+    "src/verification.rs": "2fc1f0e7d6f918ee0ede42477e98dba6fe65855c163dfc8087f25646a575aecd",
+    "tests/support/competitors.rs": "6ca31ca0ade185d4d8d64b99e3576fe81018556dcdde6b12a7806b356c2f6575",
+    "tests/support/malachite.rs": "0bdc5d93eeed205f65e2bb78a13e81d39ccc797cbd6c8a5c2d6680f828cf7a0e",
+    "tests/support/mod.rs": "df4797389ffe792e82f103505bdb28caac5c85af25fc9ec3d1cc26fe492938fd",
+    "tests/support/scalar.rs": "e464fe21e7813f778b17a162a0a90f7677f3fde3672ce6337cf261f1be3d992e"
+  },
+  "artifact_count": 32,
+  "matched_cohort_count": 16,
+  "scope": "linked combined encode/decode cdylib exports, opt-level3/fatLTO/16 codegen units; no timing",
+  "limitations": [
+    "Auto-minus-empty is a matched linked-program delta, not an isolated library object size",
+    "M5 size builds use apple-m4 flags; public M5 timings use different compiler-default flags",
+    "x86 builds run under Rosetta; tiny wrapper/allocator ABI smoke is not native ISA qualification",
+    "Wasm builds here are scalar Wasm codegen, without simd128 or allocation instrumentation",
+    "code/read-only/data/BSS are linked storage; runtime heap and retained cache allocations are measured separately",
+    "gzip is a deterministic compression-size metric; no gzip artifact is committed",
+    "historical benchmark/code-size datasets retain their original source and features"
+  ],
+  "metric_notes": {
+    "code": "executable sections",
+    "readonly": "read-only sections",
+    "data": "initialized writable sections",
+    "bss": "zero-fill sections",
+    "wasm_initial_memory": "initial declared linear-memory pages; not live heap allocation"
+  },
+  "cohorts": [
+    {
+      "label": "m5-no-cache-default",
+      "target": "aarch64-apple-darwin",
+      "cpu": "apple-m4",
+      "cache": false,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-apple-darwin\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=apple-m4",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"aarch64\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"unix\"\ntarget_feature=\"aes\"\ntarget_feature=\"bf16\"\ntarget_feature=\"bti\"\ntarget_feature=\"crc\"\ntarget_feature=\"dit\"\ntarget_feature=\"dotprod\"\ntarget_feature=\"dpb\"\ntarget_feature=\"dpb2\"\ntarget_feature=\"fcma\"\ntarget_feature=\"fhm\"\ntarget_feature=\"flagm\"\ntarget_feature=\"fp16\"\ntarget_feature=\"frintts\"\ntarget_feature=\"i8mm\"\ntarget_feature=\"jsconv\"\ntarget_feature=\"lor\"\ntarget_feature=\"lse\"\ntarget_feature=\"neon\"\ntarget_feature=\"paca\"\ntarget_feature=\"pacg\"\ntarget_feature=\"pan\"\ntarget_feature=\"pmuv3\"\ntarget_feature=\"ras\"\ntarget_feature=\"rcpc\"\ntarget_feature=\"rcpc2\"\ntarget_feature=\"rdm\"\ntarget_feature=\"sb\"\ntarget_feature=\"sha2\"\ntarget_feature=\"sha3\"\ntarget_feature=\"ssbs\"\ntarget_feature=\"vh\"\ntarget_has_atomic=\"128\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"128\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"macos\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"apple\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "471b47aca1aa8204d37d70c8d2b910a1295bdc6239c2ed423bb8b12967a5bf44",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [],
+        "auto": []
+      },
+      "selected_cargo_features_sha256": "47ddb992b9ebc11498c56fa9018ccc427643cda6123de40eb917612c30edc7ce",
+      "compiled_library_features": [
+        "default"
+      ],
+      "compiled_library_features_sha256": "ed954e41fa3f395cec1efad3a62700fe6cef1c2e7f39e9ac3f32207ee2542fb2",
+      "compiled_library_fingerprint_sha256": "ef28b95dcde0e73340fb1477f9c76a3fb1edb1c1a8397b2e82eb7381956e564a",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nHomebrew LLVM version 23.1.4\n  Optimized build.\n",
+      "metadata_sha256": "7b3e07bd1c27a98d1e0074625bdda4ded51955b1211c9bedce97f8a5992f088a",
+      "csv_sha256": "56209dc66c0b4f02e19ee6804e5f65fbf0c628aefe144c6a90148ed7613414de",
+      "build_log_sha256": "cabed7432f3d055383258eb3775fa4f9cb7358c532cfc5c24545464900bae8b3",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "m5-no-cache-compact",
+      "target": "aarch64-apple-darwin",
+      "cpu": "apple-m4",
+      "cache": false,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-apple-darwin\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=apple-m4",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"aarch64\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"unix\"\ntarget_feature=\"aes\"\ntarget_feature=\"bf16\"\ntarget_feature=\"bti\"\ntarget_feature=\"crc\"\ntarget_feature=\"dit\"\ntarget_feature=\"dotprod\"\ntarget_feature=\"dpb\"\ntarget_feature=\"dpb2\"\ntarget_feature=\"fcma\"\ntarget_feature=\"fhm\"\ntarget_feature=\"flagm\"\ntarget_feature=\"fp16\"\ntarget_feature=\"frintts\"\ntarget_feature=\"i8mm\"\ntarget_feature=\"jsconv\"\ntarget_feature=\"lor\"\ntarget_feature=\"lse\"\ntarget_feature=\"neon\"\ntarget_feature=\"paca\"\ntarget_feature=\"pacg\"\ntarget_feature=\"pan\"\ntarget_feature=\"pmuv3\"\ntarget_feature=\"ras\"\ntarget_feature=\"rcpc\"\ntarget_feature=\"rcpc2\"\ntarget_feature=\"rdm\"\ntarget_feature=\"sb\"\ntarget_feature=\"sha2\"\ntarget_feature=\"sha3\"\ntarget_feature=\"ssbs\"\ntarget_feature=\"vh\"\ntarget_has_atomic=\"128\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"128\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"macos\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"apple\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "03a33defdacbf56158a3f6d882ea0164a62d0eb929a6df76fbf3608a73100ba2",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "compact"
+        ],
+        "auto": [
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "13d9dd42aa62b6e31ffd0a2e6618f644c5f9f29e6848b3cbd0c88c9e5fdf3757",
+      "compiled_library_features": [
+        "compact",
+        "default"
+      ],
+      "compiled_library_features_sha256": "0c45a7ac46172c06557c1b75ba762d9f89d6a1639ef8d3b6c92e2f634a2c535f",
+      "compiled_library_fingerprint_sha256": "ea9418a4e5d2e703f023cd87e4c36586512892184f1a13c195fc90f03436d6d6",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nHomebrew LLVM version 23.1.4\n  Optimized build.\n",
+      "metadata_sha256": "7909f04e715b1805a50c8344da590fe671a7467ca68bf4cca8d7c5a6feb5b422",
+      "csv_sha256": "0956232b0c24d532ca83a34f8c0d7d0d9ed6f89f900632081426d69960ca0449",
+      "build_log_sha256": "7602561d5de31551234fbeb1faf9576e14b0232765bdc4d721b351c2adc876b9",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "m5-cache-default",
+      "target": "aarch64-apple-darwin",
+      "cpu": "apple-m4",
+      "cache": true,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-apple-darwin\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=apple-m4",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"aarch64\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"unix\"\ntarget_feature=\"aes\"\ntarget_feature=\"bf16\"\ntarget_feature=\"bti\"\ntarget_feature=\"crc\"\ntarget_feature=\"dit\"\ntarget_feature=\"dotprod\"\ntarget_feature=\"dpb\"\ntarget_feature=\"dpb2\"\ntarget_feature=\"fcma\"\ntarget_feature=\"fhm\"\ntarget_feature=\"flagm\"\ntarget_feature=\"fp16\"\ntarget_feature=\"frintts\"\ntarget_feature=\"i8mm\"\ntarget_feature=\"jsconv\"\ntarget_feature=\"lor\"\ntarget_feature=\"lse\"\ntarget_feature=\"neon\"\ntarget_feature=\"paca\"\ntarget_feature=\"pacg\"\ntarget_feature=\"pan\"\ntarget_feature=\"pmuv3\"\ntarget_feature=\"ras\"\ntarget_feature=\"rcpc\"\ntarget_feature=\"rcpc2\"\ntarget_feature=\"rdm\"\ntarget_feature=\"sb\"\ntarget_feature=\"sha2\"\ntarget_feature=\"sha3\"\ntarget_feature=\"ssbs\"\ntarget_feature=\"vh\"\ntarget_has_atomic=\"128\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"128\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"macos\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"apple\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "471b47aca1aa8204d37d70c8d2b910a1295bdc6239c2ed423bb8b12967a5bf44",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [
+          "cache"
+        ],
+        "auto": [
+          "cache"
+        ]
+      },
+      "selected_cargo_features_sha256": "c6f2192effecdc0cd792e6839b7accc93f1e96e78983eb3b790aac985105e6ae",
+      "compiled_library_features": [
+        "cache",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "a74536671c80afb53910f32030b615fa2163cbdc078fe09cacf2f22e32fdff9a",
+      "compiled_library_fingerprint_sha256": "df3b8afd38138c6d7464f78c27d96ab4adca7032797f5337f20365cd0322c4b3",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nHomebrew LLVM version 23.1.4\n  Optimized build.\n",
+      "metadata_sha256": "3baf9f8ca774dfc2cb99ad80afad83b023c94c2b726d3d3476c5e134fe13129a",
+      "csv_sha256": "bbf667e9a8f4b0139877006158137b54741ea6f54b852332a8a029c14a238976",
+      "build_log_sha256": "32748a549249231cca1c530d11a295e8962f2e64c9fab71c050bd48977dc5201",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "m5-cache-compact",
+      "target": "aarch64-apple-darwin",
+      "cpu": "apple-m4",
+      "cache": true,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-apple-darwin\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=apple-m4",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"aarch64\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"unix\"\ntarget_feature=\"aes\"\ntarget_feature=\"bf16\"\ntarget_feature=\"bti\"\ntarget_feature=\"crc\"\ntarget_feature=\"dit\"\ntarget_feature=\"dotprod\"\ntarget_feature=\"dpb\"\ntarget_feature=\"dpb2\"\ntarget_feature=\"fcma\"\ntarget_feature=\"fhm\"\ntarget_feature=\"flagm\"\ntarget_feature=\"fp16\"\ntarget_feature=\"frintts\"\ntarget_feature=\"i8mm\"\ntarget_feature=\"jsconv\"\ntarget_feature=\"lor\"\ntarget_feature=\"lse\"\ntarget_feature=\"neon\"\ntarget_feature=\"paca\"\ntarget_feature=\"pacg\"\ntarget_feature=\"pan\"\ntarget_feature=\"pmuv3\"\ntarget_feature=\"ras\"\ntarget_feature=\"rcpc\"\ntarget_feature=\"rcpc2\"\ntarget_feature=\"rdm\"\ntarget_feature=\"sb\"\ntarget_feature=\"sha2\"\ntarget_feature=\"sha3\"\ntarget_feature=\"ssbs\"\ntarget_feature=\"vh\"\ntarget_has_atomic=\"128\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"128\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"macos\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"apple\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "03a33defdacbf56158a3f6d882ea0164a62d0eb929a6df76fbf3608a73100ba2",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "cache",
+          "compact"
+        ],
+        "auto": [
+          "cache",
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "da401fee297ea5b874be6dc1595e15416a2319ee03529abe33ac109c1d7807f5",
+      "compiled_library_features": [
+        "cache",
+        "compact",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "ed4d9d5823d4ad6a20be0f9b7fd529410e0c55d8f343b76793fc01b11f368b34",
+      "compiled_library_fingerprint_sha256": "b7dc3637833998cdf82beb97417da3b462d5114a97731242369c0490fb1f6c5b",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nHomebrew LLVM version 23.1.4\n  Optimized build.\n",
+      "metadata_sha256": "b5194bb860f6d21c1def0eae20b077304c0c48162d93014cba2cd687357ae2da",
+      "csv_sha256": "8b838f99e62432ca03ac255fd6a758c3795782724216341983435f8e1a100093",
+      "build_log_sha256": "cbdf70181cc7be94f003a9e4614bb92b5f29308df619462ee3059160cb3b7c8d",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "wasm-no-cache-default",
+      "target": "wasm32-unknown-unknown",
+      "cpu": "generic",
+      "cache": false,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"abort\"\ntarget_abi=\"\"\ntarget_arch=\"wasm32\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"wasm\"\ntarget_feature=\"bulk-memory\"\ntarget_feature=\"multivalue\"\ntarget_feature=\"mutable-globals\"\ntarget_feature=\"nontrapping-fptoint\"\ntarget_feature=\"reference-types\"\ntarget_feature=\"sign-ext\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"unknown\"\ntarget_pointer_width=\"32\"\ntarget_vendor=\"unknown\"\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "6152b0b4a0a840c568067eb6ed7ddca16417232c7e1f94d245d9408e9d6eb640",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [],
+        "auto": []
+      },
+      "selected_cargo_features_sha256": "47ddb992b9ebc11498c56fa9018ccc427643cda6123de40eb917612c30edc7ce",
+      "compiled_library_features": [
+        "default"
+      ],
+      "compiled_library_features_sha256": "ed954e41fa3f395cec1efad3a62700fe6cef1c2e7f39e9ac3f32207ee2542fb2",
+      "compiled_library_fingerprint_sha256": "574d1ae5fce0ace60656ea251f31f6f1a79fdeb42cbe6af945ec064ff853d21e",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "80850d91f04ba719e9b5ecd9af2d275dc07cc15530ac532eeb7bd6437df37705",
+      "csv_sha256": "c7a63b87d0dd7a6e8acd9f707a343df1c3de09d785ae9bfdce6fc72f489f0ede",
+      "build_log_sha256": "35db26d5b81426ed47048143cec2034550c4834da097fdbc7632e554c2ad12e3",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "wasm-no-cache-compact",
+      "target": "wasm32-unknown-unknown",
+      "cpu": "generic",
+      "cache": false,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"abort\"\ntarget_abi=\"\"\ntarget_arch=\"wasm32\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"wasm\"\ntarget_feature=\"bulk-memory\"\ntarget_feature=\"multivalue\"\ntarget_feature=\"mutable-globals\"\ntarget_feature=\"nontrapping-fptoint\"\ntarget_feature=\"reference-types\"\ntarget_feature=\"sign-ext\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"unknown\"\ntarget_pointer_width=\"32\"\ntarget_vendor=\"unknown\"\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "9c7bc904aa5e0f26388523a986ef544da56ae89c9df10cb1d755ad3b21f09003",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "compact"
+        ],
+        "auto": [
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "13d9dd42aa62b6e31ffd0a2e6618f644c5f9f29e6848b3cbd0c88c9e5fdf3757",
+      "compiled_library_features": [
+        "compact",
+        "default"
+      ],
+      "compiled_library_features_sha256": "0c45a7ac46172c06557c1b75ba762d9f89d6a1639ef8d3b6c92e2f634a2c535f",
+      "compiled_library_fingerprint_sha256": "c3d2af0373f49d6b216b739843b06afb0e4a9d3c2492384e24ec785e32fd9493",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "0e3ab1ad5a54db06e4cfe04dbf61e4460115567415c5cd46ff83e2da70a39cae",
+      "csv_sha256": "a7206c4b52ddbf828f802447f23101cf8418591da3e61a510be837d429f60ef2",
+      "build_log_sha256": "22a712b13632ba7122a610dab8029194fcefd889205a70fdd22ddc665974c28f",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "wasm-cache-default",
+      "target": "wasm32-unknown-unknown",
+      "cpu": "generic",
+      "cache": true,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"abort\"\ntarget_abi=\"\"\ntarget_arch=\"wasm32\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"wasm\"\ntarget_feature=\"bulk-memory\"\ntarget_feature=\"multivalue\"\ntarget_feature=\"mutable-globals\"\ntarget_feature=\"nontrapping-fptoint\"\ntarget_feature=\"reference-types\"\ntarget_feature=\"sign-ext\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"unknown\"\ntarget_pointer_width=\"32\"\ntarget_vendor=\"unknown\"\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "6152b0b4a0a840c568067eb6ed7ddca16417232c7e1f94d245d9408e9d6eb640",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [
+          "cache"
+        ],
+        "auto": [
+          "cache"
+        ]
+      },
+      "selected_cargo_features_sha256": "c6f2192effecdc0cd792e6839b7accc93f1e96e78983eb3b790aac985105e6ae",
+      "compiled_library_features": [
+        "cache",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "a74536671c80afb53910f32030b615fa2163cbdc078fe09cacf2f22e32fdff9a",
+      "compiled_library_fingerprint_sha256": "370b870eb6c91a639b1f7900de326cb7ef1b749dbaffd9853d07568a28143c9f",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "7c8af1ea5f96013f389736124e6ac3615aaddbc5163f7b08ab480b3132b8c2c2",
+      "csv_sha256": "467cdf1399e53125aecd689f1cbd7ecdadf71d6385db5b4e83939faddc03f392",
+      "build_log_sha256": "2d751526b1aa597a5dd8145c5876b3f53bb91f0ff7b7e362efbd6d72929ddf77",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "wasm-cache-compact",
+      "target": "wasm32-unknown-unknown",
+      "cpu": "generic",
+      "cache": true,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"abort\"\ntarget_abi=\"\"\ntarget_arch=\"wasm32\"\ntarget_endian=\"little\"\ntarget_env=\"\"\ntarget_family=\"wasm\"\ntarget_feature=\"bulk-memory\"\ntarget_feature=\"multivalue\"\ntarget_feature=\"mutable-globals\"\ntarget_feature=\"nontrapping-fptoint\"\ntarget_feature=\"reference-types\"\ntarget_feature=\"sign-ext\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"unknown\"\ntarget_pointer_width=\"32\"\ntarget_vendor=\"unknown\"\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "9c7bc904aa5e0f26388523a986ef544da56ae89c9df10cb1d755ad3b21f09003",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "cache",
+          "compact"
+        ],
+        "auto": [
+          "cache",
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "da401fee297ea5b874be6dc1595e15416a2319ee03529abe33ac109c1d7807f5",
+      "compiled_library_features": [
+        "cache",
+        "compact",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "ed4d9d5823d4ad6a20be0f9b7fd529410e0c55d8f343b76793fc01b11f368b34",
+      "compiled_library_fingerprint_sha256": "506e6781208aff50e8d9c76dd5f972b6985c589dffb96783dd7822f310479096",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "b38d9fec7172848d7b794e6a7d37744d3661e5b7928524cba6293c7ae626f743",
+      "csv_sha256": "5b304cebee9d5ef642211a3882889f8c286d712c7d3e729bb20688f215d21b07",
+      "build_log_sha256": "2d53290b9906ea6a11c50209a5c0c74ce6746482b254fd87ec37e9ff09e3fb69",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-generic-no-cache-default",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "generic",
+      "cache": false,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "6152b0b4a0a840c568067eb6ed7ddca16417232c7e1f94d245d9408e9d6eb640",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [],
+        "auto": []
+      },
+      "selected_cargo_features_sha256": "47ddb992b9ebc11498c56fa9018ccc427643cda6123de40eb917612c30edc7ce",
+      "compiled_library_features": [
+        "default"
+      ],
+      "compiled_library_features_sha256": "ed954e41fa3f395cec1efad3a62700fe6cef1c2e7f39e9ac3f32207ee2542fb2",
+      "compiled_library_fingerprint_sha256": "b45cc0d3f2dfeada44be614d5278f82f102e4330ac77931317d43396f09bc7fd",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "cf313fa19c520e3daa9b01f44db102f2d73cf61a1adeac9ed0a28e516ad67db7",
+      "csv_sha256": "1900789c76a54705e528ff786b0b800ea8ac4525899c0c6da27432d34e99252e",
+      "build_log_sha256": "d7bc0153772d76b08cd1ae4f162fa5520a4999acdb83d8db55dbed1e0fced8a9",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-generic-no-cache-compact",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "generic",
+      "cache": false,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "9c7bc904aa5e0f26388523a986ef544da56ae89c9df10cb1d755ad3b21f09003",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "compact"
+        ],
+        "auto": [
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "13d9dd42aa62b6e31ffd0a2e6618f644c5f9f29e6848b3cbd0c88c9e5fdf3757",
+      "compiled_library_features": [
+        "compact",
+        "default"
+      ],
+      "compiled_library_features_sha256": "0c45a7ac46172c06557c1b75ba762d9f89d6a1639ef8d3b6c92e2f634a2c535f",
+      "compiled_library_fingerprint_sha256": "b232f359f2acbb12240e7a8705ed866cd9c4415306908a658a8f41d387ea8617",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "002befad0e5e7026cab1f3ec733af11a3e1387e487043e343a637073a67ed2eb",
+      "csv_sha256": "fa6a7e2fd2e3485c0b1326112ef9df113607e4d37030bc72594937b6a22692bd",
+      "build_log_sha256": "51957bd55b6f5ca27b014df372c96eeaddd94ca7da4ffe98472e888d7fe29eb1",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-generic-cache-default",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "generic",
+      "cache": true,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "6152b0b4a0a840c568067eb6ed7ddca16417232c7e1f94d245d9408e9d6eb640",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [
+          "cache"
+        ],
+        "auto": [
+          "cache"
+        ]
+      },
+      "selected_cargo_features_sha256": "c6f2192effecdc0cd792e6839b7accc93f1e96e78983eb3b790aac985105e6ae",
+      "compiled_library_features": [
+        "cache",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "a74536671c80afb53910f32030b615fa2163cbdc078fe09cacf2f22e32fdff9a",
+      "compiled_library_fingerprint_sha256": "c238b02ce56872917039b4daaebbd7aaafbc5a21827cecbe16941e1c9fad493f",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "9d234a803fc13b680ef17ad97ef55b459abaa333cd0da758b0b5e8d9092f0f04",
+      "csv_sha256": "9c510ee9dda5769eca8b37af44ae8662ac0ab95bbff23abda21f1a1cdd4a716b",
+      "build_log_sha256": "56da99fc103cf36767a53a6dc74cf05766c68db8c879b2fc966583d5d868e1e6",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-generic-cache-compact",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "generic",
+      "cache": true,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "9c7bc904aa5e0f26388523a986ef544da56ae89c9df10cb1d755ad3b21f09003",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "cache",
+          "compact"
+        ],
+        "auto": [
+          "cache",
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "da401fee297ea5b874be6dc1595e15416a2319ee03529abe33ac109c1d7807f5",
+      "compiled_library_features": [
+        "cache",
+        "compact",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "ed4d9d5823d4ad6a20be0f9b7fd529410e0c55d8f343b76793fc01b11f368b34",
+      "compiled_library_fingerprint_sha256": "d70fdf8ab9a50214187afcb1d394832c99c9bbcc73ace8cd51bd806ea12f4ed1",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "74e94dd9475468273ba5fbe4ac4e58325fe9482e172065cb870a57191f42c286",
+      "csv_sha256": "247e328b79c98513fc7da75dec7262ade48a38ed04686df14ecd023662c82f26",
+      "build_log_sha256": "7d3732de5937b44ab8f3086bbdb4018a23d0a5e3c1899122d08203cc8d5f9c34",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-znver5-no-cache-default",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "znver5",
+      "cache": false,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=znver5",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"adx\"\ntarget_feature=\"aes\"\ntarget_feature=\"avx\"\ntarget_feature=\"avx2\"\ntarget_feature=\"avx512bf16\"\ntarget_feature=\"avx512bitalg\"\ntarget_feature=\"avx512bw\"\ntarget_feature=\"avx512cd\"\ntarget_feature=\"avx512dq\"\ntarget_feature=\"avx512f\"\ntarget_feature=\"avx512ifma\"\ntarget_feature=\"avx512vbmi\"\ntarget_feature=\"avx512vbmi2\"\ntarget_feature=\"avx512vl\"\ntarget_feature=\"avx512vnni\"\ntarget_feature=\"avx512vp2intersect\"\ntarget_feature=\"avx512vpopcntdq\"\ntarget_feature=\"avxvnni\"\ntarget_feature=\"bmi1\"\ntarget_feature=\"bmi2\"\ntarget_feature=\"cmpxchg16b\"\ntarget_feature=\"f16c\"\ntarget_feature=\"fma\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"gfni\"\ntarget_feature=\"lzcnt\"\ntarget_feature=\"movbe\"\ntarget_feature=\"pclmulqdq\"\ntarget_feature=\"popcnt\"\ntarget_feature=\"rdrand\"\ntarget_feature=\"rdseed\"\ntarget_feature=\"sha\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_feature=\"sse3\"\ntarget_feature=\"sse4.1\"\ntarget_feature=\"sse4.2\"\ntarget_feature=\"sse4a\"\ntarget_feature=\"ssse3\"\ntarget_feature=\"vaes\"\ntarget_feature=\"vpclmulqdq\"\ntarget_feature=\"xsave\"\ntarget_feature=\"xsavec\"\ntarget_feature=\"xsaveopt\"\ntarget_feature=\"xsaves\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "6152b0b4a0a840c568067eb6ed7ddca16417232c7e1f94d245d9408e9d6eb640",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [],
+        "auto": []
+      },
+      "selected_cargo_features_sha256": "47ddb992b9ebc11498c56fa9018ccc427643cda6123de40eb917612c30edc7ce",
+      "compiled_library_features": [
+        "default"
+      ],
+      "compiled_library_features_sha256": "ed954e41fa3f395cec1efad3a62700fe6cef1c2e7f39e9ac3f32207ee2542fb2",
+      "compiled_library_fingerprint_sha256": "a82f6b07f11b0c17832a6bc8fff406c91539aa254fb915d845799ba3a2bc69a3",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "5ecb8213272d78754cb4fab8293676594a5e5597c305b2329a2787a8d3591b18",
+      "csv_sha256": "0fcb157408d533d9637dea221b41fb07ac6629355064e95cad8d49cd8b98ca0e",
+      "build_log_sha256": "ddf80163da722459da70f19d9755dfd561e3a3815c04e206d4dd17ae4f89388d",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-znver5-no-cache-compact",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "znver5",
+      "cache": false,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=znver5",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"adx\"\ntarget_feature=\"aes\"\ntarget_feature=\"avx\"\ntarget_feature=\"avx2\"\ntarget_feature=\"avx512bf16\"\ntarget_feature=\"avx512bitalg\"\ntarget_feature=\"avx512bw\"\ntarget_feature=\"avx512cd\"\ntarget_feature=\"avx512dq\"\ntarget_feature=\"avx512f\"\ntarget_feature=\"avx512ifma\"\ntarget_feature=\"avx512vbmi\"\ntarget_feature=\"avx512vbmi2\"\ntarget_feature=\"avx512vl\"\ntarget_feature=\"avx512vnni\"\ntarget_feature=\"avx512vp2intersect\"\ntarget_feature=\"avx512vpopcntdq\"\ntarget_feature=\"avxvnni\"\ntarget_feature=\"bmi1\"\ntarget_feature=\"bmi2\"\ntarget_feature=\"cmpxchg16b\"\ntarget_feature=\"f16c\"\ntarget_feature=\"fma\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"gfni\"\ntarget_feature=\"lzcnt\"\ntarget_feature=\"movbe\"\ntarget_feature=\"pclmulqdq\"\ntarget_feature=\"popcnt\"\ntarget_feature=\"rdrand\"\ntarget_feature=\"rdseed\"\ntarget_feature=\"sha\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_feature=\"sse3\"\ntarget_feature=\"sse4.1\"\ntarget_feature=\"sse4.2\"\ntarget_feature=\"sse4a\"\ntarget_feature=\"ssse3\"\ntarget_feature=\"vaes\"\ntarget_feature=\"vpclmulqdq\"\ntarget_feature=\"xsave\"\ntarget_feature=\"xsavec\"\ntarget_feature=\"xsaveopt\"\ntarget_feature=\"xsaves\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "9c7bc904aa5e0f26388523a986ef544da56ae89c9df10cb1d755ad3b21f09003",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "compact"
+        ],
+        "auto": [
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "13d9dd42aa62b6e31ffd0a2e6618f644c5f9f29e6848b3cbd0c88c9e5fdf3757",
+      "compiled_library_features": [
+        "compact",
+        "default"
+      ],
+      "compiled_library_features_sha256": "0c45a7ac46172c06557c1b75ba762d9f89d6a1639ef8d3b6c92e2f634a2c535f",
+      "compiled_library_fingerprint_sha256": "1023b85908477ef66b9ddb39db24dd10c936e0cb66385441ceaed276bf17cb78",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "8599fbba836b34e7a1224f93878dbc2344eca52696d1b1b4214ca32080e36fa8",
+      "csv_sha256": "0e11bc80c10f70be2d0c5c2badcdc9762997ddbbfb97ec65d4a97a8c0bffa5be",
+      "build_log_sha256": "a3e1abf75b592f666bccfa1df6c8e0bbe6737865e4457e2056b0c90b4093427b",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-znver5-cache-default",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "znver5",
+      "cache": true,
+      "compact": false,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=znver5",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"adx\"\ntarget_feature=\"aes\"\ntarget_feature=\"avx\"\ntarget_feature=\"avx2\"\ntarget_feature=\"avx512bf16\"\ntarget_feature=\"avx512bitalg\"\ntarget_feature=\"avx512bw\"\ntarget_feature=\"avx512cd\"\ntarget_feature=\"avx512dq\"\ntarget_feature=\"avx512f\"\ntarget_feature=\"avx512ifma\"\ntarget_feature=\"avx512vbmi\"\ntarget_feature=\"avx512vbmi2\"\ntarget_feature=\"avx512vl\"\ntarget_feature=\"avx512vnni\"\ntarget_feature=\"avx512vp2intersect\"\ntarget_feature=\"avx512vpopcntdq\"\ntarget_feature=\"avxvnni\"\ntarget_feature=\"bmi1\"\ntarget_feature=\"bmi2\"\ntarget_feature=\"cmpxchg16b\"\ntarget_feature=\"f16c\"\ntarget_feature=\"fma\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"gfni\"\ntarget_feature=\"lzcnt\"\ntarget_feature=\"movbe\"\ntarget_feature=\"pclmulqdq\"\ntarget_feature=\"popcnt\"\ntarget_feature=\"rdrand\"\ntarget_feature=\"rdseed\"\ntarget_feature=\"sha\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_feature=\"sse3\"\ntarget_feature=\"sse4.1\"\ntarget_feature=\"sse4.2\"\ntarget_feature=\"sse4a\"\ntarget_feature=\"ssse3\"\ntarget_feature=\"vaes\"\ntarget_feature=\"vpclmulqdq\"\ntarget_feature=\"xsave\"\ntarget_feature=\"xsavec\"\ntarget_feature=\"xsaveopt\"\ntarget_feature=\"xsaves\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "6152b0b4a0a840c568067eb6ed7ddca16417232c7e1f94d245d9408e9d6eb640",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "06d9b4f074ccf42316fb756147df6a3dd0cbf36971d6d794128394679ebeaebf",
+      "selected_cargo_features": {
+        "empty": [
+          "cache"
+        ],
+        "auto": [
+          "cache"
+        ]
+      },
+      "selected_cargo_features_sha256": "c6f2192effecdc0cd792e6839b7accc93f1e96e78983eb3b790aac985105e6ae",
+      "compiled_library_features": [
+        "cache",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "a74536671c80afb53910f32030b615fa2163cbdc078fe09cacf2f22e32fdff9a",
+      "compiled_library_fingerprint_sha256": "8d07b42174feadfef84c0b2de9cb93f41c28b2b2aaf193cc4532e1f7bf02eb81",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "47dacaf55bb6b85abeac6b1be177ebc3eaa0758fdbd588b2a7fa5330f6560080",
+      "csv_sha256": "fde4aff9ce50200345319a593bd5217a5c245c3549bba06216ca634d65b71940",
+      "build_log_sha256": "e5edb6d9d3d1ae3dfe8a8e07cdf657b09ec52ecf78fca90f839b45b00acf7438",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    },
+    {
+      "label": "x86-znver5-cache-compact",
+      "target": "x86_64-unknown-linux-gnu",
+      "cpu": "znver5",
+      "cache": true,
+      "compact": true,
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "rustflags": "-C target-cpu=znver5",
+      "rustc_target_cfg": "panic=\"unwind\"\ntarget_abi=\"\"\ntarget_arch=\"x86_64\"\ntarget_endian=\"little\"\ntarget_env=\"gnu\"\ntarget_family=\"unix\"\ntarget_feature=\"adx\"\ntarget_feature=\"aes\"\ntarget_feature=\"avx\"\ntarget_feature=\"avx2\"\ntarget_feature=\"avx512bf16\"\ntarget_feature=\"avx512bitalg\"\ntarget_feature=\"avx512bw\"\ntarget_feature=\"avx512cd\"\ntarget_feature=\"avx512dq\"\ntarget_feature=\"avx512f\"\ntarget_feature=\"avx512ifma\"\ntarget_feature=\"avx512vbmi\"\ntarget_feature=\"avx512vbmi2\"\ntarget_feature=\"avx512vl\"\ntarget_feature=\"avx512vnni\"\ntarget_feature=\"avx512vp2intersect\"\ntarget_feature=\"avx512vpopcntdq\"\ntarget_feature=\"avxvnni\"\ntarget_feature=\"bmi1\"\ntarget_feature=\"bmi2\"\ntarget_feature=\"cmpxchg16b\"\ntarget_feature=\"f16c\"\ntarget_feature=\"fma\"\ntarget_feature=\"fxsr\"\ntarget_feature=\"gfni\"\ntarget_feature=\"lzcnt\"\ntarget_feature=\"movbe\"\ntarget_feature=\"pclmulqdq\"\ntarget_feature=\"popcnt\"\ntarget_feature=\"rdrand\"\ntarget_feature=\"rdseed\"\ntarget_feature=\"sha\"\ntarget_feature=\"sse\"\ntarget_feature=\"sse2\"\ntarget_feature=\"sse3\"\ntarget_feature=\"sse4.1\"\ntarget_feature=\"sse4.2\"\ntarget_feature=\"sse4a\"\ntarget_feature=\"ssse3\"\ntarget_feature=\"vaes\"\ntarget_feature=\"vpclmulqdq\"\ntarget_feature=\"xsave\"\ntarget_feature=\"xsavec\"\ntarget_feature=\"xsaveopt\"\ntarget_feature=\"xsaves\"\ntarget_has_atomic=\"16\"\ntarget_has_atomic=\"32\"\ntarget_has_atomic=\"64\"\ntarget_has_atomic=\"8\"\ntarget_has_atomic=\"ptr\"\ntarget_has_atomic_primitive_alignment=\"16\"\ntarget_has_atomic_primitive_alignment=\"32\"\ntarget_has_atomic_primitive_alignment=\"64\"\ntarget_has_atomic_primitive_alignment=\"8\"\ntarget_has_atomic_primitive_alignment=\"ptr\"\ntarget_os=\"linux\"\ntarget_pointer_width=\"64\"\ntarget_vendor=\"unknown\"\nunix\n",
+      "profile": {
+        "opt_level": "3",
+        "lto": "fat",
+        "codegen_units": 16,
+        "debug": false,
+        "strip_during_link": false,
+        "incremental": false
+      },
+      "manifest_sha256": "9c7bc904aa5e0f26388523a986ef544da56ae89c9df10cb1d755ad3b21f09003",
+      "normalized_manifest": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"<frozen-source>\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\ncompact = [\"faster-base58/compact\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+      "normalized_manifest_sha256": "44d22ccb029652ee69d9135da8e306bea80d44f7fd4c55afcfaabb7cccd0af0a",
+      "selected_cargo_features": {
+        "empty": [
+          "cache",
+          "compact"
+        ],
+        "auto": [
+          "cache",
+          "compact"
+        ]
+      },
+      "selected_cargo_features_sha256": "da401fee297ea5b874be6dc1595e15416a2319ee03529abe33ac109c1d7807f5",
+      "compiled_library_features": [
+        "cache",
+        "compact",
+        "default",
+        "std"
+      ],
+      "compiled_library_features_sha256": "ed4d9d5823d4ad6a20be0f9b7fd529410e0c55d8f343b76793fc01b11f368b34",
+      "compiled_library_fingerprint_sha256": "3dd66202bf023ca56b25cf007cf15263de1ec4dc9c3a7998ea20ac7661f463fa",
+      "probe_cargo_lock_sha256": "294bcdf8bdd080d80166b5e3cdf34a43f5db3883c635c78f1412996b537b0924",
+      "strip_version": "llvm-strip, compatible with GNU strip\nLLVM (http://llvm.org/):\n  LLVM version 23.1.1-rust-1.99.1-stable\n  Optimized build.\n",
+      "metadata_sha256": "ac149b1418b5dd1c72f820228ffd0cdeb3f7ac589e7813d87c31bdde7a79e5b7",
+      "csv_sha256": "2d3dd2e39217259ed596996dd9d5ee84d50cc35d0f8fcf3c9931d1ed40019e07",
+      "build_log_sha256": "6c20851898cb8e01e522b14ab7f36bc490df767efdffe26bda4cf5877d1052e6",
+      "harness_files_sha256": {
+        "tools/code-size/src/allocations.rs": "6ec811456e8c22a8e3eadcd36bec26771595accdc2849995fee1f91f3eb70389",
+        "tools/code-size/src/entry.rs": "cb20507a9138c1e0cde2e413aa4c7e613bddaac0c9aac29d4c67b7bf0df29dd7",
+        "tools/code-size/src/lib.rs": "03dee6db03fa1b3e7576d07befa2b2e64b3226d34b42f8d1233dbbe38cfe92cd",
+        "tools/code-size/src/main.rs": "7485aa00b465bb0fd1cb21be184637e033b2bc635487832d7bc384f300616a02",
+        "scripts/code_size.py": "4faca24e4588800e02abb2e43dfc827b346b473ded34f92b59f347e53d0f36a6",
+        "scripts/code_size_wasm.mjs": "3812e244e38761da1e553e5b795536e30b8546cc41e86f29fb23f24482ed080f"
+      }
+    }
+  ],
+  "files": {
+    "artifacts.csv": {
+      "sha256": "136c54547c0c4a8b739edf32a3692a630fb4e1caa77e8c759e2a69c7ce8cb1a2",
+      "bytes": 17399
+    },
+    "deltas.csv": {
+      "sha256": "db3984c4153bf1ea623233ab6e2ba0fcb579bea9e7cf88cd909cefc287dcf199",
+      "bytes": 6666
+    }
+  }
+}

@@ -18,6 +18,7 @@ slowdown. Code-size and allocation counts are separate measurements.
 | Dataset | Coverage and interpretation |
 | --- | --- |
 | [Public API survey, 2026-10-27](benchmarks/2026-10-27/public-tables.md) | Current README tables and SVGs: ordinary M5 and Wasm consumers, 29 payload sizes through 4 MiB, default/cache/no_alloc, bs58 and five8. The [figure receipt](benchmarks/2026-10-27/public-graphs.json) keeps timing and linked-size source epochs separate. |
+| [Final compact linked size](benchmarks/2026-10-27/final-size-304dc/README.md) | Separate final304dc source: 32 ordinary Auto/empty artifacts, M5/scalar Wasm/generic x86/explicit znver5, cache/compact features and actual compiler fingerprints. Linked code/storage only; no new timings or heap measurements. |
 | [Centralized dispatch](benchmarks/dispatch/README.md) | Local 2026-10-26 routing cleanup. Separate internal-worker survey, ordinary-consumer outlining experiment and zero-prefix allocation comparison. |
 | [Fixed decoding](benchmarks/fixed-decode/README.md) | Portable fixed-matrix prototypes were slower and larger on M5; retained as a rejected experiment. |
 | [Backend grid](benchmarks/backend-grid/README.md) | 2026-10-24 source: 29 decoded sizes from empty through 4 MiB; M5 native, GCP generic/native and M5 Wasm. Includes backend wrappers, forced-kernel controls, bs58 and five8. This predates the cache-feature split, no_std and rename. |
