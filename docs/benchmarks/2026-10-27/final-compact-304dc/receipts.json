@@ -1,0 +1,74 @@
+{
+  "status": "source304dc final ordinary feature study, all observations retained",
+  "inputs_sha256": {
+    "gcp-final-study-summary-v1.json": "e9f7cb2f880d74b3bff339b09525a35c7076fe25030f04f70fd537dd6fcb06bc",
+    "gcp-final-study-features-v1.csv": "a5b964fed1178e864071fa4290e360fb0e60eea947cce91264a4c7eb64acf78b",
+    "gcp-final-study-controls-v1.csv": "af3aa1f015ed48ef97221163237821a3f3e9216561500c6038d690666255b4ef",
+    "gcp-final-study-pairs-v1.csv": "586ca9df592155a288ec484b26834b929d1701de3e71b06f287f73e9aad74f6f",
+    "gcp-final-validation-summary-v1.json": "69c838f487c8ed098dafcde5397f5733dcf497a4325946ba3c8b7355825a37e3",
+    "gcp-final-qualification-summary-v1.json": "6a384dcc7c086f36beeed99ac83552e3ea6edb966d73c448489592d1c1687206",
+    "gcp-final-observer-received-v1.json": "56a21292c5de4e791ce670e2f5bd3d3c4e5b5d22124408eaecd9d0bc056d2af4",
+    "gcp-final-observer-collection-v1.json": "33b46058accc908d9687ed6d9f6fbb85ff06daeea5fbc8378e4f92a6820a9e9a"
+  },
+  "prepared_sha256": "e888fe91255ccdbdbf212761a37490d19e52934a2a6cc484ae6d0c70a66920ff",
+  "source_resource_sha256": "304dc4c5dbf18be9c6e1eab7a62b5dabb98022ff6532c1e5ba4fe5e6df000add",
+  "source_canonical_sha256": "d4de08eed731074240e6a80d090185ff2aca23d92794ace983410396f8c11a63",
+  "raw_study_sha256": "6107bfefca787381b607c6783352777f5ce043a7c2ea226578de2a602d13876a",
+  "raw_complete_sha256": "78a5ad44ff5e4f81d33a18018484da5bcc77837b51ad13faddc764ce07011440",
+  "archive_sha256": "97c5e3b55c5d947005efd5ffecddb39026aea4b5c2af9a62443145c1a7eedf84",
+  "archive_bytes": 43585043,
+  "known_worker_pids_absent": 3388,
+  "phase_controllers_absent": 3,
+  "vm": {
+    "cpu": "AMD EPYC9B45",
+    "machine_type": "c4d-highcpu-4",
+    "guest_vcpus": 4,
+    "guest_reported_cores": 2,
+    "os": "Debian12",
+    "glibc": "2.36",
+    "cpu_affinity": [
+      0
+    ]
+  },
+  "observer": {
+    "python": "3.11.2",
+    "optimize": 0,
+    "hash_seed": 0,
+    "global_file_bytes": 2150840,
+    "device": 66308,
+    "inode": 147287,
+    "input_mod64": 1,
+    "output_mod64": 3,
+    "primary_clock": "process CPU",
+    "samples": 3,
+    "minimum_batch_cpu_ns": 100000000,
+    "fresh_pairs": 5,
+    "all56_identical_controls": "No pair, warm batch or cell removed; exact values are in the CSVs.",
+    "general_GOT_and_writable_state": "Record-only diagnostics inspected before timers; no all-target/state proof.",
+    "narrow_encoder_self_binding": "466 qualifications verified their own encoder GOT target;32 no-relocation cases not applicable.",
+    "cleanup": "Direct children reaped under owned-group cleanup; controllers/workers/group absent at collection. Independent descendant reaping is not proved."
+  },
+  "code_layout_scope": "Module offsets and raw body hashes, including distinct constants/call targets. Different emitted placement is observed; timing causality is not established.",
+  "source_scope": "Actual final compact wiring, not the earlier hardcoded-NW8prototype or frozen4e5backend grid.",
+  "raw_contract_scope": "Raw input hashes refer to preserved original files. Public build-contracts.json is an explicit selected-field view, not a claim of byte-identical redaction.",
+  "measurement_date_utc": "2026-10-28",
+  "date_scope": "Study active/closed progress records captured on2026-10-28UTC; exact timestamps are date witnesses, not asserted start/end times.",
+  "date_witnesses": [
+    {
+      "logical_input": "gcp-observer-study-state-1.json",
+      "raw_sha256": "db01d55786cbfd78cb0c7a92ef63df254a2d6736375d064d76bf65bc28e35a5c",
+      "captured_utc": "2026-10-28T03:38:17.287692+00:00",
+      "phase": "study",
+      "controller_pid": 34172,
+      "status": "active"
+    },
+    {
+      "logical_input": "gcp-observer-study-state-17.json",
+      "raw_sha256": "9abaf86470aff8fd47f99fd452b5783a7b0b20f4d36791796aa62f833b0d8c26",
+      "captured_utc": "2026-10-28T04:07:27.919685+00:00",
+      "phase": "study",
+      "controller_pid": 34172,
+      "status": "exited"
+    }
+  ]
+}

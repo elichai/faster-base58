@@ -6,3 +6,6 @@ docs/verification/** -text
 docs/references/** -text
 assets/graphs/** -text
 *.csv whitespace=cr-at-eol
+
+# Unified patches contain literal blank context lines.
+*.patch whitespace=-blank-at-eol,-blank-at-eof

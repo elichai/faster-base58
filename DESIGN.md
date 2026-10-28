@@ -187,11 +187,15 @@ a smaller general path. Fixed-only five8 has a narrower contract.
 
 The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to
 eight vector groups. It removes four large unrolled kernel bodies and increases
-the chunk count for some operand shapes. A matched prototype saved about 93 KiB
-of linked code; that comparison is separate from the older platform size tables.
-It preserves format, API and allocation contracts. Speed depends on operand shape;
-the default retains all twelve widths. Other production architectures do not use
-these IFMA kernels.
+the chunk count for some operand shapes. [Final-source sizes](docs/benchmarks/2026-10-27/final-size-304dc/README.md)
+and [ordinary GCP consumers](docs/benchmarks/2026-10-27/final-compact-304dc/README.md)
+show about 93.2 KiB less executable code, 33–37% of the matched x86 Auto delta
+above empty. On one EPYC 9B45 VM, compact's cache-off encoding is about 2–9%
+faster at 4 KiB–4 MiB; large decoding and cache-mode conversions mostly cost 1–3%.
+These whole-consumer observations include compiler/call-context effects, with all
+identical-content controls retained. M5 and scalar Wasm have no section saving.
+Format, API and the no-allocation contract are unchanged; wide12 remains the
+default. Other production architectures do not use these IFMA kernels.
 
 [Per-platform backend sizes](docs/benchmarks/backend-resources/README.md),
 [public-mode sizes](docs/benchmarks/public-modes/README.md) and
