@@ -189,12 +189,15 @@ logs above 18 remain owned even with `cache`. The internal cache helper also
 accepts logs 1–4; filling those would raise its NTT bound to 25,165,728 bytes.
 
 Retained capacities exclude allocator overhead, construction scratch, prepared
-powers, stack and concurrent conversions. A 4 MiB significant encode can require
-96 MiB of owned twiddles per call. The allocation-layout measurement reduced
-its extra requested live heap from 284,269,528 to 201,582,112 bytes, with zero
-retention in the cache-off build. Those counts exclude allocator-internal
-reallocation overlap and RSS. Process peaks and Wasm page high-water are separate
-metrics; see [measurement scopes](docs/performance.md).
+powers, stack and concurrent conversions. The division-tree route can require
+96 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
+radix route uses two prime tables instead of three and pools its digit and
+prepared-spectrum scratch. In the 2026-10-29 M5 measurements from `06e081591a8f`,
+1/4 MiB encoding used 14 allocations and zero reallocations per call, peaking at
+32,992,644 / 131,965,668 bytes of extra requested live heap, with no retained heap
+under either cache policy. These counts exclude caller buffers, allocator-internal
+reallocation overlap and RSS. Other routes and sizes differ; process peaks and
+Wasm page high-water are separate metrics. See [measurement scopes](docs/performance.md).
 
 Precomputing every general cache table would embed roughly 41.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the

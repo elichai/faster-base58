@@ -12,7 +12,7 @@ The current public timings, linked sizes and M5 allocations were measured
 **2026-10-29**, from combined Git snapshot `06e081591a8ff444f990133411f093e5512610dc`.
 Resource fingerprint: `c9d7163caf8dfa8f52355c09e2da04a84bb7dc205acc2386b5d9b087371580f5`
 (source/manifest/lock/support files, not a Git ID). All platforms use this same
-source, including both the formatter and radix scratch improvements.
+source, including the formatter, table alignment and radix scratch improvements.
 
 | Platform | Compiler / runtime | Target / clock |
 | --- | --- | --- |
@@ -81,6 +81,29 @@ Compared with the superseded `11d0c16` snapshot, the final x86 default
 512 B decode observation changed from 1.000 to 1.221 µs, while 4 KiB
 changed from 33.170 to 27.537 µs. These separate runs include upstream
 source changes; neither difference is attributed to the alignment fix.
+
+### Matched x86-64 follow-up
+
+A separate 2026-10-29 generic EPYC comparison of pre-merge main `a18406d` with
+`06e0815` did not reproduce the apparent 22% default 512 B decode slowdown.
+Both libraries used matching physical source/probe/build/package paths, Rust
+1.99.0 / LLVM 23.1.1, opt3/fat LTO/16 codegen units and CPU 0. Each policy used
+three fresh paired processes, reversed load order and nine alternating batches
+per case of at least 10 ms process CPU time, with independent fixture checks.
+
+With separate output buffers, the median paired final/main ratio was 1.0006
+for default 512 B decoding and 1.0356 for default 4 KiB encoding. Reusing the
+same input/output addresses for both immutable artifacts gave 0.9995
+[0.9986, 1.0006] and 0.9885 [0.9822, 0.9885], respectively. Brackets span the
+three within-process median ratios, not confidence intervals. The latter
+slowdown was therefore not stable under caller-buffer control.
+
+For these default artifacts, executable bytes, ELF code placement and relocation
+sections were identical; differences were build-ID and panic source-line
+metadata. The changed NTT table constructor is outside the 4 KiB
+Karatsuba/Horner path. The exact runtime mechanism remains unproven, and no
+source-caused x86 speedup is claimed. This diagnostic has a different artifact
+and loading context from the full public cohort and does not replace its values.
 
 ### Small-input detail
 
@@ -273,8 +296,9 @@ Measured 2026-10-29 on Apple M5 Pro, little-endian AArch64 with NEON,
 Rust 1.99.1 / LLVM 23.1.1, generic target, opt3/fat LTO/16 codegen units.
 The baseline is PR #3 at `5d045f32523a107f56d2094badf80106dbd2f71a`;
 the candidate pools power digits and lower prepared spectra, omits the stored
-top spectrum and reserves schoolbook sums. The final combined source snapshot
-`11d0c16177cda1278bb4d1225afb213697c8f6f2` contains this same radix implementation.
+top spectrum and reserves schoolbook sums. The intermediate combined snapshot
+`11d0c16177cda1278bb4d1225afb213697c8f6f2` contains this same radix implementation;
+the final `06e0815` cohort above confirms the allocation counts and peaks.
 No API, dispatch, dependency or cache-retention policy changes.
 
 Ordinary-public counted windows exclude caller buffers and oracle construction.

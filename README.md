@@ -81,7 +81,9 @@ helpers. Enabling `cache` does not change its allocation guarantee.
 
 Auto trades workspace for large-input speed. At 4 MiB, the M5 measurements with
 default features peak at about 126 MiB of extra requested heap for encoding and
-105 MiB for decoding, excluding caller buffers. [Allocation details](DESIGN.md#heap-stack-and-cache-costs).
+105 MiB for decoding, excluding caller buffers. The sampled 1/4 MiB M5 encode
+calls each make 14 allocations and zero reallocations with either cache policy.
+[Allocation details](DESIGN.md#heap-stack-and-cache-costs).
 
 ## Optional caching
 
