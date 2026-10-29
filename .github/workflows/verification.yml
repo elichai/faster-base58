@@ -524,7 +524,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
-      - run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: sudo apt-get install -y libz3-4 libxml2-16 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - name: Matching LLVM toolchain
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
@@ -630,7 +630,7 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update
       - if: runner.os == 'Linux'
-        run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+        run: sudo apt-get install -y libz3-4 libxml2-16 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component llvm-tools-preview --profile minimal
       - if: runner.os == 'Linux'
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
@@ -733,7 +733,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
-      - run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: sudo apt-get install -y libz3-4 libxml2-16 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
       - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --cache ${{ matrix.cache }} ${{ matrix.compact_args }} --log-dir "$RUNNER_TEMP/native-${{ matrix.label }}/logs"
