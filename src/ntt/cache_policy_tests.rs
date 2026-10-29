@@ -7,6 +7,7 @@ const CACHE_LIMIT: u32 = CACHE_MAX_LOG;
 
 // Miri retains growth/shrink coverage; native tests retain the representative large tables.
 const POLICY_LOGS: &[u32] = if cfg!(miri) { &[5, 7, 6] } else { &[5, 12, 8] };
+#[cfg(not(feature = "cache"))]
 const OWNED_LOGS: &[u32] = if cfg!(miri) { &[5, 7] } else { &[5, 12] };
 
 #[test]
