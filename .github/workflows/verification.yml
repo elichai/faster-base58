@@ -619,7 +619,8 @@ jobs:
       - run: rustup toolchain install nightly-2026-10-26 --component llvm-tools-preview --profile minimal
       - if: runner.os == 'Linux'
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
-      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      # Host tooling must not inherit nightly-only target instrumentation.
+      - run: env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS cargo install --locked cargo-fuzz --version 0.13.2
       - run: |
           cd fuzz
           python3 -m unittest test_seed_corpus.py test_corpus_store.py test_provenance.py

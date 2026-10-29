@@ -120,6 +120,14 @@ without crashes. These short runs are not a refreshed coverage percentage or a
 proof. General targets cover leading zeros, and boundary tests cover larger
 sizes. Arbitrary large values remain outside this structured fuzzing domain.
 
+A local source-coverage replay on 2026-10-29 used integrated snapshot `fbe6043`,
+native M5/AArch64, generic target CPU, nightly `2026-10-26`, and cargo-fuzz
+`0.13.2`, with `--cfg careful`, debug assertions and no sanitizer. Sixteen
+`encode_radix_full_width` corpus files reached 235/261 lines (90.04%), 334/377
+regions (88.59%) and 21/23 functions in `src/ntt/radix.rs` with default features.
+There is no branch-coverage result. This fixed corpus replay is not a mutation
+campaign, cache-policy coverage, or coverage of all input values.
+
 The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
