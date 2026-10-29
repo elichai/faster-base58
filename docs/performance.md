@@ -218,6 +218,66 @@ cache-off encoding ranged from 0.9095 to 0.9819. Default decoding ranged from
 above. Wide remains the default. Tiny inputs bypass IFMA, so their layout-driven
 differences do not measure an IFMA primitive.
 
+## Pooled radix scratch
+
+Measured 2026-10-29 on Apple M5 Pro, little-endian AArch64 with NEON,
+Rust 1.99.1 / LLVM 23.1.1, generic target, opt3/fat LTO/16 codegen units.
+The baseline is PR #3 at `5d045f32523a107f56d2094badf80106dbd2f71a`;
+the candidate pools power digits and lower prepared spectra, omits the stored
+top spectrum and reserves schoolbook sums. The final combined source snapshot
+`11d0c16177cda1278bb4d1225afb213697c8f6f2` contains this same radix implementation.
+No API, dispatch, dependency or cache-retention policy changes.
+
+Ordinary-public counted windows exclude caller buffers and oracle construction.
+Default/cache and cold/warm encode windows agree at these sizes:
+
+| Payload | Earlier requests | Pooled requests | Earlier peak extra | Pooled peak extra |
+| --- | ---: | ---: | ---: | ---: |
+| 1 MiB | 54 | 14 | 37,185,461 B | 32,992,644 B |
+| 4 MiB | 60 | 14 | 148,741,445 B | 131,965,668 B |
+
+Requests include reallocations: 2 earlier, zero after pooling. Requests fall
+74.1% / 76.7%; peak temporary heap falls about 11.3%. Pooled total requested
+bytes equal the pooled peaks above, with no retained heap. Earlier allocation
+plus reallocation-new-layout traffic was 37,186,181 / 148,742,165 B. These are
+Rust layouts, not RSS, allocator usable sizes or stack high water. Sparse and
+unbalanced products can still grow the schoolbook-sum buffer.
+
+The complete borrowed-API paired timing includes workspace allocation and table
+setup. Both immutable libraries were built at identical physical source/probe
+paths with matching flags. Each policy has three clean fresh processes, with
+nine alternating batches per case and at least 10 ms process CPU time per batch.
+One process reverses library load order; outputs and function identities are
+checked outside timing. Centers below are medians of three process medians;
+ranges describe the three within-process percentage changes, not confidence
+intervals. Negative change means less time.
+
+| Payload / policy | Earlier time | Pooled time | Change; paired range |
+| --- | ---: | ---: | ---: |
+| 1 MiB / default | 53.156 ms | 53.212 ms | +0.11%; −0.49% to +0.11% |
+| 4 MiB / default | 250.268 ms | 250.623 ms | +0.14%; −0.05% to +0.29% |
+| 1 MiB / cache | 53.792 ms | 54.274 ms | +0.90%; −1.99% to +0.90% |
+| 4 MiB / cache | 252.493 ms | 251.297 ms | −0.47%; −1.06% to +0.12% |
+
+Across 15 encode sizes around dispatch and power-of-two boundaries (8191 B
+through 4 MiB), aggregate changes ranged from −0.66% to +0.55% by default and
+−1.99% to +0.96% with cache. Fixed 32/64-byte encode and six decode controls
+were mostly within 1%; cached 32-byte decode differed by −1.90%. An earlier
+identical-artifact control across five principal encode sizes varied from
+−0.71% to +0.30%. These observations establish no material latency improvement;
+the reason to keep pooling is fewer allocations and lower temporary heap.
+
+Two earlier timing attempts overlapped unrelated tests and were rejected. In
+the final attempt, a compiler was detected during the fifth process. The
+acceptance rule was then amended explicitly: preserve and reject an entire
+process on detected compiler/test/fuzzer load, and retry it from its first case
+once idle, independently of latency. Four completed processes were retained
+after auditing their full per-case load diagnostics; the failed fifth was
+preserved and rerun, and the sixth completed cleanly. AC power was checked.
+Background activity and code-loading effects remain limits. No gain is claimed
+for unchanged fallbacks, x86-64 or Wasm, which do not select this radix route.
+
+
 ## Historical paired radix allocation comparison
 
 Measured 2026-10-29 on Apple M5 Pro, AArch64 macOS, Rust 1.99.1 / LLVM 23.1.1,
@@ -233,11 +293,11 @@ Cold and warm windows gave the same values:
 | --- | ---: | ---: |
 | Allocation calls, including zeroed calls | 65,590 | 52 |
 | Reallocation calls | 2 | 2 |
-| Total requested bytes | 72,510,009 | 37,184,741 |
+| Requested allocation bytes (excluding realloc) | 72,510,009 | 37,184,741 |
 | Peak extra live bytes | 45,574,053 | 37,185,461 |
 | Retained bytes after return | 0 | 0 |
 
-Requested traffic fell 48.7%; peak extra live bytes fell 18.4%. These are requested
+Allocation-only requested traffic fell 48.7%; peak extra live bytes fell 18.4%. These are requested
 Rust layouts, not RSS or allocator usable sizes. Current allocation windows and
 their counting conventions are in [Cache and memory](#cache-and-memory).
 
@@ -271,6 +331,38 @@ paths and a new output JSON path. Build at identical physical source/probe paths
 and flags, preserve immutable artifacts, and store outputs under ignored
 `target/measurements/`. Raw samples, receipts and one-off reports are not
 maintained documentation; the dated experiment bundle was removed from the tree.
+
+## Fixed-table alignment
+
+Final combined-source checks exposed an AArch64 cache-enabled 32-byte encode
+regression in snapshot `11d0c16177cda1278bb4d1225afb213697c8f6f2`. Three fresh
+processes per artifact form reproduced about 37 ns instead of the earlier
+12 ns, using both stripped and unstripped ordinary-public libraries. Paired
+loading with reversed order reproduced the slowdown. The repeat loop and
+32-byte instructions matched apart from relocated constants; the table row
+address had changed from 16-byte aligned to 8 bytes past that alignment.
+
+The private fixed-table type now uses `#[repr(C, align(16))]`: rows start at
+offset zero and both fixed row strides are multiples of 16. Emitted 32/64-byte
+table addresses were checked in default/cache builds. Its recorded 64-bit table
+sizes remain 480/1728 bytes; linked padding can change. There is no public API,
+arithmetic, dispatch or allocation-policy change.
+
+Measured 2026-10-29 on Apple M5 Pro, Rust 1.99.1 / LLVM 23.1.1, generic target,
+opt3/fat LTO/16 codegen units: three fresh paired processes per feature policy,
+nine alternating batches per case, at least 10 ms process CPU per batch,
+matching physical build paths and checked outputs. Cache-enabled 32-byte encode
+fell from 38.161 ns to 12.003 ns (68.5% less time); a separate single-artifact
+check gave 11.989 ns. Default 32-byte encode stayed 11.847/11.870 ns, and
+64-byte encode stayed near 24 ns in both policies. Other encode controls at
+31/33/63/65 B, 8/64 KiB and 1 MiB ranged from −1.65% to +0.49% in aggregate;
+their median within-process changes ranged from −0.77% to +0.92%.
+
+One process affected by a detected unrelated compiler was preserved and retried
+in full, independently of latency. AC power was checked. The placement change
+and reproduced fix support explicit alignment; the exact CPU mechanism remains
+an inference. This is a focused M5 result, not a speedup claim for other hosts.
+
 
 ## Historical paired formatter comparison
 

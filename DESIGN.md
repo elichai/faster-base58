@@ -42,7 +42,12 @@ and one carry pass also add `lo`. Powers and prepared transforms remain local to
 the conversion. Owned twiddles cover only those two primes; eligible conversions
 borrow the existing shared three-prime tables. Recursive calls reuse one digit
 workspace, holding the high child in scratch and the low child in the output
-until the carry pass consumes it. This route requires
+until the carry pass consumes it. Power digits share one backing vector; lower
+prepared spectra share another. The top power is transformed in arithmetic
+scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
+on the stack; schoolbook sums reserve their usual capacity once and can grow
+for sparse, unbalanced products. All owners are dropped on return.
+This route requires
 at least 8192 significant bytes and at least 7/8 utilization of its full transform.
 With `cache`, it requires 262144 bytes and at least two input bytes per transform
 point, preserving the cheaper division route just below binary power-of-two
@@ -56,7 +61,9 @@ Eight-row, four-column panels share SIMD multiply-add kernels. Scheduled carry
 passes and compile-time bounds keep accumulations within `u64`.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
-local sums. Fixed dimensions remove table construction and dimension handling;
+local sums. Their table type keeps rows first and 16-byte aligned for NEON
+column loads, avoiding sensitivity to incidental constant placement.
+Fixed dimensions remove table construction and dimension handling;
 64-byte kernels also segment the carry chain. Auto and `no_alloc` select these
 specializations directly. The internal Matrix comparison hooks use the general
 matrix kernel. Their short carry schedule needs fixed-size bounds and cannot
