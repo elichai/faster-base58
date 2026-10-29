@@ -75,9 +75,9 @@ pub(crate) fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
     unsafe { forward_neon(a, p, t) }
 }
 
-pub(crate) fn inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
+pub(crate) fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
     // SAFETY: NEON is enabled for this build.
-    unsafe { inverse_neon(a, p, t) }
+    unsafe { inverse_neon(a, p, iw) }
 }
 
 pub(crate) fn pointwise(a: &mut [i32], b: &[i32], p: Prime) {
@@ -207,12 +207,12 @@ fn forward_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
 }
 
 #[target_feature(enable = "neon")]
-fn inverse_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
+fn inverse_neon(a: &mut [i32], p: Prime, iw: &[i32]) {
     let n = a.len();
-    assert!(n.is_power_of_two() && n >= 8 && n <= t.iw.len());
+    assert!(n.is_power_of_two() && n >= 8 && n <= iw.len());
     let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
     let ptr = a.as_mut_ptr();
-    let w2 = h2(&t.iw);
+    let w2 = h2(iw);
     let w2q = vmulq_s32(w2, qinv);
     for i in (0..n).step_by(8) {
         // SAFETY: `i + 8 <= n`.
@@ -236,9 +236,9 @@ fn inverse_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
     let mut h = 4;
     while h < n {
         if portable::lazy(h, n) {
-            inverse_stage::<true>(a, h, p, t);
+            inverse_stage::<true>(a, h, p, iw);
         } else {
-            inverse_stage::<false>(a, h, p, t);
+            inverse_stage::<false>(a, h, p, iw);
         }
         h *= 2;
     }
@@ -249,12 +249,12 @@ fn inverse_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
 /// does.
 #[inline]
 #[target_feature(enable = "neon")]
-fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, t: &Twiddles) {
+fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
     let n = a.len();
-    assert!(h >= 4 && h.is_multiple_of(4) && n.is_multiple_of(2 * h) && n <= t.iw.len());
+    assert!(h >= 4 && h.is_multiple_of(4) && n.is_multiple_of(2 * h) && n <= iw.len());
     let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
     let ptr = a.as_mut_ptr();
-    let w = t.iw[h..2 * h].as_ptr();
+    let w = iw[h..2 * h].as_ptr();
     for s in (0..n).step_by(2 * h) {
         for j in (0..h).step_by(4) {
             // SAFETY: `n` is a multiple of `2 h` and `h` of 4, so `s + 2 h <= n` and
@@ -542,11 +542,10 @@ mod tests {
     /// `inverse_stage` checks its contract in every build, not only with debug assertions:
     /// here `a` is longer than the twiddles serve.
     #[test]
-    #[should_panic(expected = "n <= t.iw.len()")]
+    #[should_panic(expected = "n <= iw.len()")]
     fn inverse_stage_checks_its_contract() {
-        let t = Tables::new(3);
         // SAFETY: NEON is enabled for this build.
-        unsafe { inverse_stage::<false>(&mut [0; 16], 4, PRIMES[0], &t.tw[0]) }
+        unsafe { inverse_stage::<false>(&mut [0; 16], 4, PRIMES[0], &[0; 8]) }
     }
 
     #[test]
@@ -646,6 +645,8 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(40);
         let tables = Tables::new(16);
         for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
+            let mut iw = vec![0; tw.fw.len()];
+            let iw = tw.inverse(&mut iw);
             for log in 3..=16 {
                 let n = 1 << log;
                 let x = samples(&mut rng, p.q, n)[..n].to_vec();
@@ -655,8 +656,8 @@ mod tests {
                 portable::forward(&mut b, p, tw);
                 assert_eq!(a, b, "forward, n {n}");
                 let (mut a, mut b) = (x.clone(), x.clone());
-                inverse(&mut a, p, tw);
-                portable::inverse(&mut b, p, tw);
+                inverse(&mut a, p, iw);
+                portable::inverse(&mut b, p, iw);
                 assert_eq!(a, b, "inverse, n {n}");
                 let (mut a, mut b) = (x.clone(), x.clone());
                 pointwise(&mut a, &y, p);
@@ -689,8 +690,8 @@ mod tests {
             let x = samples(&mut rng, p.q, n)[..n].to_vec();
             let y = samples(&mut rng, p.q, n)[..n].to_vec();
             let (mut a, mut b) = (x.clone(), x.clone());
-            twist(&mut a, &tw.iw[n..], p);
-            portable::twist(&mut b, &tw.iw[n..], p);
+            twist(&mut a, &iw[n..], p);
+            portable::twist(&mut b, &iw[n..], p);
             assert_eq!(a, b, "twist");
             let ((mut a, mut c), (mut b, mut d)) = ((x.clone(), y.clone()), (x.clone(), y.clone()));
             halves(&mut a, &mut c, p);
@@ -698,7 +699,7 @@ mod tests {
             assert_eq!((a, c), (b, d), "halves");
             for (m, n) in [(8, 4), (64, 8), (1024, 256), (2048, 8)] {
                 let (mut a, mut b) = (x[..m + n].to_vec(), x[..m + n].to_vec());
-                let w = &tw.iw[m..2 * m];
+                let w = &iw[m..2 * m];
                 pair(&mut a, m, w, p);
                 portable::pair(&mut b, m, w, p);
                 assert_eq!(a, b, "pair, m {m}, n {n}");

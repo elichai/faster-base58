@@ -252,7 +252,7 @@ impl Arithmetic<'_> {
                     (self.kernels.forward)(tmp, p, tw);
                     (self.kernels.pointwise)(r, tmp, p);
                 }
-                (self.kernels.inverse)(r, p, tw);
+                (self.kernels.inverse)(r, p, tw.inverse(tmp));
             }
             let (r1, r2) = r.split_at_mut(n);
             garner_two(

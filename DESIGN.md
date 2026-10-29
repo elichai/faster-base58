@@ -179,31 +179,35 @@ bound of those interfaces. Neither formula bounds total conversion memory.
 | Retained with `cache` | Heap payload capacities | Static headers, 64-bit layout |
 | --- | ---: | ---: |
 | All five encoder + four decoder Matrix classes | 18,617,760 bytes | 504 bytes |
-| Production NTT logs 5–18 | 12,582,144 bytes | 3040 bytes |
-| Combined maximum after using every production class | **31,199,904 bytes (29.8 MiB)** | **3544 bytes** |
+| Production NTT logs 5–18 | 9,436,416 bytes | 3040 bytes |
+| Combined maximum after using every production class | **28,054,176 bytes (26.8 MiB)** | **3544 bytes** |
 
 These stores are absent by default. Initialized classes remain for the process
 lifetime, and history affects reuse. The largest Matrix tables retain 11,510,016
-encoder / 2,437,248 decoder bytes. NTT log `l` needs `24 * 2^l` twiddle bytes;
-only forward and inverse roots are stored. Their Montgomery companions are
-derived with a wrapping 32-bit multiply when loaded, including SIMD loads.
+encoder / 2,437,248 decoder bytes. NTT log `l` needs
+`12 * (2^l + min(2^l, 2^16))` twiddle bytes. Forward roots and a bounded inverse
+prefix are stored. Larger inverse transforms generate the remaining stages in
+the product temporary after pointwise multiplication has consumed it; negacyclic
+untwisting reuses that same temporary. Their Montgomery companions are derived
+with a wrapping 32-bit multiply when loaded, including SIMD loads.
 Logs above 18 remain owned even with `cache`. The internal cache helper also
-accepts logs 1–4; filling those would raise its NTT bound to 12,582,864 bytes.
+accepts logs 1–4; filling those would raise its NTT bound to 9,437,136 bytes.
 
 Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
-48 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
+24.75 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
 radix route uses two prime tables instead of three and pools its digit and
 prepared-spectrum scratch. A 2026-10-29 comparison against `7962809` reduced
-4 MiB AArch64 encoding from 131,965,668 to 98,411,236 bytes of extra requested
-live heap, with no retained heap under either cache policy. It saves 32 MiB
-by halving the two-prime twiddle payload. The three-prime decoder also benefits
-from tighter scratch, falling from 109,997,816 to 75,657,464 bytes by default.
+4 MiB AArch64 encoding from 131,965,668 to 82,158,308 bytes of extra requested
+live heap, with no retained heap under either cache policy. Removing companions
+saves 32 MiB; bounding inverse tables saves another 15.5 MiB. The three-prime
+decoder also benefits from tighter scratch, falling from 109,997,816 to
+63,860,984 bytes by default, including 11.25 MiB from bounded inverse tables.
 These counts exclude caller buffers, allocator-internal
 reallocation overlap and RSS. Other routes and sizes differ; process peaks and
 Wasm page high-water are separate metrics. See [measurement scopes](docs/performance.md).
 
-Precomputing every general cache table would embed roughly 29.8 MiB before dead
+Precomputing every general cache table would embed roughly 26.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the
 default for small/Wasm consumers. The small fixed tables are already compile-time.
 

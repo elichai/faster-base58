@@ -14,7 +14,7 @@ impl Tables {
     /// Tables serving at least `2^log` points, from a process-wide cache. A smaller table
     /// is a prefix of a larger one, so any larger cached table serves; a size is built
     /// only when none is cached yet, and then kept. Requires `1 <= log <= CACHE_MAX_LOG`.
-    /// All slots together hold at most `24 * (2^(CACHE_MAX_LOG + 1) - 2)` data bytes.
+    /// Each log retains `12 * (2^log + min(2^log, INVERSE_POINTS))` data bytes.
     pub fn cached(log: u32) -> &'static Tables {
         assert!(
             (1..=CACHE_MAX_LOG).contains(&log),

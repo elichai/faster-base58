@@ -37,16 +37,16 @@ pub(crate) fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
 
 /// Decimation in time: bit-reversed order in, natural order out, times `a.len()`.
 #[inline(always)]
-pub(crate) fn inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
+pub(crate) fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
     let n = a.len();
-    debug_assert!(n.is_power_of_two() && n >= 2 && n <= t.iw.len());
+    debug_assert!(n.is_power_of_two() && n >= 2 && n <= iw.len());
     last_stage(a, p);
     let mut h = 2;
     while h < n {
         if lazy(h, n) {
-            inverse_stage::<true>(a, h, p, t);
+            inverse_stage::<true>(a, h, p, iw);
         } else {
-            inverse_stage::<false>(a, h, p, t);
+            inverse_stage::<false>(a, h, p, iw);
         }
         h *= 2;
     }
@@ -54,8 +54,8 @@ pub(crate) fn inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
 
 /// One stage of [`inverse`], on blocks of `2 h`; `LAZY` skips the reductions.
 #[inline(always)]
-fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, t: &Twiddles) {
-    let w = &t.iw[h..2 * h];
+fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
+    let w = &iw[h..2 * h];
     for blk in a.chunks_exact_mut(2 * h) {
         let (x, y) = blk.split_at_mut(h);
         for ((x, y), &w) in x.iter_mut().zip(y).zip(w) {
