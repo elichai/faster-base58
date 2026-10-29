@@ -5,6 +5,10 @@ use core::cell::Cell;
 #[cfg(feature = "cache")]
 const CACHE_LIMIT: u32 = CACHE_MAX_LOG;
 
+// Miri retains growth/shrink coverage; native tests retain the representative large tables.
+const POLICY_LOGS: &[u32] = if cfg!(miri) { &[5, 7, 6] } else { &[5, 12, 8] };
+const OWNED_LOGS: &[u32] = if cfg!(miri) { &[5, 7] } else { &[5, 12] };
+
 #[test]
 fn feature_policy_and_owned_override_select_table_source() {
     for (name, mut ntt, owned) in [
@@ -24,7 +28,7 @@ fn feature_policy_and_owned_override_select_table_source() {
             true,
         ),
     ] {
-        for log in [5, 12, 8] {
+        for &log in POLICY_LOGS {
             ntt.prepare(1usize << (log - 1));
             assert!(
                 ntt.owned.is_none(),
@@ -87,7 +91,7 @@ fn unprepared_power_fallback_keeps_tables_lazy() {
 #[cfg(not(feature = "cache"))]
 #[test]
 fn requested_tables_are_owned_without_cache() {
-    for log in [5, 12] {
+    for &log in OWNED_LOGS {
         let mut first = Ntt::new(Kernels::portable());
         let mut second = Ntt::new(Kernels::portable());
         first.prepare(1usize << (log - 1));
