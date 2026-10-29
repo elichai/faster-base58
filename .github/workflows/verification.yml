@@ -59,6 +59,32 @@ jobs:
       - name: Compile every benchmark
         run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 
+  big_endian:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PROPTEST_CASES: '512'
+      CROSS_BUILD_ENV_PASSTHROUGH: PROPTEST_CASES
+      CROSS_TARGET_POWERPC64_UNKNOWN_LINUX_GNU_IMAGE: ghcr.io/cross-rs/powerpc64-unknown-linux-gnu@sha256:4a5e41791b27c3fc159a63fe35c299d8f4e272a56e0793d10d500e8c59f43839
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ['__internals', '__internals,cache']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup update stable --no-self-update
+      - run: rustc +stable -vV
+      - name: Install pinned cross
+        run: cargo +stable install --locked --git https://github.com/cross-rs/cross --rev 74e99b2223de06166f8cdcc1af7f1308ec52baf4 cross
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y qemu-user-static
+      - name: Enable BE child processes for cold-cache tests
+        run: |
+          sudo /usr/lib/systemd/systemd-binfmt /usr/lib/binfmt.d/qemu-ppc64.conf
+          grep -q '^flags:.*F' /proc/sys/fs/binfmt_misc/qemu-ppc64
+      - name: Big-endian unit, API, property, and documentation tests
+        run: cross +stable test --locked --target powerpc64-unknown-linux-gnu --features ${{ matrix.features }}
+
   compact:
     env:
       PROPTEST_CASES: '512'
