@@ -108,14 +108,36 @@ pub(super) fn encode_with(
         kernels,
         tw,
         work: vec![0; 3 * points],
-        sums: Vec::new(),
+        sums: Vec::with_capacity(2 * THRESHOLD),
     };
     let mut powers = Vec::with_capacity(levels);
-    let mut bytes = vec![0; unit + 1];
+    let power_capacity = |bytes| crate::max_encoded_len(bytes + 1).div_ceil(3);
+    // Product slots need their untrimmed length, even when the power loses a digit.
+    let storage_len = power_capacity(unit)
+        + (1..levels)
+            .map(|i| 2 * power_capacity(unit << (i - 1)))
+            .sum::<usize>();
+    let mut storage = vec![0; storage_len];
+    let spectrum_len = (0..levels - 1)
+        .map(|i| 2 * (2 * power_capacity(unit << i)).max(8).next_power_of_two())
+        .sum();
+    let mut spectra = vec![0; spectrum_len];
+    let mut spectrum_storage = &mut spectra[..];
+    let (seed, mut remaining) = storage.split_at_mut(power_capacity(unit));
+    let mut bytes = [0; LEAF_BYTES + 1];
     bytes[0] = 1;
-    let mut digits = leaf(&bytes);
+    let len = leaf_into(&bytes[..unit + 1], seed);
+    let mut digits = &seed[..len];
     for i in 0..levels {
-        let spectrum = (digits.len() >= THRESHOLD).then(|| arithmetic.prepare(&digits));
+        // The top power serves only the root; transforming it in work avoids storing it.
+        let spectrum = if i + 1 < levels && digits.len() >= THRESHOLD {
+            let len = 2 * (2 * digits.len()).max(8).next_power_of_two();
+            let slot;
+            (slot, spectrum_storage) = spectrum_storage.split_at_mut(len);
+            Some(arithmetic.prepare(digits, slot))
+        } else {
+            None
+        };
         powers.push(Power {
             bytes: unit << i,
             digits,
@@ -123,7 +145,10 @@ pub(super) fn encode_with(
         });
         if i + 1 < levels {
             let p = &powers[i];
-            digits = arithmetic.multiply(&p.digits, &p.digits, p.spectrum.as_ref());
+            let slot;
+            (slot, remaining) = remaining.split_at_mut(2 * p.digits.len());
+            let len = arithmetic.multiply_add(p.digits, p.digits, slot, 0, p.spectrum);
+            digits = &slot[..len];
         } else {
             break;
         }
@@ -136,10 +161,10 @@ pub(super) fn encode_with(
     Some(write(zeros, &out[..len], output))
 }
 
-struct Power {
+struct Power<'a> {
     bytes: usize,
-    digits: Vec<u32>,
-    spectrum: Option<[Vec<i32>; 2]>,
+    digits: &'a [u32],
+    spectrum: Option<[&'a [i32]; 2]>,
 }
 
 struct Arithmetic<'a> {
@@ -150,17 +175,19 @@ struct Arithmetic<'a> {
 }
 
 impl Arithmetic<'_> {
-    fn prepare(&self, b: &[u32]) -> [Vec<i32>; 2] {
+    fn prepare<'a>(&self, b: &[u32], storage: &'a mut [i32]) -> [&'a [i32]; 2] {
         let n = (2 * b.len()).max(8).next_power_of_two();
-        core::array::from_fn(|j| {
-            let mut f = vec![0; n];
-            load(&mut f, b);
-            (self.kernels.forward)(&mut f, PRIMES[j], &self.tw[j]);
-            f
-        })
+        assert_eq!(storage.len(), 2 * n);
+        for (j, f) in storage.chunks_exact_mut(n).enumerate() {
+            load(f, b);
+            (self.kernels.forward)(f, PRIMES[j], &self.tw[j]);
+        }
+        let (a, b) = storage.split_at(n);
+        [a, b]
     }
 
-    fn multiply(&mut self, a: &[u32], b: &[u32], fb: Option<&[Vec<i32>; 2]>) -> Vec<u32> {
+    #[cfg(test)]
+    fn multiply(&mut self, a: &[u32], b: &[u32], fb: Option<[&[i32]; 2]>) -> Vec<u32> {
         let mut out = vec![0; a.len() + b.len()];
         let len = self.multiply_add(a, b, &mut out, 0, fb);
         out.truncate(len);
@@ -175,7 +202,7 @@ impl Arithmetic<'_> {
         b: &[u32],
         out: &mut [u32],
         add_len: usize,
-        fb: Option<&[Vec<i32>; 2]>,
+        fb: Option<[&[i32]; 2]>,
     ) -> usize {
         if a.is_empty() || b.is_empty() {
             return add_len;
@@ -324,13 +351,13 @@ fn leaf_into(bytes: &[u8], out: &mut [u32]) -> usize {
     len
 }
 
-fn capacity(powers: &[Power]) -> usize {
+fn capacity(powers: &[Power<'_>]) -> usize {
     powers.last().map_or(LEAF_DIGITS, |p| 2 * p.digits.len())
 }
 
 fn convert(
     x: &[u8],
-    powers: &[Power],
+    powers: &[Power<'_>],
     arithmetic: &mut Arithmetic<'_>,
     out: &mut [u32],
     scratch: &mut [u32],
@@ -346,7 +373,7 @@ fn convert(
     let (high, scratch) = scratch.split_at_mut(capacity(smaller));
     let hi_len = convert(hi, smaller, arithmetic, high, scratch);
     let lo_len = convert(lo, smaller, arithmetic, out, scratch);
-    arithmetic.multiply_add(&high[..hi_len], &p.digits, out, lo_len, p.spectrum.as_ref())
+    arithmetic.multiply_add(&high[..hi_len], p.digits, out, lo_len, p.spectrum)
 }
 
 fn write(zeros: usize, digits: &[u32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
@@ -392,7 +419,7 @@ mod tests {
         a: &[u32],
         b: &[u32],
         add: &[u32],
-        fb: Option<&[Vec<i32>; 2]>,
+        fb: Option<[&[i32]; 2]>,
     ) -> Vec<u32> {
         let mut out = vec![u32::MAX; a.len() + b.len()];
         out[..add.len()].copy_from_slice(add);
@@ -513,28 +540,29 @@ mod tests {
                         |d: &[u32]| Natural::from_digits_asc(&BASE, d.iter().copied()).unwrap();
                     let want: Vec<u32> = (&value(&a) * &value(&b)).to_digits_asc(&BASE);
                     assert_eq!(arithmetic.multiply(&a, &b, None), want, "length {n}");
-                    let fb = arithmetic.prepare(&b);
+                    let mut spectrum = vec![0; 2 * (2 * b.len()).max(8).next_power_of_two()];
+                    let fb = arithmetic.prepare(&b, &mut spectrum);
                     assert_eq!(
-                        arithmetic.multiply(&a, &b, Some(&fb)),
+                        arithmetic.multiply(&a, &b, Some(fb)),
                         want,
                         "prepared length {n}"
                     );
                     let square: Vec<u32> = (&value(&b) * &value(&b)).to_digits_asc(&BASE);
                     assert_eq!(
-                        arithmetic.multiply(&b, &b, Some(&fb)),
+                        arithmetic.multiply(&b, &b, Some(fb)),
                         square,
                         "square length {n}"
                     );
                     let add: Vec<u32> = (value(&b) - Natural::from(1u8)).to_digits_asc(&BASE);
                     let sum: Vec<u32> =
                         (&value(&a) * &value(&b) + value(&add)).to_digits_asc(&BASE);
-                    assert_eq!(multiply_add(&mut arithmetic, &a, &b, &add, Some(&fb)), sum);
+                    assert_eq!(multiply_add(&mut arithmetic, &a, &b, &add, Some(fb)), sum);
                     let one_sum: Vec<u32> = (value(&b) + value(&add)).to_digits_asc(&BASE);
                     assert_eq!(
-                        multiply_add(&mut arithmetic, &[1], &b, &add, Some(&fb)),
+                        multiply_add(&mut arithmetic, &[1], &b, &add, Some(fb)),
                         one_sum
                     );
-                    assert_eq!(multiply_add(&mut arithmetic, &[], &b, &add, Some(&fb)), add);
+                    assert_eq!(multiply_add(&mut arithmetic, &[], &b, &add, Some(fb)), add);
                 }
             }
         }

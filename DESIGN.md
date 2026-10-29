@@ -40,7 +40,12 @@ and one carry pass also add `lo`. Powers and prepared transforms remain local to
 the conversion. Owned twiddles cover only those two primes; eligible conversions
 borrow the existing shared three-prime tables. Recursive calls reuse one digit
 workspace, holding the high child in scratch and the low child in the output
-until the carry pass consumes it. This route requires
+until the carry pass consumes it. Power digits share one backing vector; lower
+prepared spectra share another. The top power is transformed in arithmetic
+scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
+on the stack; schoolbook sums reserve their usual capacity once and can grow
+for sparse, unbalanced products. All owners are dropped on return.
+This route requires
 at least 8192 significant bytes and at least 7/8 utilization of its full transform.
 With `cache`, it requires 262144 bytes and at least two input bytes per transform
 point, preserving the cheaper division route just below binary power-of-two
