@@ -81,7 +81,7 @@ jobs:
       - name: Install pinned cross
         run: cargo +stable install --locked --git https://github.com/cross-rs/cross --rev 74e99b2223de06166f8cdcc1af7f1308ec52baf4 cross
       - run: sudo apt-get update
-      - run: sudo apt-get install -y qemu-user-static
+      - run: sudo apt-get install -y qemu-user-binfmt
       - name: Enable BE child processes for cold-cache tests
         run: |
           sudo /usr/lib/systemd/systemd-binfmt /usr/lib/binfmt.d/qemu-ppc64.conf
@@ -273,6 +273,8 @@ jobs:
         run: python3 scripts/code_size.py --self-test
       - if: matrix.cache_args == ''
         run: python3 scripts/setup_clang23.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 -B -m unittest discover -s scripts -p test_setup_clang23.py -v
       - if: matrix.cache_args == ''
         run: python3 scripts/run_native_sanitizer.py --self-test
       - if: matrix.cache_args == ''
@@ -524,7 +526,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
-      - run: sudo apt-get install -y libz3-4 libxml2-16 libedit2 libffi8 libzstd1 zlib1g
+      - run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - name: Matching LLVM toolchain
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
@@ -630,7 +632,7 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update
       - if: runner.os == 'Linux'
-        run: sudo apt-get install -y libz3-4 libxml2-16 libedit2 libffi8 libzstd1 zlib1g
+        run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component llvm-tools-preview --profile minimal
       - if: runner.os == 'Linux'
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
@@ -733,7 +735,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
-      - run: sudo apt-get install -y libz3-4 libxml2-16 libedit2 libffi8 libzstd1 zlib1g
+      - run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
       - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --cache ${{ matrix.cache }} ${{ matrix.compact_args }} --log-dir "$RUNNER_TEMP/native-${{ matrix.label }}/logs"

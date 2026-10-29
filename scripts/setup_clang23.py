@@ -10,9 +10,15 @@ import subprocess
 import tempfile
 import urllib.request
 
-BASE = 'https://apt.llvm.org/bookworm/'
-NAMES = {'clang-23', 'libclang-cpp23', 'libllvm23', 'libclang-common-23-dev',
-         'libclang1-23', 'libclang-rt-23-dev', 'llvm-23-linker-tools'}
+LLVM_BASE = 'https://apt.llvm.org/bookworm/'
+DEBIAN_BASE = 'https://deb.debian.org/debian/'
+LLVM_PATH = ('pool', 'main', 'l', 'llvm-toolchain-23')
+SOURCES = {
+    name: (LLVM_BASE, LLVM_PATH)
+    for name in {'clang-23', 'libclang-cpp23', 'libllvm23', 'libclang-common-23-dev',
+                 'libclang1-23', 'libclang-rt-23-dev', 'llvm-23-linker-tools'}
+}
+SOURCES['libxml2'] = (DEBIAN_BASE, ('pool', 'main', 'libx', 'libxml2'))
 
 
 def self_test(packages):
@@ -22,7 +28,7 @@ def self_test(packages):
     for filename in ['../escape.deb', '/usr/lib/escape.deb',
                      'pool/main/l/llvm-toolchain-23/../escape_amd64.deb',
                      'pool/main/l/llvm-toolchain-23/%2e%2e_amd64.deb']:
-        bad = dict(packages[0], Filename=filename, URL=BASE + filename)
+        bad = dict(packages[0], Filename=filename, URL=LLVM_BASE + filename)
         try:
             validate_package(bad)
         except ValueError:
@@ -70,12 +76,13 @@ def self_test(packages):
 def validate_package(package):
     filename = package['Filename']
     parts = filename.split('/')
-    if (package['Package'] not in NAMES or len(parts) != 5
-            or parts[:4] != ['pool', 'main', 'l', 'llvm-toolchain-23']
+    source = SOURCES.get(package['Package'])
+    if (source is None or len(parts) != 5
+            or tuple(parts[:4]) != source[1]
             or not re.fullmatch(r'[A-Za-z0-9_+.~:-]+_amd64\.deb', parts[-1])
             or not parts[-1].startswith(package['Package'] + '_')):
         raise ValueError('unsafe Filename: ' + filename)
-    if package['URL'] != BASE + filename:
+    if package['URL'] != source[0] + filename:
         raise ValueError('URL must be the exact official HTTPS package URL')
     if not re.fullmatch(r'[0-9a-f]{64}', package['SHA256']):
         raise ValueError('invalid SHA256')
@@ -108,8 +115,8 @@ def main():
         self_test(manifest['packages'])
         return
     packages = manifest['packages']
-    if len(packages) != len(NAMES) or {p['Package'] for p in packages} != NAMES:
-        raise ValueError('expected all seven pinned packages once')
+    if len(packages) != len(SOURCES) or {p['Package'] for p in packages} != set(SOURCES):
+        raise ValueError('expected all pinned packages once')
     for package in packages:
         validate_package(package)
     runner_temp = Path(os.environ['RUNNER_TEMP'])
