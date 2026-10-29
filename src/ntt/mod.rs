@@ -401,7 +401,7 @@ fn wrapped(
 }
 
 /// The type of [`Kernels::load_twist`].
-type LoadTwist = fn(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq: &[i32]);
+type LoadTwist = fn(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]);
 
 /// One backend's kernels. Each works on one prime's residues, which stay in `(-q, q)`.
 #[derive(Clone, Copy)]
@@ -421,15 +421,15 @@ pub(crate) struct Kernels {
     /// In place: `r1` to `[0, q1)`, `r2` to `v2`, `r3` to `v3` (see `crt.rs`). The
     /// lengths are equal and a multiple of 4.
     pub garner: fn(r: [&mut [i32]; 3]),
-    /// [`Kernels::load`], with coefficient `i` times the root `w[i]`, `wq[i]` stand for
+    /// [`Kernels::load`], with coefficient `i` times the root `w[i]` stands for
     /// (Montgomery form, as in [`Twiddles`]). `w.len() >= 2 * limbs.len()`.
     pub load_twist: LoadTwist,
     /// Adds the 32-bit halves of `limbs` to the start of `dst`, or with `sub` subtracts
     /// them.
     pub load_add: fn(dst: &mut [i32], limbs: &[u64], p: Prime, sub: bool),
-    /// `a[i]` times the root `w[i]`, `wq[i]` stand for. `a.len()` is a multiple of 4,
+    /// `a[i]` times the root `w[i]` stands for. `a.len()` is a multiple of 4,
     /// at most `w.len()`.
-    pub twist: fn(a: &mut [i32], w: &[i32], wq: &[i32], p: Prime),
+    pub twist: fn(a: &mut [i32], w: &[i32], p: Prime),
     /// Subtracts `x^start src` from `dst`, modulo `x^d + 1` (`neg`) or `x^d - 1`, for
     /// `d = dst.len()`. `start`, `src.len()` and `d` are multiples of 4.
     pub fold_sub: fn(dst: &mut [i32], src: &[i32], start: usize, neg: bool, p: Prime),
@@ -437,9 +437,9 @@ pub(crate) struct Kernels {
     /// equal and a multiple of 4.
     pub halves: fn(lo: &mut [i32], hi: &mut [i32], p: Prime),
     /// [`crt()`] for one negacyclic piece of `m` coefficients, which is still twisted
-    /// (`iw[i]`, `iwq[i]` undo it), fused with undoing the twist. `r.len() - m` is a
+    /// (`iw[i]` undoes it), fused with undoing the twist. `r.len() - m` is a
     /// multiple of 4 below `m`.
-    pub pair: fn(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime),
+    pub pair: fn(r: &mut [i32], m: usize, iw: &[i32], p: Prime),
 }
 
 impl Kernels {
@@ -461,28 +461,30 @@ impl Kernels {
 
 /// Scratch limbs [`mul_with`] needs when no operand is longer than `n` limbs.
 ///
-/// - Transform: four arrays of `L` `i32`s (a result per prime, and one temporary), so
-///   `2 L` limbs, with `L < 4 (a + b) <= 8 n` (or `L = 8`), after at most 7 limbs that
-///   align them ([`as_i32`]): below `16 n + 64`. The pieces of a [`Plan`] need fewer:
-///   `3 w + L / 2` `i32`s, for their total length `w` and the longest, `L / 2`, for the
-///   temporary, and two arrays of `cyc` sums ([`sums`]), `4 cyc` `i32`s. With one
-///   negacyclic piece, `w = L / 2 + cyc` and `cyc <= L / 4`; with two,
-///   `w = 3 L / 4 + cyc` and `cyc <= L / 8`: at most `3.75 L` in all. Squares use no
-///   temporary.
+/// - Transform: let `p = (2 (a + b)).next_multiple_of(8) <= 4 n + 6` and `t` its
+///   largest power of two. A cyclic plan needs `2 L` limbs: `L = p`, or `p > 7 L / 8`,
+///   except for `L <= 256` where the minimum cyclic rest prevents splitting;
+///   those small cyclic plans also fit `12 n + 128` directly.
+///   One negacyclic piece needs `2 t + 7 c / 2` limbs, including both sums arrays,
+///   with `c <= t / 2` and `p > t + c / 2` when `c > 64`: at most `3 p` limbs.
+///   When `c = 64`, the excess over `3 p` is at most 72 limbs (`t >= 128`).
+///   Two pieces need `11 t / 4 + 7 c / 2`, with `c <= t / 4` and `p > 3 t / 2`,
+///   below `3 p`. Adding rounding and at most 7 alignment limbs ([`as_i32`]) fits
+///   `12 n + 128` in every case. Squares use no temporary.
 /// - Blocks (`2 a <= b`): `2 a` limbs, then products of `a <= n / 2` limbs:
-///   `2 a + 16 a + 64 <= 9 n + 64`.
+///   `2 a + 12 a + 128 <= 7 n + 128`.
 /// - Split (`b / 2 < a <= b`): at most `b + 1` limbs, then products of at most
-///   `b / 2 + 1` limbs: `9 b + 81`, below `16 b + 64` since `b >= 9` there
+///   `b / 2 + 1` limbs: `7 b + 141`, below `12 b + 128` since `b >= 9` there
 ///   (`a + b > 16`, because the tables serve at least 32 points).
 /// - Below the threshold: [`mul::scratch_len`], which the result is never below.
 pub(crate) const fn scratch_len(n: usize) -> usize {
     // The maximum of two bounds of the form `c n + d` with `c >= 1` still meets
     // `dc_scratch_len`'s requirement.
     let karatsuba = mul::scratch_len(n);
-    if karatsuba > 16 * n + 64 {
+    if karatsuba > 12 * n + 128 {
         karatsuba
     } else {
-        16 * n + 64
+        12 * n + 128
     }
 }
 
@@ -688,7 +690,7 @@ fn pieces(
         let f = fb.map(|f| f.prime(j));
         // `x = a b` modulo `x^d + 1` (twisted by `w`) or `x^d - 1`, for `d = x.len()`:
         // `b`'s transform is at `d..2 d` or `..d` in `f` (see [`Prepared`]).
-        let mut product = |x: &mut [i32], w: Option<(&[i32], &[i32])>| {
+        let mut product = |x: &mut [i32], w: Option<&[i32]>| {
             // An operand's coefficients for `x`, from its sums for the cyclic rest.
             let load = |x: &mut [i32], v: &[u64], s: Option<&[u64]>| match s {
                 Some(s) if w.is_none() => narrow(x, s, p),
@@ -713,15 +715,15 @@ fn pieces(
         for &m in plan.nega() {
             let x;
             (x, rest) = rest.split_at_mut(m);
-            product(x, Some((&tw.fw[m..2 * m], &tw.fwq[m..2 * m])));
+            product(x, Some(&tw.fw[m..2 * m]));
             // With one negacyclic piece, `pair` undoes the twist as it goes.
             if plan.k > 1 {
-                (k.twist)(x, &tw.iw[m..2 * m], &tw.iwq[m..2 * m], p);
+                (k.twist)(x, &tw.iw[m..2 * m], p);
             }
         }
         product(rest, None);
         match *plan.nega() {
-            [m] => (k.pair)(r, m, &tw.iw[m..2 * m], &tw.iwq[m..2 * m], p),
+            [m] => (k.pair)(r, m, &tw.iw[m..2 * m], p),
             ref nega => crt(r, nega, p, k),
         }
     }
@@ -736,19 +738,19 @@ fn pieces(
 /// Writes the coefficients of `limbs` to `dst`, in `(-q, q)`: modulo `x^d + 1` and
 /// times `w^i` at `i`, with `w` (as in [`Kernels::load_twist`]), or modulo `x^d - 1`,
 /// for `d = dst.len()`, which is even.
-fn fold(dst: &mut [i32], limbs: &[u64], p: Prime, w: Option<(&[i32], &[i32])>, k: &Kernels) {
+fn fold(dst: &mut [i32], limbs: &[u64], p: Prime, w: Option<&[i32]>, k: &Kernels) {
     let half = dst.len() / 2;
     let (head, tail) = limbs.split_at(limbs.len().min(half));
     match w {
-        Some((w, wq)) if tail.is_empty() => return (k.load_twist)(dst, head, p, w, wq),
+        Some(w) if tail.is_empty() => return (k.load_twist)(dst, head, p, w),
         _ => (k.load)(dst, head, p),
     }
     // Block `i + 1` is multiplied by `x^(d (i + 1))`: `(-1)^(i + 1)` modulo `x^d + 1`.
     for (i, blk) in tail.chunks(half).enumerate() {
         (k.load_add)(dst, blk, p, w.is_some() && i % 2 == 0);
     }
-    if let Some((w, wq)) = w {
-        (k.twist)(dst, w, wq, p);
+    if let Some(w) = w {
+        (k.twist)(dst, w, p);
     }
 }
 
@@ -987,6 +989,25 @@ mod tests {
     }
 
     #[test]
+    fn scratch_budget_and_plan_bounds() {
+        assert!(scratch_len(1 << 18) * 8 <= 24 * 1024 * 1024 + 1024);
+        for len in 1..=1 << (MAX_LOG - 1) {
+            let plan = Plan::new(len);
+            let needed = if plan.nega().is_empty() {
+                2 * plan.cyc + 7
+            } else {
+                2 * plan.cyc + (3 * plan.width() + plan.nega[0]) / 2 + 7
+            };
+            let n = len.div_ceil(2);
+            assert!(needed <= scratch_len(n), "product {len}, scratch {needed}");
+            assert!(n / 2 + scratch_len(n / 2) <= scratch_len(n));
+            if n >= 9 {
+                assert!(n + 1 + scratch_len(n.div_ceil(2)) <= scratch_len(n));
+            }
+        }
+    }
+
+    #[test]
     fn no_tables_below_transform_thresholds() {
         let input = vec![0xA5; 8192];
         let mut encoded = vec![0; crate::max_encoded_len(input.len())];
@@ -1040,7 +1061,7 @@ mod tests {
     fn scratch_at_any_alignment() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
         let (t, k) = (Tables::new(12), Kernels::best());
-        for n in [1, 128, 129, 200] {
+        for n in [1, 34, 128, 129, 200, 321] {
             let (a, b) = operands(&mut rng, n, n)[0].clone();
             let mut want = vec![0; 2 * n];
             mul::mul(&mut want, &a, &b, &mut vec![0; mul::scratch_len(n)]);
@@ -1073,7 +1094,7 @@ mod tests {
                     (k.forward)(&mut full, p, tw);
                     let pieces = (3..n.ilog2()).map(|log| 1 << log);
                     for (d, nega) in pieces.flat_map(|d| [(d, true), (d, false)]) {
-                        let w = nega.then(|| (&tw.fw[d..2 * d], &tw.fwq[d..2 * d]));
+                        let w = nega.then(|| &tw.fw[d..2 * d]);
                         let mut x = vec![0; d];
                         fold(&mut x, &b, p, w, &k);
                         (k.forward)(&mut x, p, tw);
@@ -1478,7 +1499,7 @@ mod tests {
         );
         assert_eq!(got[0].log, LOG);
         for (g, w) in got[0].tw.iter().zip(&Tables::new(LOG).tw) {
-            assert!(g.fw == w.fw && g.fwq == w.fwq && g.iw == w.iw && g.iwq == w.iwq);
+            assert!(g.fw == w.fw && g.iw == w.iw);
         }
     }
 
@@ -1647,7 +1668,7 @@ mod tests {
                         let w = tw.fw[m + i] as i64 * inverse(one, q) % q;
                         *x = (*x as i64 * w % q) as i32;
                     }
-                    (k.pair)(&mut r, m, &tw.iw[m..2 * m], &tw.iwq[m..2 * m], p);
+                    (k.pair)(&mut r, m, &tw.iw[m..2 * m], p);
                     all.push(r);
                 }
                 for got in all {

@@ -147,14 +147,12 @@ const fn balance(x: u64, q: u64) -> i32 {
 ///
 /// `fw[h + j]` is `w_2h^j` in Montgomery form, balanced, for `j < h` and
 /// `h = 1, 2, 4, ..`. Here `w_2h` is a primitive `2h`-th root of unity and
-/// `w_2h = w_4h^2`. `iw` holds `w_2h^-j` likewise, and `fwq`, `iwq` the [`Prime::wq`]
-/// companions. Index 0 is unused. Stage `h` needs only `h`, so the table serves every
-/// transform of up to `2^log` points.
+/// `w_2h = w_4h^2`. `iw` holds `w_2h^-j` likewise. Montgomery companions are derived
+/// with [`Prime::wq`] when loaded. Index 0 is unused. Stage `h` needs only `h` values,
+/// so the table serves every transform of up to `2^log` points.
 pub(crate) struct Twiddles {
     pub fw: Vec<i32>,
-    pub fwq: Vec<i32>,
     pub iw: Vec<i32>,
-    pub iwq: Vec<i32>,
 }
 
 impl Twiddles {
@@ -195,9 +193,7 @@ impl Twiddles {
             }
             h *= 2;
         }
-        let fwq = fw.iter().map(|&w| p.wq(w)).collect();
-        let iwq = iw.iter().map(|&w| p.wq(w)).collect();
-        Twiddles { fw, fwq, iw, iwq }
+        Twiddles { fw, iw }
     }
 }
 
@@ -346,12 +342,7 @@ pub(crate) mod tests {
         for log in [1, 5, 10, 15] {
             let small = Tables::new(log);
             for (s, b) in small.tw.iter().zip(&big.tw) {
-                for (x, y) in [
-                    (&s.fw, &b.fw),
-                    (&s.fwq, &b.fwq),
-                    (&s.iw, &b.iw),
-                    (&s.iwq, &b.iwq),
-                ] {
+                for (x, y) in [(&s.fw, &b.fw), (&s.iw, &b.iw)] {
                     assert_eq!(x[..], y[..x.len()], "log {log}");
                 }
             }
@@ -410,6 +401,18 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn twiddle_heap_budget() {
+        assert_eq!(size_of::<Twiddles>(), 2 * size_of::<Vec<i32>>());
+        let t = Tables::new(16);
+        let bytes =
+            t.tw.iter()
+                .flat_map(|tw| [&tw.fw, &tw.iw])
+                .map(|v| v.capacity() * size_of::<i32>())
+                .sum::<usize>();
+        assert!(bytes <= 1536 * 1024, "twiddle heap: {bytes} bytes");
+    }
+
+    #[test]
     fn twiddles() {
         for log in (1..=12).chain([16]) {
             let t = Tables::new(log);
@@ -428,8 +431,6 @@ pub(crate) mod tests {
                         let prod = tw.fw[h + j] as i128 * tw.iw[h + j] as i128;
                         assert_eq!(modq(prod, p.q), r * r % q);
                         assert!(tw.fw[h + j].abs() <= p.q / 2 && tw.iw[h + j].abs() <= p.q / 2);
-                        assert_eq!(tw.fwq[h + j], p.wq(tw.fw[h + j]));
-                        assert_eq!(tw.iwq[h + j], p.wq(tw.iw[h + j]));
                     }
                     h *= 2;
                 }

@@ -173,33 +173,37 @@ reciprocals; construction scratch and original powers are dropped before
 prepared transforms and conversion scratch. Each prepared NTT operand owns one
 vector containing all three prime transforms. A shared prepared-power arena
 saved little peak memory and had no established overall benefit, so it was not retained.
-Karatsuba scratch is `5*n + 64` limbs; NTT scratch is `16*n + 64` for the operand
+Karatsuba scratch is `5*n + 64` limbs; NTT scratch is `12*n + 128` for the operand
 bound of those interfaces. Neither formula bounds total conversion memory.
 
 | Retained with `cache` | Heap payload capacities | Static headers, 64-bit layout |
 | --- | ---: | ---: |
 | All five encoder + four decoder Matrix classes | 18,617,760 bytes | 504 bytes |
-| Production NTT logs 5–18 | 25,164,288 bytes | 5776 bytes |
-| Combined maximum after using every production class | **43,782,048 bytes (41.8 MiB)** | **6280 bytes** |
+| Production NTT logs 5–18 | 12,582,144 bytes | 3040 bytes |
+| Combined maximum after using every production class | **31,199,904 bytes (29.8 MiB)** | **3544 bytes** |
 
 These stores are absent by default. Initialized classes remain for the process
 lifetime, and history affects reuse. The largest Matrix tables retain 11,510,016
-encoder / 2,437,248 decoder bytes. NTT log `l` needs `48 * 2^l` twiddle bytes;
-logs above 18 remain owned even with `cache`. The internal cache helper also
-accepts logs 1–4; filling those would raise its NTT bound to 25,165,728 bytes.
+encoder / 2,437,248 decoder bytes. NTT log `l` needs `24 * 2^l` twiddle bytes;
+only forward and inverse roots are stored. Their Montgomery companions are
+derived with a wrapping 32-bit multiply when loaded, including SIMD loads.
+Logs above 18 remain owned even with `cache`. The internal cache helper also
+accepts logs 1–4; filling those would raise its NTT bound to 12,582,864 bytes.
 
 Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
-96 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
+48 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
 radix route uses two prime tables instead of three and pools its digit and
-prepared-spectrum scratch. In the 2026-10-29 M5 measurements from `06e081591a8f`,
-1/4 MiB encoding used 14 allocations and zero reallocations per call, peaking at
-32,992,644 / 131,965,668 bytes of extra requested live heap, with no retained heap
-under either cache policy. These counts exclude caller buffers, allocator-internal
+prepared-spectrum scratch. A 2026-10-29 comparison against `7962809` reduced
+4 MiB AArch64 encoding from 131,965,668 to 98,411,236 bytes of extra requested
+live heap, with no retained heap under either cache policy. It saves 32 MiB
+by halving the two-prime twiddle payload. The three-prime decoder also benefits
+from tighter scratch, falling from 109,997,816 to 75,657,464 bytes by default.
+These counts exclude caller buffers, allocator-internal
 reallocation overlap and RSS. Other routes and sizes differ; process peaks and
 Wasm page high-water are separate metrics. See [measurement scopes](docs/performance.md).
 
-Precomputing every general cache table would embed roughly 41.8 MiB before dead
+Precomputing every general cache table would embed roughly 29.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the
 default for small/Wasm consumers. The small fixed tables are already compile-time.
 
