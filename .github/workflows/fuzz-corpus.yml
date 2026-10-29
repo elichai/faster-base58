@@ -81,9 +81,9 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
-      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
@@ -128,9 +128,9 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
-      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
@@ -200,9 +200,9 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
-      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: python3 fuzz/seed_corpus.py
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/

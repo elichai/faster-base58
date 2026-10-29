@@ -4,5 +4,15 @@ coverage:
       default:
         target: auto
         threshold: 1%
+      fuzz:
+        target: auto
+        threshold: 1%
+        flags:
+          - fuzz
+      tests:
+        target: auto
+        threshold: 1%
+        flags:
+          - tests
 
 comment: false
