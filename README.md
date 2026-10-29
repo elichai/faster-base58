@@ -93,15 +93,29 @@ retention. First use builds tables; the warm timings below exclude that setup.
 [Cold calls and cache tradeoffs](docs/performance.md#cache-and-memory) help assess
 whether reuse repays the setup and memory cost for your workload.
 
-Tables are lazy **heap** allocations. Recorded capacity bounds are 18,617,760 bytes
-for matrix tables and 25,164,288 bytes for production NTT twiddles: **41.8 MiB**
-together, depending on call history. All cache families also use **6,280 bytes of
-static headers** in the recorded 64-bit layout; these stores are absent by default.
-Dead stripping can remove headers for cache families a consumer does not use.
-Fixed 32/64-byte constants are separate (2,208 bytes of reference layout).
-These are payload capacities, not RSS. Allocator overhead, construction scratch,
-large per-call tables and concurrent conversions add memory; this is not a bound
-on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-costs).
+Enabling `cache` alone allocates **zero heap bytes**. Conversions allocate tables
+on first use and retain them for the process lifetime. Only needed table classes
+are initialized; retained heap depends on input sizes, CPU and call history.
+
+| Cache family | Maximum retained heap payload across production classes |
+| --- | ---: |
+| Encoding and decoding Matrix tables | 18,617,760 B (17.8 MiB) |
+| NTT twiddles | 25,164,288 B (24.0 MiB) |
+| **Combined** | **43,782,048 B (41.8 MiB)** |
+
+This is retained table capacity, **not a limit on total active heap**. Per-call
+scratch and larger uncached tables still allocate. For the measured M5 4 MiB
+warm calls, `cache` encoding makes 14 allocation requests and peaks at about
+126 MiB of extra heap; decoding makes 27 requests and peaks at about 105 MiB.
+These peaks exclude caller buffers and previously retained tables. Per-call
+scratch is freed after conversion; allocator overhead and concurrent calls add
+memory. [Measured cold/warm allocation details](docs/performance.md#cache-and-memory).
+
+Cache families also use **6,280 bytes of static headers** in the recorded 64-bit
+layout, separate from heap payloads; these stores are absent by default. Dead
+stripping can remove unused families. Fixed 32/64-byte constants are separate
+(2,208 bytes of reference layout). None of these figures measures RSS.
+[Memory and algorithm details](DESIGN.md#heap-stack-and-cache-costs).
 
 ## Performance
 
