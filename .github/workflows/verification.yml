@@ -14,6 +14,10 @@ on:
         description: Run every known unsupported SIMD shim probe (currently expected to fail)
         type: boolean
         default: false
+      run_fuzz:
+        description: Run bounded sanitizer fuzzing campaigns
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -505,6 +509,7 @@ jobs:
       - run: sh scripts/miri-extended.sh ${{ matrix.arch }}
 
   fuzz:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_fuzz
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     env:
