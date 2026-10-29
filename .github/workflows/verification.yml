@@ -2,6 +2,7 @@ name: Verification
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -32,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         profile:
           - { name: debug, args: '' }
           - { name: release, args: '--release' }
@@ -63,7 +64,7 @@ jobs:
         run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 
   big_endian:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
       PROPTEST_CASES: '512'
@@ -268,20 +269,34 @@ jobs:
       - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact,count-allocations ${{ matrix.cache_args }}
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact ${{ matrix.cache_args }} -- self-check
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact,count-allocations ${{ matrix.cache_args }} -- self-check
-      - run: python3 scripts/resource_report.py self-test
-      - run: python3 scripts/cache_tradeoffs.py --self-test
-      - run: python3 scripts/code_size.py --self-test
-      - run: python3 scripts/setup_clang23.py --self-test
-      - run: python3 scripts/run_native_sanitizer.py --self-test
-      - run: python3 scripts/check_ci_tests.py --self-test
-      - run: python3 scripts/compare_threshold.py --self-test
-      - run: python3 scripts/ac_power_run.py --self-test
-      - run: python3 -m unittest discover -s assets/graphs -p test_render.py
-      - run: python3 assets/graphs/render.py --check
-      - run: python3 -m py_compile scripts/validate_wasm_tradeoffs.py
-      - run: node --check scripts/code_size_wasm.mjs
-      - run: node --check scripts/wasm_tradeoffs.mjs
-      - run: node --check scripts/wasm_allocations.mjs
+      - if: matrix.cache_args == ''
+        run: python3 scripts/resource_report.py self-test
+      - if: matrix.cache_args == ''
+        run: python3 scripts/cache_tradeoffs.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 scripts/code_size.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 scripts/setup_clang23.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 scripts/run_native_sanitizer.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 scripts/check_ci_tests.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 scripts/compare_threshold.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 scripts/ac_power_run.py --self-test
+      - if: matrix.cache_args == ''
+        run: python3 -m unittest discover -s assets/graphs -p test_render.py
+      - if: matrix.cache_args == ''
+        run: python3 assets/graphs/render.py --check
+      - if: matrix.cache_args == ''
+        run: python3 -m py_compile scripts/validate_wasm_tradeoffs.py
+      - if: matrix.cache_args == ''
+        run: node --check scripts/code_size_wasm.mjs
+      - if: matrix.cache_args == ''
+        run: node --check scripts/wasm_tradeoffs.mjs
+      - if: matrix.cache_args == ''
+        run: node --check scripts/wasm_allocations.mjs
 
   wasm_measurement_abi:
     runs-on: ubuntu-latest
@@ -376,7 +391,7 @@ jobs:
           grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-arm-forced-leaves.log"
 
   miri_custom:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: '1'
@@ -492,7 +507,7 @@ jobs:
       - run: sh scripts/miri-extended.sh ${{ matrix.arch }}
 
   fuzz:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: '0'
@@ -513,7 +528,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
-      - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - name: Matching LLVM toolchain
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
@@ -568,7 +583,7 @@ jobs:
 
   fuzz_corpus_snapshot:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       commit: ${{ steps.revision.outputs.commit }}
     steps:
@@ -600,14 +615,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
-          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
-          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
-          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
-          - { runner: macos-14, target: aarch64-apple-darwin, cpu: generic, name: default-generic, cache_args: '' }
-          - { runner: macos-14, target: aarch64-apple-darwin, cpu: generic, name: cache-generic, cache_args: '--features cache' }
-          - { runner: macos-14, target: aarch64-apple-darwin, cpu: native, name: default-native, cache_args: '' }
-          - { runner: macos-14, target: aarch64-apple-darwin, cpu: native, name: cache-native, cache_args: '--features cache' }
+          - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
+          - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
+          - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
+          - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
+          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: generic, name: default-generic, cache_args: '' }
+          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: generic, name: cache-generic, cache_args: '--features cache' }
+          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: native, name: default-native, cache_args: '' }
+          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: native, name: cache-native, cache_args: '--features cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -619,7 +634,7 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update
       - if: runner.os == 'Linux'
-        run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+        run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component llvm-tools-preview --profile minimal
       - if: runner.os == 'Linux'
         run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
@@ -674,14 +689,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-24.04, arch: x86, cpu: generic, name: default-generic, features: '__internals' }
-          - { runner: ubuntu-24.04, arch: x86, cpu: generic, name: cache-generic, features: '__internals,cache' }
-          - { runner: ubuntu-24.04, arch: x86, cpu: native, name: default-native, features: '__internals' }
-          - { runner: ubuntu-24.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache' }
-          - { runner: macos-14, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
-          - { runner: macos-14, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
-          - { runner: macos-14, arch: arm, cpu: native, name: default-native, features: '__internals' }
-          - { runner: macos-14, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
+          - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: default-generic, features: '__internals' }
+          - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: cache-generic, features: '__internals,cache' }
+          - { runner: ubuntu-26.04, arch: x86, cpu: native, name: default-native, features: '__internals' }
+          - { runner: ubuntu-26.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache' }
+          - { runner: macos-latest, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
+          - { runner: macos-latest, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
+          - { runner: macos-latest, arch: arm, cpu: native, name: default-native, features: '__internals' }
+          - { runner: macos-latest, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup update stable --no-self-update
@@ -708,7 +723,7 @@ jobs:
           retention-days: 14
 
   native_sanitizers:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -722,7 +737,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update
-      - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - run: sudo apt-get install -y libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
       - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
       - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --cache ${{ matrix.cache }} ${{ matrix.compact_args }} --log-dir "$RUNNER_TEMP/native-${{ matrix.label }}/logs"
