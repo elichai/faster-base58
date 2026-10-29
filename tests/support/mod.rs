@@ -17,6 +17,11 @@ pub const ENCODERS: &[(&str, Encode)] = &[
     ("toom3", faster_base58::internals::encode_toom3),
     ("ntt", faster_base58::internals::encode_ntt),
     ("ntt-cached", faster_base58::internals::encode_ntt_cached),
+    ("radix", faster_base58::internals::encode_radix),
+    (
+        "radix-portable",
+        faster_base58::internals::encode_radix_portable,
+    ),
     (
         "ntt-portable",
         faster_base58::internals::encode_ntt_portable,

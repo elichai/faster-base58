@@ -27,6 +27,14 @@ const _: () =
 /// Returns `None` before allocating when the division tree is preferable or this
 /// backend's transform limit is exceeded.
 /// `x` has already had its `zeros` leading zero bytes removed.
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    )
+))]
 pub(super) fn try_encode(
     zeros: usize,
     x: &[u8],
@@ -65,7 +73,7 @@ fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
     (points <= 1 << MAX_LOG).then_some((unit, levels, points))
 }
 
-fn encode_with(
+pub(super) fn encode_with(
     zeros: usize,
     x: &[u8],
     output: &mut [u8],

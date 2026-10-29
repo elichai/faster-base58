@@ -22,7 +22,8 @@ pub use crate::matrix::internals::{decode_matrix, decode_matrix_portable};
 pub use crate::mul::{ifma_threshold, mul_with, scratch_len};
 pub use crate::ntt::internals::{
     cached::{decode_ntt_cached, encode_ntt_cached},
-    decode_ntt_portable, decode_ntt_with, encode_ntt_portable, encode_ntt_with,
+    decode_ntt_portable, decode_ntt_with, encode_ntt_portable, encode_ntt_with, encode_radix,
+    encode_radix_portable,
     owned::{decode_ntt, encode_ntt},
 };
 pub use crate::toom3::{decode_toom3, decode_toom3_with, encode_toom3};

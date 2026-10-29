@@ -7,6 +7,18 @@ invalid byte index. The backends take
 `&str`, so malformed UTF-8 is tested after lossy conversion; arbitrary raw invalid
 UTF-8 cannot be passed to those APIs.
 
+The forced `radix` and `radix-portable` encoders bypass production CPU/size
+selection and participate in the shared differential checks on every target.
+Thus x86 fuzz CI reaches the multiplication tree even though production selects
+it only on little-endian AArch64 with NEON. Native ARM runs exercise NEON;
+x86 runs do not establish NEON coverage. Both hooks fall back to the division
+tree above the radix transform limit. The 65,537-byte fuzz cap stays below the
+262,144-byte cached production threshold; public dispatch and the 16 MiB limit
+are covered separately by `radix_boundaries` tests.
+
+Radix seeds include binary powers and sparse values around leaf/tree boundaries,
+so zero subtrees and sparse carry paths do not depend on random mutations.
+
 `encode_all` accepts up to 65,537 bytes: one byte past 64 KiB. Full-width inputs
 cross from 8,192 to 8,193 `u64` limbs. `decode_all` derives its raw-input budget from
 `max_encoded_len(65_537)`, currently 89,502 bytes. It checks both lossy strings and

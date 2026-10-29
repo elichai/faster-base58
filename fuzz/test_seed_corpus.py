@@ -12,6 +12,24 @@ import seed_corpus
 
 
 class SeedCorpusTests(unittest.TestCase):
+    def test_radix_seeds_cover_zero_subtrees_and_sparse_carries(self):
+        with TemporaryDirectory() as directory:
+            previous = seed_corpus.ROOT
+            seed_corpus.ROOT = root = Path(directory)
+            try:
+                with redirect_stdout(StringIO()):
+                    seed_corpus.main()
+            finally:
+                seed_corpus.ROOT = previous
+            for length in [33, 65, 129, 65_537]:
+                power = (root / "encode_all" / f"radix-power-{length}").read_bytes()
+                sparse = (root / "encode_all" / f"radix-sparse-{length}").read_bytes()
+                self.assertEqual(power, b"\x01" + bytes(length - 1))
+                self.assertEqual(sparse, b"\x01" + bytes(length - 2) + b"\x01")
+                if length <= 2048:
+                    self.assertEqual((root / "encode_small" / f"radix-power-{length}").read_bytes(), power)
+                    self.assertEqual((root / "encode_small" / f"radix-sparse-{length}").read_bytes(), sparse)
+
     def test_unicode_seeds_cover_late_byte_indices_and_preserve_budget(self):
         with TemporaryDirectory() as directory:
             previous = seed_corpus.ROOT

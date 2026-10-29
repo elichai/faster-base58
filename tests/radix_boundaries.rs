@@ -6,6 +6,8 @@
 
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
 use malachite_nz::natural::Natural;
+use rand_xoshiro::Xoshiro256PlusPlus;
+use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
 const ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -47,18 +49,13 @@ fn check(data: &[u8], short: bool) {
 
 #[test]
 fn public_dispatch_boundaries_match_malachite() {
-    let mut state = 0x580a_46d4_722d_d38du64;
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(0x580a_46d4_722d_d38d);
     for n in [
         8191, 8192, 8193, 12288, 32767, 32768, 32769, 65535, 65536, 65537, 262143, 262144, 262145,
         1048575, 1048576, 1048577,
     ] {
         let mut data = vec![0; n + 37];
-        for b in &mut data[37..] {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            *b = state as u8;
-        }
+        rng.fill_bytes(&mut data[37..]);
         data[37] |= 1;
         check(&data, true);
     }
