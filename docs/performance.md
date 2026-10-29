@@ -218,6 +218,60 @@ cache-off encoding ranged from 0.9095 to 0.9819. Default decoding ranged from
 above. Wide remains the default. Tiny inputs bypass IFMA, so their layout-driven
 differences do not measure an IFMA primitive.
 
+## Historical paired radix allocation comparison
+
+Measured 2026-10-29 on Apple M5 Pro, AArch64 macOS, Rust 1.99.1 / LLVM 23.1.1,
+generic CPU, opt3/fat LTO: PR #2 at
+`0a46d4722dd38dcc3ef0b6fb8fa62571841ea770` versus allocation-improvement source
+`1e165772b6318deb49773ede8c29779ff3403315`. Only little-endian AArch64 with NEON
+selects this production route; these gains do not describe x86-64 dispatch.
+
+At 1 MiB, the counted conversion excluded caller buffers and oracle construction.
+Cold and warm windows gave the same values:
+
+| Requested allocation metric | PR #2 | Reused scratch / two owned twiddle sets |
+| --- | ---: | ---: |
+| Allocation calls, including zeroed calls | 65,590 | 52 |
+| Reallocation calls | 2 | 2 |
+| Total requested bytes | 72,510,009 | 37,184,741 |
+| Peak extra live bytes | 45,574,053 | 37,185,461 |
+| Retained bytes after return | 0 | 0 |
+
+Requested traffic fell 48.7%; peak extra live bytes fell 18.4%. These are requested
+Rust layouts, not RSS or allocator usable sizes. Current allocation windows and
+their counting conventions are in [Cache and memory](#cache-and-memory).
+
+Complete borrowed-API encode timings include workspace allocation and owned table
+setup. The two immutable libraries used identical physical source/probe paths,
+package identity, compiler, flags and Cargo command. Each feature policy used
+three fresh processes, each with three rounds of nine alternating batches per
+variant, at least 10 ms process CPU time per batch. One process reversed load
+order; outputs were compared before timing and distinct function addresses were
+checked. The table spans per-process reductions in median CPU time:
+
+| Payload | Default features | `cache` |
+| --- | ---: | ---: |
+| 8 KiB | 5.14–6.08% | New route not selected |
+| 64 KiB | 2.78–4.78% | New route not selected |
+| 256 KiB | 1.62–2.76% | 2.14–5.93% |
+| 1 MiB | 2.07–3.86% | 2.83–4.50% |
+| 4 MiB | 2.14–3.13% | 2.46–3.53% |
+
+These are incremental gains beyond PR #2, not a comparison with main or the
+current generic-x86 table. Unchanged cached 64 KiB encoding varied 0.4–2.0%
+slower; default 8191 B had a 5.1% outlier that did not recur with reversed load
+order. No gain is attributed to fallback routes. The third process measured
+the five principal sizes rather than the full boundary sweep. This is finite
+warm sampling, not a confidence interval, cold-cache result or universal optimum.
+
+`scripts/compare_public_api.py` preserves the general paired encode/decode
+consumer. `scripts/compare_radix_encoding.py` preserves the encoding comparison
+with `--reverse` and explicit `--sizes`. Each takes baseline/candidate library
+paths and a new output JSON path. Build at identical physical source/probe paths
+and flags, preserve immutable artifacts, and store outputs under ignored
+`target/measurements/`. Raw samples, receipts and one-off reports are not
+maintained documentation; the dated experiment bundle was removed from the tree.
+
 ## Measure and update
 
 Run from the repository root. Freeze the revision, use fresh output directories

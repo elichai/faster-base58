@@ -46,7 +46,7 @@ With `cache`, it requires 262144 bytes and at least two input bytes per transfor
 point, preserving the cheaper division route just below binary power-of-two
 boundaries. Heavily padded sizes, significant inputs above 16 MiB, and other
 targets retain the division tree. These conservative selection rules follow the
-[large-input measurements](docs/benchmarks/large-input-encoding/README.md).
+[large-input measurements](docs/performance.md#historical-paired-radix-allocation-comparison).
 
 [Matrix encoding](src/encode/matrix.rs) maps 32-bit words to base `58^4`;
 [decoding](src/matrix/mod.rs) maps four-character groups to base `2^32`.
