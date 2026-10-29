@@ -87,11 +87,7 @@ jobs:
           sudo /usr/lib/systemd/systemd-binfmt /usr/lib/binfmt.d/qemu-ppc64.conf
           grep -q '^flags:.*F' /proc/sys/fs/binfmt_misc/qemu-ppc64
       - name: Big-endian unit, API, property, and documentation tests
-        # Cross's emulator runner is not inherited by self-executing cache tests.
-        run: >-
-          cross +stable test --locked --target powerpc64-unknown-linux-gnu --features ${{ matrix.features }} --
-          --skip matrix::tests::invalid_input_builds_no_table
-          --skip ntt::cache_policy_tests::retention_is_bounded_across_histories
+        run: cross +stable test --locked --target powerpc64-unknown-linux-gnu --features ${{ matrix.features }}
 
   compact:
     env:
