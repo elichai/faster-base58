@@ -8,7 +8,7 @@ import re
 import stat
 from pathlib import Path
 
-TARGETS = ("encode_all", "decode_all", "encode_full_width")
+TARGETS = ("encode_all", "decode_all", "encode_full_width", "encode_radix_full_width")
 MAX_BYTES = 89_502
 MAX_ITEMS = 50_000
 MAX_TOTAL_BYTES = 512 * 1024 * 1024

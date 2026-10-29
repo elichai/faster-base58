@@ -12,6 +12,27 @@ import seed_corpus
 
 
 class SeedCorpusTests(unittest.TestCase):
+    def test_radix_seeds_cover_zero_subtrees_and_sparse_carries(self):
+        with TemporaryDirectory() as directory:
+            previous = seed_corpus.ROOT
+            seed_corpus.ROOT = root = Path(directory)
+            output = StringIO()
+            try:
+                with redirect_stdout(output):
+                    seed_corpus.main()
+            finally:
+                seed_corpus.ROOT = previous
+            count = sum(path.is_file() for path in root.rglob("*"))
+            self.assertIn(f"Prepared {count} deterministic seeds", output.getvalue())
+            for length in [33, 65, 129, 65_537]:
+                power = (root / "encode_all" / f"radix-power-{length}").read_bytes()
+                sparse = (root / "encode_all" / f"radix-sparse-{length}").read_bytes()
+                self.assertEqual(power, b"\x01" + bytes(length - 1))
+                self.assertEqual(sparse, b"\x01" + bytes(length - 2) + b"\x01")
+                if length <= 2048:
+                    self.assertEqual((root / "encode_small" / f"radix-power-{length}").read_bytes(), power)
+                    self.assertEqual((root / "encode_small" / f"radix-sparse-{length}").read_bytes(), sparse)
+
     def test_unicode_seeds_cover_late_byte_indices_and_preserve_budget(self):
         with TemporaryDirectory() as directory:
             previous = seed_corpus.ROOT
@@ -64,6 +85,10 @@ class SeedCorpusTests(unittest.TestCase):
                 (root / "encode_all" / "carry-65537").read_bytes(), b"\xff" * 65_537,
             )
             self.assertEqual((root / "encode_full_width" / "dense").read_bytes(), b"\xa5")
+            for name, raw in [("dense", b"\xa5"), ("carry", b"\xff"), ("sparse", b"\0"),
+                              ("native", b"\1"), ("portable", b"\2"),
+                              ("native-owned", b"\x82"), ("portable-owned", b"\x80")]:
+                self.assertEqual((root / "encode_radix_full_width" / name).read_bytes(), raw)
 
     def test_split_carry_fallback_seeds_are_64_byte_inputs(self):
         with TemporaryDirectory() as directory:

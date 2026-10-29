@@ -91,6 +91,7 @@ jobs:
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
   nightly:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
@@ -134,11 +135,12 @@ jobs:
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: mkdir -p fuzz/campaign
-      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/campaign/
+      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/campaign/
       - run: cp -a .fuzz-corpus/corpora/. fuzz/campaign/
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
       - run: mkdir -p fuzz/publish
       - run: >-
           python3 fuzz/provenance.py --output fuzz/publish/provenance.json
@@ -147,7 +149,7 @@ jobs:
           --field features=${{ matrix.label }} --field sanitizer=address --field seed="$FUZZ_SEED"
           --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=nightly-2026-10-26
           --field cargo_fuzz=0.13.2 --field rustflags="$RUSTFLAGS" --field exit=0
-          --field targets=encode_all,decode_all,encode_full_width --digest dictionary=fuzz/base58.dict
+          --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width --digest dictionary=fuzz/base58.dict
       - run: mv fuzz/campaign fuzz/publish/campaign
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -207,6 +209,7 @@ jobs:
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
       - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
   publish:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly && inputs.publish)

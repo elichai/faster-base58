@@ -10,13 +10,14 @@ cargo-fuzz = true
 [features]
 cache = ["faster-base58/cache"]
 compact = ["faster-base58/compact"]
-# Keep the slower structured target out of general build/replay lanes.
+# Keep the slower structured targets out of general build/replay lanes.
 full-width = []
 
 [dependencies]
 faster-base58 = { path = "..", features = ["__internals"] }
 bs58 = "0.5.1"
 libfuzzer-sys = "0.4"
+malachite-base = "0.14.0"
 malachite-nz = "0.14.0"
 
 [[bin]]
@@ -36,6 +37,14 @@ bench = false
 [[bin]]
 name = "encode_full_width"
 path = "fuzz_targets/encode_full_width.rs"
+required-features = ["full-width"]
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "encode_radix_full_width"
+path = "fuzz_targets/encode_radix_full_width.rs"
 required-features = ["full-width"]
 test = false
 doc = false

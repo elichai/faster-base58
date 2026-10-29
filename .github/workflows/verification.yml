@@ -48,7 +48,10 @@ jobs:
       - name: Unit, API, and property tests
         run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
       - name: Public API without internal exports
-        run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+        run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+      - name: Radix transform limit and public fallback
+        if: runner.arch == 'ARM64' && matrix.profile.name == 'release'
+        run: cargo +stable test --locked --release --test radix_boundaries ${{ matrix.caches.public_args }} -- --ignored --exact full_transform_limit_and_fallback_match_malachite
       - name: Downstream API and internal namespace boundaries
         if: matrix.profile.name == 'debug' && matrix.caches.name == 'off'
         env:
@@ -96,8 +99,8 @@ jobs:
       - run: rustup update stable --no-self-update
       - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests
       - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests --release
-      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output ${{ matrix.caches.public_args }}
-      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output ${{ matrix.caches.public_args }} --release
+      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }}
+      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} --release
       - run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }}
       - run: cargo +stable build --locked --release --features ${{ matrix.caches.features }} --benches
 
@@ -169,16 +172,16 @@ jobs:
       - run: cargo +1.95 build --locked --lib --all-features
       - run: cargo +1.95 build --locked --lib --features compact
       - run: cargo +1.95 build --locked --lib --features compact,cache
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features std
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features cache
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features std,compact
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std,compact
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features cache,compact
+      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache,compact
         env:
           PROPTEST_CASES: '512'
 
@@ -527,6 +530,13 @@ jobs:
           mkdir -p fuzz/artifacts/encode_full_width
           cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address --no-default-features --features full-width${{ matrix.label == 'cache' && ',cache' || '' }} encode_full_width fuzz/corpus/encode_full_width -- -max_len=8193 -len_control=0 -max_total_time=180 -print_corpus_stats=1 -print_final_stats=1 -seed=1 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/artifacts/encode_full_width/campaign.log
           python3 fuzz/check_mutations.py fuzz/artifacts/encode_full_width/campaign.log > fuzz/artifacts/encode_full_width/mutation-stats.json
+      - name: Full-width radix mutations with independent Malachite oracle
+        if: matrix.sanitizer == 'address' && (matrix.label == 'default' || matrix.label == 'cache')
+        run: |
+          set -e -o pipefail
+          mkdir -p fuzz/artifacts/encode_radix_full_width
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address --no-default-features --features full-width${{ matrix.label == 'cache' && ',cache' || '' }} encode_radix_full_width fuzz/corpus/encode_radix_full_width -- -max_len=8193 -len_control=0 -max_total_time=180 -print_corpus_stats=1 -print_final_stats=1 -seed=1 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/artifacts/encode_radix_full_width/campaign.log
+          python3 fuzz/check_mutations.py fuzz/artifacts/encode_radix_full_width/campaign.log > fuzz/artifacts/encode_radix_full_width/mutation-stats.json
       - name: Retain corpus and failures
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -607,15 +617,19 @@ jobs:
         run: |
           host="$(rustup run nightly-2026-10-26 rustc -vV | sed -n 's/^host: //p')"
           llvm_dir="$(rustup run nightly-2026-10-26 rustc --print sysroot)/lib/rustlib/$host/bin"
-          for target in encode_all decode_all; do
-            cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target ${{ matrix.target }} --target-dir target/coverage --no-default-features ${{ matrix.cache_args }} --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
+          features="full-width${{ matrix.cache_args != '' && ',cache' || '' }}"
+          for target in encode_all decode_all encode_radix_full_width; do
+            cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target ${{ matrix.target }} --target-dir target/coverage --no-default-features --features "$features" --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
             "$llvm_dir/llvm-cov" report "target/coverage/${{ matrix.target }}/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$' > "fuzz/coverage/$target/report.txt"
+            if [ "$target" != decode_all ]; then
+              "$llvm_dir/llvm-cov" report "target/coverage/${{ matrix.target }}/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" src/ntt/radix.rs > "fuzz/coverage/$target/radix.txt"
+            fi
             "$llvm_dir/llvm-cov" export -format=lcov "target/coverage/${{ matrix.target }}/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$' > "fuzz/coverage/$target/lcov.info"
           done
       - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           use_oidc: true
-          files: fuzz/coverage/encode_all/lcov.info,fuzz/coverage/decode_all/lcov.info
+          files: fuzz/coverage/encode_all/lcov.info,fuzz/coverage/decode_all/lcov.info,fuzz/coverage/encode_radix_full_width/lcov.info
           flags: fuzz-smoke-${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'x86' || 'arm' }}-${{ matrix.name }}
           fail_ci_if_error: true
       - name: Retain coverage records

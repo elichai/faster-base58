@@ -10,8 +10,8 @@ internal allocation; its general large conversions remain quadratic.
 
 The current public timings, linked sizes and M5 allocations were measured
 **2026-10-29**, from Git commit
-`8ca392a84c48d5ffbe2ac0711398901bd8084bda`. Resource fingerprint:
-`28bc90cd04fc83305c400ff26d36878371023fd38f0942b1604b9df9d1ecc8fb` (source/manifest/lock/support files, not a Git ID).
+`daf6403b2c459cd2dff57e903541276d30a68cbf`. Resource fingerprint:
+`ce56edbeaf63ff7b56f7ec3029da5f981f21ff32f8881b419701bf0039d989a4` (source/manifest/lock/support files, not a Git ID).
 All platforms use that same source fingerprint. This snapshot includes only
 this PR's source changes, not the independent other improvement PR.
 
@@ -55,12 +55,12 @@ are shown below; slower observations were retained.
 
 | Platform / policy | Encode median [min, max] | Decode median [min, max] |
 | --- | ---: | ---: |
-| M5 / default | 301 ms [299 ms, 303 ms] | 140 ms [140 ms, 140 ms] |
-| M5 / cache | 276 ms [275 ms, 280 ms] | 135 ms [135 ms, 137 ms] |
-| x86-64 / default | 373 ms [373 ms, 376 ms] | 171 ms [168 ms, 171 ms] |
-| x86-64 / cache | 345 ms [340 ms, 348 ms] | 175 ms [175 ms, 175 ms] |
-| Wasm / default | 2.33 s [1.67 s, 2.52 s] | 887 ms [868 ms, 914 ms] |
-| Wasm / cache | 1.71 s [1.7 s, 1.78 s] | 889 ms [883 ms, 1.22 s] |
+| M5 / default | 250 ms [247 ms, 253 ms] | 140 ms [139 ms, 141 ms] |
+| M5 / cache | 252 ms [250 ms, 256 ms] | 135 ms [135 ms, 139 ms] |
+| x86-64 / default | 375 ms [373 ms, 377 ms] | 170 ms [170 ms, 171 ms] |
+| x86-64 / cache | 347 ms [347 ms, 348 ms] | 170 ms [169 ms, 170 ms] |
+| Wasm / default | 1.65 s [1.65 s, 1.71 s] | 836 ms [835 ms, 844 ms] |
+| Wasm / cache | 1.66 s [1.66 s, 1.81 s] | 844 ms [840 ms, 845 ms] |
 
 No compilation, tests, fuzzing or plotting scheduled by this study overlapped timing. The x86
 campaign restarted after unrelated VM work interrupted its first attempt; only
@@ -78,17 +78,17 @@ from this source, not a causal comparison with another branch:
 
 | Payload | M5 Auto encode | x86-64 Auto encode | Wasm Auto encode |
 | --- | ---: | ---: | ---: |
-| 16 B | 18.1 ns | 30.5 ns | 36.7 ns |
-| 21 B | 21.8 ns | 31.2 ns | 37 ns |
-| 22 B | 26.4 ns | 37.5 ns | 47 ns |
-| 23 B | 26.5 ns | 41.7 ns | 49 ns |
-| 31 B | 27.3 ns | 48.6 ns | 69.6 ns |
-| 32 B | 11.6 ns | 30.6 ns | 26 ns |
-| 33 B | 28 ns | 48.6 ns | 72.1 ns |
-| 63 B | 70 ns | 110 ns | 156 ns |
-| 64 B | 23.8 ns | 31.2 ns | 103 ns |
-| 65 B | 71.5 ns | 114 ns | 174 ns |
-| 128 B | 180 ns | 324 ns | 550 ns |
+| 16 B | 20.8 ns | 39.9 ns | 39.1 ns |
+| 21 B | 25.5 ns | 42 ns | 42.6 ns |
+| 22 B | 29.9 ns | 47.2 ns | 50.4 ns |
+| 23 B | 32.3 ns | 53.9 ns | 56.3 ns |
+| 31 B | 36.5 ns | 63.2 ns | 78.5 ns |
+| 32 B | 11.6 ns | 30.5 ns | 26 ns |
+| 33 B | 38.7 ns | 63.3 ns | 78.2 ns |
+| 63 B | 85.4 ns | 136 ns | 176 ns |
+| 64 B | 23.4 ns | 31.3 ns | 104 ns |
+| 65 B | 86.4 ns | 140 ns | 202 ns |
+| 128 B | 209 ns | 376 ns | 576 ns |
 
 ### First and second calls
 
@@ -100,12 +100,12 @@ universal cache break-even count from these separate medians.
 
 | Platform / policy | First call | Second call | Warm |
 | --- | ---: | ---: | ---: |
-| M5 / default | 112 µs / 56 µs | 102 µs / 40 µs | 103 µs / 39 µs |
-| M5 / cache | 1.28 ms / 754 µs | 30 µs / 27 µs | 28.6 µs / 25.3 µs |
-| x86-64 / default | 132 µs / 73.8 µs | 53.8 µs / 29.4 µs | 49.6 µs / 27.4 µs |
-| x86-64 / cache | 301 µs / 86.1 µs | 46.7 µs / 35.1 µs | 41.6 µs / 33.2 µs |
-| Wasm / default | 468 µs / 230 µs | 471 µs / 221 µs | 466 µs / 224 µs |
-| Wasm / cache | 1.85 ms / 1.12 ms | 155 µs / 130 µs | 158 µs / 134 µs |
+| M5 / default | 110 µs / 64 µs | 103 µs / 40 µs | 105 µs / 39.4 µs |
+| M5 / cache | 1.33 ms / 733 µs | 32 µs / 27 µs | 28.6 µs / 25.2 µs |
+| x86-64 / default | 128 µs / 69.2 µs | 55.1 µs / 29.2 µs | 51 µs / 27.5 µs |
+| x86-64 / cache | 296 µs / 80 µs | 45.6 µs / 29.3 µs | 40.8 µs / 27.4 µs |
+| Wasm / default | 484 µs / 228 µs | 482 µs / 219 µs | 474 µs / 216 µs |
+| Wasm / cache | 1.83 ms / 1.07 ms | 150 µs / 128 µs | 151 µs / 127 µs |
 
 ## Generic and native x86-64
 
@@ -141,22 +141,25 @@ the warm window follows its first conversion. No other sizes prime the cache.
 
 | Payload | Policy | Operation | Call | Requests | Total requested | Peak extra | Newly retained |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: |
-| 1 MiB | default | encode | cold | 40 | 62,161,312 B | 50,383,888 B | 0 B |
-| 1 MiB | default | encode | warm | 40 | 62,161,312 B | 50,383,888 B | 0 B |
-| 4 MiB | default | encode | cold | 44 | 248,693,680 B | 201,582,112 B | 0 B |
-| 4 MiB | default | encode | warm | 44 | 248,693,680 B | 201,582,112 B | 0 B |
+| 1 MiB | default | encode | cold | 54 | 37,184,741 B | 37,185,461 B | 0 B |
+| 1 MiB | default | encode | warm | 54 | 37,184,741 B | 37,185,461 B | 0 B |
+| 4 MiB | default | encode | cold | 60 | 148,740,725 B | 148,741,445 B | 0 B |
+| 4 MiB | default | encode | warm | 60 | 148,740,725 B | 148,741,445 B | 0 B |
 | 1 MiB | default | decode | cold | 25 | 27,494,848 B | 27,495,424 B | 0 B |
 | 1 MiB | default | decode | warm | 25 | 27,494,848 B | 27,495,424 B | 0 B |
 | 4 MiB | default | decode | cold | 27 | 109,997,240 B | 109,997,816 B | 0 B |
 | 4 MiB | default | decode | warm | 27 | 109,997,240 B | 109,997,816 B | 0 B |
-| 1 MiB | cache | encode | cold | 41 | 75,897,280 B | 64,403,008 B | 14,401,152 B |
-| 1 MiB | cache | encode | warm | 35 | 61,359,328 B | 49,910,656 B | 0 B |
-| 4 MiB | cache | encode | cold | 46 | 260,219,104 B | 214,372,960 B | 14,401,152 B |
-| 4 MiB | cache | encode | warm | 40 | 245,681,152 B | 199,880,608 B | 0 B |
+| 1 MiB | cache | encode | cold | 54 | 37,184,741 B | 37,185,461 B | 0 B |
+| 1 MiB | cache | encode | warm | 54 | 37,184,741 B | 37,185,461 B | 0 B |
+| 4 MiB | cache | encode | cold | 60 | 148,740,725 B | 148,741,445 B | 0 B |
+| 4 MiB | cache | encode | warm | 60 | 148,740,725 B | 148,741,445 B | 0 B |
 | 1 MiB | cache | decode | cold | 28 | 27,661,184 B | 27,661,760 B | 12,740,800 B |
 | 1 MiB | cache | decode | warm | 13 | 14,911,936 B | 14,912,512 B | 0 B |
 | 4 MiB | cache | decode | cold | 30 | 110,630,840 B | 110,631,416 B | 616,704 B |
 | 4 MiB | cache | decode | warm | 27 | 109,997,240 B | 109,997,816 B | 0 B |
+
+At these exact 1/4 MiB encode sizes, the cache-enabled radix route uses owned
+large tables and retains none; this does not negate retention at other sizes.
 
 Requests are `alloc_calls + realloc_calls`; zeroed allocation calls are already
 included in `alloc_calls`. Total requested bytes sum requested layouts; they
@@ -187,7 +190,7 @@ metadata. Initialized data, BSS and stripped file size are distinct metrics;
 Wasm CODE/DATA sections are distinct from 64 KiB linear-memory pages.
 
 `CHAR_PAIRS` is 3,364 two-byte entries: 6,728 B (6.57 KiB). On M5 the current
-no-allocation probe retains one complete table, explaining the roughly 6.6 KiB increase over the old 4.1 KiB readonly headline.
+no-allocation probe does not retain the complete table, while the Auto probe retains one.
 This is linked readonly storage, not a heap allocation or cache retention.
 The exact delta depends on reachable paths, compiler folding, LTO and metadata;
 an existing source-level constant does not imply every consumer already linked
@@ -214,6 +217,60 @@ cache-off encoding ranged from 0.9095 to 0.9819. Default decoding ranged from
 1.0069 to 1.0290. These are whole-consumer observations with the timing limits
 above. Wide remains the default. Tiny inputs bypass IFMA, so their layout-driven
 differences do not measure an IFMA primitive.
+
+## Historical paired radix allocation comparison
+
+Measured 2026-10-29 on Apple M5 Pro, AArch64 macOS, Rust 1.99.1 / LLVM 23.1.1,
+generic CPU, opt3/fat LTO: PR #2 at
+`0a46d4722dd38dcc3ef0b6fb8fa62571841ea770` versus allocation-improvement source
+`1e165772b6318deb49773ede8c29779ff3403315`. Only little-endian AArch64 with NEON
+selects this production route; these gains do not describe x86-64 dispatch.
+
+At 1 MiB, the counted conversion excluded caller buffers and oracle construction.
+Cold and warm windows gave the same values:
+
+| Requested allocation metric | PR #2 | Reused scratch / two owned twiddle sets |
+| --- | ---: | ---: |
+| Allocation calls, including zeroed calls | 65,590 | 52 |
+| Reallocation calls | 2 | 2 |
+| Total requested bytes | 72,510,009 | 37,184,741 |
+| Peak extra live bytes | 45,574,053 | 37,185,461 |
+| Retained bytes after return | 0 | 0 |
+
+Requested traffic fell 48.7%; peak extra live bytes fell 18.4%. These are requested
+Rust layouts, not RSS or allocator usable sizes. Current allocation windows and
+their counting conventions are in [Cache and memory](#cache-and-memory).
+
+Complete borrowed-API encode timings include workspace allocation and owned table
+setup. The two immutable libraries used identical physical source/probe paths,
+package identity, compiler, flags and Cargo command. Each feature policy used
+three fresh processes, each with three rounds of nine alternating batches per
+variant, at least 10 ms process CPU time per batch. One process reversed load
+order; outputs were compared before timing and distinct function addresses were
+checked. The table spans per-process reductions in median CPU time:
+
+| Payload | Default features | `cache` |
+| --- | ---: | ---: |
+| 8 KiB | 5.14–6.08% | New route not selected |
+| 64 KiB | 2.78–4.78% | New route not selected |
+| 256 KiB | 1.62–2.76% | 2.14–5.93% |
+| 1 MiB | 2.07–3.86% | 2.83–4.50% |
+| 4 MiB | 2.14–3.13% | 2.46–3.53% |
+
+These are incremental gains beyond PR #2, not a comparison with main or the
+current generic-x86 table. Unchanged cached 64 KiB encoding varied 0.4–2.0%
+slower; default 8191 B had a 5.1% outlier that did not recur with reversed load
+order. No gain is attributed to fallback routes. The third process measured
+the five principal sizes rather than the full boundary sweep. This is finite
+warm sampling, not a confidence interval, cold-cache result or universal optimum.
+
+`scripts/compare_public_api.py` preserves the general paired encode/decode
+consumer. `scripts/compare_radix_encoding.py` preserves the encoding comparison
+with `--reverse` and explicit `--sizes`. Each takes baseline/candidate library
+paths and a new output JSON path. Build at identical physical source/probe paths
+and flags, preserve immutable artifacts, and store outputs under ignored
+`target/measurements/`. Raw samples, receipts and one-off reports are not
+maintained documentation; the dated experiment bundle was removed from the tree.
 
 ## Historical paired formatter comparison
 

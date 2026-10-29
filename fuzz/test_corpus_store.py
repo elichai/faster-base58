@@ -22,6 +22,20 @@ class CorpusStoreTests(unittest.TestCase):
             self.assertEqual(added, {"encode_all": [digest]})
             self.assertEqual((root / "corpora" / "encode_all" / digest).read_bytes(), b"same input")
 
+    def test_radix_target_can_be_staged_and_validated(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            incoming = root / "incoming" / "encode_radix_full_width"
+            incoming.mkdir(parents=True)
+            (incoming / "dense").write_bytes(b"\xa5")
+
+            added = corpus_store.stage(root / "incoming", root / "corpora")
+
+            digest = corpus_store.digest(b"\xa5")
+            self.assertEqual(added, {"encode_radix_full_width": [digest]})
+            self.assertEqual((root / "corpora" / "encode_radix_full_width" / digest).read_bytes(), b"\xa5")
+            corpus_store.validate(root / "corpora")
+
     def test_stage_rejects_symlinks_and_oversized_files(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)

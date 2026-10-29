@@ -4,8 +4,9 @@
 validator. The orphan `fuzz-corpus` branch owns only validated, content-addressed
 inputs under `corpora/<target>/<sha256>` and run provenance under `runs/`.
 
-The three supported targets are `encode_all`, `decode_all`, and
-`encode_full_width`. A corpus item is shared by input format, not by machine.
+The four supported targets are `encode_all`, `decode_all`,
+`encode_full_width`, and `encode_radix_full_width`. A corpus item is shared by
+input format, not by machine.
 Its provenance records the architecture, target CPU, feature set, toolchain,
 sanitizer, duration, and source commit that found it. CI replays one pinned
 corpus commit without mutation across the supported architecture/feature/CPU

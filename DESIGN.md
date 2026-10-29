@@ -31,7 +31,24 @@ The public paths handle empty and tiny inputs before the general loops.
 [Encoding](src/encode/dc.rs) divides by the same powers, then emits quotient and
 padded remainder recursively. Barrett estimates use reciprocals refined by Newton
 steps; each power and reciprocal is reused within one conversion. Karatsuba,
-Toom-3 and NTT share this conversion tree. Unbalanced products use blocks.
+Toom-3 and the fallback NTT encoder share this conversion tree. Unbalanced
+products use blocks.
+
+On little-endian AArch64 with NEON, large encoding can instead use a
+[multiplication tree in base `58^3`](src/ntt/radix.rs). It splits at byte
+boundaries and combines `hi * 256^k + lo`, avoiding reciprocals and division at
+each node. Two NTT primes recover the digit products; vectorized reconstruction
+and one carry pass also add `lo`. Powers and prepared transforms remain local to
+the conversion. Owned twiddles cover only those two primes; eligible conversions
+borrow the existing shared three-prime tables. Recursive calls reuse one digit
+workspace, holding the high child in scratch and the low child in the output
+until the carry pass consumes it. This route requires
+at least 8192 significant bytes and at least 7/8 utilization of its full transform.
+With `cache`, it requires 262144 bytes and at least two input bytes per transform
+point, preserving the cheaper division route just below binary power-of-two
+boundaries. Heavily padded sizes, significant inputs above 16 MiB, and other
+targets retain the division tree. These conservative selection rules follow the
+[large-input measurements](docs/performance.md#historical-paired-radix-allocation-comparison).
 
 [Matrix encoding](src/encode/matrix.rs) maps 32-bit words to base `58^4`;
 [decoding](src/matrix/mod.rs) maps four-character groups to base `2^32`.

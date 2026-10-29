@@ -80,7 +80,7 @@ This module shares the root error and buffer contracts. It has no owned-result
 helpers. Enabling `cache` does not change its allocation guarantee.
 
 Auto trades workspace for large-input speed. At 4 MiB, the M5 measurements with
-default features peak at about 192 MiB of extra requested heap for encoding and
+default features peak at about 142 MiB of extra requested heap for encoding and
 105 MiB for decoding, excluding caller buffers. [Allocation details](DESIGN.md#heap-stack-and-cache-costs).
 
 ## Optional caching
@@ -103,7 +103,7 @@ on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-co
 
 ## Performance
 
-**Measured 2026-10-29 from this branch at `8ca392a84c48`.** These results describe
+**Measured 2026-10-29 from this branch at `daf6403b2c45`.** These results describe
 this PR alone; they do not combine the independent small- and large-input PRs.
 Warm calls reuse output buffers and include Auto's workspace allocations. Native
 uses process CPU time; Wasm uses V8 elapsed time. Each cell is **encode / decode**.
@@ -122,13 +122,13 @@ Rust 1.99.1 / LLVM 23.1.1; compiler-default target flags.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 11.6 ns / 15.1 ns | 11.7 ns / **14.2 ns** | **9.63 ns** / 14.2 ns | 760 ns / 321 ns | 31.1 ns / 31.2 ns |
-| 64 B | 23.8 ns / **27.2 ns** | 23.4 ns / 27.7 ns | **23 ns** / 27.5 ns | 2.96 µs / 1.15 µs | 72.1 ns / 94.5 ns |
-| 512 B | 1.97 µs / 657 ns | **577 ns** / **578 ns** | 2.04 µs / 708 ns | 230 µs / 76.2 µs | — / — |
-| 4 KiB | 103 µs / 39 µs | **28.6 µs** / **25.3 µs** | 104 µs / 36.9 µs | 15.1 ms / 5 ms | — / — |
-| 64 KiB | 2.71 ms / 1.12 ms | **2.23 ms** / **1.02 ms** | 25.8 ms / 9.08 ms | 3.92 s / 1.3 s | — / — |
-| 1 MiB | 63 ms / 28.6 ms | **58.2 ms** / **26.8 ms** | — / — | — / — | — / — |
-| 4 MiB | 301 ms / 140 ms | **276 ms** / **135 ms** | — / — | — / — | — / — |
+| 32 B | 11.6 ns / 15.1 ns | 11.7 ns / 14.3 ns | **9.6 ns** / **14.2 ns** | 756 ns / 322 ns | 31.6 ns / 31.5 ns |
+| 64 B | 23.4 ns / 28.2 ns | 23.3 ns / 27.3 ns | **23 ns** / **27.3 ns** | 2.96 µs / 1.17 µs | 76.3 ns / 94.3 ns |
+| 512 B | 2.07 µs / 660 ns | **569 ns** / **591 ns** | 2.12 µs / 705 ns | 231 µs / 76.8 µs | — / — |
+| 4 KiB | 105 µs / 39.4 µs | **28.6 µs** / **25.2 µs** | 106 µs / 37.2 µs | 15.1 ms / 5.02 ms | — / — |
+| 64 KiB | 2.24 ms / 1.13 ms | **2.22 ms** / **1.02 ms** | 25.6 ms / 9.03 ms | 3.94 s / 1.31 s | — / — |
+| 1 MiB | 52.8 ms / 28.6 ms | **52 ms** / **27.1 ms** | — / — | — / — | — / — |
+| 4 MiB | **250 ms** / 140 ms | 252 ms / **135 ms** | — / — | — / — | — / — |
 
 ![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
 
@@ -140,13 +140,13 @@ comparison is separate in the [performance guide](docs/performance.md#generic-an
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 30.6 ns / 25.7 ns | **30.2 ns** / 25.4 ns | 30.3 ns / **25.1 ns** | 886 ns / 320 ns | 52.9 ns / 49 ns |
-| 64 B | **31.2 ns** / 47.5 ns | 31.2 ns / 46.9 ns | 31.3 ns / **46.6 ns** | 3.9 µs / 1.26 µs | 116 ns / 122 ns |
-| 512 B | 4.07 µs / 1.23 µs | **1.1 µs** / 999 ns | 4.3 µs / **997 ns** | 282 µs / 91.8 µs | — / — |
-| 4 KiB | 49.6 µs / **27.4 µs** | **41.6 µs** / 33.2 µs | 265 µs / 55.3 µs | 18 ms / 5.85 ms | — / — |
-| 64 KiB | 3.66 ms / 1.43 ms | **2.82 ms** / **1.3 ms** | 67.4 ms / 13.5 ms | 4.62 s / 1.49 s | — / — |
-| 1 MiB | 81.1 ms / 34.2 ms | **73.6 ms** / **33.1 ms** | — / — | — / — | — / — |
-| 4 MiB | 373 ms / **171 ms** | **345 ms** / 175 ms | — / — | — / — | — / — |
+| 32 B | 30.5 ns / 25.6 ns | 30.3 ns / 25.5 ns | **30.2 ns** / **25.1 ns** | 889 ns / 319 ns | 52.9 ns / 48.7 ns |
+| 64 B | 31.3 ns / 47.4 ns | 31.3 ns / 47.1 ns | **31.2 ns** / **46.6 ns** | 3.91 µs / 1.25 µs | 116 ns / 123 ns |
+| 512 B | 4.26 µs / 1 µs | **1.1 µs** / 1.23 µs | 4.51 µs / **991 ns** | 281 µs / 91.9 µs | — / — |
+| 4 KiB | 51 µs / 27.5 µs | **40.8 µs** / **27.4 µs** | 276 µs / 55.4 µs | 18.1 ms / 5.85 ms | — / — |
+| 64 KiB | 3.65 ms / 1.44 ms | **2.81 ms** / **1.21 ms** | 69.9 ms / 13.4 ms | 4.62 s / 1.49 s | — / — |
+| 1 MiB | 80.8 ms / 34.2 ms | **72.8 ms** / **32.2 ms** | — / — | — / — | — / — |
+| 4 MiB | 375 ms / 170 ms | **347 ms** / **170 ms** | — / — | — / — | — / — |
 
 ![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
 
@@ -159,13 +159,13 @@ speedup. [Observed ranges and controls](docs/performance.md#timing-limits).
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | **26 ns** / 58.7 ns | 26 ns / 56.4 ns | 26.4 ns / 53.8 ns | 695 ns / 221 ns | 46.4 ns / **42.9 ns** |
-| 64 B | 103 ns / 133 ns | 105 ns / 171 ns | 110 ns / 131 ns | 3.03 µs / 844 ns | **99.5 ns** / **127 ns** |
-| 512 B | 8.85 µs / 6.21 µs | **3.81 µs** / **2.77 µs** | 8.95 µs / 4.92 µs | 250 µs / 76.1 µs | — / — |
-| 4 KiB | 466 µs / 224 µs | **158 µs** / **134 µs** | 468 µs / 285 µs | 16.2 ms / 5.42 ms | — / — |
-| 64 KiB | **14.3 ms** / **6.71 ms** | 15.6 ms / 10.3 ms | 119 ms / 71.8 ms | 4.24 s / 1.39 s | — / — |
-| 1 MiB | **370 ms** / **173 ms** | 431 ms / 174 ms | — / — | — / — | — / — |
-| 4 MiB | 2.33 s / **887 ms** | **1.71 s** / 889 ms | — / — | — / — | — / — |
+| 32 B | 26 ns / 53.8 ns | 26.2 ns / 54.5 ns | **25.9 ns** / 52.2 ns | 616 ns / 216 ns | 45.9 ns / **42.1 ns** |
+| 64 B | 104 ns / 136 ns | 105 ns / 156 ns | 102 ns / 130 ns | 2.95 µs / 843 ns | **94.9 ns** / **127 ns** |
+| 512 B | 7.87 µs / 4.97 µs | **2.8 µs** / **3.04 µs** | 7.95 µs / 4.93 µs | 249 µs / 76.1 µs | — / — |
+| 4 KiB | 474 µs / 216 µs | **151 µs** / **127 µs** | 482 µs / 287 µs | 16.6 ms / 5.56 ms | — / — |
+| 64 KiB | 14.3 ms / 6.71 ms | **14.3 ms** / **6.67 ms** | 120 ms / 73.7 ms | 4.24 s / 1.41 s | — / — |
+| 1 MiB | **345 ms** / **172 ms** | 353 ms / 176 ms | — / — | — / — | — / — |
+| 4 MiB | **1.65 s** / **836 ms** | 1.66 s / 844 ms | — / — | — / — | — / — |
 
 ![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
 
@@ -179,9 +179,9 @@ metadata. Full files also contain runtime, scaffolding and platform padding.
 
 | Consumer | M5 code / readonly | x86-64 code / readonly | Wasm code / data section |
 |---|---:|---:|---:|
-| Auto | 58.0 KiB / 22.5 KiB | 279.5 KiB / 34.8 KiB | 69.9 KiB / 14.3 KiB |
-| Auto + cache | 60.4 KiB / 25.0 KiB | 270.2 KiB / 35.5 KiB | 71.6 KiB / 15.1 KiB |
-| No allocation | 9.4 KiB / 10.7 KiB | 20.3 KiB / 14.5 KiB | 13.5 KiB / 9.6 KiB |
+| Auto | 68.0 KiB / 24.6 KiB | 279.7 KiB / 34.8 KiB | 70.1 KiB / 14.3 KiB |
+| Auto + cache | 70.9 KiB / 26.8 KiB | 270.6 KiB / 35.5 KiB | 71.8 KiB / 15.1 KiB |
+| No allocation | 9.6 KiB / 4.1 KiB | 20.5 KiB / 14.4 KiB | 13.5 KiB / 9.5 KiB |
 | bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.8 KiB |
 
 Readonly constants, initialized data, BSS, cache headers, retained heap and Wasm

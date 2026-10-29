@@ -30,6 +30,8 @@ FIXED_64_COLUMNS = 22
 SPLIT_FALLBACKS = tuple(
     f"split-fallback-k{k}-s{s}" for k in range(2, 7) for s in range(1, k)
 )
+RADIX_LENGTHS = [33, 64, 65, 127, 128, 129, 255, 256, 257, 511, 512, 513,
+                 8191, 8192, 8193, ENCODE_MAX_BYTES]
 
 
 def write_seed(target, name, data):
@@ -59,12 +61,24 @@ def split_fallback_seed(k, segment):
 
 
 def main():
-    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width"]:
+    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width", "encode_radix_full_width"]:
         (ROOT / target).mkdir(parents=True, exist_ok=True)
     write_seed("encode_full_width", "dense", b"\xa5")
     for k in range(2, 7):
         for segment in range(1, k):
             write_seed("encode_all", f"split-fallback-k{k}-s{segment}", split_fallback_seed(k, segment))
+    for label, raw in [("dense", b"\xa5"), ("carry", b"\xff"), ("sparse", b"\0"),
+                       ("native", b"\1"), ("portable", b"\2"),
+                       ("native-owned", b"\x82"), ("portable-owned", b"\x80")]:
+        write_seed("encode_radix_full_width", label, raw)
+    for length in RADIX_LENGTHS:
+        for label, data in [
+            ("power", b"\x01" + bytes(length - 1)),
+            ("sparse", b"\x01" + bytes(length - 2) + b"\x01"),
+        ]:
+            write_seed("encode_all", f"radix-{label}-{length}", data)
+            if length <= SMALL_MAX_BYTES:
+                write_seed("encode_small", f"radix-{label}-{length}", data)
     for length in LENGTHS:
         patterned = bytes((i * 73 + 1) % 256 for i in range(length))
         for label, data in [
@@ -106,7 +120,8 @@ def main():
         + sum(n <= SMALL_MAX_BYTES for n in LENGTHS) * 6
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
-        + 5 + len(SPLIT_FALLBACKS)
+        + 2 * (len(RADIX_LENGTHS) + sum(n <= SMALL_MAX_BYTES for n in RADIX_LENGTHS))
+        + 12 + len(SPLIT_FALLBACKS)
     )
     print(f"Prepared {count} deterministic seeds in {ROOT}")
 
