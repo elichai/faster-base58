@@ -80,7 +80,7 @@ This module shares the root error and buffer contracts. It has no owned-result
 helpers. Enabling `cache` does not change its allocation guarantee.
 
 Auto trades workspace for large-input speed. At 4 MiB, the M5 measurements with
-default features peak at about 142 MiB of extra requested heap for encoding and
+default features peak at about 126 MiB of extra requested heap for encoding and
 105 MiB for decoding, excluding caller buffers. [Allocation details](DESIGN.md#heap-stack-and-cache-costs).
 
 ## Optional caching
@@ -105,6 +105,8 @@ on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-co
 
 **Measured 2026-10-29 from this branch at `daf6403b2c45`.** These results describe
 this PR alone; they do not combine the independent small- and large-input PRs.
+This snapshot predates further scratch pooling. Its allocation savings and
+latency-neutral paired result are in [the performance guide](docs/performance.md#pooled-radix-scratch).
 Warm calls reuse output buffers and include Auto's workspace allocations. Native
 uses process CPU time; Wasm uses V8 elapsed time. Each cell is **encode / decode**.
 Bold marks the lowest observed median, without a statistical significance claim.

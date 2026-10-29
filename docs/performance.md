@@ -14,6 +14,8 @@ The current public timings, linked sizes and M5 allocations were measured
 `ce56edbeaf63ff7b56f7ec3029da5f981f21ff32f8881b419701bf0039d989a4` (source/manifest/lock/support files, not a Git ID).
 All platforms use that same source fingerprint. This snapshot includes only
 this PR's source changes, not the independent other improvement PR.
+It predates [further scratch pooling](#pooled-radix-scratch), whose allocation
+and paired timing results are recorded separately below.
 
 | Platform | Compiler / runtime | Target / clock |
 | --- | --- | --- |
@@ -178,7 +180,7 @@ The following ordinary-public M5 allocation windows use the same source and
 fixtures as the timing refresh. Each size/operation starts in a fresh process;
 the warm window follows its first conversion. No other sizes prime the cache.
 
-| Payload | Policy | Operation | Call | Requests | Total requested | Peak extra | Newly retained |
+| Payload | Policy | Operation | Call | Requests | Allocation bytes | Peak extra | Newly retained |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: |
 | 1 MiB | default | encode | cold | 54 | 37,184,741 B | 37,185,461 B | 0 B |
 | 1 MiB | default | encode | warm | 54 | 37,184,741 B | 37,185,461 B | 0 B |
@@ -201,8 +203,9 @@ At these exact 1/4 MiB encode sizes, the cache-enabled radix route uses owned
 large tables and retains none; this does not negate retention at other sizes.
 
 Requests are `alloc_calls + realloc_calls`; zeroed allocation calls are already
-included in `alloc_calls`. Total requested bytes sum requested layouts; they
-are not peak live memory. Peak extra excludes caller buffers and memory retained
+included in `alloc_calls`. These historical allocation-byte sums exclude each
+reallocation's new layout; they are not total traffic or peak live memory.
+Peak extra excludes caller buffers and memory retained
 before that window. Newly retained is the live-heap increase during the window;
 zero for a warm call does not mean its earlier cache disappeared. Layout counts
 exclude allocator overhead, RSS, realloc-internal overlap and stack high water.
