@@ -23,6 +23,8 @@ zero limbs using `58^k = 2^k * 29^k`, reducing multiplication work.
 [Batched decoding](src/batched.rs) keeps its top limb separate so an exactly
 sized output buffer suffices. [Encoding](src/encode/batched.rs) stores temporary
 limbs inside the eventual output and uses reciprocal splitting by `58^10`.
+Each ten-character chunk is formatted as two five-character groups, reusing the
+two-character lookup table to avoid dividing by 58 for each digit.
 The public paths handle empty and tiny inputs before the general loops.
 
 [Divide-and-conquer decoding](src/dc.rs) combines `high * (58^10)^e + low`.
@@ -37,7 +39,9 @@ Eight-row, four-column panels share SIMD multiply-add kernels. Scheduled carry
 passes and compile-time bounds keep accumulations within `u64`.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
-local sums. Fixed dimensions remove table construction and dimension handling;
+local sums. Their table type keeps rows first and 16-byte aligned for NEON
+column loads, avoiding sensitivity to incidental constant placement.
+Fixed dimensions remove table construction and dimension handling;
 64-byte kernels also segment the carry chain. Auto and `no_alloc` select these
 specializations directly. The internal Matrix comparison hooks use the general
 matrix kernel. Their short carry schedule needs fixed-size bounds and cannot
