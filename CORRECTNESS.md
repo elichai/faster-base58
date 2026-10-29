@@ -55,6 +55,12 @@ passed.
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
 | Concurrency tests | Cold Matrix initialization, shared tables and eight-thread NTT cache/history reuse |
 
+The whole-limb formatter's `ten_digits_matches_division` test compares serial
+division at both domain ends, radix boundaries and 10,000 seeded values.
+The 2026-10-29 extracted-formatter check also tested all 656,356,768 five-digit
+halves with the other half zero, pair boundaries and one million complete limbs.
+That is bounded enumeration, not exhaustive coverage of the `58^10` domain.
+
 Property strategies cover arbitrary binary data, valid Base58 strings and valid
 UTF-8 containing malformed Base58. The API accepts `&str`, so raw invalid UTF-8
 cannot enter it. bs58 0.5.1 supplies an additional oracle, including first-invalid

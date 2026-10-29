@@ -28,6 +28,7 @@ use crate::encode::max_encoded_len;
 pub(crate) mod portable;
 
 /// The powers `2^(32k)`, `k < W`, in base 58^4, in `C` columns.
+#[repr(C, align(16))]
 pub(super) struct Table<const W: usize, const C: usize> {
     /// `rows[k][j]`: column `j` of `2^(32k)`, least significant first.
     pub(super) rows: [[u32; C]; W],
