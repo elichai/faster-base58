@@ -1,4 +1,4 @@
-//! x86_64 panel kernels: AVX2 or SSE4.1, picked at run time. Parsing stays portable.
+//! `x86_64` panel kernels: AVX2 or SSE4.1, picked at run time. Parsing stays portable.
 //! Same contract as `portable::panel`.
 
 use core::arch::x86_64::*;

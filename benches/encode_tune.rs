@@ -21,6 +21,7 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
 type Tuned = fn(&[u8], &mut [u8], usize, usize, Leaves) -> Result<usize, BufferTooSmall>;
+type Encoder = dyn Fn(&[u8], &mut [u8]) -> usize;
 
 const BACKENDS: [(&str, Tuned); 3] = [
     ("ntt-cached", encode_ntt_with),
@@ -35,9 +36,10 @@ const BLOCK_NS: u128 = 10_000_000;
 
 /// The comma-separated list in environment variable `var`, or `default`.
 fn list(var: &str, default: &[usize]) -> Vec<usize> {
-    std::env::var(var).map_or(default.to_vec(), |s| {
-        s.split(',').map(|v| v.parse().unwrap()).collect()
-    })
+    std::env::var(var).map_or_else(
+        |_| default.to_vec(),
+        |s| s.split(',').map(|v| v.parse().unwrap()).collect(),
+    )
 }
 
 fn main() {
@@ -59,7 +61,7 @@ fn main() {
         .iter()
         .filter(|(n, _)| names.is_empty() || names.iter().any(|a| a == n))
         .collect();
-    let mut configs: Vec<(String, Box<dyn Fn(&[u8], &mut [u8]) -> usize>)> = vec![(
+    let mut configs: Vec<(String, Box<Encoder>)> = vec![(
         "batched".into(),
         Box::new(|d, o| encode_batched(d, o).unwrap()),
     )];

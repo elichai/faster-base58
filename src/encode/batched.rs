@@ -14,6 +14,9 @@ const RECIP: u64 = ((1u128 << 120) / BASE as u128) as u64;
 /// Encodes `input` into `output` and returns the number of bytes written.
 ///
 /// Works in place in `output`: no allocation. Writes nothing past the result.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 pub fn encode_batched(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     match input {
         [] => return Ok(0),
@@ -41,7 +44,7 @@ pub(crate) fn encode_parts(
     x: &[u8],
     output: &mut [u8],
 ) -> Result<usize, BufferTooSmall> {
-    debug_assert!(x.first() != Some(&0));
+    debug_assert_ne!(x.first(), Some(&0));
     if x.is_empty() {
         output.get_mut(..zeros).ok_or(BufferTooSmall)?.fill(b'1');
         return Ok(zeros);
@@ -119,7 +122,7 @@ impl Limbs<'_> {
     /// `value = value * 2^(8 x.len()) + x` for big-endian `x`.
     pub fn feed(&mut self, x: &[u8]) {
         let (head, body) = x.as_rchunks::<STEP>();
-        let be = |c: &[u8]| c.iter().fold(0u64, |v, &b| v << 8 | b as u64);
+        let be = |c: &[u8]| c.iter().fold(0u64, |v, &b| (v << 8) | b as u64);
         if !head.is_empty() {
             self.step(be(head));
         }

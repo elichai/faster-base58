@@ -53,6 +53,7 @@ pub(crate) mod ifma {
 #[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
 mod ifma {
     /// The IFMA leaf threshold: this target has no native IFMA leaf.
+    #[must_use]
     pub fn ifma_threshold() -> usize {
         0
     }
@@ -66,6 +67,7 @@ pub use ifma::ifma_threshold;
 /// recurses on at most `n/2 + 3/2` limbs, which fits when `n >= 27`. Cutting blocks of
 /// `a <= n/2` limbs uses `2a`, then recurses on `a` limbs: `7a + 64 <= 5n + 64`. The IFMA
 /// leaf uses less than `3.9n + 62` (`mul_ifma::scratch_len`).
+#[must_use]
 pub const fn scratch_len(n: usize) -> usize {
     5 * n + 64
 }

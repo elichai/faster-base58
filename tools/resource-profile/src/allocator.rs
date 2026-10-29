@@ -64,12 +64,14 @@ fn count(index: usize, n: usize) {
 
 // No allocator callback locks, formats, allocates, or panics. Windows are entered only
 // by this single-threaded worker, and every allocation's live size is tracked always.
+// SAFETY: methods forward valid layouts and live allocations to System unchanged.
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if ACTIVE.load(Relaxed) {
             count(0, 1);
             count(1, layout.size());
         }
+        // SAFETY: the caller supplies the valid allocation layout required by GlobalAlloc.
         let p = unsafe { System.alloc(layout) };
         if p.is_null() {
             if ACTIVE.load(Relaxed) {
@@ -88,6 +90,7 @@ unsafe impl GlobalAlloc for Counting {
             count(2, 1);
             count(3, layout.size());
         }
+        // SAFETY: the caller supplies the valid allocation layout required by GlobalAlloc.
         let p = unsafe { System.alloc_zeroed(layout) };
         if p.is_null() {
             if ACTIVE.load(Relaxed) {
@@ -104,6 +107,7 @@ unsafe impl GlobalAlloc for Counting {
             count(7, 1);
             count(8, layout.size());
         }
+        // SAFETY: forward the caller's live System allocation and matching layout.
         unsafe { System.dealloc(p, layout) };
         sub_live(layout.size());
     }
@@ -114,6 +118,7 @@ unsafe impl GlobalAlloc for Counting {
             count(5, old.size());
             count(6, new_size);
         }
+        // SAFETY: forward the caller's live allocation, matching layout, and valid new size.
         let q = unsafe { System.realloc(p, old, new_size) };
         if q.is_null() {
             if ACTIVE.load(Relaxed) {
@@ -168,6 +173,7 @@ pub fn self_check() {
     let b = Layout::from_size_align(8, 8).unwrap();
     let before = begin();
     // Direct allocator calls keep the checks independent of Vec growth policy.
+    // SAFETY: layouts are nonzero; each live allocation is checked and freed with its current layout.
     unsafe {
         let p = Counting.alloc(a);
         let q = Counting.alloc_zeroed(b);
@@ -182,8 +188,10 @@ pub fn self_check() {
     assert_eq!(stats.peak - stats.live_before, 40);
     assert_eq!(stats.live_before, stats.live_after);
 
+    // SAFETY: a is a valid nonzero layout.
     let p = unsafe { Counting.alloc(a) };
     assert!(!p.is_null());
+    // SAFETY: p is the checked live allocation from Counting.alloc(a).
     let (_, stats) = measure(|| unsafe { Counting.dealloc(p, a) });
     assert_eq!(stats.live_before - stats.live_after, 16);
     assert_eq!(stats.counters[7..], [1, 16, 0]);

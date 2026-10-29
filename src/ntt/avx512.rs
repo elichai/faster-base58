@@ -21,11 +21,14 @@ pub(crate) fn kernels() -> Option<super::Kernels> {
     if !crate::cpu::avx512f() {
         return None;
     }
-    // SAFETY (each call): the CPU has AVX-512F.
     Some(super::Kernels {
+        // SAFETY: the AVX-512F check above succeeded.
         forward: |a, p, t| unsafe { z::forward(a, p, t) },
+        // SAFETY: the AVX-512F check above succeeded.
         inverse: |a, p, t| unsafe { z::inverse(a, p, t) },
+        // SAFETY: the AVX-512F check above succeeded.
         pointwise: |a, b, p| unsafe { z::pointwise(a, b, p) },
+        // SAFETY: the AVX-512F check above succeeded.
         square: |a, p| unsafe { z::square(a, p) },
         ..super::x86::kernels()?
     })
@@ -71,25 +74,30 @@ trait V16: Copy {
 impl<V: V16, const L: usize> V16 for [V; L] {
     #[inline(always)]
     unsafe fn splat(x: i32) -> Self {
+        // SAFETY: the caller permits V creation; every array element uses that same V.
         [unsafe { V::splat(x) }; L]
     }
     #[inline(always)]
     unsafe fn splat64(x: i64) -> Self {
+        // SAFETY: the caller permits V creation; every array element uses that same V.
         [unsafe { V::splat64(x) }; L]
     }
     /// The same lanes in each vector.
     #[inline(always)]
     unsafe fn from_array(x: [i32; 16]) -> Self {
+        // SAFETY: the caller permits V creation; every array element uses that same V.
         [unsafe { V::from_array(x) }; L]
     }
     /// `L` vectors one after the other.
     #[inline(always)]
     unsafe fn load(p: *const i32) -> Self {
+        // SAFETY: the caller provides 16 * L readable lanes and permits V creation.
         core::array::from_fn(|i| unsafe { V::load(p.add(16 * i)) })
     }
     #[inline(always)]
     unsafe fn store(self, p: *mut i32) {
         for (i, v) in self.into_iter().enumerate() {
+            // SAFETY: i < L, so this vector lies within the caller's 16 * L writable lanes.
             unsafe { v.store(p.add(16 * i)) }
         }
     }
@@ -158,6 +166,7 @@ impl<V: V16> Consts<V> {
     /// Safety: `V` values may be created.
     #[inline(always)]
     unsafe fn new(p: Prime) -> Self {
+        // SAFETY: the caller permits creation of V constants.
         unsafe {
             Consts {
                 q: V::splat(p.q),
@@ -278,7 +287,9 @@ impl<V: V16> Block<V> {
         // In layout `h` the second register's lane `i` holds a position that is `i` modulo
         // `h`.
         let at = |t: &[i32], h: usize| core::array::from_fn(|i| t[h + (i & (h - 1))]);
+        // SAFETY: the caller permits V creation; at reads through bounds-checked indexing.
         let tw = |h| unsafe { (V::from_array(at(w, h)), V::from_array(at(wq, h))) };
+        // SAFETY: the caller permits creation of V index vectors.
         let idx = idx.map(|[a, b]| unsafe { (V::from_array(a), V::from_array(b)) });
         Block {
             w: [16, 8, 4, 2].map(tw),
@@ -313,12 +324,14 @@ fn forward32<V: V16>(xy: (V, V), b: &Block<V>, c: &Consts<V>) -> (V, V) {
 /// Safety: `V` values may be created; 32 values at `p` are readable and writable.
 #[inline(always)]
 unsafe fn inverse32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
+    // SAFETY: the caller provides 32 readable lanes and permits V creation.
     let xy = unsafe { (V::load(p), V::load(p.add(16))) };
     let xy = last(regroup2(xy, b.idx[0]), c);
     let xy = dit::<V, true>(regroup2(xy, b.idx[1]), b.w[3], c);
     let xy = dit::<V, false>(regroup2(xy, b.idx[2]), b.w[2], c);
     let xy = dit::<V, true>(regroup2(xy, b.idx[3]), b.w[1], c);
     let (x, y) = dit::<V, false>(regroup2(xy, b.idx[4]), b.w[0], c);
+    // SAFETY: the caller provides 32 writable lanes; these two stores cover them exactly.
     unsafe {
         x.store(p);
         y.store(p.add(16));
@@ -343,10 +356,10 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     if n < 64 {
         return portable::forward(a, p, t);
     }
+    // SAFETY: the caller permits V creation, including pairs of V constants.
     let c = unsafe { Consts::<[V; 2]>::new(p) };
     let (pa, w, wq) = (a.as_mut_ptr(), t.fw.as_ptr(), t.fwq.as_ptr());
-    // SAFETY (loads and stores): `s + 2 h <= n`, `j + 16 <= h / 2`, or `j + 32 <= h`,
-    // and twiddle `i` below `2 h <= n`.
+    // SAFETY: callers use i + 16 <= 2 * h <= n, within both asserted twiddle lengths.
     let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
     let mut h = n / 2;
     while h >= 32 {
@@ -356,6 +369,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
             let g = h / 2;
             for s in (0..n).step_by(2 * h) {
                 for j in (0..g).step_by(16) {
+                    // SAFETY: s + 2*h <= n and j + 16 <= g; all four vectors fit in a.
                     unsafe {
                         let ps = [0, g, h, h + g].map(|o| pa.add(s + j + o));
                         let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
@@ -373,6 +387,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
         } else {
             for s in (0..n).step_by(2 * h) {
                 for j in (0..h).step_by(32) {
+                    // SAFETY: s + 2*h <= n and j + 32 <= h; both vector pairs fit in a.
                     unsafe {
                         let px = [pa.add(s + j), pa.add(s + j + 16)];
                         let (x, y) = (px.map(|p| V::load(p)), px.map(|p| V::load(p.add(h))));
@@ -387,6 +402,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
             h /= 2;
         }
     }
+    // SAFETY: the caller permits V creation; n >= 64 guarantees the 32-entry twiddles.
     let b = unsafe { Block::new(&t.fw, &t.fwq, &FORWARD) };
     for i in (0..n).step_by(64) {
         // SAFETY: `i + 64 <= n`: two blocks of 32.
@@ -415,8 +431,10 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
         return portable::inverse(a, p, t);
     }
     debug_assert!(portable::lazy(2, n) && !portable::lazy(4, n) && portable::lazy(8, n));
+    // SAFETY: the caller permits V creation.
     let c = unsafe { Consts::<V>::new(p) };
     let pa = a.as_mut_ptr();
+    // SAFETY: the caller permits V creation; n >= 32 guarantees the 32-entry twiddles.
     let b = unsafe { Block::new(&t.iw, &t.iwq, &INVERSE) };
     for i in (0..n).step_by(32) {
         // SAFETY: `i + 32 <= n`.
@@ -462,10 +480,11 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     c: &Consts<V>,
 ) {
     let (w, wq) = (t.iw.as_ptr(), t.iwq.as_ptr());
-    // SAFETY (loads and stores): `s + 4 h <= n`, `j + 16 <= h`, twiddle `i` below `4 h`.
+    // SAFETY: callers use i + 16 <= 4 * h, within the promised twiddle lengths.
     let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
     for s in (0..n).step_by(4 * h) {
         for j in (0..h).step_by(16) {
+            // SAFETY: s + 4*h <= n and j + 16 <= h; all four vectors fit in p.
             unsafe {
                 let ps = [0, h, 2 * h, 3 * h].map(|o| p.add(s + j + o));
                 let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
@@ -518,6 +537,7 @@ unsafe fn pointwise_v<V: V16>(a: &mut [i32], b: &[i32], p: Prime) {
         return portable::pointwise(a, b, p);
     }
     let (k, kq) = p.scale(n);
+    // SAFETY: the caller permits V creation.
     let (q, qinv, k, kq) = unsafe { (V::splat(p.q), V::splat(p.qinv), V::splat(k), V::splat(kq)) };
     for i in (0..n).step_by(16) {
         // SAFETY: `i + 16 <= n` for both slices.
@@ -539,6 +559,7 @@ unsafe fn square_v<V: V16>(a: &mut [i32], p: Prime) {
         return portable::square(a, p);
     }
     let (k, kq) = p.scale(n);
+    // SAFETY: the caller permits V creation.
     let (q, qinv, k, kq) = unsafe { (V::splat(p.q), V::splat(p.qinv), V::splat(k), V::splat(kq)) };
     for i in (0..n).step_by(16) {
         // SAFETY: `i + 16 <= n`.
@@ -560,92 +581,110 @@ mod z {
 
     #[target_feature(enable = "avx512f")]
     pub(super) unsafe fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
+        // SAFETY: this function requires AVX-512F, so Z values may be created.
         unsafe { super::forward_v::<Z>(a, p, t) }
     }
 
     #[target_feature(enable = "avx512f")]
     pub(super) unsafe fn inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
+        // SAFETY: this function requires AVX-512F, so Z values may be created.
         unsafe { super::inverse_v::<Z>(a, p, t) }
     }
 
     #[target_feature(enable = "avx512f")]
     pub(super) unsafe fn pointwise(a: &mut [i32], b: &[i32], p: Prime) {
+        // SAFETY: this function requires AVX-512F, so Z values may be created.
         unsafe { super::pointwise_v::<Z>(a, b, p) }
     }
 
     #[target_feature(enable = "avx512f")]
     pub(super) unsafe fn square(a: &mut [i32], p: Prime) {
+        // SAFETY: this function requires AVX-512F, so Z values may be created.
         unsafe { super::square_v::<Z>(a, p) }
     }
 
     #[derive(Clone, Copy)]
     struct Z(__m512i);
 
-    // SAFETY (each block): a `Z` exists, or the caller promises one may, so the CPU has
-    // AVX-512F; pointer contracts are the caller's.
     impl V16 for Z {
         #[inline(always)]
         unsafe fn splat(x: i32) -> Self {
+            // SAFETY: the caller guarantees AVX-512F support.
             Z(unsafe { _mm512_set1_epi32(x) })
         }
         #[inline(always)]
         unsafe fn splat64(x: i64) -> Self {
+            // SAFETY: the caller guarantees AVX-512F support.
             Z(unsafe { _mm512_set1_epi64(x) })
         }
         #[inline(always)]
         unsafe fn from_array(x: [i32; 16]) -> Self {
+            // SAFETY: both types contain 512 initialized bits; all bit patterns are valid.
             Z(unsafe { core::mem::transmute::<[i32; 16], __m512i>(x) })
         }
         #[inline(always)]
         unsafe fn load(p: *const i32) -> Self {
+            // SAFETY: the caller provides 16 readable lanes and AVX-512F support; unaligned load.
             Z(unsafe { _mm512_loadu_epi32(p) })
         }
         #[inline(always)]
         unsafe fn store(self, p: *mut i32) {
+            // SAFETY: Z proves CPU support; the caller provides 16 writable lanes; unaligned store.
             unsafe { _mm512_storeu_epi32(p, self.0) }
         }
         #[inline(always)]
         fn add(self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_add_epi32(self.0, b.0) })
         }
         #[inline(always)]
         fn sub(self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_sub_epi32(self.0, b.0) })
         }
         #[inline(always)]
         fn mullo(self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_mullo_epi32(self.0, b.0) })
         }
         #[inline(always)]
         fn mul_even(self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_mul_epi32(self.0, b.0) })
         }
         #[inline(always)]
         fn add64(self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_add_epi64(self.0, b.0) })
         }
         #[inline(always)]
         fn sub64(self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_sub_epi64(self.0, b.0) })
         }
         #[inline(always)]
         fn sra64<const N: u32>(self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_srai_epi64::<N>(self.0) })
         }
         #[inline(always)]
         fn odd(self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_srli_epi64::<32>(self.0) })
         }
         #[inline(always)]
         fn blend(self, odd: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_mask_blend_epi32(0xAAAA, self.0, odd.0) })
         }
         #[inline(always)]
         fn highs(self, odd: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_mask_shuffle_epi32::<_MM_PERM_DDBB>(odd.0, 0x5555, self.0) })
         }
         #[inline(always)]
         fn permute2(self, idx: Self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_permutex2var_epi32(self.0, idx.0, b.0) })
         }
     }
@@ -697,10 +736,12 @@ mod tests {
             Emu(x)
         }
         unsafe fn load(p: *const i32) -> Self {
+            // SAFETY: the caller provides 16 readable i32 lanes.
             Emu(core::array::from_fn(|i| unsafe { *p.add(i) }))
         }
         unsafe fn store(self, p: *mut i32) {
             for (i, &x) in self.0.iter().enumerate() {
+                // SAFETY: i < 16, within the caller's writable range.
                 unsafe { *p.add(i) = x }
             }
         }
@@ -768,6 +809,7 @@ mod tests {
         x.extend(samples(&mut rng, 1 << 30, 4000));
         let x = x.as_chunks::<16>().0;
         for p in PRIMES {
+            // SAFETY: Emu has no CPU requirements.
             let c = unsafe { Consts::<Emu>::new(p) };
             for (&a, &w) in x.iter().zip(x.iter().rev()) {
                 let (a, w) = (Emu(a), Emu(w));
@@ -836,18 +878,22 @@ mod tests {
                 let ends: Vec<i32> = (0..n).map(|i| if i % 3 == 0 { m } else { -m }).collect();
                 for x in [x, ends, vec![m; n], vec![-m; n]] {
                     let (mut a, mut b) = (x.clone(), x.clone());
+                    // SAFETY: matches_portable receives Emu or CPU-checked AVX-512F kernels.
                     unsafe { forward(&mut a, p, tw) };
                     portable::forward(&mut b, p, tw);
                     assert!(a == b, "forward, n {n}");
                     let (mut a, mut b) = (x.clone(), x.clone());
+                    // SAFETY: the selected kernel supports this CPU; tw serves n points.
                     unsafe { inverse(&mut a, p, tw) };
                     portable::inverse(&mut b, p, tw);
                     assert!(a == b, "inverse, n {n}");
                     let (mut a, mut b) = (x.clone(), x.clone());
+                    // SAFETY: the selected kernel supports this CPU; a and y have length n.
                     unsafe { pointwise(&mut a, &y, p) };
                     portable::pointwise(&mut b, &y, p);
                     assert!(a == b, "pointwise, n {n}");
                     let (mut a, mut b) = (x.clone(), x.clone());
+                    // SAFETY: the selected kernel supports this CPU; n is a valid transform length.
                     unsafe { square(&mut a, p) };
                     portable::square(&mut b, p);
                     assert!(a == b, "square, n {n}");

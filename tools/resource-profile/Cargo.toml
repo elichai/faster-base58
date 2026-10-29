@@ -23,3 +23,8 @@ malachite-nz = "=0.14.0"
 
 [profile.release]
 lto = "fat"
+
+[lints.clippy]
+allow_attributes_without_reason = "warn"
+assertions_on_result_states = "warn"
+undocumented_unsafe_blocks = "warn"

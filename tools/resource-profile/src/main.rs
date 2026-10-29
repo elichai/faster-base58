@@ -243,15 +243,16 @@ fn encode_fixture(data: &[u8], output: &mut [u8]) -> usize {
 }
 
 fn check_competitors() {
-    let mut backends: Vec<(&str, Encode, Decode)> = Vec::new();
-    #[cfg(feature = "bs58")]
-    backends.push(("bs58", competitors::encode_bs58, competitors::decode_bs58));
-    #[cfg(feature = "five8")]
-    backends.push((
-        "five8",
-        competitors::encode_five8,
-        competitors::decode_five8,
-    ));
+    let backends: Vec<(&str, Encode, Decode)> = vec![
+        #[cfg(feature = "bs58")]
+        ("bs58", competitors::encode_bs58, competitors::decode_bs58),
+        #[cfg(feature = "five8")]
+        (
+            "five8",
+            competitors::encode_five8,
+            competitors::decode_five8,
+        ),
+    ];
     for size in [0, 1, 31, 32, 33, 63, 64, 65, 513] {
         for data in [data(size), vec![0; size], vec![0xff; size]] {
             let encoded = fixture(&data);
@@ -265,22 +266,22 @@ fn check_competitors() {
                 assert_eq!(len, encoded.len(), "{name} encode length");
                 assert_eq!(&output[..len], encoded, "{name} encode bytes");
                 if len != 0 {
-                    assert!(encode(&data, &mut output[..len - 1]).is_err());
+                    encode(&data, &mut output[..len - 1]).unwrap_err();
                 }
                 let mut output = vec![0; size];
                 let len = decode(text, &mut output).unwrap();
                 assert_eq!(len, size, "{name} decode length");
                 assert_eq!(output, data, "{name} decode bytes");
                 if len != 0 {
-                    assert!(decode(text, &mut output[..len - 1]).is_err());
+                    decode(text, &mut output[..len - 1]).unwrap_err();
                 }
             }
         }
     }
     #[cfg(feature = "five8")]
     for size in [0, 1, 31, 33, 63, 65, 513] {
-        assert!(competitors::encode_five8(&data(size), &mut [0; 88]).is_err());
-        assert!(competitors::decode_five8("1", &mut vec![0; size]).is_err());
+        competitors::encode_five8(&data(size), &mut [0; 88]).unwrap_err();
+        competitors::decode_five8("1", &mut vec![0; size]).unwrap_err();
     }
 }
 
@@ -438,7 +439,7 @@ fn calibration_growth_is_bounded_and_cap_failure_is_explicit() {
     assert_eq!(more_iterations(1, 0), 16);
     assert_eq!(more_iterations(100, 1_000_000), 400);
     assert_eq!(more_iterations(MAX_ITERATIONS - 1, 1), MAX_ITERATIONS);
-    assert!(std::panic::catch_unwind(|| more_iterations(MAX_ITERATIONS, 1)).is_err());
+    std::panic::catch_unwind(|| more_iterations(MAX_ITERATIONS, 1)).unwrap_err();
 }
 
 fn timing_row(phase: &str, sample: usize, iterations: usize, wall: u128, cpu: u128) {

@@ -161,6 +161,7 @@ pub(super) use cached::get;
 
 /// Static header bytes and class rows, without initializing a table.
 #[cfg(feature = "__internals")]
+#[must_use]
 pub fn cache_memory() -> (usize, [crate::internals::MatrixCacheClass; CLASSES]) {
     #[cfg(feature = "cache")]
     {

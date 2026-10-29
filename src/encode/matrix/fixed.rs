@@ -9,7 +9,7 @@
 //!
 //! The carry pass is serial, unlike the general path's (`super::normalize`): for at most
 //! 22 columns, one scalar multiply per column on the chain beat `normalize`'s four off it.
-//! The x86_64 (AVX2, AVX-512 VBMI) and NEON paths for 64 bytes cut the chain into four
+//! The `x86_64` (AVX2, AVX-512 VBMI) and NEON paths for 64 bytes cut the chain into four
 //! segments (`carry_split`).
 
 use super::table::COL_BASE;

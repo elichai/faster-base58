@@ -40,6 +40,10 @@ impl Ntt {
 
 /// [`owned::decode_ntt`], or with `cached` [`cached::decode_ntt_cached`], with
 /// `threshold` and `prepared` in place of `THRESHOLD` and `PREPARED_THRESHOLD`.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 pub fn decode_ntt_with(
     input: &str,
     output: &mut [u8],
@@ -62,6 +66,10 @@ pub fn decode_ntt_with(
 /// On aarch64 LLVM vectorizes the portable kernels with NEON itself, so this measures
 /// hand-written against compiler-generated NEON, not SIMD against scalar code. The leaves
 /// are those of [`cached::decode_ntt_cached`].
+///
+/// # Errors
+/// Returns the same invalid-character and insufficient-buffer errors as
+/// [`cached::decode_ntt_cached`].
 pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     dc::decode_with_leaf(
         input,
@@ -73,6 +81,9 @@ pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Erro
 
 /// [`cached::encode_ntt_cached`] with divide and conquer above `threshold` bytes and
 /// leaves of at most `leaf` chunks, converted by `leaves`.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 pub fn encode_ntt_with(
     input: &[u8],
     output: &mut [u8],
@@ -86,6 +97,9 @@ pub fn encode_ntt_with(
 
 /// [`cached::encode_ntt_cached`] with the portable kernels, as [`decode_ntt_portable`] is for
 /// decoding: on aarch64 this compares hand-written with compiler-generated NEON.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 pub fn encode_ntt_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let m = &mut Ntt::new(Kernels::portable());
     let (threshold, leaf) = encode_params();

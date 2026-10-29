@@ -520,7 +520,7 @@ mod tests {
     /// `inverse_stage` checks its contract in every build, not only with debug assertions:
     /// here `a` is longer than the twiddles serve.
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "n <= t.iw.len()")]
     fn inverse_stage_checks_its_contract() {
         let t = Tables::new(3);
         // SAFETY: NEON is enabled for this build.

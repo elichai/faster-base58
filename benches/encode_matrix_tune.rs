@@ -177,9 +177,10 @@ fn cap() {
 
 /// `SIZES`, or `default`.
 fn sizes(default: &[usize]) -> Vec<usize> {
-    std::env::var("SIZES").map_or(default.to_vec(), |s| {
-        s.split(',').map(|v| v.parse().unwrap()).collect()
-    })
+    std::env::var("SIZES").map_or_else(
+        |_| default.to_vec(),
+        |s| s.split(',').map(|v| v.parse().unwrap()).collect(),
+    )
 }
 
 /// Asserts that each config's output is `encode_batched`'s. Also builds the tables.
@@ -245,7 +246,7 @@ fn cold_times(configs: &[&Config], data: &[u8], out: &mut [u8], evict: &mut [u8]
         for (i, (_, f, _)) in configs.iter().enumerate() {
             // A load and a store per 128-byte line: a large `fill` may use stores that
             // bypass the caches.
-            for line in evict.chunks_exact_mut(128) {
+            for line in evict.as_chunks_mut::<128>().0 {
                 line[0] = line[0].wrapping_add(round as u8 | 1);
             }
             black_box(&mut *evict);

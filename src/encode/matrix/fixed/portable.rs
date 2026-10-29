@@ -5,11 +5,17 @@ use super::{TABLE_32, TABLE_64, Table, chars, column, encode, words};
 use crate::BufferTooSmall;
 
 /// Fixed 32-byte encoding with plain-Rust kernels.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `out` cannot hold the encoded string.
 pub fn encode_32_portable(x: &[u8; 32], out: &mut [u8]) -> Result<usize, BufferTooSmall> {
     encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_32), digits))
 }
 
 /// Fixed 64-byte encoding with plain-Rust kernels.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `out` cannot hold the encoded string.
 pub fn encode_64_portable(x: &[u8; 64], out: &mut [u8]) -> Result<usize, BufferTooSmall> {
     encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_64), digits))
 }

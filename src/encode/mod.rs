@@ -25,6 +25,7 @@ use crate::common::{ALPHABET, BASE};
 const LOG58_2: u128 = 3148993499475808360;
 
 /// An upper bound on the encoded length of `len` bytes, saturating at `usize::MAX`.
+#[must_use]
 pub const fn max_encoded_len(len: usize) -> usize {
     // Leading zero bytes take one character each, fewer than any other byte, so `len`
     // bytes encode to at most the digits of 2^(8 len) - 1.

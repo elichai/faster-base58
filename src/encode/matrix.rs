@@ -86,11 +86,17 @@ pub(crate) mod internals {
 
     /// General matrix encoding, with batched and NTT fallbacks outside its useful range.
     /// Fixed 32/64-byte encoders belong to Auto and `no_alloc`, not this comparison hook.
+    ///
+    /// # Errors
+    /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
     pub fn encode_matrix(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
         encode_with(&BEST, input, output, MATRIX_MIN)
     }
 
     /// [`encode_matrix`] with plain-Rust kernels.
+    ///
+    /// # Errors
+    /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
     pub fn encode_matrix_portable(
         input: &[u8],
         output: &mut [u8],
@@ -100,6 +106,9 @@ pub(crate) mod internals {
 
     /// [`encode_matrix`] with [`crate::internals::encode_batched`] below
     /// `min` bytes and without the fixed-size path, for tuning.
+    ///
+    /// # Errors
+    /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
     pub fn encode_matrix_with(
         input: &[u8],
         output: &mut [u8],
@@ -136,6 +145,7 @@ pub(crate) mod internals {
         pub use super::super::table::cache_memory as encode_matrix_cache_memory;
 
         /// Type-layout bytes for the two fixed tables, not an emitted-binary size.
+        #[must_use]
         pub fn fixed_matrix_table_bytes() -> [usize; 2] {
             [
                 size_of::<fixed::Table<8, 12>>(),
@@ -148,6 +158,9 @@ pub(crate) mod internals {
 /// Matrix conversion with the fastest kernels, without its thresholds: the
 /// divide-and-conquer encoders' single-leaf case. Requires at most `MAX_BYTES` bytes after
 /// the leading zeros.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 #[inline(never)]
 #[cfg(any(test, feature = "__internals", kani))]
 pub fn encode_whole(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
@@ -164,7 +177,7 @@ fn encode_parts(
     output: &mut [u8],
 ) -> Result<usize, BufferTooSmall> {
     assert!(x.len() <= MAX_BYTES, "{} bytes for one matrix", x.len());
-    debug_assert!(x.first() != Some(&0));
+    debug_assert_ne!(x.first(), Some(&0));
     if zeros > output.len() || (!x.is_empty() && output.len() - zeros < min_digits(bits(x))) {
         return Err(BufferTooSmall);
     }
@@ -218,7 +231,7 @@ fn convert<'a>(k: &Kernels, x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
         *w = u32::from_be_bytes(*c);
     }
     if !head.is_empty() {
-        words[body.len()] = head.iter().fold(0, |v, &b| v << 8 | b as u32);
+        words[body.len()] = head.iter().fold(0, |v, &b| (v << 8) | b as u32);
     }
     let table = table::get(x.len());
     let cols = zeroed(&mut scratch.cols, table.cols(panels));
@@ -567,7 +580,7 @@ mod tests {
             for _ in 0..8 {
                 scope.spawn(|| {
                     for (d, w) in inputs.iter().zip(&want) {
-                        assert!(&encode_vec(encode_matrix, d) == w);
+                        assert_eq!(&encode_vec(encode_matrix, d), w);
                     }
                 });
             }

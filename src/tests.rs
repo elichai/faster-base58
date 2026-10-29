@@ -104,7 +104,7 @@ fn matches_bs58() {
             "{len} bytes"
         );
     }
-    assert!(check(&"z".repeat(44_761)).is_ok());
+    check(&"z".repeat(44_761)).unwrap();
 }
 
 /// The range checks of `all_valid` against the alphabet table, for every byte.
