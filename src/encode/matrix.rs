@@ -330,7 +330,7 @@ pub(super) fn four_digits(c: u64) -> [u8; 4] {
 }
 
 /// The two characters of each value below 58^2, most significant first.
-const CHAR_PAIRS: [[u8; 2]; 3364] = {
+pub(super) const CHAR_PAIRS: [[u8; 2]; 3364] = {
     let mut t = [[0; 2]; 3364];
     let mut i = 0;
     while i < t.len() {

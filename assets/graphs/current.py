@@ -1,15 +1,11 @@
-"""Validate the current public figures and table inputs using only the standard library.
-
-The committed SVGs are hash checked. This does not regenerate Matplotlib pixels.
-"""
+"""Documentation checks and public CSV/table helpers, using the standard library."""
 import csv
-import hashlib
-import json
 import math
+import re
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
 
-DATA = Path('docs/benchmarks/2026-10-27')
 SIZES = [0, 1, 8, 16, 21, 22, 23, 31, 32, 33, 63, 64, 65, 128, 256, 512, 1024,
          2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576,
          2097152, 4194304]
@@ -23,13 +19,58 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def read(path):
-    with path.open(newline='') as stream:
-        return list(csv.DictReader(stream))
+    with path.open(newline='', encoding='utf-8') as stream:
+        reader = csv.DictReader(stream)
+        require(reader.fieldnames and len(reader.fieldnames) == len(set(reader.fieldnames)),
+                f'Missing/duplicate CSV header: {path}')
+        rows = list(reader)
+        require(all(None not in row and all(value is not None for value in row.values()) for row in rows),
+                f'Malformed CSV row: {path}')
+        return rows
+
+
+def timing_cells(rows):
+    cells = {}
+    sources = {}
+    labels = {}
+    for row in rows:
+        try:
+            key = (row['platform'], row['cache'], row['backend'], row['operation'], int(row['decoded_bytes']))
+            require(key not in cells, f'Duplicate timing cell: {key}')
+            require(key[0] in {'m5', 'gcp', 'wasm'}, f'Unknown public timing platform: {key[0]}')
+            scope = 'ordinary public Wasm module; no __internals' if key[0] == 'wasm' else 'ordinary public consumer; no __internals'
+            role = {'auto': 'public', 'no-alloc': 'public', 'bs58': 'competitor',
+                    'five8': 'competitor', 'empty': 'scaffold'}.get(key[2])
+            require(role is not None and row['role'] == role and row['scope'] == scope,
+                    f'Wrong public timing scope: {key}')
+            source = row['source_fingerprint']
+            require(re.fullmatch(r'[0-9a-f]{64}', source), f'Invalid timing source fingerprint: {key}')
+            require(sources.setdefault(key[0], source) == source, f'Mixed timing sources: {key[0]}')
+            label = (row.get('measurement_date', ''), row.get('source_commit', ''))
+            require(labels.setdefault(key[0], label) == label, f'Mixed timing source labels: {key[0]}')
+            if row['status'] == 'measured':
+                values = [float(row[name]) for name in ['process_min_ns', 'warm_ns', 'process_max_ns']]
+                require(all(math.isfinite(value) and value > 0 for value in values) and values == sorted(values),
+                        f'Invalid timing range: {key}')
+                require(row['primary_clock'] == ('elapsed' if key[0] == 'wasm' else 'process CPU'),
+                        f'Wrong timing clock: {key}')
+                require(int(row['fresh_processes']) > 0 and int(row['warm_batches_per_process']) > 0,
+                        f'Invalid timing sample counts: {key}')
+            else:
+                require(row['status'] == 'skipped' and row['reason'].strip(), f'Unexplained timing skip: {key}')
+                require(all(not row[name] for name in ['warm_ns', 'process_min_ns', 'process_max_ns', 'primary_clock']),
+                        f'Skipped timing cell contains measurements: {key}')
+            cells[key] = row
+        except (KeyError, TypeError) as error:
+            raise ValueError(f'Missing timing field: {error}') from error
+    platforms = ['m5', 'wasm'] + (['gcp'] if 'gcp' in sources else [])
+    expected = {(platform, cache, backend, operation, size)
+                for platform in platforms for cache in ['default', 'cache']
+                for backend in ['empty', 'auto', 'no-alloc', 'bs58', 'five8']
+                for operation in ['encode', 'decode'] for size in SIZES}
+    require(set(cells) == expected, 'Missing/unexpected timing cells; provide the full grid with explicit explained skips')
+    return cells
 
 
 def duration(value):
@@ -44,75 +85,88 @@ def payload(value):
 
 
 def tables(public_rows, size_rows):
-    measured = [row for row in public_rows if row['status'] == 'measured']
-    cells = {(row['platform'], row['cache'], row['backend'], row['operation'], int(row['decoded_bytes'])): row
-             for row in measured}
+    cells = {key: row for key, row in timing_cells(public_rows).items() if row['status'] == 'measured'}
     result = []
-    for platform, title in [('m5', 'Apple M5 Pro'), ('wasm', 'WebAssembly on Apple M5 Pro (Node/V8)')]:
+    platforms = [('m5', 'Apple M5 Pro')]
+    if any(row['platform'] == 'gcp' for row in public_rows):
+        platforms.append(('gcp', 'AMD EPYC 9B45 (generic x86-64)'))
+    platforms.append(('wasm', 'WebAssembly on Apple M5 Pro (Node/V8)'))
+    for platform, title in platforms:
         result += [f'### {title}', '', '| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |',
                    '|---|---:|---:|---:|---:|---:|']
         for size in [32, 64, 512, 4096, 65536, 1048576, 4194304]:
             values = [[float(cells[platform, cache, backend, operation, size]['warm_ns'])
                        if (platform, cache, backend, operation, size) in cells else None
                        for operation in ['encode', 'decode']] for backend, cache, _ in SERIES]
-            minima = [min(pair[index] for pair in values if pair[index] is not None) for index in [0, 1]]
-            formatted = [' / '.join('**' + duration(value) + '**' if value == minima[index] else duration(value)
+            minima = [min((pair[index] for pair in values if pair[index] is not None), default=None) for index in [0, 1]]
+            formatted = [' / '.join('**' + duration(value) + '**' if value is not None and value == minima[index] else duration(value)
                                    for index, value in enumerate(pair)) for pair in values]
             result.append('| ' + payload(size) + ' | ' + ' | '.join(formatted) + ' |')
         result += ['', 'Each cell is **encode / decode**. Bold marks the lowest observed median, not statistical significance.', '']
-    result += ['### Linked budgets above the empty probe', '', '| Consumer | M5 code / readonly | Wasm code / data section |',
-               '|---|---:|---:|']
+    headers = ['M5 code / readonly']
+    if len(platforms) == 3:
+        headers.append('x86-64 code / readonly')
+    headers.append('Wasm code / data section')
+    result += ['### Linked budgets above the empty probe', '', '| Consumer | ' + ' | '.join(headers) + ' |',
+               '|---|' + '---:|' * len(headers)]
     for backend, cache, label in SERIES[:4]:
         values = []
-        for platform in ['m5', 'wasm']:
-            row = next(row for row in size_rows if (row['platform'], row['cache'], row['backend'], row['direction']) == (platform, cache, backend, 'both'))
-            metrics = ['delta_empty_code_bytes', 'delta_empty_readonly_bytes'] if platform == 'm5' else ['delta_empty_wasm_code_section_bytes', 'delta_empty_wasm_data_section_bytes']
+        for platform, _ in platforms:
+            matches = [row for row in size_rows if (row['platform'], row['cache'], row['backend'], row['direction']) == (platform, cache, backend, 'both')]
+            require(len(matches) == 1, f'Missing/duplicate linked-size cell: {platform}/{cache}/{backend}')
+            row = matches[0]
+            metrics = ['delta_empty_wasm_code_section_bytes', 'delta_empty_wasm_data_section_bytes'] if platform == 'wasm' else ['delta_empty_code_bytes', 'delta_empty_readonly_bytes']
             values.append(' / '.join(f'{int(row[key]) / 1024:.1f} KiB' for key in metrics))
         result.append('| ' + label + ' | ' + ' | '.join(values) + ' |')
-    result += ['', 'Both API directions, opt3/fat LTO. These linked probe deltas include associated code and metadata; they are not standalone rlib sizes.',
-               'Cache adds 6,280 native writable static header bytes plus history-dependent heap tables. Heap and RSS are reported separately.', '']
+    result += ['', 'Each timing cell is measured or explicitly skipped in the supplied CSV. Linked probe deltas include associated code and metadata; they are not standalone rlib sizes.', '']
     return '\n'.join(result)
 
 
 def check(root):
-    root = Path(root)
-    manifest = json.loads((root / DATA / 'public-graphs.json').read_text())
-    require(manifest['schema'] == 1, 'Unknown public graph manifest schema')
-    for group in ['inputs', 'outputs']:
-        for name, expected in manifest[group].items():
-            path = root / name
-            require(path.is_file() and digest(path) == expected, 'Current graph hash mismatch: ' + name)
-    rows = read(root / DATA / 'public.csv')
-    keys = [(row['platform'], row['cache'], row['backend'], row['operation'], int(row['decoded_bytes'])) for row in rows]
-    expected_keys = {(platform, cache, backend, operation, size)
-                     for platform in ['m5', 'wasm'] for cache in ['default', 'cache']
-                     for backend in ['empty', 'auto', 'no-alloc', 'bs58', 'five8']
-                     for operation in ['encode', 'decode'] for size in SIZES}
-    require(len(keys) == len(set(keys)) and set(keys) == expected_keys, 'Missing/duplicate public graph data cells')
-    for row in rows:
-        require(row['source_fingerprint'] == manifest['source_fingerprints'][row['platform']], 'Public source epoch mismatch')
-        expected_scope = 'ordinary public consumer; no __internals' if row['platform'] == 'm5' else 'ordinary public Wasm module; no __internals'
-        require(row['scope'] == expected_scope, 'Public consumer scope mismatch')
-        if row['status'] == 'measured':
-            require(row['primary_clock'] == ('process CPU' if row['platform'] == 'm5' else 'elapsed'), 'Public clock mismatch')
-            values = [float(row[name]) for name in ['process_min_ns', 'warm_ns', 'process_max_ns']]
-            require(all(math.isfinite(value) and value > 0 for value in values) and values == sorted(values), 'Invalid public process range')
-            require(row['fresh_processes'] == row['warm_batches_per_process'] == '3', 'Public sampling mismatch')
-        else:
-            require(row['status'] == 'skipped' and row['reason'], 'Unexplained public data skip')
-            require(not row['warm_ns'] and not row['primary_clock'], 'Skipped public cell contains measurements')
-    generated = tables(rows, read(root / DATA / 'figure-linked-sizes.csv'))
-    require((root / DATA / 'public-tables.md').read_text() == generated, 'Current table output differs from numeric inputs')
-    guide = (root / 'README.md').read_text()
-    blocks = ['\n'.join(block.splitlines()[2:]) for block in generated.split('### ')[1:]]
-    # Bind table values/formatting but leave prose and section names to the README editor.
-    for block in blocks:
-        table = '\n'.join(line for line in block.splitlines() if line.startswith('|'))
-        require(table and table in guide, 'README current table differs from public numeric inputs')
+    root = Path(root).resolve()
+    # Explicit scope excludes unrelated untracked reviews and working notes.
+    names = ['README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md',
+             'docs/README.md', 'docs/performance.md']
+    documents = {}
+    for name in names:
+        path = root / name
+        require(path.is_file(), f'Missing maintained document: {name}')
+        text = path.read_text(encoding='utf-8')
+        # Fenced examples do not create links in the rendered document.
+        text = re.sub(r'^(```|~~~).*?^\1[^\n]*$', '', text, flags=re.M | re.S)
+        # shortcut: repository link forms only; use a Markdown parser for nested destinations.
+        targets = re.findall(r'!?\[[^\]\n]*\]\(\s*(<[^>]*>|[^\s)]+)', text)
+        targets += re.findall(r'^\s*\[[^\]]+\]:\s*(<[^>]*>|\S+)', text, re.M)
+        targets += re.findall(r'(?:href|src)=["\']([^"\']+)["\']', text)
+        local = set()
+        for target in targets:
+            url = urlsplit(target.strip('<>'))
+            if url.scheme or url.netloc or not url.path:
+                continue
+            linked = (path.parent / unquote(url.path)).resolve()
+            require(linked.is_relative_to(root) and linked.exists(),
+                    f'{name}: missing local link: {unquote(url.path)}')
+            local.add(linked)
+        documents[name] = (text, local)
+    guide = documents['README.md'][0]
     for name in ['m5-public.svg', 'wasm-public.svg']:
-        require('assets/graphs/' + name in guide, 'README is missing current public figure: ' + name)
-        svg = ET.fromstring((root / 'assets/graphs' / name).read_bytes())
-        require(svg.tag == '{http://www.w3.org/2000/svg}svg', 'Current public figure is not SVG')
-        require(not svg.findall('.//{http://www.w3.org/2000/svg}script'), 'Unexpected executable SVG content')
-    return dict(public_cells=len(rows), public_figures=2, current_readme_tables=3,
-                validation='input/output hashes, source/scopes, numeric table regeneration, SVG parsing; not pixel regeneration')
+        require(re.search(r'!\[[^\]]*\]\(assets/graphs/' + re.escape(name) + r'\)', guide),
+                f'README is missing selected figure: {name}')
+    require(any(re.search(r'!\[[^\]]*\]\(assets/graphs/' + re.escape(name) + r'\)', guide)
+                for name in ['gcp-public.svg', 'gcp-generic-backends.svg']),
+            'README is missing the selected x86-64 figure')
+    native = root / 'assets/graphs/gcp-native-backends.svg'
+    if native.exists():
+        require(native in documents['docs/performance.md'][1], 'Missing native figure in performance documentation')
+    require(all(native not in links for name, (_, links) in documents.items() if name != 'docs/performance.md'),
+            'The native figure belongs only in performance documentation')
+    figures = list((root / 'assets/graphs').glob('*.svg'))
+    for path in figures:
+        try:
+            svg = ET.fromstring(path.read_bytes())
+        except ET.ParseError as error:
+            raise ValueError(f'Invalid SVG: {path.name}: {error}') from error
+        require(svg.tag == '{http://www.w3.org/2000/svg}svg', f'Invalid SVG root: {path.name}')
+        require(not svg.findall('.//{http://www.w3.org/2000/svg}script'), f'Executable SVG: {path.name}')
+    return dict(status='pass', documents=len(documents), svg_figures=len(figures),
+                validation='local documentation links, selected figure references and SVG syntax; no measurement, numeric-table or pixel verification')
