@@ -157,6 +157,7 @@ fn each<V: Copy, const L: usize>(a: [V; L], b: [V; L], f: impl Fn(V, V) -> V) ->
 #[derive(Clone, Copy)]
 struct Consts<V> {
     q: V,
+    qinv: V,
     v: V,
     /// `2^(30 + S)`, which rounds [`reduce`]'s quotient.
     round: V,
@@ -170,6 +171,7 @@ impl<V: V16> Consts<V> {
         unsafe {
             Consts {
                 q: V::splat(p.q),
+                qinv: V::splat(p.qinv),
                 v: V::splat(p.v),
                 round: V::splat64(1 << (30 + S)),
             }
@@ -280,15 +282,18 @@ struct Block<V> {
 }
 
 impl<V: V16> Block<V> {
-    /// From the twiddles `w`, `wq` (forward or inverse) of a transform of at least 32
+    /// From the twiddles `w` (forward or inverse) of a transform of at least 32
     /// points. Safety: `V` values may be created.
     #[inline(always)]
-    unsafe fn new(w: &[i32], wq: &[i32], idx: &[[[i32; 16]; 2]; 5]) -> Self {
+    unsafe fn new(w: &[i32], qinv: V, idx: &[[[i32; 16]; 2]; 5]) -> Self {
         // In layout `h` the second register's lane `i` holds a position that is `i` modulo
         // `h`.
         let at = |t: &[i32], h: usize| core::array::from_fn(|i| t[h + (i & (h - 1))]);
-        // SAFETY: the caller permits V creation; at reads through bounds-checked indexing.
-        let tw = |h| unsafe { (V::from_array(at(w, h)), V::from_array(at(wq, h))) };
+        let tw = |h| {
+            // SAFETY: the caller permits V creation; at uses bounds-checked indexing.
+            let w = unsafe { V::from_array(at(w, h)) };
+            (w, w.mullo(qinv))
+        };
         // SAFETY: the caller permits creation of V index vectors.
         let idx = idx.map(|[a, b]| unsafe { (V::from_array(a), V::from_array(b)) });
         Block {
@@ -352,15 +357,18 @@ fn both<V: V16>((a, aq): (V, V), (b, bq): (V, V)) -> ([V; 2], [V; 2]) {
 #[inline(always)]
 unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     let n = a.len();
-    assert!(n.is_power_of_two() && n <= t.fw.len() && n <= t.fwq.len());
+    assert!(n.is_power_of_two() && n <= t.fw.len());
     if n < 64 {
         return portable::forward(a, p, t);
     }
     // SAFETY: the caller permits V creation, including pairs of V constants.
     let c = unsafe { Consts::<[V; 2]>::new(p) };
-    let (pa, w, wq) = (a.as_mut_ptr(), t.fw.as_ptr(), t.fwq.as_ptr());
-    // SAFETY: callers use i + 16 <= 2 * h <= n, within both asserted twiddle lengths.
-    let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
+    let (pa, w) = (a.as_mut_ptr(), t.fw.as_ptr());
+    let tw = |i: usize| {
+        // SAFETY: callers use i + 16 <= 2 * h <= n, within the asserted twiddle length.
+        let w = unsafe { V::load(w.add(i)) };
+        (w, w.mullo(c.qinv[0]))
+    };
     let mut h = n / 2;
     while h >= 32 {
         if h >= 64 {
@@ -403,7 +411,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
         }
     }
     // SAFETY: the caller permits V creation; n >= 64 guarantees the 32-entry twiddles.
-    let b = unsafe { Block::new(&t.fw, &t.fwq, &FORWARD) };
+    let b = unsafe { Block::new(&t.fw, c.qinv, &FORWARD) };
     for i in (0..n).step_by(64) {
         // SAFETY: `i + 64 <= n`: two blocks of 32.
         unsafe {
@@ -426,7 +434,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
 #[inline(always)]
 unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     let n = a.len();
-    assert!(n.is_power_of_two() && n <= t.iw.len() && n <= t.iwq.len());
+    assert!(n.is_power_of_two() && n <= t.iw.len());
     if n < 32 {
         return portable::inverse(a, p, t);
     }
@@ -435,7 +443,7 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     let c = unsafe { Consts::<V>::new(p) };
     let pa = a.as_mut_ptr();
     // SAFETY: the caller permits V creation; n >= 32 guarantees the 32-entry twiddles.
-    let b = unsafe { Block::new(&t.iw, &t.iwq, &INVERSE) };
+    let b = unsafe { Block::new(&t.iw, c.qinv, &INVERSE) };
     for i in (0..n).step_by(32) {
         // SAFETY: `i + 32 <= n`.
         unsafe { inverse32(pa.add(i), &b, &c) }
@@ -470,7 +478,7 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
 /// reductions.
 ///
 /// Safety: `V` values may be created; `p` has `n` values, `n` is a multiple of `4 h`,
-/// `h` of 16, and `t.iw`, `t.iwq` have at least `4 h`.
+/// `h` of 16, and `t.iw` has at least `4 h`.
 #[inline(always)]
 unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     p: *mut i32,
@@ -479,9 +487,12 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     t: &Twiddles,
     c: &Consts<V>,
 ) {
-    let (w, wq) = (t.iw.as_ptr(), t.iwq.as_ptr());
-    // SAFETY: callers use i + 16 <= 4 * h, within the promised twiddle lengths.
-    let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
+    let w = t.iw.as_ptr();
+    let tw = |i: usize| {
+        // SAFETY: callers use i + 16 <= 4 * h, within the promised twiddle length.
+        let w = unsafe { V::load(w.add(i)) };
+        (w, w.mullo(c.qinv))
+    };
     for s in (0..n).step_by(4 * h) {
         for j in (0..h).step_by(16) {
             // SAFETY: s + 4*h <= n and j + 16 <= h; all four vectors fit in p.
@@ -511,13 +522,14 @@ unsafe fn inverse2<V: V16, const LAZY: bool>(
     t: &Twiddles,
     c: &Consts<V>,
 ) {
-    let (w, wq) = (t.iw.as_ptr(), t.iwq.as_ptr());
+    let w = t.iw.as_ptr();
     for s in (0..n).step_by(2 * h) {
         for j in (0..h).step_by(16) {
             // SAFETY: `s + 2 h <= n`, `j + 16 <= h`, twiddle `h + j + 16 <= 2 h`.
             unsafe {
                 let (px, py) = (p.add(s + j), p.add(s + j + h));
-                let tw = (V::load(w.add(h + j)), V::load(wq.add(h + j)));
+                let w = V::load(w.add(h + j));
+                let tw = (w, w.mullo(c.qinv));
                 let (x, y) = dit::<V, LAZY>((V::load(px), V::load(py)), tw, c);
                 x.store(px);
                 y.store(py);
@@ -813,7 +825,8 @@ mod tests {
             let c = unsafe { Consts::<Emu>::new(p) };
             for (&a, &w) in x.iter().zip(x.iter().rev()) {
                 let (a, w) = (Emu(a), Emu(w));
-                let wq = Emu(w.0.map(|w| p.wq(w)));
+                let wq = w.mullo(c.qinv);
+                assert_eq!(wq.0, w.0.map(|w| p.wq(w)));
                 assert_eq!(
                     reduce(a, &c).0,
                     a.0.map(|a| p.reduce(a)),

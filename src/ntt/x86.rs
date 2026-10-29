@@ -35,16 +35,16 @@ pub(super) fn kernels() -> Option<super::Kernels> {
                 garner(r)
             }
             #[target_feature(enable = $feature)]
-            fn tf_load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq: &[i32]) {
-                load_twist(dst, limbs, p, w, wq)
+            fn tf_load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]) {
+                load_twist(dst, limbs, p, w)
             }
             #[target_feature(enable = $feature)]
             fn tf_load_add(dst: &mut [i32], limbs: &[u64], p: Prime, sub: bool) {
                 load_add(dst, limbs, p, sub)
             }
             #[target_feature(enable = $feature)]
-            fn tf_twist(a: &mut [i32], w: &[i32], wq: &[i32], p: Prime) {
-                twist(a, w, wq, p)
+            fn tf_twist(a: &mut [i32], w: &[i32], p: Prime) {
+                twist(a, w, p)
             }
             #[target_feature(enable = $feature)]
             fn tf_fold_sub(dst: &mut [i32], src: &[i32], start: usize, neg: bool, p: Prime) {
@@ -55,8 +55,8 @@ pub(super) fn kernels() -> Option<super::Kernels> {
                 halves(lo, hi, p)
             }
             #[target_feature(enable = $feature)]
-            fn tf_pair(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
-                pair(r, m, iw, iwq, p)
+            fn tf_pair(r: &mut [i32], m: usize, iw: &[i32], p: Prime) {
+                pair(r, m, iw, p)
             }
             super::Kernels {
                 // SAFETY: built only after detecting $feature.
@@ -72,17 +72,17 @@ pub(super) fn kernels() -> Option<super::Kernels> {
                 // SAFETY: built only after detecting $feature.
                 garner: |r| unsafe { tf_garner(r) },
                 // SAFETY: built only after detecting $feature.
-                load_twist: |d, l, p, w, wq| unsafe { tf_load_twist(d, l, p, w, wq) },
+                load_twist: |d, l, p, w| unsafe { tf_load_twist(d, l, p, w) },
                 // SAFETY: built only after detecting $feature.
                 load_add: |d, l, p, sub| unsafe { tf_load_add(d, l, p, sub) },
                 // SAFETY: built only after detecting $feature.
-                twist: |a, w, wq, p| unsafe { tf_twist(a, w, wq, p) },
+                twist: |a, w, p| unsafe { tf_twist(a, w, p) },
                 // SAFETY: built only after detecting $feature.
                 fold_sub: |d, s, at, neg, p| unsafe { tf_fold_sub(d, s, at, neg, p) },
                 // SAFETY: built only after detecting $feature.
                 halves: |lo, hi, p| unsafe { tf_halves(lo, hi, p) },
                 // SAFETY: built only after detecting $feature.
-                pair: |r, m, w, wq, p| unsafe { tf_pair(r, m, w, wq, p) },
+                pair: |r, m, w, p| unsafe { tf_pair(r, m, w, p) },
             }
         }};
     }

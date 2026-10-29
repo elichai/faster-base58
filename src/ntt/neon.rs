@@ -103,9 +103,9 @@ pub(super) fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
     unsafe { garner_two_neon(r1, r2) }
 }
 
-pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq: &[i32]) {
+pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]) {
     // SAFETY: NEON is enabled for this build.
-    unsafe { load_twist_neon(dst, limbs, p, w, wq) }
+    unsafe { load_twist_neon(dst, limbs, p, w) }
 }
 
 pub(crate) fn load_add(dst: &mut [i32], limbs: &[u64], p: Prime, sub: bool) {
@@ -113,9 +113,9 @@ pub(crate) fn load_add(dst: &mut [i32], limbs: &[u64], p: Prime, sub: bool) {
     unsafe { load_add_neon(dst, limbs, p, sub) }
 }
 
-pub(crate) fn twist(a: &mut [i32], w: &[i32], wq: &[i32], p: Prime) {
+pub(crate) fn twist(a: &mut [i32], w: &[i32], p: Prime) {
     // SAFETY: NEON is enabled for this build.
-    unsafe { twist_neon(a, w, wq, p) }
+    unsafe { twist_neon(a, w, p) }
 }
 
 pub(crate) fn fold_sub(dst: &mut [i32], src: &[i32], start: usize, neg: bool, p: Prime) {
@@ -128,9 +128,9 @@ pub(crate) fn halves(lo: &mut [i32], hi: &mut [i32], p: Prime) {
     unsafe { halves_neon(lo, hi, p) }
 }
 
-pub(crate) fn pair(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
+pub(crate) fn pair(r: &mut [i32], m: usize, iw: &[i32], p: Prime) {
     // SAFETY: NEON is enabled for this build.
-    unsafe { pair_neon(r, m, iw, iwq, p) }
+    unsafe { pair_neon(r, m, iw, p) }
 }
 
 #[target_feature(enable = "neon")]
@@ -161,18 +161,19 @@ fn load_neon(dst: &mut [i32], limbs: &[u64], p: Prime) {
 fn forward_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
     let n = a.len();
     assert!(n.is_power_of_two() && n >= 8 && n <= t.fw.len());
-    let (qv, vv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v));
+    let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
     let ptr = a.as_mut_ptr();
     let mut h = n / 2;
     while h >= 4 {
-        let (w, wq) = (t.fw[h..2 * h].as_ptr(), t.fwq[h..2 * h].as_ptr());
+        let w = t.fw[h..2 * h].as_ptr();
         for s in (0..n).step_by(2 * h) {
             for j in (0..h).step_by(4) {
                 // SAFETY: `s + j + h + 4 <= n`, and `j + 4 <= h` twiddles.
                 unsafe {
                     let (px, py) = (ptr.add(s + j), ptr.add(s + j + h));
                     let (x, y) = (vld1q_s32(px), vld1q_s32(py));
-                    let (w, wq) = (vld1q_s32(w.add(j)), vld1q_s32(wq.add(j)));
+                    let w = vld1q_s32(w.add(j));
+                    let wq = vmulq_s32(w, qinv);
                     vst1q_s32(px, reduce(vaddq_s32(x, y), qv, vv));
                     vst1q_s32(py, mont(vsubq_s32(x, y), w, wq, qv));
                 }
@@ -180,7 +181,8 @@ fn forward_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
         }
         h /= 2;
     }
-    let (w2, w2q) = (h2(&t.fw), h2(&t.fwq));
+    let w2 = h2(&t.fw);
+    let w2q = vmulq_s32(w2, qinv);
     for i in (0..n).step_by(8) {
         // SAFETY: `i + 8 <= n`.
         unsafe {
@@ -208,9 +210,10 @@ fn forward_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
 fn inverse_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
     let n = a.len();
     assert!(n.is_power_of_two() && n >= 8 && n <= t.iw.len());
-    let (qv, vv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v));
+    let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
     let ptr = a.as_mut_ptr();
-    let (w2, w2q) = (h2(&t.iw), h2(&t.iwq));
+    let w2 = h2(&t.iw);
+    let w2q = vmulq_s32(w2, qinv);
     for i in (0..n).step_by(8) {
         // SAFETY: `i + 8 <= n`.
         unsafe {
@@ -249,16 +252,17 @@ fn inverse_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
 fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, t: &Twiddles) {
     let n = a.len();
     assert!(h >= 4 && h.is_multiple_of(4) && n.is_multiple_of(2 * h) && n <= t.iw.len());
-    let (qv, vv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v));
+    let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
     let ptr = a.as_mut_ptr();
-    let (w, wq) = (t.iw[h..2 * h].as_ptr(), t.iwq[h..2 * h].as_ptr());
+    let w = t.iw[h..2 * h].as_ptr();
     for s in (0..n).step_by(2 * h) {
         for j in (0..h).step_by(4) {
             // SAFETY: `n` is a multiple of `2 h` and `h` of 4, so `s + 2 h <= n` and
             // `j + 4 <= h`: `s + j + h + 4 <= n`, and `j + 4 <= h` twiddles.
             unsafe {
                 let (px, py) = (ptr.add(s + j), ptr.add(s + j + h));
-                let (w, wq) = (vld1q_s32(w.add(j)), vld1q_s32(wq.add(j)));
+                let w = vld1q_s32(w.add(j));
+                let wq = vmulq_s32(w, qinv);
                 let x = vld1q_s32(px);
                 let y = mont(vld1q_s32(py), w, wq, qv);
                 let (sum, dif) = (vaddq_s32(x, y), vsubq_s32(x, y));
@@ -372,28 +376,23 @@ unsafe fn lift4(src: *const u32, i: usize, r32: int32x4_t) -> int32x4_t {
 }
 
 #[target_feature(enable = "neon")]
-fn load_twist_neon(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq: &[i32]) {
+fn load_twist_neon(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]) {
     let m = 2 * limbs.len();
-    assert!(dst.len() >= m && w.len() >= m && wq.len() >= m);
+    assert!(dst.len() >= m && w.len() >= m);
     let full = m / 4 * 4;
-    let (qv, r32) = (vdupq_n_s32(p.q), vdupq_n_s32(p.r32));
+    let (qv, r32, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.r32), vdupq_n_s32(p.qinv));
     let src = limbs.as_ptr().cast::<u32>();
     for i in (0..full).step_by(4) {
-        // SAFETY: `i + 4 <= full <= m`, within the halves of `limbs`, `dst`, `w`, `wq`.
+        // SAFETY: `i + 4 <= full <= m`, within the halves of `limbs`, `dst`, `w`.
         unsafe {
-            let (w, wq) = (vld1q_s32(w.as_ptr().add(i)), vld1q_s32(wq.as_ptr().add(i)));
+            let w = vld1q_s32(w.as_ptr().add(i));
+            let wq = vmulq_s32(w, qinv);
             vst1q_s32(dst.as_mut_ptr().add(i), mont(lift4(src, i, r32), w, wq, qv));
         }
     }
     if full < m {
         let mut tail = [0; 2];
-        portable::load_twist(
-            &mut tail,
-            &limbs[limbs.len() - 1..],
-            p,
-            &w[full..],
-            &wq[full..],
-        );
+        portable::load_twist(&mut tail, &limbs[limbs.len() - 1..], p, &w[full..]);
         dst[full..m].copy_from_slice(&tail);
     }
     dst[m..].fill(0);
@@ -422,14 +421,15 @@ fn load_add_neon(dst: &mut [i32], limbs: &[u64], p: Prime, sub: bool) {
 }
 
 #[target_feature(enable = "neon")]
-fn twist_neon(a: &mut [i32], w: &[i32], wq: &[i32], p: Prime) {
+fn twist_neon(a: &mut [i32], w: &[i32], p: Prime) {
     let n = a.len();
-    assert!(n.is_multiple_of(4) && w.len() >= n && wq.len() >= n);
-    let qv = vdupq_n_s32(p.q);
+    assert!(n.is_multiple_of(4) && w.len() >= n);
+    let (qv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.qinv));
     for i in (0..n).step_by(4) {
-        // SAFETY: `i + 4 <= n`, within `a`, `w` and `wq`.
+        // SAFETY: `i + 4 <= n`, within `a` and `w`.
         unsafe {
-            let (w, wq) = (vld1q_s32(w.as_ptr().add(i)), vld1q_s32(wq.as_ptr().add(i)));
+            let w = vld1q_s32(w.as_ptr().add(i));
+            let wq = vmulq_s32(w, qinv);
             let x = a.as_mut_ptr().add(i);
             vst1q_s32(x, mont(vld1q_s32(x), w, wq, qv));
         }
@@ -478,23 +478,19 @@ fn halves_neon(lo: &mut [i32], hi: &mut [i32], p: Prime) {
 }
 
 #[target_feature(enable = "neon")]
-fn pair_neon(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
+fn pair_neon(r: &mut [i32], m: usize, iw: &[i32], p: Prime) {
     let n = r.len() - m;
     assert!(n < m && n.is_multiple_of(4) && m.is_multiple_of(n));
-    assert!(iw.len() >= m && iwq.len() >= m);
-    let (qv, vv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v));
-    let (r, w, wq) = (r.as_mut_ptr(), iw.as_ptr(), iwq.as_ptr());
+    assert!(iw.len() >= m);
+    let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
+    let (r, w) = (r.as_mut_ptr(), iw.as_ptr());
     for b in (n..m).step_by(n) {
         for i in (0..n).step_by(4) {
-            // SAFETY: `b + i + 4 <= m` and `m + i + 4 <= m + n`, within `r`, `iw`, `iwq`.
+            // SAFETY: `b + i + 4 <= m` and `m + i + 4 <= m + n`, within `r`, `iw`.
             unsafe {
                 let px = r.add(b + i);
-                let x = mont(
-                    vld1q_s32(px),
-                    vld1q_s32(w.add(b + i)),
-                    vld1q_s32(wq.add(b + i)),
-                    qv,
-                );
+                let w = vld1q_s32(w.add(b + i));
+                let x = mont(vld1q_s32(px), w, vmulq_s32(w, qinv), qv);
                 vst1q_s32(px, x);
                 let ps = r.add(m + i);
                 vst1q_s32(ps, reduce(vsubq_s32(vld1q_s32(ps), x), qv, vv));
@@ -504,15 +500,11 @@ fn pair_neon(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
     let (h, hq) = portable::half(p);
     let (h, hq) = (vdupq_n_s32(h), vdupq_n_s32(hq));
     for i in (0..n).step_by(4) {
-        // SAFETY: `i + 4 <= n` and `m + i + 4 <= m + n`, within `r`, `iw`, `iwq`.
+        // SAFETY: `i + 4 <= n` and `m + i + 4 <= m + n`, within `r`, `iw`.
         unsafe {
             let (plo, phi) = (r.add(i), r.add(m + i));
-            let x = mont(
-                vld1q_s32(plo),
-                vld1q_s32(w.add(i)),
-                vld1q_s32(wq.add(i)),
-                qv,
-            );
+            let w = vld1q_s32(w.add(i));
+            let x = mont(vld1q_s32(plo), w, vmulq_s32(w, qinv), qv);
             let s = vld1q_s32(phi);
             vst1q_s32(plo, mont(vaddq_s32(s, x), h, hq, qv));
             vst1q_s32(phi, mont(vsubq_s32(s, x), h, hq, qv));
@@ -681,9 +673,9 @@ mod tests {
                 load(&mut a, &limbs, p);
                 portable::load(&mut b, &limbs, p);
                 assert_eq!(a, b, "load, {} limbs", limbs.len());
-                let (w, wq) = (&tw.fw[32..64], &tw.fwq[32..64]);
-                load_twist(&mut a, &limbs, p, w, wq);
-                portable::load_twist(&mut b, &limbs, p, w, wq);
+                let w = &tw.fw[32..64];
+                load_twist(&mut a, &limbs, p, w);
+                portable::load_twist(&mut b, &limbs, p, w);
                 assert_eq!(a, b, "load_twist, {} limbs", limbs.len());
                 let d = samples(&mut rng, p.q, a.len())[..a.len()].to_vec();
                 for sub in [false, true] {
@@ -697,8 +689,8 @@ mod tests {
             let x = samples(&mut rng, p.q, n)[..n].to_vec();
             let y = samples(&mut rng, p.q, n)[..n].to_vec();
             let (mut a, mut b) = (x.clone(), x.clone());
-            twist(&mut a, &tw.iw[n..], &tw.iwq[n..], p);
-            portable::twist(&mut b, &tw.iw[n..], &tw.iwq[n..], p);
+            twist(&mut a, &tw.iw[n..], p);
+            portable::twist(&mut b, &tw.iw[n..], p);
             assert_eq!(a, b, "twist");
             let ((mut a, mut c), (mut b, mut d)) = ((x.clone(), y.clone()), (x.clone(), y.clone()));
             halves(&mut a, &mut c, p);
@@ -706,9 +698,9 @@ mod tests {
             assert_eq!((a, c), (b, d), "halves");
             for (m, n) in [(8, 4), (64, 8), (1024, 256), (2048, 8)] {
                 let (mut a, mut b) = (x[..m + n].to_vec(), x[..m + n].to_vec());
-                let (w, wq) = (&tw.iw[m..2 * m], &tw.iwq[m..2 * m]);
-                pair(&mut a, m, w, wq, p);
-                portable::pair(&mut b, m, w, wq, p);
+                let w = &tw.iw[m..2 * m];
+                pair(&mut a, m, w, p);
+                portable::pair(&mut b, m, w, p);
                 assert_eq!(a, b, "pair, m {m}, n {n}");
             }
             for (d, start, len, neg) in [

@@ -14,7 +14,7 @@ impl Tables {
     /// Tables serving at least `2^log` points, from a process-wide cache. A smaller table
     /// is a prefix of a larger one, so any larger cached table serves; a size is built
     /// only when none is cached yet, and then kept. Requires `1 <= log <= CACHE_MAX_LOG`.
-    /// All slots together hold at most `48 * (2^(CACHE_MAX_LOG + 1) - 2)` data bytes.
+    /// All slots together hold at most `24 * (2^(CACHE_MAX_LOG + 1) - 2)` data bytes.
     pub fn cached(log: u32) -> &'static Tables {
         assert!(
             (1..=CACHE_MAX_LOG).contains(&log),
@@ -38,9 +38,7 @@ pub fn cache_memory() -> (
 ) {
     let rows = core::array::from_fn(|log| match CACHE.get(log).and_then(OnceLock::get) {
         Some(t) => {
-            let vectors =
-                t.tw.iter()
-                    .flat_map(|tw| [&tw.fw, &tw.fwq, &tw.iw, &tw.iwq]);
+            let vectors = t.tw.iter().flat_map(|tw| [&tw.fw, &tw.iw]);
             let (len, cap) = vectors.fold((0, 0), |(len, cap), v| {
                 (
                     len + v.len() * size_of::<i32>(),
