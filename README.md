@@ -103,11 +103,9 @@ on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-co
 
 ## Performance
 
-**Measured 2026-10-29 from this branch at `daf6403b2c45`.** These results describe
-this PR alone; they do not combine the independent small- and large-input PRs.
-This snapshot predates further scratch pooling. Its allocation savings and
-latency-neutral paired result are in [the performance guide](docs/performance.md#pooled-radix-scratch).
-Warm calls reuse output buffers and include Auto's workspace allocations. Native
+**Measured 2026-10-29 from combined source `06e081591a8f`**, including the
+formatter, table alignment and radix scratch improvements. Warm calls reuse
+output buffers and include Auto's workspace allocations. Native
 uses process CPU time; Wasm uses V8 elapsed time. Each cell is **encode / decode**.
 Bold marks the lowest observed median, without a statistical significance claim.
 [Methods, cold calls, observed ranges and source identities](docs/performance.md).
@@ -127,13 +125,13 @@ Rust 1.99.1 / LLVM 23.1.1; compiler-default target flags.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 11.6 ns / 15.1 ns | 11.7 ns / 14.3 ns | **9.6 ns** / **14.2 ns** | 756 ns / 322 ns | 31.6 ns / 31.5 ns |
-| 64 B | 23.4 ns / 28.2 ns | 23.3 ns / 27.3 ns | **23 ns** / **27.3 ns** | 2.96 µs / 1.17 µs | 76.3 ns / 94.3 ns |
-| 512 B | 2.07 µs / 660 ns | **569 ns** / **591 ns** | 2.12 µs / 705 ns | 231 µs / 76.8 µs | — / — |
-| 4 KiB | 105 µs / 39.4 µs | **28.6 µs** / **25.2 µs** | 106 µs / 37.2 µs | 15.1 ms / 5.02 ms | — / — |
-| 64 KiB | 2.24 ms / 1.13 ms | **2.22 ms** / **1.02 ms** | 25.6 ms / 9.03 ms | 3.94 s / 1.31 s | — / — |
-| 1 MiB | 52.8 ms / 28.6 ms | **52 ms** / **27.1 ms** | — / — | — / — | — / — |
-| 4 MiB | **250 ms** / 140 ms | 252 ms / **135 ms** | — / — | — / — | — / — |
+| 32 B | 12 ns / 15.4 ns | 12.1 ns / **14.4 ns** | **10.2 ns** / 14.5 ns | 806 ns / 340 ns | 32 ns / 32.1 ns |
+| 64 B | 24.4 ns / 28.5 ns | 24.3 ns / 28.2 ns | **24 ns** / **27.6 ns** | 3.07 µs / 1.29 µs | 78.7 ns / 97 ns |
+| 512 B | 2.06 µs / 679 ns | **610 ns** / **595 ns** | 2.06 µs / 715 ns | 252 µs / 80.8 µs | — / — |
+| 4 KiB | 109 µs / 40.6 µs | **29 µs** / **25.9 µs** | 109 µs / 38.2 µs | 16.2 ms / 5.36 ms | — / — |
+| 64 KiB | 2.32 ms / 1.15 ms | **2.27 ms** / **1.04 ms** | 26.5 ms / 9.26 ms | 4.07 s / 1.37 s | — / — |
+| 1 MiB | **53.7 ms** / 29.3 ms | 54 ms / **27.3 ms** | — / — | — / — | — / — |
+| 4 MiB | 264 ms / 143 ms | **255 ms** / **137 ms** | — / — | — / — | — / — |
 
 ![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
 
@@ -145,49 +143,49 @@ comparison is separate in the [performance guide](docs/performance.md#generic-an
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 30.5 ns / 25.6 ns | 30.3 ns / 25.5 ns | **30.2 ns** / **25.1 ns** | 889 ns / 319 ns | 52.9 ns / 48.7 ns |
-| 64 B | 31.3 ns / 47.4 ns | 31.3 ns / 47.1 ns | **31.2 ns** / **46.6 ns** | 3.91 µs / 1.25 µs | 116 ns / 123 ns |
-| 512 B | 4.26 µs / 1 µs | **1.1 µs** / 1.23 µs | 4.51 µs / **991 ns** | 281 µs / 91.9 µs | — / — |
-| 4 KiB | 51 µs / 27.5 µs | **40.8 µs** / **27.4 µs** | 276 µs / 55.4 µs | 18.1 ms / 5.85 ms | — / — |
-| 64 KiB | 3.65 ms / 1.44 ms | **2.81 ms** / **1.21 ms** | 69.9 ms / 13.4 ms | 4.62 s / 1.49 s | — / — |
-| 1 MiB | 80.8 ms / 34.2 ms | **72.8 ms** / **32.2 ms** | — / — | — / — | — / — |
-| 4 MiB | 375 ms / 170 ms | **347 ms** / **170 ms** | — / — | — / — | — / — |
+| 32 B | 31.2 ns / 25.7 ns | **30.1 ns** / 25.3 ns | 30.3 ns / **25.3 ns** | 884 ns / 319 ns | 53 ns / 48.7 ns |
+| 64 B | **31.3 ns** / 47.3 ns | 31.4 ns / 47.3 ns | 31.5 ns / **47 ns** | 3.91 µs / 1.25 µs | 116 ns / 122 ns |
+| 512 B | 4.07 µs / 1.22 µs | **1.1 µs** / **998 ns** | 4.28 µs / 1.22 µs | 282 µs / 92.1 µs | — / — |
+| 4 KiB | 49.7 µs / 27.5 µs | **40.8 µs** / **27.3 µs** | 267 µs / 72.5 µs | 18.1 ms / 5.83 ms | — / — |
+| 64 KiB | 3.58 ms / 1.43 ms | **2.77 ms** / **1.21 ms** | 67.5 ms / 17.8 ms | 4.64 s / 1.48 s | — / — |
+| 1 MiB | 75.6 ms / 34.3 ms | **68.8 ms** / **30.3 ms** | — / — | — / — | — / — |
+| 4 MiB | 349 ms / 161 ms | **321 ms** / **160 ms** | — / — | — / — | — / — |
 
 ![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
 
 ### WebAssembly on Apple M5 Pro (Node/V8)
 
 Rust 1.99.1 / LLVM 23.1.1; scalar Wasm; Node 26.13.0 / V8 14.6.202.34-node.40.
-Host variation was substantial: byte-identical competitor modules differed
-between source cohorts. These observations do not establish a source-caused
-speedup. [Observed ranges and controls](docs/performance.md#timing-limits).
+These are elapsed-time observations from one combined source snapshot; they
+do not establish a source-caused speedup over older tables.
+[Observed ranges and controls](docs/performance.md#timing-limits).
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 26 ns / 53.8 ns | 26.2 ns / 54.5 ns | **25.9 ns** / 52.2 ns | 616 ns / 216 ns | 45.9 ns / **42.1 ns** |
-| 64 B | 104 ns / 136 ns | 105 ns / 156 ns | 102 ns / 130 ns | 2.95 µs / 843 ns | **94.9 ns** / **127 ns** |
-| 512 B | 7.87 µs / 4.97 µs | **2.8 µs** / **3.04 µs** | 7.95 µs / 4.93 µs | 249 µs / 76.1 µs | — / — |
-| 4 KiB | 474 µs / 216 µs | **151 µs** / **127 µs** | 482 µs / 287 µs | 16.6 ms / 5.56 ms | — / — |
-| 64 KiB | 14.3 ms / 6.71 ms | **14.3 ms** / **6.67 ms** | 120 ms / 73.7 ms | 4.24 s / 1.41 s | — / — |
-| 1 MiB | **345 ms** / **172 ms** | 353 ms / 176 ms | — / — | — / — | — / — |
-| 4 MiB | **1.65 s** / **836 ms** | 1.66 s / 844 ms | — / — | — / — | — / — |
+| 32 B | 26.1 ns / 53.5 ns | 26.4 ns / 53.8 ns | **26 ns** / 53.9 ns | 614 ns / 218 ns | 45.8 ns / **42.3 ns** |
+| 64 B | 102 ns / 133 ns | 101 ns / 134 ns | 103 ns / 128 ns | 3.02 µs / 849 ns | **95.8 ns** / **127 ns** |
+| 512 B | 7.69 µs / 5.04 µs | **2.87 µs** / **2.67 µs** | 7.68 µs / 4.92 µs | 244 µs / 77.5 µs | — / — |
+| 4 KiB | 466 µs / 218 µs | **148 µs** / **127 µs** | 472 µs / 294 µs | 16.1 ms / 5.43 ms | — / — |
+| 64 KiB | 14.7 ms / 6.76 ms | **14.3 ms** / **6.59 ms** | 119 ms / 72.6 ms | 4.07 s / 1.4 s | — / — |
+| 1 MiB | 347 ms / 174 ms | **345 ms** / **173 ms** | — / — | — / — | — / — |
+| 4 MiB | 1.67 s / 837 ms | **1.65 s** / **835 ms** | — / — | — / — | — / — |
 
 ![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
 
 ## Linked size
 
 Code and data linked **above a matching empty consumer**, in KiB, measured
-2026-10-29 from the same branch snapshot as the timing tables. Both API
+2026-10-29 from the same combined source snapshot as the timing tables. Both API
 directions are reachable: opt-level 3, fat LTO, 16 codegen units, generic target
 flags. These are linked cdylib section deltas, including associated code and
 metadata. Full files also contain runtime, scaffolding and platform padding.
 
 | Consumer | M5 code / readonly | x86-64 code / readonly | Wasm code / data section |
 |---|---:|---:|---:|
-| Auto | 68.0 KiB / 24.6 KiB | 279.7 KiB / 34.8 KiB | 70.1 KiB / 14.3 KiB |
-| Auto + cache | 70.9 KiB / 26.8 KiB | 270.6 KiB / 35.5 KiB | 71.8 KiB / 15.1 KiB |
-| No allocation | 9.6 KiB / 4.1 KiB | 20.5 KiB / 14.4 KiB | 13.5 KiB / 9.5 KiB |
-| bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.8 KiB |
+| Auto | 68.1 KiB / 24.7 KiB | 279.5 KiB / 35.1 KiB | 69.9 KiB / 14.6 KiB |
+| Auto + cache | 71.1 KiB / 27.0 KiB | 270.2 KiB / 35.8 KiB | 71.6 KiB / 15.4 KiB |
+| No allocation | 9.4 KiB / 10.7 KiB | 20.3 KiB / 14.6 KiB | 13.5 KiB / 9.6 KiB |
+| bs58 | 1.4 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.8 KiB |
 
 Readonly constants, initialized data, BSS, cache headers, retained heap and Wasm
 linear-memory pages are different costs. The pair lookup table has 3,364 entries

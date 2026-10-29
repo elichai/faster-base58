@@ -9,13 +9,10 @@ internal allocation; its general large conversions remain quadratic.
 ## Measurement scope
 
 The current public timings, linked sizes and M5 allocations were measured
-**2026-10-29**, from Git commit
-`daf6403b2c459cd2dff57e903541276d30a68cbf`. Resource fingerprint:
-`ce56edbeaf63ff7b56f7ec3029da5f981f21ff32f8881b419701bf0039d989a4` (source/manifest/lock/support files, not a Git ID).
-All platforms use that same source fingerprint. This snapshot includes only
-this PR's source changes, not the independent other improvement PR.
-It predates [further scratch pooling](#pooled-radix-scratch), whose allocation
-and paired timing results are recorded separately below.
+**2026-10-29**, from combined Git snapshot `06e081591a8ff444f990133411f093e5512610dc`.
+Resource fingerprint: `c9d7163caf8dfa8f52355c09e2da04a84bb7dc205acc2386b5d9b087371580f5`
+(source/manifest/lock/support files, not a Git ID). All platforms use this same
+source, including both the formatter and radix scratch improvements.
 
 | Platform | Compiler / runtime | Target / clock |
 | --- | --- | --- |
@@ -49,24 +46,28 @@ checked before/after the campaigns. Raw outputs stay outside Git.
 
 ### Timing limits
 
-Wasm showed substantial host variation. Across the two independently measured
-PR source cohorts, byte-identical bs58/five8 modules had later/earlier latency
-ratios from 0.7354 to 1.0316 across 50 cells. Thus source-cohort differences do
-not establish a source-caused speedup. For this snapshot, the 4 MiB Auto ranges
-are shown below; slower observations were retained.
+The current tables measure one combined source snapshot. Earlier separate PR
+cohorts showed substantial host variation: byte-identical bs58/five8 modules
+had later/earlier latency ratios from 0.7354 to 1.0316 across 50 cells. Current
+versus historical table differences therefore do not isolate source changes.
+For the current snapshot, 4 MiB Auto ranges are shown below; all clean process
+observations were retained.
 
 | Platform / policy | Encode median [min, max] | Decode median [min, max] |
 | --- | ---: | ---: |
-| M5 / default | 250 ms [247 ms, 253 ms] | 140 ms [139 ms, 141 ms] |
-| M5 / cache | 252 ms [250 ms, 256 ms] | 135 ms [135 ms, 139 ms] |
-| x86-64 / default | 375 ms [373 ms, 377 ms] | 170 ms [170 ms, 171 ms] |
-| x86-64 / cache | 347 ms [347 ms, 348 ms] | 170 ms [169 ms, 170 ms] |
-| Wasm / default | 1.65 s [1.65 s, 1.71 s] | 836 ms [835 ms, 844 ms] |
-| Wasm / cache | 1.66 s [1.66 s, 1.81 s] | 844 ms [840 ms, 845 ms] |
+| M5 / default | 264 ms [256 ms, 264 ms] | 143 ms [143 ms, 146 ms] |
+| M5 / cache | 255 ms [254 ms, 258 ms] | 137 ms [137 ms, 139 ms] |
+| x86-64 / default | 349 ms [346 ms, 349 ms] | 161 ms [161 ms, 161 ms] |
+| x86-64 / cache | 321 ms [321 ms, 323 ms] | 160 ms [160 ms, 163 ms] |
+| Wasm / default | 1.67 s [1.64 s, 1.67 s] | 837 ms [835 ms, 884 ms] |
+| Wasm / cache | 1.65 s [1.64 s, 1.73 s] | 835 ms [834 ms, 863 ms] |
 
-No compilation, tests, fuzzing or plotting scheduled by this study overlapped timing. The x86
-campaign restarted after unrelated VM work interrupted its first attempt; only
-the complete run is published. M5/Wasm used AC power. Thermal/performance status
+No compilation, tests, fuzzing or plotting scheduled by this study overlapped
+accepted timing workers. The x86
+campaign completed all 984 workers with CPU 0 pinned. Mac processes that
+overlapped a detected compiler/test job were preserved and rejected in full,
+then rerun from their first case; this rule was independent of measured latency.
+M5/Wasm used AC power. Thermal/performance status
 was unavailable, and CPU frequency, temperature and background host activity
 were not fixed. Native CPU and Wasm elapsed clocks measure different quantities.
 These tables describe observations, not matched before/after optimization tests.
@@ -76,6 +77,11 @@ dispatch thresholds from small differences.
 Historical empty native decode also depended strongly on the address of its
 zero-length buffer; those cells do not characterize general empty-input latency.
 
+Compared with the superseded `11d0c16` snapshot, the final x86 default
+512 B decode observation changed from 1.000 to 1.221 µs, while 4 KiB
+changed from 33.170 to 27.537 µs. These separate runs include upstream
+source changes; neither difference is attributed to the alignment fix.
+
 ### Small-input detail
 
 Default Auto encoding around the fixed 32/64-byte routes. These are observations
@@ -83,17 +89,17 @@ from this source, not a causal comparison with another branch:
 
 | Payload | M5 Auto encode | x86-64 Auto encode | Wasm Auto encode |
 | --- | ---: | ---: | ---: |
-| 16 B | 20.8 ns | 39.9 ns | 39.1 ns |
-| 21 B | 25.5 ns | 42 ns | 42.6 ns |
-| 22 B | 29.9 ns | 47.2 ns | 50.4 ns |
-| 23 B | 32.3 ns | 53.9 ns | 56.3 ns |
-| 31 B | 36.5 ns | 63.2 ns | 78.5 ns |
-| 32 B | 11.6 ns | 30.5 ns | 26 ns |
-| 33 B | 38.7 ns | 63.3 ns | 78.2 ns |
-| 63 B | 85.4 ns | 136 ns | 176 ns |
-| 64 B | 23.4 ns | 31.3 ns | 104 ns |
-| 65 B | 86.4 ns | 140 ns | 202 ns |
-| 128 B | 209 ns | 376 ns | 576 ns |
+| 16 B | 17.7 ns | 30.6 ns | 36.4 ns |
+| 21 B | 21.5 ns | 31.2 ns | 35.8 ns |
+| 22 B | 27.4 ns | 37 ns | 45.7 ns |
+| 23 B | 26.4 ns | 42 ns | 48.4 ns |
+| 31 B | 28.4 ns | 48.8 ns | 68.6 ns |
+| 32 B | 12 ns | 31.2 ns | 26.1 ns |
+| 33 B | 28.3 ns | 48.4 ns | 68.8 ns |
+| 63 B | 73.4 ns | 111 ns | 155 ns |
+| 64 B | 24.4 ns | 31.3 ns | 102 ns |
+| 65 B | 73.5 ns | 114 ns | 178 ns |
+| 128 B | 188 ns | 331 ns | 553 ns |
 
 ### First and second calls
 
@@ -105,12 +111,12 @@ universal cache break-even count from these separate medians.
 
 | Platform / policy | First call | Second call | Warm |
 | --- | ---: | ---: | ---: |
-| M5 / default | 110 µs / 64 µs | 103 µs / 40 µs | 105 µs / 39.4 µs |
-| M5 / cache | 1.33 ms / 733 µs | 32 µs / 27 µs | 28.6 µs / 25.2 µs |
-| x86-64 / default | 128 µs / 69.2 µs | 55.1 µs / 29.2 µs | 51 µs / 27.5 µs |
-| x86-64 / cache | 296 µs / 80 µs | 45.6 µs / 29.3 µs | 40.8 µs / 27.4 µs |
-| Wasm / default | 484 µs / 228 µs | 482 µs / 219 µs | 474 µs / 216 µs |
-| Wasm / cache | 1.83 ms / 1.07 ms | 150 µs / 128 µs | 151 µs / 127 µs |
+| M5 / default | 124 µs / 56 µs | 111 µs / 40 µs | 109 µs / 40.6 µs |
+| M5 / cache | 1.34 ms / 808 µs | 31 µs / 31 µs | 29 µs / 25.9 µs |
+| x86-64 / default | 122 µs / 50.6 µs | 54.4 µs / 29.4 µs | 49.7 µs / 27.5 µs |
+| x86-64 / cache | 254 µs / 66.5 µs | 51.9 µs / 29.2 µs | 40.8 µs / 27.3 µs |
+| Wasm / default | 486 µs / 226 µs | 474 µs / 223 µs | 466 µs / 218 µs |
+| Wasm / cache | 1.86 ms / 1.07 ms | 150 µs / 129 µs | 148 µs / 127 µs |
 
 ## Generic and native x86-64
 
@@ -180,31 +186,31 @@ The following ordinary-public M5 allocation windows use the same source and
 fixtures as the timing refresh. Each size/operation starts in a fresh process;
 the warm window follows its first conversion. No other sizes prime the cache.
 
-| Payload | Policy | Operation | Call | Requests | Allocation bytes | Peak extra | Newly retained |
+| Payload | Policy | Operation | Call | Requests | Total requested | Peak extra | Newly retained |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: |
-| 1 MiB | default | encode | cold | 54 | 37,184,741 B | 37,185,461 B | 0 B |
-| 1 MiB | default | encode | warm | 54 | 37,184,741 B | 37,185,461 B | 0 B |
-| 4 MiB | default | encode | cold | 60 | 148,740,725 B | 148,741,445 B | 0 B |
-| 4 MiB | default | encode | warm | 60 | 148,740,725 B | 148,741,445 B | 0 B |
-| 1 MiB | default | decode | cold | 25 | 27,494,848 B | 27,495,424 B | 0 B |
-| 1 MiB | default | decode | warm | 25 | 27,494,848 B | 27,495,424 B | 0 B |
-| 4 MiB | default | decode | cold | 27 | 109,997,240 B | 109,997,816 B | 0 B |
-| 4 MiB | default | decode | warm | 27 | 109,997,240 B | 109,997,816 B | 0 B |
-| 1 MiB | cache | encode | cold | 54 | 37,184,741 B | 37,185,461 B | 0 B |
-| 1 MiB | cache | encode | warm | 54 | 37,184,741 B | 37,185,461 B | 0 B |
-| 4 MiB | cache | encode | cold | 60 | 148,740,725 B | 148,741,445 B | 0 B |
-| 4 MiB | cache | encode | warm | 60 | 148,740,725 B | 148,741,445 B | 0 B |
-| 1 MiB | cache | decode | cold | 28 | 27,661,184 B | 27,661,760 B | 12,740,800 B |
-| 1 MiB | cache | decode | warm | 13 | 14,911,936 B | 14,912,512 B | 0 B |
-| 4 MiB | cache | decode | cold | 30 | 110,630,840 B | 110,631,416 B | 616,704 B |
-| 4 MiB | cache | decode | warm | 27 | 109,997,240 B | 109,997,816 B | 0 B |
+| 1 MiB | default | decode | cold | 25 | 27,496,000 B | 27,495,424 B | 0 B |
+| 1 MiB | default | decode | warm | 25 | 27,496,000 B | 27,495,424 B | 0 B |
+| 4 MiB | default | decode | cold | 27 | 109,998,392 B | 109,997,816 B | 0 B |
+| 4 MiB | default | decode | warm | 27 | 109,998,392 B | 109,997,816 B | 0 B |
+| 1 MiB | default | encode | cold | 14 | 32,992,644 B | 32,992,644 B | 0 B |
+| 1 MiB | default | encode | warm | 14 | 32,992,644 B | 32,992,644 B | 0 B |
+| 4 MiB | default | encode | cold | 14 | 131,965,668 B | 131,965,668 B | 0 B |
+| 4 MiB | default | encode | warm | 14 | 131,965,668 B | 131,965,668 B | 0 B |
+| 1 MiB | cache | decode | cold | 28 | 27,662,336 B | 27,661,760 B | 12,740,800 B |
+| 1 MiB | cache | decode | warm | 13 | 14,913,088 B | 14,912,512 B | 0 B |
+| 4 MiB | cache | decode | cold | 30 | 110,631,992 B | 110,631,416 B | 616,704 B |
+| 4 MiB | cache | decode | warm | 27 | 109,998,392 B | 109,997,816 B | 0 B |
+| 1 MiB | cache | encode | cold | 14 | 32,992,644 B | 32,992,644 B | 0 B |
+| 1 MiB | cache | encode | warm | 14 | 32,992,644 B | 32,992,644 B | 0 B |
+| 4 MiB | cache | encode | cold | 14 | 131,965,668 B | 131,965,668 B | 0 B |
+| 4 MiB | cache | encode | warm | 14 | 131,965,668 B | 131,965,668 B | 0 B |
 
 At these exact 1/4 MiB encode sizes, the cache-enabled radix route uses owned
 large tables and retains none; this does not negate retention at other sizes.
 
 Requests are `alloc_calls + realloc_calls`; zeroed allocation calls are already
-included in `alloc_calls`. These historical allocation-byte sums exclude each
-reallocation's new layout; they are not total traffic or peak live memory.
+included in `alloc_calls`. Total requested bytes include allocation layouts and
+each reallocation's new layout; they are not peak live memory.
 Peak extra excludes caller buffers and memory retained
 before that window. Newly retained is the live-heap increase during the window;
 zero for a warm call does not mean its earlier cache disappeared. Layout counts
@@ -232,7 +238,7 @@ metadata. Initialized data, BSS and stripped file size are distinct metrics;
 Wasm CODE/DATA sections are distinct from 64 KiB linear-memory pages.
 
 `CHAR_PAIRS` is 3,364 two-byte entries: 6,728 B (6.57 KiB). On M5 the current
-no-allocation probe does not retain the complete table, while the Auto probe retains one.
+no-allocation and Auto probes each retain one complete pair table.
 This is linked readonly storage, not a heap allocation or cache retention.
 The exact delta depends on reachable paths, compiler folding, LTO and metadata;
 an existing source-level constant does not imply every consumer already linked
@@ -241,7 +247,8 @@ changes.
 
 The compact comparison below is **historical**, measured 2026-10-28 on resource
 fingerprint `304dc4c5…000add`, Rust 1.99.1 / LLVM 23.1.1. It was not rerun for
-this PR. Its dedicated paired controls used one fixed path/inode; 56
+this combined snapshot. Its dedicated paired controls used one fixed path/inode;
+56
 identical-content control medians ranged from 0.994 to 1.018. An earlier internal
 study showed about 27% variation for byte-identical libraries at two paths, so
 artifact identity and loading context also matter.
@@ -490,7 +497,8 @@ Wasm, build separate modules with `--target wasm32-unknown-unknown --cpu generic
 
 The current refresh used the standalone probe and Natural-only fixture
 exporter frozen from tooling revision `6165a97`, separately from each library
-source snapshot. That newer tooling is not imported into these PRs. Its native
+source snapshot. That tooling is included in the combined repository history.
+Its native
 driver was adapted for Darwin's coarse process-CPU ticks; calibration accepted
 only batches of at least 10 ms. The Wasm driver used the same 10 ms minimum and
 a 100-million-iteration calibration cap. Qualify any timing driver against the

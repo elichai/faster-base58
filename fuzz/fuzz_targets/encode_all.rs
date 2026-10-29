@@ -73,6 +73,10 @@ fn split_fallback(seed: u32) -> [u8; FIXED_BYTES] {
 
 /// Retain libFuzzer's general mutator, but periodically preserve the correlated columns that
 /// force the public fixed-width encoder through its serial carry fallback.
+///
+/// # Safety
+/// `data` must be exclusively writable for `max_size` bytes, with `size <= max_size`
+/// and its first `size` bytes initialized. libFuzzer must provide `LLVMFuzzerMutate`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn LLVMFuzzerCustomMutator(
     data: *mut u8,

@@ -113,7 +113,8 @@ thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NT
 
 `encode_radix_full_width` uses an independent Malachite oracle on periodic
 256 KiB / 1 MiB values, reaching owned large twiddles. Native ARM careful-ASan
-smoke campaigns for the pooled-scratch implementation completed on 2026-10-29:
+smoke campaigns for pooled-scratch snapshot `11d0c16` completed on 2026-10-29,
+before the table-alignment and lint integration:
 19 default and 8 cache post-initialization mutation attempts over 65/66 seconds,
 without crashes. These short runs are not a refreshed coverage percentage or a
 proof. General targets cover leading zeros, and boundary tests cover larger
