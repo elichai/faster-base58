@@ -61,9 +61,9 @@ batches, with five alternating fresh-process pairs per case. Its 56
 identical-content control-cell medians ranged from 0.994 to 1.018; individual
 pairs varied more widely. This does not establish sub-percent stability.
 
-Timing ran without overlapping compiler, test, proof or fuzz work. That does not
-fix frequency, temperature, host contention or buffer placement. Observed
-ranges are descriptive, not confidence intervals. Small changes require
+The earlier surveys ran without overlapping compiler, test, proof or fuzz work.
+That does not fix frequency, temperature, host contention or buffer placement.
+Observed ranges are descriptive, not confidence intervals. Small changes require
 unchanged-artifact controls before they justify runtime tuning. Historical empty
 native decode also depended strongly on the address of its zero-length buffer;
 those cells do not characterize general empty-input API latency.
@@ -90,6 +90,42 @@ Native code generation helps several decode sizes in this cohort. It is not a
 portable deployment setting or evidence that every backend improves. Shared
 wrapper fallbacks explain some equal timings and do not justify deleting an
 underlying algorithm family.
+
+## basexx comparison
+
+`basexx` remains a benchmark comparator: its `Base58` implementation is much
+faster than bs58 at the sampled sizes. Auto is faster than both here, but its
+margin over basexx is much smaller than its margin over bs58.
+
+Measured **2026-10-29**, Git source `bf58dc8`, Apple M5 Pro, Rust 1.99.1 / LLVM
+23.1.1, `-C target-cpu=apple-m4`, release/fat LTO, `__internals` enabled,
+cache off. These are the existing Criterion 0.8.2 encode/decode benchmarks,
+which link the development backends; they are separate from the earlier public
+consumer surveys. Values are Criterion median estimates of elapsed wall time per
+conversion, from 30 samples per case, with 1 second warm-up and a 2 second
+measurement target, in one process per direction. Input is one deterministic fixture per size with
+its first byte nonzero, checked before timing.
+
+| Operation / payload | Auto | bs58 0.5.1 | basexx 0.2.0 / Base58 | basexx 0.2.0 / Base58B |
+| --- | ---: | ---: | ---: | ---: |
+| Encode / 1 KiB | 12.5 µs | 1.14 ms | 28.0 µs | 968 µs |
+| Encode / 4 KiB | 109 µs | 17.2 ms | 188 µs | 13.7 ms |
+| Decode / 1 KiB | 2.77 µs | 333 µs | 5.45 µs | 315 µs |
+| Decode / 4 KiB | 49.9 µs | 5.34 ms | 73.0 µs | 5.38 ms |
+
+The basexx APIs allocate an owned result, which the adapter copies into the
+output buffer and drops inside the timing loop. bs58 and Auto reuse caller
+output. These measure the available API paths, not identical allocation costs.
+The M5 host was on AC, but other work was active. This exploratory comparison
+has no fresh-process replication or architecture/input-distribution sweep; it
+supports retaining the comparator, not a universal performance ranking.
+
+Reproduce with `RUSTFLAGS='-C target-cpu=apple-m4'` when building
+`benches/encode.rs` and `benches/decode.rs`, filtering
+`encode/(bs58|basexx|basexx-b|auto)/(1024|4096)$` or its `decode/` counterpart,
+and Criterion options `--warm-up-time 1 --measurement-time 2 --sample-size 30
+--noplot`. Build both before timing and run them serially. Keep raw outputs
+under ignored `target/measurements/`.
 
 ## Cache and memory
 

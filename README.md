@@ -107,6 +107,9 @@ Warm calls reuse output buffers and include Auto's workspace allocations. Owned
 helpers are measured separately. Native uses process CPU time; Wasm uses V8
 elapsed time. [Methods, ranges and source snapshots](docs/performance.md).
 
+A separate [basexx comparison](docs/performance.md#basexx-comparison) includes a
+general-purpose comparator that substantially outperforms bs58 at 1 and 4 KiB.
+
 Each table cell is **encode / decode**. Bold marks the lowest observed median,
 not statistical significance. `no_alloc` and bs58 stop at 64 KiB by benchmark
 policy; five8 supports the measured 32/64-byte cases. The figures show the full
