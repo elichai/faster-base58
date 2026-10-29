@@ -18,7 +18,7 @@
    562bc:	48 0f be c0          	movsbq %al,%rax
    562c0:	48 8d 14 d0          	lea    (%rax,%rdx,8),%rdx
    562c4:	48 b8 68 10 45 58 e7 	movabs $0x2bb378e758451068,%rax
-   562cb:	78 b3 2b 
+   562cb:	78 b3 2b
    562ce:	c4 62 8b f6 f0       	mulx   %rax,%r14,%r14
    562d3:	b8 01 00 00 00       	mov    $0x1,%eax
    562d8:	0f 82 bc 02 00 00    	jb     5659a <faster_base58::encode::batched::encode_parts+0x30a>
@@ -42,7 +42,7 @@
    56326:	e8 95 f5 ff ff       	call   558c0 <<faster_base58::encode::batched::Limbs>::feed>
    5632b:	48 8b 4c 24 50       	mov    0x50(%rsp),%rcx
    56330:	48 b8 b5 6a 01 1a ad 	movabs $0x68b2c7ad1a016ab5,%rax
-   56337:	c7 b2 68 
+   56337:	c7 b2 68
    5633a:	48 8b 6c 24 48       	mov    0x48(%rsp),%rbp
    5633f:	48 89 ca             	mov    %rcx,%rdx
    56342:	c4 e2 fb f6 c0       	mulx   %rax,%rax,%rax
@@ -62,7 +62,7 @@
    56381:	48 8d 15 68 44 fb ff 	lea    -0x4bb98(%rip),%rdx        # a7f0 <core::unicode::unicode_data::cf::SHORT_OFFSET_RUNS+0x548>
    56388:	0f b6 14 17          	movzbl (%rdi,%rdx,1),%edx
    5638c:	48 bf 00 00 90 24 48 	movabs $0x137b4824900000,%rdi
-   56393:	7b 13 00 
+   56393:	7b 13 00
    56396:	88 54 24 09          	mov    %dl,0x9(%rsp)
    5639a:	89 f2                	mov    %esi,%edx
    5639c:	c4 e2 eb f6 d7       	mulx   %rdi,%rdx,%rdx
@@ -191,11 +191,11 @@
    565bc:	48 85 ed             	test   %rbp,%rbp
    565bf:	0f 84 64 01 00 00    	je     56729 <faster_base58::encode::batched::encode_parts+0x499>
    565c5:	48 8d 04 ed 00 00 00 	lea    0x0(,%rbp,8),%rax
-   565cc:	00 
+   565cc:	00
    565cd:	49 29 c6             	sub    %rax,%r14
    565d0:	49 83 c6 09          	add    $0x9,%r14
    565d4:	66 66 66 2e 0f 1f 84 	data16 data16 cs nopw 0x0(%rax,%rax,1)
-   565db:	00 00 00 00 00 
+   565db:	00 00 00 00 00
    565e0:	49 8d 46 f8          	lea    -0x8(%r14),%rax
    565e4:	48 83 f8 f7          	cmp    $0xfffffffffffffff7,%rax
    565e8:	0f 87 68 01 00 00    	ja     56756 <faster_base58::encode::batched::encode_parts+0x4c6>
@@ -208,7 +208,7 @@
    56609:	0f 87 5c 01 00 00    	ja     5676b <faster_base58::encode::batched::encode_parts+0x4db>
    5660f:	4b 8b 44 37 f8       	mov    -0x8(%r15,%r14,1),%rax
    56614:	48 b9 b5 6a 01 1a ad 	movabs $0x68b2c7ad1a016ab5,%rcx
-   5661b:	c7 b2 68 
+   5661b:	c7 b2 68
    5661e:	48 89 c2             	mov    %rax,%rdx
    56621:	c4 62 bb f6 c1       	mulx   %rcx,%r8,%r8
    56626:	49 c1 e8 1c          	shr    $0x1c,%r8
@@ -225,7 +225,7 @@
    56661:	42 0f b6 0c 19       	movzbl (%rcx,%r11,1),%ecx
    56666:	45 29 c8             	sub    %r9d,%r8d
    56669:	49 b9 00 00 90 24 48 	movabs $0x137b4824900000,%r9
-   56670:	7b 13 00 
+   56670:	7b 13 00
    56673:	48 29 d0             	sub    %rdx,%rax
    56676:	44 89 c2             	mov    %r8d,%edx
    56679:	c4 42 b3 f6 c9       	mulx   %r9,%r9,%r9
@@ -310,4 +310,3 @@
    567c9:	e8 7e 60 fc ff       	call   1c84c <core::panicking::panic_bounds_check>
    567ce:	cc                   	int3
    567cf:	cc                   	int3
-

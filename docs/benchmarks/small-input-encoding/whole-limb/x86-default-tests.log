@@ -231,4 +231,3 @@ test tiny_invalid_inputs_keep_byte_offsets ... ok
 test every_byte_and_short_text_matches_bs58 ... ok
 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-

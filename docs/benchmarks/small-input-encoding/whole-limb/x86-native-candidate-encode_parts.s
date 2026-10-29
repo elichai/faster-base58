@@ -18,7 +18,7 @@
    58dfc:	48 0f be c0          	movsbq %al,%rax
    58e00:	48 8d 14 d0          	lea    (%rax,%rdx,8),%rdx
    58e04:	48 b8 68 10 45 58 e7 	movabs $0x2bb378e758451068,%rax
-   58e0b:	78 b3 2b 
+   58e0b:	78 b3 2b
    58e0e:	c4 62 8b f6 f0       	mulx   %rax,%r14,%r14
    58e13:	b8 01 00 00 00       	mov    $0x1,%eax
    58e18:	0f 82 94 02 00 00    	jb     590b2 <faster_base58::encode::batched::encode_parts+0x2e2>
@@ -31,7 +31,7 @@
    58e39:	4c 89 ca             	mov    %r9,%rdx
    58e3c:	4d 89 c4             	mov    %r8,%r12
    58e3f:	49 bd 00 a4 fb c7 24 	movabs $0x5fa8624c7fba400,%r13
-   58e46:	86 fa 05 
+   58e46:	86 fa 05
    58e49:	48 89 5c 24 18       	mov    %rbx,0x18(%rsp)
    58e4e:	c5 f8 57 c0          	vxorps %xmm0,%xmm0,%xmm0
    58e52:	89 c1                	mov    %eax,%ecx
@@ -45,7 +45,7 @@
    58e73:	48 8b 44 24 40       	mov    0x40(%rsp),%rax
    58e78:	48 8b 6c 24 38       	mov    0x38(%rsp),%rbp
    58e7d:	48 b9 f9 0f a5 84 19 	movabs $0x119561984a50ff9,%rcx
-   58e84:	56 19 01 
+   58e84:	56 19 01
    58e87:	48 89 c2             	mov    %rax,%rdx
    58e8a:	c4 e2 c3 f6 f9       	mulx   %rcx,%rdi,%rdi
    58e8f:	48 c1 ef 27          	shr    $0x27,%rdi
@@ -53,14 +53,14 @@
    58e96:	0f 83 15 04 00 00    	jae    592b1 <faster_base58::encode::batched::encode_parts+0x4e1>
    58e9c:	48 8d 1d 83 19 fb ff 	lea    -0x4e67d(%rip),%rbx        # a826 <core::unicode::unicode_data::cf::SHORT_OFFSET_RUNS+0x57e>
    58ea3:	48 b9 79 41 c2 d4 d9 	movabs $0x39c3bd9d4c24179,%rcx
-   58eaa:	3b 9c 03 
+   58eaa:	3b 9c 03
    58ead:	48 89 c2             	mov    %rax,%rdx
    58eb0:	49 b9 45 27 87 24 48 	movabs $0x137b4824872745,%r9
-   58eb7:	7b 13 00 
+   58eb7:	7b 13 00
    58eba:	0f b7 34 7b          	movzwl (%rbx,%rdi,2),%esi
    58ebe:	c4 e2 f3 f6 c9       	mulx   %rcx,%rcx,%rcx
    58ec3:	48 bf 2d 52 e4 37 3d 	movabs $0x17b8813d37e4522d,%rdi
-   58eca:	81 b8 17 
+   58eca:	81 b8 17
    58ecd:	c4 e2 eb f6 d7       	mulx   %rdi,%rdx,%rdx
    58ed2:	48 c1 e9 1d          	shr    $0x1d,%rcx
    58ed6:	48 69 f9 25 48 7b 13 	imul   $0x137b4825,%rcx,%rdi
@@ -73,7 +73,7 @@
    58ef7:	69 c9 24 0d 00 00    	imul   $0xd24,%ecx,%ecx
    58efd:	29 ca                	sub    %ecx,%edx
    58eff:	48 b9 fb 88 4e 0e 49 	movabs $0x26f690490e4e88fb,%rcx
-   58f06:	90 f6 26 
+   58f06:	90 f6 26
    58f09:	0f b7 3c 53          	movzwl (%rbx,%rdx,2),%edi
    58f0d:	48 89 c2             	mov    %rax,%rdx
    58f10:	48 c1 ea 02          	shr    $0x2,%rdx
@@ -177,7 +177,7 @@
    590d4:	48 85 ed             	test   %rbp,%rbp
    590d7:	0f 84 40 01 00 00    	je     5921d <faster_base58::encode::batched::encode_parts+0x44d>
    590dd:	48 8d 04 ed 00 00 00 	lea    0x0(,%rbp,8),%rax
-   590e4:	00 
+   590e4:	00
    590e5:	49 29 c6             	sub    %rax,%r14
    590e8:	49 83 c6 09          	add    $0x9,%r14
    590ec:	0f 1f 40 00          	nopl   0x0(%rax)
@@ -193,24 +193,24 @@
    59119:	0f 87 40 01 00 00    	ja     5925f <faster_base58::encode::batched::encode_parts+0x48f>
    5911f:	4b 8b 44 37 f8       	mov    -0x8(%r15,%r14,1),%rax
    59124:	48 b9 f9 0f a5 84 19 	movabs $0x119561984a50ff9,%rcx
-   5912b:	56 19 01 
+   5912b:	56 19 01
    5912e:	48 89 c2             	mov    %rax,%rdx
    59131:	c4 e2 f3 f6 c9       	mulx   %rcx,%rcx,%rcx
    59136:	48 ba 00 a4 fb c7 24 	movabs $0x5fa8624c7fba400,%rdx
-   5913d:	86 fa 05 
+   5913d:	86 fa 05
    59140:	48 c1 e9 27          	shr    $0x27,%rcx
    59144:	48 39 d0             	cmp    %rdx,%rax
    59147:	0f 83 50 01 00 00    	jae    5929d <faster_base58::encode::batched::encode_parts+0x4cd>
    5914d:	49 b8 79 41 c2 d4 d9 	movabs $0x39c3bd9d4c24179,%r8
-   59154:	3b 9c 03 
+   59154:	3b 9c 03
    59157:	0f b7 0c 4b          	movzwl (%rbx,%rcx,2),%ecx
    5915b:	48 89 c2             	mov    %rax,%rdx
    5915e:	49 b9 2d 52 e4 37 3d 	movabs $0x17b8813d37e4522d,%r9
-   59165:	81 b8 17 
+   59165:	81 b8 17
    59168:	49 ba 45 27 87 24 48 	movabs $0x137b4824872745,%r10
-   5916f:	7b 13 00 
+   5916f:	7b 13 00
    59172:	49 bb fb 88 4e 0e 49 	movabs $0x26f690490e4e88fb,%r11
-   59179:	90 f6 26 
+   59179:	90 f6 26
    5917c:	48 ff cd             	dec    %rbp
    5917f:	49 83 c6 08          	add    $0x8,%r14
    59183:	c4 42 bb f6 c0       	mulx   %r8,%r8,%r8
@@ -300,4 +300,3 @@
    592cd:	cc                   	int3
    592ce:	cc                   	int3
    592cf:	cc                   	int3
-
