@@ -335,17 +335,20 @@ fn no_allocator_calls_on_cold_success_or_error_paths() {
 ))]
 #[test]
 fn large_encoding_does_not_allocate_per_leaf() {
-    let input = vec![255; 1 << 20];
-    let mut output = vec![0xA5; faster_base58::max_encoded_len(input.len()) + 8];
-    let (result, calls) = observe(|| faster_base58::encode(&input, &mut output));
-    let len = result.unwrap();
-    assert!(
-        calls[0] + calls[1] + calls[2] < 128,
-        "large encoding allocated per leaf: {calls:?}"
-    );
-    assert!(output[len..].iter().all(|&c| c == 0xA5));
-    let mut decoded = vec![0; input.len()];
-    let text = std::str::from_utf8(&output[..len]).unwrap();
-    assert_eq!(faster_base58::decode(text, &mut decoded), Ok(input.len()));
-    assert_eq!(decoded, input);
+    for bytes in [1 << 20, 1 << 22] {
+        let input = vec![255; bytes];
+        let mut output = vec![0xA5; faster_base58::max_encoded_len(input.len()) + 8];
+        let (result, calls) = observe(|| faster_base58::encode(&input, &mut output[1..]));
+        let len = result.unwrap();
+        assert!(
+            calls[0] + calls[1] + calls[2] <= 18,
+            "large encoding allocated per leaf: {calls:?}"
+        );
+        assert_eq!(output[0], 0xA5);
+        assert!(output[1 + len..].iter().all(|&c| c == 0xA5));
+        let mut decoded = vec![0; input.len()];
+        let text = std::str::from_utf8(&output[1..1 + len]).unwrap();
+        assert_eq!(faster_base58::decode(text, &mut decoded), Ok(input.len()));
+        assert_eq!(decoded, input);
+    }
 }
