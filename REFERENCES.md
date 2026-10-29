@@ -1,11 +1,8 @@
 # References and provenance
 
 Sources consulted during development, algorithm references, and measurement
-comparators have different roles. The source review covered reachable history,
-unmerged branches, related worktrees and the original development records.
-The [consultation receipt](docs/references/consultations.json) pins recovered
-revisions and file hashes, with later reviews recorded separately. No wholesale
-copy of upstream runtime source files was identified. The review does not
+comparators have different roles. No wholesale copy of upstream runtime source
+files was identified in the development-source review. That review does not
 establish independent authorship of every routine.
 The consulted [five8 license](docs/references/five8-LICENSE.txt),
 [Bitcoin Core license](docs/references/bitcoin-core-LICENSE.txt) and Firedancer
@@ -29,8 +26,8 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
   carry schedule differ from ours. Version **1.0.0**, revision `311279fb…`:
   [project and attribution](https://github.com/kevinheavey/five8/blob/311279fb81461df36e730458a0463a6a322042d7/README.md),
   [MIT license](https://github.com/kevinheavey/five8/blob/311279fb81461df36e730458a0463a6a322042d7/LICENSE).
-  The original encoder and fixed-path development records confirm reads of
-  this release's encoder and AVX helpers before the corresponding local writes.
+  This release's encoder and AVX helpers were consulted before the local encoder
+  and fixed paths were written.
 - **Bitcoin Core (MIT):** reviewed after implementation at revision `2b5b6fe2…`:
   [conversion source](https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/base58.cpp),
   [known-answer vectors](https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/test/data/base58_encode_decode.json),
@@ -39,19 +36,17 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
   The 21 upstream vectors are copied into [regression tests](tests/bitcoin_core.rs),
   with local zero extensions for fixed 32/64-byte paths. No runtime code was copied.
   Core accepts surrounding ASCII whitespace; our decoder deliberately rejects it.
-  No Core source read was recovered in the original development logs; that does
-  not establish that it was never consulted.
+  The later review does not rule out earlier consultation.
 - **Richard Brent and Paul Zimmermann, _Modern Computer Arithmetic_
   (Cambridge University Press, 2010):** `encode/dc.rs` implements Algorithm
   3.5, `ApproximateReciprocal`, with local storage and multiplier interfaces.
   [Authors' page](https://members.loria.fr/PZimmermann/mca/pub226.html),
   [electronic version 0.5.2](https://maths-people.anu.edu.au/~brent/pd/mca-0.5.2.pdf).
   The electronic book's front matter specifies **CC BY-NC-ND 3.0**, not MIT/Apache.
-  The original design cites this version and Algorithm 3.5; no direct PDF read
-  was recovered. The document is not included in the repository or package.
+  The document is not included in the repository or package.
 - **Donald Knuth, _The Art of Computer Programming_, volume 2:** Algorithm D
-  is the named method in `encode/dc.rs::div_schoolbook`. The retained record
-  identifies the algorithm, not the exact edition or source consulted.
+  is the named method in `encode/dc.rs::div_schoolbook`. The exact edition and
+  source consulted are unknown.
 - **GNU MP manual:** background for
   [binary-to-radix conversion](https://gmplib.org/manual/Binary-to-Radix),
   [Karatsuba](https://gmplib.org/manual/Karatsuba-Multiplication) and
@@ -72,12 +67,12 @@ and were checked against their upstream Git repositories.
 | [basexx 0.2.0](https://github.com/aki-akaguma/basexx/tree/0dd4b49a84dc505eceff23fa7c12c345d48c3e40) | Benchmark comparator | [MIT](https://github.com/aki-akaguma/basexx/blob/0dd4b49a84dc505eceff23fa7c12c345d48c3e40/LICENSE-MIT) OR [Apache-2.0](https://github.com/aki-akaguma/basexx/blob/0dd4b49a84dc505eceff23fa7c12c345d48c3e40/LICENSE-APACHE), `0dd4b49a…` |
 | [Malachite 0.14.0](https://github.com/mhogrefe/malachite/tree/734f546826d20ddfe3678ab0d0d4739b8df75e03) | Development-only `Natural` multiplier adapter, independent radix oracle and comparator; historical conversion-design reference | [LGPL text](https://github.com/mhogrefe/malachite/blob/734f546826d20ddfe3678ab0d0d4739b8df75e03/LICENSE), `734f5468…`. Manifest says **LGPL-3.0-only**; inspected source headers say v3-or-later. Neither is MIT/Apache. |
 
-The Malachite adapter calls its public API. Original development records also
-confirm consultation of its divide-and-conquer conversion and preinverted
-division in `general_digits.rs` before writing the local reciprocal code.
+The Malachite adapter calls its public API. Its divide-and-conquer conversion
+and preinverted division in `general_digits.rs` were consulted before writing
+the local reciprocal code.
 That establishes design consultation, not whether a routine was translated.
 The inspected Malachite source itself credits GMP code and FLINT techniques.
-Development and archived benchmark binaries can link these libraries; the
+Development and benchmark binaries can link these libraries; the
 crate's MIT OR Apache-2.0 declaration does not replace upstream terms.
 Other test/build tools are listed in the manifests; this is not a full
 transitive dependency-license inventory.

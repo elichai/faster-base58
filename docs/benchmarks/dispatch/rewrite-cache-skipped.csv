@@ -1,9 +1,0 @@
-operation,backend,bytes,baseline_cap,candidate_cap,reason
-encode,no-alloc,1048576,65536,65536,exceeds one or both worker registry caps
-encode,no-alloc,4194304,65536,65536,exceeds one or both worker registry caps
-encode,bs58,1048576,65536,65536,exceeds one or both worker registry caps
-encode,bs58,4194304,65536,65536,exceeds one or both worker registry caps
-decode,no-alloc,1048576,65536,65536,exceeds one or both worker registry caps
-decode,no-alloc,4194304,65536,65536,exceeds one or both worker registry caps
-decode,bs58,1048576,65536,65536,exceeds one or both worker registry caps
-decode,bs58,4194304,65536,65536,exceeds one or both worker registry caps

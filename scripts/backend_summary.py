@@ -639,7 +639,7 @@ def main():
         if not args.output:
             parser.error("--output is required")
         if not args.snapshot or not args.historical_benchmarks:
-            parser.error("archive rebuild requires --snapshot and --historical-benchmarks; retained summaries are in docs/benchmarks")
+            parser.error("archive rebuild requires external inputs: --snapshot and --historical-benchmarks")
         try:
             build(args)
         except ValueError as error:

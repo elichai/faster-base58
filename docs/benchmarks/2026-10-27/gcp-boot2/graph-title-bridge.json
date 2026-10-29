@@ -1,7 +1,0 @@
-{
-  "status": "only2GCPtitle strings add exact VM type",
-  "original_renderer_sha256": "7204acc25d59bdc6825a6cd2983b36db93453648422d1205343ce8f31e654a45",
-  "new_renderer_sha256": "befaa4ccda2b234cd3ee4b307789930e9b62b3058bfd0f2ea49412ce0c469e02",
-  "data_sha256": "6df03250c091ccae831a01be21bc1361f570f9ef8b9d7da730dbbe59d147392f",
-  "scope": "Style, curves, numeric data, sampling and all other renderer code unchanged; original figures retained privately."
-}

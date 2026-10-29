@@ -756,7 +756,7 @@ def render(campaigns, output):
                   "Native timings come from one worker that links every entry point through `__internals`; each Wasm module selects one entry point with both directions. Application link layout and specialization may differ.", "",
                   "Empty native decode uses the worker's exact-length `Vec` output policy. Observed GCP timings depend strongly on the zero-length buffer address and do not characterize every empty caller.", "",
                   "[Full observations and bs58 ratios](observations.csv), [per-process summaries](processes.csv), and [support skips](skipped.csv) preserve the full result grid and floating-point precision in nanoseconds. `bs58 / entry` is the bs58 median divided by the entry median; above one favors the entry. Ratios are blank where bs58 was not measured. Cold/calibration calls do not enter warmed results.", "",
-                  "The repository's `docs/performance.md` describes measurement scope and resource accounting. Retained source generations are indexed in `docs/benchmarks/README.md`; results with different grids, clocks or validation scopes must not be pooled.", "",
+                  "The repository's `docs/performance.md` describes measurement scope and resource accounting. Results with different source generations, grids, clocks or validation scopes must not be pooled.", "",
                   "[Provenance](provenance.json) records source identities, all consumed input hashes, build/runtime settings, Python and Matplotlib versions. Results cover one deterministic valid input per size on these hosts. They do not establish a universally fastest implementation.", ""])
     with (output / "README.md").open("x") as stream:
         stream.write("\n".join(lines))

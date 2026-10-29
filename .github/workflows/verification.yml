@@ -234,6 +234,7 @@ jobs:
       - run: python3 scripts/benchmark_graphs.py --self-test
       - run: python3 scripts/compare_threshold.py --self-test
       - run: python3 scripts/ac_power_run.py --self-test
+      - run: python3 -m unittest discover -s assets/graphs -p test_render.py
       - run: python3 assets/graphs/render.py --check
       - run: python3 scripts/verify_power.py --self-test
       - run: python3 -m py_compile scripts/validate_wasm_tradeoffs.py

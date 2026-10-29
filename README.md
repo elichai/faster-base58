@@ -88,7 +88,7 @@ default features peak at about 192 MiB of extra requested heap for encoding and
 Add `features = ["cache"]` to the dependency to retain reusable tables. This
 feature enables `std`. Caching is off by default; it changes dispatch as well as
 retention. First use builds tables; the warm timings below exclude that setup.
-[Cold calls and cache tradeoffs](docs/benchmarks/2026-10-27/README.md) help assess
+[Cold calls and cache tradeoffs](docs/performance.md#cache-and-memory) help assess
 whether reuse repays the setup and memory cost for your workload.
 
 Tables are lazy **heap** allocations. Recorded capacity bounds are 18,617,760 bytes
@@ -109,8 +109,8 @@ elapsed time. [Methods, ranges and source snapshots](docs/performance.md).
 
 Each table cell is **encode / decode**. Bold marks the lowest observed median,
 not statistical significance. `no_alloc` and bs58 stop at 64 KiB by benchmark
-policy; five8 supports the measured 32/64-byte cases. All sizes remain in the
-data report.
+policy; five8 supports the measured 32/64-byte cases. The figures show the full
+measured size range.
 
 ### Apple M5 Pro
 
@@ -137,7 +137,7 @@ comparisons where supported. Measurements use one internal all-backend worker
 per cache cohort and frozen source
 `4e5ac883`, a separate source snapshot and call context from the M5/Wasm public-API
 figures. The table reports the median of nine warm batches across three fresh
-processes. [Full results, source bindings and timing controls](docs/benchmarks/2026-10-27/gcp-boot2/README.md).
+processes. [Native-target comparison and timing limits](docs/performance.md#generic-and-native-x86-64).
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
@@ -149,7 +149,7 @@ processes. [Full results, source bindings and timing controls](docs/benchmarks/2
 | 1 MiB | 75.1 ms / 34.7 ms | **69.8 ms** / **31.7 ms** | — / — | — / — | — / — |
 | 4 MiB | 351 ms / 165 ms | **326 ms** / **163 ms** | — / — | — / — | — / — |
 
-![Internal backend conversion times on AMD EPYC 9B45, generic x86-64 target](docs/benchmarks/2026-10-27/graphs/gcp-generic-backends.svg)
+![Internal backend conversion times on AMD EPYC 9B45, generic x86-64 target](assets/graphs/gcp-generic-backends.svg)
 
 ### WebAssembly on Apple M5 Pro (Node/V8)
 
@@ -181,10 +181,10 @@ contain runtime, scaffolding and platform padding.
 | bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.8 KiB |
 
 Linked sizes use frozen source `4e5ac883`; x86-64 uses generic target flags.
-[x86-64 size breakdown](docs/benchmarks/2026-10-27/x86-linked-size.md).
+[x86-64 compact tradeoff](docs/performance.md#linked-size-and-compact).
 
-[Per-backend and platform sizes, allocations, RSS and source bindings](docs/benchmarks/2026-10-27/README.md)
-give the full cost comparison. Cache headers and retained heap are additional
+[Allocation, RSS and measurement scope](docs/performance.md#cache-and-memory)
+explain the other costs. Cache headers and retained heap are additional
 costs described above. `no_alloc` supplies the smallest general implementation.
 
 On x86-64, `features = ["compact"]` keeps eight IFMA kernel widths instead of

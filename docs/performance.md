@@ -1,168 +1,246 @@
 # Performance and resource tradeoffs
 
-The retained results describe specific source snapshots and workloads. They do
-not establish one fastest backend for every size, input distribution or build.
-[DESIGN.md](../DESIGN.md) describes the current dispatcher and backend costs;
-[CORRECTNESS.md](../CORRECTNESS.md) describes verification coverage.
+The [README tables](../README.md#performance) show selected conversion times and
+linked sizes. Auto uses more workspace and linked code to accelerate large
+inputs. `no_alloc` avoids internal heap allocation; general large conversions
+remain quadratic. The optional cache is most useful for repeated medium-sized
+inputs. Its value depends on input sizes, call history and memory constraints.
+[DESIGN.md](../DESIGN.md) describes algorithms and the current dispatcher;
+[CORRECTNESS.md](../CORRECTNESS.md) describes validation and open gaps.
 
-Identical-artifact controls have also produced repeatable timing differences on
-GCP, including after CPU pinning and longer batches. In a focused control, two
-files differed by about 27%, while two aliases to the same file were near parity.
-This implicates file identity or loading context; the hardware cause is unresolved.
-The retained medians describe the observed runs; close differences and paired
-source comparisons do not establish which source change caused a speedup or
-slowdown. Code-size and allocation counts are separate measurements.
+## Measurement scope
 
-## Datasets and source generations
+These measurements describe fixed source snapshots, not every later revision.
+Source identities below are resource fingerprints, not Git commit IDs. All
+sizes refer to decoded payload bytes; Base58 text is longer.
 
-| Dataset | Coverage and interpretation |
-| --- | --- |
-| [Public API survey, 2026-10-27](benchmarks/2026-10-27/public-tables.md) | Current README tables and SVGs: ordinary M5 and Wasm consumers, 29 payload sizes through 4 MiB, default/cache/no_alloc, bs58 and five8. The [figure receipt](benchmarks/2026-10-27/public-graphs.json) keeps timing and linked-size source epochs separate. |
-| [Complete backend/resource grid](benchmarks/2026-10-27/README.md) | Frozen4e5 M5/Wasm plus complete GCP generic/native: 7,540 measured/skipped comparison cells, 928 separate temporal Auto controls, all four full-backend SVG sets and per-backend heap/code tables. Interrupted/older cloud epochs remain separate. |
-| [Final compact timings](benchmarks/2026-10-27/final-compact-304dc/README.md) | Actual final304dc ordinary consumers on one EPYC9B45 VM, 2026-10-28 UTC: 232 feature cells, all 56 identical-content controls, five pairs each and matched linked costs. One fixed inode controls the observed two-file coupling; all variation remains reported. |
-| [Final compact linked size](benchmarks/2026-10-27/final-size-304dc/README.md) | Separate final304dc source: 32 ordinary Auto/empty artifacts, M5/scalar Wasm/generic x86/explicit znver5, cache/compact features and actual compiler fingerprints. Linked code/storage only; no new timings or heap measurements. |
-| [Centralized dispatch](benchmarks/dispatch/README.md) | Local 2026-10-26 routing cleanup. Separate internal-worker survey, ordinary-consumer outlining experiment and zero-prefix allocation comparison. |
-| [Fixed decoding](benchmarks/fixed-decode/README.md) | Portable fixed-matrix prototypes were slower and larger on M5; retained as a rejected experiment. |
-| [Backend grid](benchmarks/backend-grid/README.md) | 2026-10-24 source: 29 decoded sizes from empty through 4 MiB; M5 native, GCP generic/native and M5 Wasm. Includes backend wrappers, forced-kernel controls, bs58 and five8. This predates the cache-feature split, no_std and rename. |
-| [Backend resources](benchmarks/backend-resources/README.md) | Earlier 2026-10-23 timing, allocation and linked-size associations across five runtime configurations, including Wasm on GCP. Its cache policy was unbounded; its retained heap is historical. |
-| [Earlier public modes](benchmarks/public-modes/README.md) | 2026-10-25 Auto, Auto+cache, no_alloc and bs58 comparison. These inputs feed the retained historical encode/decode graphs. Cloud timings retain their matched earlier cohorts. |
-| [Allocation layout](benchmarks/allocation-layout/README.md) | Storage refactor v000→v011, before no_std and rename. Includes normal-consumer public timings, separate instrumented allocation measurements and historical linked-size inputs. |
-| [Migration controls](benchmarks/production/README.md) | Earlier no_std/rename comparison and source-identical rebuild/load-path controls. These do not isolate a source-level performance cause. |
-| [Assembly](assembly.md), [SIMD](simd.md) | Newer baseline `7c6ffa325164`, resource identity `17ab5f264ed4`. Each experiment retains its own candidate, compiler and feature bindings. |
+| Results | Source and build | Measurement |
+| --- | --- | --- |
+| README M5 public timings | `a479a143…7f474d`; 2026-10-27; Apple M5 Pro; Rust 1.99.1 / LLVM 23.1.1; compiler-default target flags | Ordinary public consumers without `__internals`; process CPU time. |
+| README Wasm public timings | `4e5ac883…1e760`; 2026-10-27; M5 Pro / Node V8; Rust 1.99.1; scalar Wasm | Ordinary public modules without `__internals`; elapsed time. |
+| README GCP and generic/native comparison below | `4e5ac883…1e760`; 2026-10-28 UTC; AMD EPYC 9B45, GCP `c4d-highcpu-4`; Rust 1.99.1 / LLVM 23.1.1 | One internal all-backend worker per CPU/cache cohort; process CPU time. |
+| README linked sizes | `4e5ac883…1e760`; opt-level 3, fat LTO; generic x86-64 | Separate linked consumers with both API directions reachable, minus matching empty probes. |
+| Compact feature comparison | `304dc4c5…000add`; 2026-10-28 UTC; ordinary EPYC consumers; Rust 1.99.1 / LLVM 23.1.1 | Actual feature wiring; separate size and timing study. |
 
-The archived 2026-10-24 backend grid has 3,480 result-or-skip cells and retains all 9,252 process
-medians. Its readable tables bold the lowest observed median, including exact
-ties. Bold type is not a statistical significance claim. Native workers link
-the backends through `__internals`; historical names can share kernels or take
-fallback routes. Direct backend rows therefore do not describe separate public
-APIs. [Metadata](benchmarks/backend-grid/metadata.json) and
-[explicit skips](benchmarks/backend-grid/skipped.csv) define each cell's scope.
+Public timing cells are medians of three fresh-process medians, each with three
+warm batches. GCP internal cells are medians of all nine warm batches. These
+estimators and call contexts differ. Native process CPU time and Wasm elapsed
+time also measure different quantities. Bold README values mark the lowest
+observed median, without a statistical significance claim.
 
-The native grid uses Rust 1.99.x / LLVM 23.1.1. The GCP host is an AMD EPYC 9B45
-VM, `c4d-highcpu-4`; generic builds retain runtime feature selection, while
-native builds use `-C target-cpu=native`. The M5 grid uses
-`-C target-cpu=apple-m4`. Wasm timings use Node/V8 and an elapsed clock.
-Exact compiler versions, flags and runtime identities remain in each dataset.
-The newer README figures use compiler-default flags on M5 and separate source
-snapshots for native timing, Wasm timing and linked size. Their source bridges
-do not relabel older GCP measurements as current.
+The study covered 29 sizes from empty through 4 MiB, including boundaries around
+32/64 bytes. Quadratic no-allocation, batched and bs58 measurements stop at
+64 KiB by policy, not an API limit. Five8 covers only supported 32/64-byte cases.
+Unsupported cells are not extrapolated. Logarithmic figures omit empty inputs.
 
-Quadratic entries, including bs58 and the measured no_alloc mode, stop at
-64 KiB by benchmark policy. This is not a format or API limit. Auto includes
-4 MiB. five8 supports the measured 32/64-byte cases only; forced matrix controls
-have a separate valid domain. Unsupported or policy-limited cells remain
-explicit rather than being extrapolated.
+Warm loops reuse caller output buffers and include Auto's workspace allocations.
+They exclude fixture construction, caller-buffer allocation and checks outside
+the timed loop. Repeated decode exports use prevalidated text and exclude its
+preceding UTF-8 scan. Owned String/Vec helpers need separate measurements that
+include allocation and destruction. Cold and second calls are separate from
+warm results, especially with cache setup.
 
-## Read timing, heap and binary size separately
+Fixtures use deterministic data per size and independent Malachite Natural
+conversion checks. They do not represent every input distribution. Leading
+zeros, tails, invalid inputs and short buffers require separate checks. Backend
+names can share kernels or take fallback routes; `*_portable` replaces one
+kernel family and does not disable all compiler vectorization or downstream
+ISA-specific fallbacks.
 
-Native primary timings measure process CPU; Wasm primary timings measure elapsed
-time. Cold, second-call and warm results are separate. The repeated conversion
-loops use reusable caller buffers and exclude fixture construction, caller
-allocation and owned String/Vec helpers. Prevalidated decode exports also
-exclude the preceding UTF-8 scan. Three fresh-process medians and their ranges
-describe the sampled variation; they are not confidence intervals. Primary
-grids use one deterministic fixture per size. Independent native oracle checks
-cover the large fixtures; the historical Wasm BigInt oracle covers sizes only
-through 1 KiB. Error, zero and tail distributions need separate tests or controls.
-Historical empty native decode used an exact-length `Vec`. On GCP its timing
-depended strongly on that zero-length buffer's address; those rows do not
-characterize general empty-input API latency.
+### Timing limits
 
-Allocator probes count requested Rust layouts. A request is `alloc_calls +
-realloc_calls`; `zeroed_calls` is a subset of `alloc_calls`. Requested peak bytes
-exclude allocator overhead, RSS and stack. Reallocation hooks cannot observe an
-allocator's internal overlap between old and new blocks. Caller input/output
-allocations are [reported separately](benchmarks/allocation-layout/public-allocations/io-separate.csv).
-The public allocation aliases are inside instrumented `__internals` workers;
-they are not the standalone cdylibs used for the allocation-layout public timings.
+Byte-identical GCP libraries loaded from two files differed by about 27% in a
+tiny-decode control; two labels for the same file were near parity. This
+implicates file identity or loading context, but its physical cause is unknown.
+Old/current or candidate timings alone therefore do not establish that a source
+change caused a speedup. Unchanged Auto temporal-control medians in the backend
+study ranged from 0.895 to 1.068 times the earlier Auto result.
 
-For example, these are cold 4 MiB Auto encodes on the local allocation worker,
-v000→v011. They show the accepted storage benefit, not current-process RSS:
+The compact study instead used one fixed path/inode, CPU pinning and longer
+batches, with five alternating fresh-process pairs per case. Its 56
+identical-content control-cell medians ranged from 0.994 to 1.018; individual
+pairs varied more widely. This does not establish sub-percent stability.
 
-| Feature | Requests before → after | Requested extra peak B before → after | Retained delta B after |
+Timing ran without overlapping compiler, test, proof or fuzz work. That does not
+fix frequency, temperature, host contention or buffer placement. Observed
+ranges are descriptive, not confidence intervals. Small changes require
+unchanged-artifact controls before they justify runtime tuning. Historical empty
+native decode also depended strongly on the address of its zero-length buffer;
+those cells do not characterize general empty-input API latency.
+
+## Generic and native x86-64
+
+Generic builds retain runtime CPU selection. Native builds use
+`-C target-cpu=native` on the EPYC VM, whose AVX2, AVX-512 IFMA and VBMI support
+was checked. These internal-worker observations use the same source and protocol
+as the README's GCP table. They are separate from ordinary M5/Wasm consumers.
+
+Each cell is **encode / decode**, using warm process-CPU medians:
+
+| Build / policy | 4 KiB | 64 KiB | 4 MiB |
 | --- | ---: | ---: | ---: |
-| Default | 88 → 44 | 284,269,528 → 201,582,112 | 0 |
-| cache | 3,168 → 46 | 294,775,616 → 214,372,960 | 14,401,152 |
+| Generic / default | 50.963 µs / 33.094 µs | 3.558 ms / 1.363 ms | 350.689 ms / 165.306 ms |
+| Generic / cache | 41.331 µs / 33.293 µs | 2.776 ms / 1.295 ms | 325.575 ms / 163.279 ms |
+| Native / default | 48.796 µs / 21.894 µs | 3.557 ms / 1.236 ms | 339.745 ms / 156.087 ms |
+| Native / cache | 38.430 µs / 22.210 µs | 2.770 ms / 1.169 ms | 313.082 ms / 154.469 ms |
 
-[All sizes, directions and hosts](benchmarks/allocation-layout/public-allocations/comparisons.csv)
-retain cold/warm distinctions. Cache capacity and per-call retained delta are
-different columns. Cache headers have static storage; their backing tables are
-heap allocations. The opt-in cache policy and its bounds are specified in
-[DESIGN.md](../DESIGN.md); the earlier unbounded cache dataset must not be used
-as its memory estimate.
+![Internal backend conversion times on AMD EPYC 9B45, native target](../assets/graphs/gcp-native-backends.svg)
 
-Native code, read-only data, initialized data and BSS are separate from stripped
-file size. Wasm CODE/DATA sections and 64 KiB linear-memory pages are different
-again. A linked probe includes its runtime and scaffold; subtracting an empty
-probe is useful but does not produce exact crate-only instruction bytes.
-[Current linked probes](benchmarks/2026-10-27/figure-linked-sizes.csv) distinguish
-Auto, Auto+cache, no_alloc and bs58 for the README; the
-[allocation-layout sizes](benchmarks/allocation-layout/sizes.csv) retain the
-earlier source. The
-[all-backend size grid](benchmarks/backend-resources/linked-sizes.csv) retains
-the earlier complete comparison. Reachable APIs, LTO, compiler and feature
-unification can change an application's result.
+Native code generation helps several decode sizes in this cohort. It is not a
+portable deployment setting or evidence that every backend improves. Shared
+wrapper fallbacks explain some equal timings and do not justify deleting an
+underlying algorithm family.
 
-## Decisions supported by the measurements
+## Cache and memory
 
-Matrix/Divisor storage pooling and earlier temporary drops reduced allocation
-requests and some peaks. Their paired timings were mixed, so the accepted
-benefit is resource behavior. Exact 32/64-byte paths remain distinct from the
-rejected idea of padding arbitrary nearby lengths into fixed tables. Toom-3
-remains experimental. Broader threshold-state plumbing, six NTT loop rewrites
-and explicit Wasm panel prototypes were rejected; their measured costs and
-controls are retained in the [decision ledger](benchmarks/decisions/decisions.json).
+Enabling `cache` changes dispatch and leaf policy as well as retaining tables.
+At 4 KiB on M5, warm cache encoding/decoding took 28.3/25.2 µs versus
+110/39.9 µs by default. A rough cold-plus-warm model recovered setup after about
+17/47 repeated calls. These are workload estimates from separately scheduled
+medians, not universal break-even counts. At 4 MiB, the warm improvement was
+smaller: 280/139 ms versus 298/142 ms.
 
-Large apparent migration slowdowns were not attributable to no_std, the rename
-or a constant table: an unchanged ELF copied to a different inode/path also ran
-faster. The [literal-copy controls](benchmarks/production/literal-copy-controls.csv)
-preserve that result. Loader, page and heap context remain unresolved; no PMU
-measurement established a cause. Small differences need unchanged-route and
-literal-artifact controls before they justify a runtime change.
+Requested peak extra heap for a random 4 MiB borrowed Auto conversion was:
 
-## Reproduction
+| Platform / policy | Encode peak | Decode peak | Retained encode / decode |
+| --- | ---: | ---: | ---: |
+| M5 / default | 201,582,112 B | 109,997,816 B | 0 / 0 B |
+| M5 / cache | 214,372,960 B | 110,631,416 B | 14,401,152 / 616,704 B |
+| GCP / default | 201,207,328 B | 109,807,352 B | 0 / 0 B |
+| GCP / cache | 199,813,368 B | 109,807,352 B | 233,984 / 0 B |
 
-Use a new output directory and freeze the source before building. The checked-in
-tools record source, worker/artifact hashes, compiler, features, flags and clocks.
-Build all compared variants before timing, then run them serially on an idle
-host. Keep allocation instrumentation out of timing workers.
+These are architecture/policy-specific operation windows, excluding caller
+buffers. Rust allocator probes count requested layouts, not allocator overhead,
+RSS, stack or realloc-internal overlap. An allocation request count is
+`alloc_calls + realloc_calls`; `zeroed_calls` is already a subset of
+`alloc_calls`. No-allocation, bs58 and five8 borrowed conversions made no
+allocator requests in their supported measured cases.
 
-For a new native backend survey, `scripts/resource_report.py build` produces
-worker metadata; `run --mode timing` uses an uncounted build, and
-`run --mode allocations` needs a separate `build --count-allocations` result.
-The default 29-size grid includes 4 MiB and retains policy skips. Set compiler
-flags before the build; use `--cache` in a separate cohort. These are internal
-resource workers, not ordinary public-consumer binaries.
+Matrix table capacities sum to 18,617,760 B; production NTT retention for logs
+5–18 permits 25,164,288 B. Their combined 41.8 MiB capacity depends on call
+history. Cache families also have 6,280 B of static headers in the recorded
+64-bit layout, with unused families subject to dead stripping. Fixed 32/64-byte
+encoder constants have a separate 2,208 B reference layout. Construction scratch,
+larger per-call tables, allocator overhead and concurrent operations add memory;
+the capacity sum is not an active-heap bound.
 
-The same worker also accepts
-`owned timing|allocations current|full-output BYTES ZERO_PREFIX SAMPLES`.
-It measures `decode_vec` against the previous full-text-size output allocation
-using the current borrowed decoder. Fixtures use independent Malachite radix
-conversion. Cold timing ends when the result returns; warm timing includes
-allocation, decoding and destruction. Counted windows retain the returned
-vector, so their retained delta includes its capacity plus any shared tables.
-Use a fresh process per policy and size; this control isolates allocation policy,
-not the performance of an older library revision.
+Wasm's default 4 MiB encode/decode requested peaks were
+201,580,924/109,997,432 B. A fresh cache-enabled 4 MiB conversion retained no
+backend heap there, while mixed-size histories retained tables. Released heap
+does not imply that Wasm linear-memory pages return to the host. RSS includes
+runtime, fixtures and validation copies; subtracting process peaks does not
+isolate exact backend memory. Static assembly frames are also separate from
+dynamic stack high water, which was not measured as a full recursive bound.
 
-`scripts/public_api_campaign.py` has separate `build`, `measure` and
-`allocations` phases for Auto/cache/no_alloc/bs58. Its timing phase also uses
-internal workers. `scripts/code_size.py` builds standalone reachable-API probes;
-its `--cpu generic` clears target-CPU overrides, and other values set
-`-C target-cpu=...`. `--opt-level z` provides a separate size-oriented cohort.
-`scripts/wasm_tradeoffs.mjs` runs previously built, metadata-bound Wasm modules;
-the newer SIMD experiment's exact build settings are in its
-[receipt](benchmarks/simd/receipts.json).
+## Linked size and compact
 
-The published plots and validation helpers can be checked without benchmarks:
+The [README size table](../README.md#linked-size) subtracts matching empty
+consumers. These deltas include reachable code and associated metadata; they are
+not crate-only instruction counts or rlib sizes. Code, readonly data, initialized
+data, BSS and stripped file size are separate metrics. Wasm CODE/DATA sections
+and 64 KiB memory pages are different again. Reachable APIs, LTO, compiler and
+feature unification can change an application's result.
 
-```text
-python3 -B assets/graphs/render.py --check
-python3 scripts/verify_power.py --self-test
-python3 scripts/backend_summary.py --self-test
+On x86-64, `compact` keeps eight IFMA widths instead of twelve, increasing chunk
+counts for some operand shapes. Final-source generic Auto code above empty
+fell from 286,445 to 191,005 B by default, and 277,101 to 181,661 B with cache:
+95,440 B, about 93.2 KiB, saved in each case. Native EPYC consumers saved the
+same amount, about 35–37% of their Auto code delta. M5 and scalar Wasm had no
+code/data-section saving in the separate final-source size builds.
+
+On the measured EPYC VM, compact/wide paired latency ratios for 4 KiB–4 MiB
+cache-off encoding ranged from 0.9095 to 0.9819. Default decoding ranged from
+1.0104 to 1.0246; cache encoding from 1.0043 to 1.0297; cache decoding from
+1.0069 to 1.0290. These are whole-consumer observations with the timing limits
+above. Wide remains the default. Tiny inputs bypass IFMA, so their layout-driven
+differences do not measure an IFMA primitive.
+
+## Optimization conclusions
+
+Keep batched/fixed paths for small and no-allocation work, Karatsuba for recursive
+and short-product fallbacks, NTT for large conversions, and Matrix for useful
+cache-enabled medium sizes. Toom-3 remains experimental; Malachite is a
+development reference.
+
+Storage pooling and earlier temporary drops reduced allocation requests and
+some peaks; timings were mixed. Padding nearby sizes into exact 32/64-byte
+tables and portable fixed-matrix decoding were rejected. Broader threshold-state
+plumbing, six NTT loop rewrites and explicit Wasm panel prototypes did not show
+a consistent benefit. Linked assembly can expose candidates, but static call or
+instruction counts do not measure their cost. Resolve indirect-looking calls
+and inspect the final linked artifact before changing dispatch or ISA guards.
+
+Compiler-enabled Wasm SIMD can help large NTT routes and regress cached Matrix
+routes. One frozen-source Node study observed 8 KiB default encode/decode gains
+of about 28/21% on M5 and 15/16% on GCP, while M5 cached 4 KiB encode/decode
+regressed about 37/31%. Both-direction stripped Auto modules grew about 9 KiB.
+These results used Rust 1.99.1 / LLVM 23.1.1 and Node 26.12.1 / V8
+14.6.202.34-node.40, resource source `17ab5f264ed4`. A SIMD module requires an
+engine with SIMD support; it has no scalar runtime fallback inside that module.
+Measure the deployment workload before selecting it.
+
+## Measure and update
+
+Run from the repository root. Freeze the revision, use fresh output directories
+under ignored `target/measurements/`, and record source/compiler/target/features,
+flags, clocks and artifact identities. Build compared variants before timing,
+then run them serially on an idle host. Keep counted allocation builds separate
+from timing and size builds. Use `scripts/ac_power_run.py` to record laptop AC
+and available thermal status when applicable.
+
+For an internal backend survey, build an uncounted worker, then run it:
+
+```sh
+rtk proxy python3 scripts/resource_report.py build --target-dir target/measurements/default-build --binary-output target/measurements/default-worker --output target/measurements/default-build.json
 ```
 
-These checks do not recreate historical timings. The retained tables and small
-receipts are sufficient to inspect selected results and bindings. Full raw
-replays and exact rejected-prototype rebuilds require the recorded archival
-inputs; their hashes remain in the receipts. `backend_summary.py` requires
-explicit archived raw inputs for a full historical rebuild.
+```sh
+rtk proxy python3 scripts/resource_report.py run --build-metadata target/measurements/default-build.json --output target/measurements/default-timing --mode timing --repeats 3 --samples 3 --timeout 600
+```
+
+Use `--cache` or `--compact` on separate build cohorts. For allocations, build
+with `--count-allocations` into new paths and run with `--mode allocations`.
+The worker enforces backend domains and policy skips. Its metadata identifies
+the source under test; these commands do not recreate the historical tables.
+
+`scripts/public_api_campaign.py` provides build, measure and allocations phases
+for public modes, but its timing phase uses internal workers. Ordinary public
+consumer measurements require separate qualification of the standalone
+`scripts/code_size.py` probes and their repeat-call interfaces. Do not relabel an
+internal-worker result as a public-consumer result.
+
+For deployment size, use `scripts/code_size.py` with an explicit target and CPU.
+Its legacy CPU default is model-specific, so do not omit `--cpu`:
+
+```sh
+rtk proxy python3 scripts/code_size.py --source . --output target/measurements/linked --target x86_64-unknown-linux-gnu --cpu generic --backends empty,auto --directions both --kinds cdylib --strip-tool /path/to/llvm-strip
+```
+
+Use a matching linker/strip tool. Native timing must run on the actual target;
+cross-compilation or Rosetta-hosted code generation establishes size only. For
+Wasm, build separate modules with `--target wasm32-unknown-unknown --cpu generic`;
+`--wasm-simd128` selects a separate cohort. The metadata-bound
+`scripts/wasm_tradeoffs.mjs` timing driver uses Node with
+`--no-liftoff --no-wasm-lazy-compilation --no-wasm-async-compilation`.
+`scripts/wasm_allocations.mjs` qualifies separate counted modules.
+
+For fresh-process Wasm layout collection, `tools/fixture-export/` builds the
+Natural-only fixture exporter, `scripts/make_fixtures.py` writes its fixture
+files and manifest, and `scripts/count_wasm.py` collects layouts through
+`scripts/count_wasm.mjs`. Keep fixture and collector outputs under the same
+measurement directory. Qualify counted modules on disposable instances before
+collecting from fresh measurement instances.
+
+Keep new CSV/JSON outputs in the measurement directory. Public figures can be
+rendered from external inputs with `assets/graphs/render_current.py --data
+TIMINGS.csv --sizes SIZES.csv --output NEW_DIRECTORY`; internal backend figures
+use `assets/graphs/render_backends.py --data TIMINGS.csv --output NEW_DIRECTORY`.
+Use the pinned plotting environment in `assets/graphs/requirements.txt`.
+`python3 -B assets/graphs/render.py --check` checks the selected committed
+figures and documentation without running benchmarks. It does not reconstruct
+removed measurement inputs or independently reproduce their numbers.
+
+When updating results, change each table, figure, date, source and build scope
+together. Include cold costs, memory and linked-size effects. Check unchanged
+routes and identical artifacts, preserve failed cases in the new measurement
+output, and state unresolved variation before drawing a causal conclusion.

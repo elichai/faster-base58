@@ -1,9 +1,0 @@
-cpu,policy,compact,code_bytes_above_empty,readonly_bytes_above_empty,data_bytes_above_empty,bss_bytes_above_empty,stripped_file_bytes_above_empty,stripped_gzip_bytes_above_empty
-generic,default,False,286445,35848,5696,-328,328016,137355
-generic,default,True,191005,35632,5664,-2984,232368,111539
-generic,cache,False,277101,36540,12616,-530,326312,131308
-generic,cache,True,181661,36324,12584,-3106,230584,105415
-native,default,False,274029,31884,5616,-192,311488,134696
-native,default,True,178589,31668,5584,-2832,215824,105133
-native,cache,False,255309,30192,11848,-464,297336,123028
-native,cache,True,159869,29976,11816,-3104,201672,93869

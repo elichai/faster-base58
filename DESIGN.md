@@ -40,12 +40,10 @@ Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
 local sums. Fixed dimensions remove table construction and dimension handling;
 64-byte kernels also segment the carry chain. Auto and `no_alloc` select these
 specializations directly. The internal Matrix comparison hooks use the general
-matrix kernel. Their short carry schedule needs
-fixed-size bounds and cannot replace the general schedule directly. Padding
-nearby lengths into these kernels was [rejected](docs/benchmarks/decisions/README.md):
-zero-heavy inputs regressed despite some ordinary-input gains.
-Portable fixed decoding was also [measured and rejected](docs/benchmarks/fixed-decode/README.md):
-the general decoder was faster on M5, and the prototypes added code and tables.
+matrix kernel. Their short carry schedule needs fixed-size bounds and cannot
+replace the general schedule directly. Padding nearby lengths into these kernels
+regressed zero-heavy inputs. Portable fixed decoder prototypes were slower than
+the general decoder on M5 and added code and tables.
 
 [NTT multiplication](src/ntt/mod.rs) uses two 32-bit coefficients per limb,
 three primes below `2^30`, Montgomery products and exact CRT reconstruction.
@@ -64,11 +62,9 @@ preconditions are checked; small inputs never enter the large stack frames or
 construct multipliers. Internal comparison/tuning wrappers still accept every
 length so differential tests can exercise their fallbacks.
 
-Normalized selection changes some zero-prefixed inputs' backend and allocation
-behavior. With `cache`, a Matrix table can now be retained where the earlier
-route used batched conversion. The [dispatch report](docs/benchmarks/dispatch/README.md)
-records that cost, timing variation and the NTT outlining needed to keep large
-stack frames out of tiny encode entries.
+Leading zeros affect the selected backend and allocation behavior. With `cache`,
+a short significant suffix can select Matrix even when the total input is large.
+NTT entry points are outlined to keep large stack frames out of tiny encode calls.
 
 | Mode | Encode | Decode |
 | --- | --- | --- |
@@ -77,9 +73,10 @@ stack frames out of tiny encode entries.
 | `no_alloc` | Fixed 32/64-byte matrices; batched elsewhere | Tiny/batched |
 
 Cached decoding uses Matrix only on NEON, Wasm or x86 with SSE4.1. Its upper
-boundary is 5632 text bytes, reduced to 5120 with IFMA. IFMA hosts compiled with
-AVX2 keep the remaining medium range on batched decoding. Other targets retain
-batched decoding there. Recursive leaves also have independent thresholds.
+boundary is 5632 significant digits, reduced to 5120 with IFMA. IFMA hosts compiled
+with AVX2 use batched decoding from the minimum Matrix size through 5120, then
+NTT above 5120. Targets without a supported Matrix kernel use batched decoding
+through 5632, then NTT. Recursive leaves also have independent thresholds.
 
 The `cache` feature is an implementation policy, not a runtime API parameter.
 `Ntt::new` owns optional per-call tables and initializes them through mutable
@@ -107,15 +104,16 @@ SIMD applies beyond fixed lengths. Fixed 32-byte x86 encoding deliberately uses
 plain Rust; fixed 64-byte encoding has explicit vector kernels. AVX2 NTT wrappers
 allow LLVM vectorization, while AVX-512 kernels are hand-written. `*_portable`
 hooks replace a kernel family, not every downstream fallback, and do not promise
-scalar assembly. [SIMD results](docs/simd.md) include the mixed Wasm `+simd128`
-tradeoff. [Assembly review](docs/assembly.md) covers callbacks, detector loads,
-panic paths and size. Ordinary builds use a constant IFMA threshold; only tests
-and `__internals` retain its tuning atomic. Earlier ordinary artifacts already
-folded that atomic away, so the source cleanup is not a demonstrated speedup.
-Generic x86 builds still read cached CPU feature flags in the NTT short-product
-fallback. [Broader state plumbing](docs/benchmarks/decisions/README.md) has no
-established overall benefit; narrower reuse of the constructor's choice still
-needs controlled measurements.
+scalar assembly. Wasm `+simd128` requires a SIMD-capable engine and has no scalar
+runtime fallback within that module. Measurements show mixed tradeoffs; see
+[performance](docs/performance.md).
+
+Ordinary builds use a constant IFMA threshold; only tests and `__internals`
+retain its tuning atomic. Generic x86 builds still read cached CPU feature flags
+in the NTT short-product fallback. Passing threshold state through multipliers
+had no established overall benefit; narrower reuse of the constructor's choice
+needs controlled measurements. Resolve final linked call targets before treating
+source-level function pointers as runtime dispatch costs.
 
 ## Heap, stack and cache costs
 
@@ -134,8 +132,8 @@ and cannot overflow. It asymptotically saves 26.6% of the significant-text outpu
 capacity against allocating the full text length; backend scratch is additional. The
 prefix scan is shared with dispatch, and truncation does not reallocate. Tiny
 inputs of at most two bytes retain the short route. Empty input returns before
-entering the nonempty decoder. The [owned-result measurements](docs/benchmarks/2026-10-27/README.md)
-retain size-specific timings and unchanged-binary controls that limit attribution.
+entering the nonempty decoder. See [performance](docs/performance.md) for measured
+owned-result and resource tradeoffs.
 
 Matrix construction reuses eight scratch rows. One table has three allocations:
 temporary rows, retained panel metadata and retained coefficients. Combining all
@@ -169,9 +167,8 @@ powers, stack and concurrent conversions. A 4 MiB significant encode can require
 96 MiB of owned twiddles per call. The allocation-layout measurement reduced
 its extra requested live heap from 284,269,528 to 201,582,112 bytes, with zero
 retention in the cache-off build. Those counts exclude allocator-internal
-reallocation overlap and RSS. [Current process peaks](docs/benchmarks/2026-10-27/README.md)
-and Wasm page high-water are separate metrics. [Allocation data](docs/benchmarks/allocation-layout/README.md)
-retain exact source and measurement identities.
+reallocation overlap and RSS. Process peaks and Wasm page high-water are separate
+metrics; see [measurement scopes](docs/performance.md).
 
 Precomputing every general cache table would embed roughly 41.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the
@@ -187,21 +184,19 @@ a smaller general path. Fixed-only five8 has a narrower contract.
 
 The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to
 eight vector groups. It removes four large unrolled kernel bodies and increases
-the chunk count for some operand shapes. [Final-source sizes](docs/benchmarks/2026-10-27/final-size-304dc/README.md)
-and [ordinary GCP consumers](docs/benchmarks/2026-10-27/final-compact-304dc/README.md)
-show about 93.2 KiB less executable code, 33–37% of the matched x86 Auto delta
-above empty. On one EPYC 9B45 VM, compact's cache-off encoding is about 2–9%
-faster at 4 KiB–4 MiB; large decoding and cache-mode conversions mostly cost 1–3%.
-These whole-consumer observations include compiler/call-context effects, with all
-identical-content controls retained. M5 and scalar Wasm have no section saving.
+the chunk count for some operand shapes. The 2026-10-28 measurements of runtime
+source `304dc4c5dbf1` show about 93.2 KiB less executable code, 33–37% of the matched
+x86 Auto delta above empty. On one EPYC 9B45 VM, compact's cache-off encoding is
+about 2–9% faster at 4 KiB–4 MiB; large decoding and cache-mode conversions mostly
+cost 1–3%.
+These whole-consumer observations include compiler/call-context effects;
+identical-content controls also varied. M5 and scalar Wasm have no section saving.
 Format, API and the no-allocation contract are unchanged; wide12 remains the
 default. Other production architectures do not use these IFMA kernels.
 
-[Per-platform backend sizes](docs/benchmarks/backend-resources/README.md),
-[public-mode sizes](docs/benchmarks/public-modes/README.md) and
-[later allocation-layout sizes](docs/benchmarks/allocation-layout/README.md)
-preserve distinct source generations. Use their section deltas as well as total
-file bytes. The [README](README.md#linked-size) has the short bs58 comparison.
+Use linked-section deltas as well as total file bytes, and keep source generations
+separate. [Performance](docs/performance.md) explains the measurements and update
+workflow; the [README](README.md#linked-size) has the short bs58 comparison.
 The rejected loop and explicit Wasm-panel experiments do not justify further size
 features. See [verification limits](CORRECTNESS.md#remaining-work) before making
 claims about all inputs or architectures.

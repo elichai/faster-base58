@@ -10,19 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 EXACT = {'Cargo.toml', 'Cargo.toml.orig', 'Cargo.lock', '.cargo_vcs_info.json',
          'README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md',
          'LICENSE-MIT', 'LICENSE-APACHE', 'docs/README.md', 'docs/performance.md',
-         'docs/assembly.md', 'docs/simd.md', 'docs/verification/README.md',
-         'docs/verification/local-ci.md', 'docs/verification/local-ci.json',
-         'docs/verification/proofs.json', 'docs/verification/sanitizers.json',
-         'docs/verification/status.json', 'docs/verification/local-ci-current.md',
-         'docs/verification/proofs-current.json',
-         'docs/verification/guard-source-bridge.json',
-         'docs/verification/miri-current.md', 'docs/verification/miri-current.json',
-         'docs/references/consultations.json',
          'docs/references/firedancer-LICENSE.txt', 'docs/references/firedancer-NOTICE.txt',
          'docs/references/bitcoin-core-LICENSE.txt',
          'docs/references/five8-LICENSE.txt'}
 REQUIRED = {'Cargo.toml', 'src/lib.rs', 'README.md', 'DESIGN.md', 'CORRECTNESS.md',
-            'REFERENCES.md', 'LICENSE-MIT', 'LICENSE-APACHE'}
+            'REFERENCES.md', 'LICENSE-MIT', 'LICENSE-APACHE', 'docs/README.md',
+            'docs/performance.md', 'assets/graphs/m5-public.svg',
+            'assets/graphs/wasm-public.svg', 'assets/graphs/gcp-generic-backends.svg',
+            'assets/graphs/gcp-native-backends.svg'}
 
 def require(condition, message):
     if not condition:
@@ -42,12 +37,11 @@ def allowed(name):
 
 def self_test():
     for name in ['src/lib.rs', 'tests/support/scalar.rs', 'REFERENCES.md', 'CORRECTNESS.md',
-                 'assets/graphs/encode.svg', 'docs/verification/proofs.json',
-                 'docs/verification/guard-source-bridge.json']:
+                 'assets/graphs/gcp-generic-backends.svg', 'docs/performance.md']:
         require(allowed(name), 'Expected package source: ' + name)
     for name in ['', '../secret.rs', '/src/lib.rs', 'src/key.pem', 'fuzz/corpus/input',
                  'docs/benchmarks/source.tgz', 'docs/verification/run.log',
-                 'docs/verification/data/local-ci-current.json',
+                 'docs/verification/proofs.json', 'docs/references/consultations.json',
                  'target/release/lib.rlib', '.git/config']:
         require(not allowed(name), 'Unexpected package input accepted: ' + name)
 
