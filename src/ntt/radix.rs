@@ -7,14 +7,14 @@
 
 use alloc::vec::Vec;
 
-use super::tables::{MAX_LOG, PRIMES, Tables};
-use super::{Kernels, Ntt};
+use super::Kernels;
+use super::tables::{MAX_LOG, PRIMES, Tables, Twiddles};
 use crate::BufferTooSmall;
 use crate::common::ALPHABET;
-use crate::dc::Multiplier;
 
 const BASE: u32 = 58u32.pow(3);
 const LEAF_BYTES: usize = 32;
+const LEAF_DIGITS: usize = crate::max_encoded_len(LEAF_BYTES).div_ceil(3);
 const THRESHOLD: usize = 64;
 
 // A transform has at most 2^23 coefficients. Each ordinary product coefficient
@@ -27,6 +27,14 @@ const _: () =
 /// Returns `None` before allocating when the division tree is preferable or this
 /// backend's transform limit is exceeded.
 /// `x` has already had its `zeros` leading zero bytes removed.
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    )
+))]
 pub(super) fn try_encode(
     zeros: usize,
     x: &[u8],
@@ -65,7 +73,7 @@ fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
     (points <= 1 << MAX_LOG).then_some((unit, levels, points))
 }
 
-fn encode_with(
+pub(super) fn encode_with(
     zeros: usize,
     x: &[u8],
     output: &mut [u8],
@@ -83,21 +91,53 @@ fn encode_with(
     if levels == 0 {
         return Some(write(zeros, &leaf(x), output));
     }
-    let mut ntt = Ntt::new(kernels);
-    ntt.prepare(points / 2);
-    ntt.ensure_tables();
+    let log = points.ilog2().max(5);
+    #[cfg(feature = "cache")]
+    let shared = (log <= super::tables::cache::CACHE_MAX_LOG).then(|| Tables::cached(log));
+    #[cfg(not(feature = "cache"))]
+    let shared: Option<&Tables> = None;
+    let owned;
+    let tw = match shared {
+        Some(tables) => &tables.tw[..2],
+        None => {
+            owned = Tables::twiddles::<2>(log);
+            &owned
+        }
+    };
     let mut arithmetic = Arithmetic {
         kernels,
-        tables: ntt.initialized_tables(),
+        tw,
         work: vec![0; 3 * points],
-        sums: Vec::new(),
+        sums: Vec::with_capacity(2 * THRESHOLD),
     };
     let mut powers = Vec::with_capacity(levels);
-    let mut bytes = vec![0; unit + 1];
+    let power_capacity = |bytes| crate::max_encoded_len(bytes + 1).div_ceil(3);
+    // Product slots need their untrimmed length, even when the power loses a digit.
+    let storage_len = power_capacity(unit)
+        + (1..levels)
+            .map(|i| 2 * power_capacity(unit << (i - 1)))
+            .sum::<usize>();
+    let mut storage = vec![0; storage_len];
+    let spectrum_len = (0..levels - 1)
+        .map(|i| 2 * (2 * power_capacity(unit << i)).max(8).next_power_of_two())
+        .sum();
+    let mut spectra = vec![0; spectrum_len];
+    let mut spectrum_storage = &mut spectra[..];
+    let (seed, mut remaining) = storage.split_at_mut(power_capacity(unit));
+    let mut bytes = [0; LEAF_BYTES + 1];
     bytes[0] = 1;
-    let mut digits = leaf(&bytes);
+    let len = leaf_into(&bytes[..unit + 1], seed);
+    let mut digits = &seed[..len];
     for i in 0..levels {
-        let spectrum = (digits.len() >= THRESHOLD).then(|| arithmetic.prepare(&digits));
+        // The top power serves only the root; transforming it in work avoids storing it.
+        let spectrum = if i + 1 < levels && digits.len() >= THRESHOLD {
+            let len = 2 * (2 * digits.len()).max(8).next_power_of_two();
+            let slot;
+            (slot, spectrum_storage) = spectrum_storage.split_at_mut(len);
+            Some(arithmetic.prepare(digits, slot))
+        } else {
+            None
+        };
         powers.push(Power {
             bytes: unit << i,
             digits,
@@ -105,63 +145,77 @@ fn encode_with(
         });
         if i + 1 < levels {
             let p = &powers[i];
-            digits = arithmetic.multiply(&p.digits, &p.digits, p.spectrum.as_ref());
+            let slot;
+            (slot, remaining) = remaining.split_at_mut(2 * p.digits.len());
+            let len = arithmetic.multiply_add(p.digits, p.digits, slot, 0, p.spectrum);
+            digits = &slot[..len];
         } else {
             break;
         }
     }
-    let digits = convert(x, &powers, &mut arithmetic);
-    Some(write(zeros, &digits, output))
+    let out_capacity = capacity(&powers);
+    let scratch: usize = (0..powers.len()).map(|n| capacity(&powers[..n])).sum();
+    let mut digits = vec![0; out_capacity + scratch];
+    let (out, scratch) = digits.split_at_mut(out_capacity);
+    let len = convert(x, &powers, &mut arithmetic, out, scratch);
+    Some(write(zeros, &out[..len], output))
 }
 
-struct Power {
+struct Power<'a> {
     bytes: usize,
-    digits: Vec<u32>,
-    spectrum: Option<[Vec<i32>; 2]>,
+    digits: &'a [u32],
+    spectrum: Option<[&'a [i32]; 2]>,
 }
 
 struct Arithmetic<'a> {
     kernels: Kernels,
-    tables: &'a Tables,
+    tw: &'a [Twiddles],
     work: Vec<i32>,
     sums: Vec<u64>,
 }
 
 impl Arithmetic<'_> {
-    fn prepare(&self, b: &[u32]) -> [Vec<i32>; 2] {
+    fn prepare<'a>(&self, b: &[u32], storage: &'a mut [i32]) -> [&'a [i32]; 2] {
         let n = (2 * b.len()).max(8).next_power_of_two();
-        core::array::from_fn(|j| {
-            let mut f = vec![0; n];
-            load(&mut f, b);
-            (self.kernels.forward)(&mut f, PRIMES[j], &self.tables.tw[j]);
-            f
-        })
+        assert_eq!(storage.len(), 2 * n);
+        for (j, f) in storage.chunks_exact_mut(n).enumerate() {
+            load(f, b);
+            (self.kernels.forward)(f, PRIMES[j], &self.tw[j]);
+        }
+        let (a, b) = storage.split_at(n);
+        [a, b]
     }
 
-    fn multiply(&mut self, a: &[u32], b: &[u32], fb: Option<&[Vec<i32>; 2]>) -> Vec<u32> {
-        self.multiply_add(a, b, &[], fb)
+    #[cfg(test)]
+    fn multiply(&mut self, a: &[u32], b: &[u32], fb: Option<[&[i32]; 2]>) -> Vec<u32> {
+        let mut out = vec![0; a.len() + b.len()];
+        let len = self.multiply_add(a, b, &mut out, 0, fb);
+        out.truncate(len);
+        out
     }
 
-    /// `a * b + add`, with `add < b`. Thus the result is below `(a + 1) * b`
+    /// `a * b + out[..add_len]`, with the addend below `b`. The result is below `(a + 1) * b`
     /// and fits the same `a.len() + b.len()` digits as the product alone.
     fn multiply_add(
         &mut self,
         a: &[u32],
         b: &[u32],
-        add: &[u32],
-        fb: Option<&[Vec<i32>; 2]>,
-    ) -> Vec<u32> {
+        out: &mut [u32],
+        add_len: usize,
+        fb: Option<[&[i32]; 2]>,
+    ) -> usize {
         if a.is_empty() || b.is_empty() {
-            return add.to_vec();
+            return add_len;
         }
-        if b == [1] && add.is_empty() {
-            return a.to_vec();
+        if b == [1] && add_len == 0 {
+            out[..a.len()].copy_from_slice(a);
+            return a.len();
         }
         let len = a.len() + b.len();
-        let mut out = vec![0; len];
+        let out = &mut out[..len];
         if a == [1] {
             let coefficients = b.iter().map(|&d| d as u64).chain(core::iter::repeat(0));
-            carry(&mut out, coefficients, add);
+            carry(out, coefficients, add_len);
         } else if a.len().min(b.len()) < THRESHOLD {
             self.sums.clear();
             self.sums.resize(len, 0);
@@ -172,7 +226,7 @@ impl Arithmetic<'_> {
                     *s += a as u64 * b as u64;
                 }
             }
-            carry(&mut out, self.sums.iter().copied(), add);
+            carry(out, self.sums.iter().copied(), add_len);
         } else {
             let n = len.max(8).next_power_of_two();
             let (r, tmp) = self.work.split_at_mut(2 * n);
@@ -180,7 +234,7 @@ impl Arithmetic<'_> {
             let square = core::ptr::eq(a, b);
             for (j, r) in r.chunks_exact_mut(n).enumerate() {
                 let p = PRIMES[j];
-                let tw = &self.tables.tw[j];
+                let tw = &self.tw[j];
                 if square && let Some(f) = fb {
                     r.copy_from_slice(&f[j][..n]);
                 } else {
@@ -210,10 +264,9 @@ impl Arithmetic<'_> {
                 .zip(r2.iter())
                 .take(len)
                 .map(|(&r1, &v2)| r1 as u64 + PRIMES[0].q as u64 * v2 as u64);
-            carry(&mut out, coefficients, add);
+            carry(out, coefficients, add_len);
         }
-        trim(&mut out);
-        out
+        out.iter().rposition(|&d| d != 0).map_or(0, |i| i + 1)
     }
 }
 
@@ -250,22 +303,17 @@ fn load(out: &mut [i32], digits: &[u32]) {
     tail.fill(0);
 }
 
-fn carry(out: &mut [u32], coefficients: impl Iterator<Item = u64>, add: &[u32]) {
+fn carry(out: &mut [u32], coefficients: impl Iterator<Item = u64>, add_len: usize) {
     let mut carry = 0;
     for (i, (digit, coefficient)) in out.iter_mut().zip(coefficients).enumerate() {
         // Adding a digit raises the inductive carry bound to
         // MAX_COEFFICIENT / (BASE - 1) + 1; the complete sum still fits u64.
-        let value = coefficient + carry + add.get(i).copied().unwrap_or(0) as u64;
+        let add = if i < add_len { *digit as u64 } else { 0 };
+        let value = coefficient + carry + add;
         *digit = (value % BASE as u64) as u32;
         carry = value / BASE as u64;
     }
     debug_assert_eq!(carry, 0);
-}
-
-fn trim(digits: &mut Vec<u32>) {
-    while digits.last() == Some(&0) {
-        digits.pop();
-    }
 }
 
 /// Horner in groups of five bytes. A digit times 2^40 plus its carry is below 2^58.
@@ -274,34 +322,58 @@ fn leaf(bytes: &[u8]) -> Vec<u32> {
     if bytes.is_empty() {
         return Vec::new();
     }
-    let mut out = Vec::with_capacity(crate::max_encoded_len(bytes.len()).div_ceil(3));
+    let mut out = vec![0; crate::max_encoded_len(bytes.len()).div_ceil(3)];
+    let len = leaf_into(bytes, &mut out);
+    out.truncate(len);
+    out
+}
+
+fn leaf_into(bytes: &[u8], out: &mut [u32]) -> usize {
+    let (_, bytes) = crate::encode::split_zeros(bytes);
+    if bytes.is_empty() {
+        return 0;
+    }
+    let mut len = 0;
     for chunk in bytes.chunks(5) {
         let bits = 8 * chunk.len();
         let mut carry = chunk.iter().fold(0u64, |c, &b| (c << 8) | b as u64);
-        for d in &mut out {
+        for d in &mut out[..len] {
             let value = ((*d as u64) << bits) + carry;
             *d = (value % BASE as u64) as u32;
             carry = value / BASE as u64;
         }
         while carry != 0 {
-            out.push((carry % BASE as u64) as u32);
+            out[len] = (carry % BASE as u64) as u32;
+            len += 1;
             carry /= BASE as u64;
         }
     }
-    out
+    len
 }
 
-fn convert(x: &[u8], powers: &[Power], arithmetic: &mut Arithmetic<'_>) -> Vec<u32> {
+fn capacity(powers: &[Power<'_>]) -> usize {
+    powers.last().map_or(LEAF_DIGITS, |p| 2 * p.digits.len())
+}
+
+fn convert(
+    x: &[u8],
+    powers: &[Power<'_>],
+    arithmetic: &mut Arithmetic<'_>,
+    out: &mut [u32],
+    scratch: &mut [u32],
+) -> usize {
     let Some((p, smaller)) = powers.split_last() else {
-        return leaf(x);
+        return leaf_into(x, out);
     };
     if x.len() <= p.bytes {
-        return convert(x, smaller, arithmetic);
+        return convert(x, smaller, arithmetic, out, scratch);
     }
     let (hi, lo) = x.split_at(x.len() - p.bytes);
-    let hi = convert(hi, smaller, arithmetic);
-    let lo = convert(lo, smaller, arithmetic);
-    arithmetic.multiply_add(&hi, &p.digits, &lo, p.spectrum.as_ref())
+    // Each level holds its high child while the low child reuses the remaining scratch.
+    let (high, scratch) = scratch.split_at_mut(capacity(smaller));
+    let hi_len = convert(hi, smaller, arithmetic, high, scratch);
+    let lo_len = convert(lo, smaller, arithmetic, out, scratch);
+    arithmetic.multiply_add(&high[..hi_len], p.digits, out, lo_len, p.spectrum)
 }
 
 fn write(zeros: usize, digits: &[u32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
@@ -341,6 +413,20 @@ mod tests {
     use malachite_nz::natural::Natural;
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
+
+    fn multiply_add(
+        arithmetic: &mut Arithmetic<'_>,
+        a: &[u32],
+        b: &[u32],
+        add: &[u32],
+        fb: Option<[&[i32]; 2]>,
+    ) -> Vec<u32> {
+        let mut out = vec![u32::MAX; a.len() + b.len()];
+        out[..add.len()].copy_from_slice(add);
+        let len = arithmetic.multiply_add(a, b, &mut out, add.len(), fb);
+        out.truncate(len);
+        out
+    }
 
     fn oracle(input: &[u8]) -> Vec<u8> {
         let (zeros, x) = crate::encode::split_zeros(input);
@@ -422,7 +508,7 @@ mod tests {
             let tables = Tables::new(11);
             let mut arithmetic = Arithmetic {
                 kernels,
-                tables: &tables,
+                tw: &tables.tw,
                 work: vec![0; 3 << 11],
                 sums: Vec::new(),
             };
@@ -454,25 +540,29 @@ mod tests {
                         |d: &[u32]| Natural::from_digits_asc(&BASE, d.iter().copied()).unwrap();
                     let want: Vec<u32> = (&value(&a) * &value(&b)).to_digits_asc(&BASE);
                     assert_eq!(arithmetic.multiply(&a, &b, None), want, "length {n}");
-                    let fb = arithmetic.prepare(&b);
+                    let mut spectrum = vec![0; 2 * (2 * b.len()).max(8).next_power_of_two()];
+                    let fb = arithmetic.prepare(&b, &mut spectrum);
                     assert_eq!(
-                        arithmetic.multiply(&a, &b, Some(&fb)),
+                        arithmetic.multiply(&a, &b, Some(fb)),
                         want,
                         "prepared length {n}"
                     );
                     let square: Vec<u32> = (&value(&b) * &value(&b)).to_digits_asc(&BASE);
                     assert_eq!(
-                        arithmetic.multiply(&b, &b, Some(&fb)),
+                        arithmetic.multiply(&b, &b, Some(fb)),
                         square,
                         "square length {n}"
                     );
                     let add: Vec<u32> = (value(&b) - Natural::from(1u8)).to_digits_asc(&BASE);
                     let sum: Vec<u32> =
                         (&value(&a) * &value(&b) + value(&add)).to_digits_asc(&BASE);
-                    assert_eq!(arithmetic.multiply_add(&a, &b, &add, Some(&fb)), sum);
+                    assert_eq!(multiply_add(&mut arithmetic, &a, &b, &add, Some(fb)), sum);
                     let one_sum: Vec<u32> = (value(&b) + value(&add)).to_digits_asc(&BASE);
-                    assert_eq!(arithmetic.multiply_add(&[1], &b, &add, Some(&fb)), one_sum);
-                    assert_eq!(arithmetic.multiply_add(&[], &b, &add, Some(&fb)), add);
+                    assert_eq!(
+                        multiply_add(&mut arithmetic, &[1], &b, &add, Some(fb)),
+                        one_sum
+                    );
+                    assert_eq!(multiply_add(&mut arithmetic, &[], &b, &add, Some(fb)), add);
                 }
             }
         }

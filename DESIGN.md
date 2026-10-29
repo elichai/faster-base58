@@ -37,13 +37,21 @@ On little-endian AArch64 with NEON, large encoding can instead use a
 boundaries and combines `hi * 256^k + lo`, avoiding reciprocals and division at
 each node. Two NTT primes recover the digit products; vectorized reconstruction
 and one carry pass also add `lo`. Powers and prepared transforms remain local to
-the conversion, using the existing twiddle cache policy. This route requires
+the conversion. Owned twiddles cover only those two primes; eligible conversions
+borrow the existing shared three-prime tables. Recursive calls reuse one digit
+workspace, holding the high child in scratch and the low child in the output
+until the carry pass consumes it. Power digits share one backing vector; lower
+prepared spectra share another. The top power is transformed in arithmetic
+scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
+on the stack; schoolbook sums reserve their usual capacity once and can grow
+for sparse, unbalanced products. All owners are dropped on return.
+This route requires
 at least 8192 significant bytes and at least 7/8 utilization of its full transform.
 With `cache`, it requires 262144 bytes and at least two input bytes per transform
 point, preserving the cheaper division route just below binary power-of-two
 boundaries. Heavily padded sizes, significant inputs above 16 MiB, and other
 targets retain the division tree. These conservative selection rules follow the
-[large-input measurements](docs/benchmarks/large-input-encoding/README.md).
+[large-input measurements](docs/performance.md#historical-paired-radix-allocation-comparison).
 
 [Matrix encoding](src/encode/matrix.rs) maps 32-bit words to base `58^4`;
 [decoding](src/matrix/mod.rs) maps four-character groups to base `2^32`.

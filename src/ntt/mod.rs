@@ -31,6 +31,7 @@ mod portable;
 mod proofs;
 #[cfg(any(
     test,
+    feature = "__internals",
     all(
         target_arch = "aarch64",
         target_endian = "little",

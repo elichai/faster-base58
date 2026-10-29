@@ -39,6 +39,14 @@ dispatcher checks remain in the [verification index](docs/verification/README.md
 | [Allocation contract](tests/no_alloc.rs) and [preflight](tests/resource_preflight.rs) | Allocation, zeroed-allocation, reallocation and deallocation counters; cold/success/error paths and impossible-buffer rejection before table construction |
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
 | Concurrency tests | Cold Matrix initialization, shared tables and eight-thread NTT cache/history reuse |
+| [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards; normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |
+
+The radix allocation regression failed on the parent and passes with one reused
+digit workspace. Its 1/4 MiB cases now also bound allocation requests after
+pooling power digits and spectra, and guard both ends of the output.
+Product tests check poisoned output and the live low-child
+prefix consumed by fused carry. Forced best/portable radix hooks participate in
+unit, property and fuzz backend lists; their out-of-domain fallback is checked.
 
 Property strategies cover arbitrary binary data, valid Base58 strings and valid
 UTF-8 containing malformed Base58. The API accepts `&str`, so raw invalid UTF-8
@@ -78,6 +86,14 @@ General target budgets are 65,537 binary bytes and
 characters can expand text. These budgets are not format limits or coverage of
 every transform size. The 8,193-byte native mutation cap does not reach real NTT
 thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
+
+`encode_radix_full_width` uses an independent Malachite oracle on periodic
+256 KiB / 1 MiB values, reaching owned large twiddles. Native ARM careful-ASan
+smoke campaigns for the pooled-scratch implementation completed on 2026-10-29:
+19 default and 8 cache post-initialization mutation attempts over 65/66 seconds,
+without crashes. These short runs are not a refreshed coverage percentage or a
+proof. General targets cover leading zeros, and boundary tests cover larger
+sizes. Arbitrary large values remain outside this structured fuzzing domain.
 
 The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
