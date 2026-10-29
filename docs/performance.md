@@ -215,6 +215,38 @@ cache-off encoding ranged from 0.9095 to 0.9819. Default decoding ranged from
 above. Wide remains the default. Tiny inputs bypass IFMA, so their layout-driven
 differences do not measure an IFMA primitive.
 
+## Fixed-table alignment
+
+Final combined-source checks exposed an AArch64 cache-enabled 32-byte encode
+regression in snapshot `11d0c16177cda1278bb4d1225afb213697c8f6f2`. Three fresh
+processes per artifact form reproduced about 37 ns instead of the earlier
+12 ns, using both stripped and unstripped ordinary-public libraries. Paired
+loading with reversed order reproduced the slowdown. The repeat loop and
+32-byte instructions matched apart from relocated constants; the table row
+address had changed from 16-byte aligned to 8 bytes past that alignment.
+
+The private fixed-table type now uses `#[repr(C, align(16))]`: rows start at
+offset zero and both fixed row strides are multiples of 16. Emitted 32/64-byte
+table addresses were checked in default/cache builds. Its recorded 64-bit table
+sizes remain 480/1728 bytes; linked padding can change. There is no public API,
+arithmetic, dispatch or allocation-policy change.
+
+Measured 2026-10-29 on Apple M5 Pro, Rust 1.99.1 / LLVM 23.1.1, generic target,
+opt3/fat LTO/16 codegen units: three fresh paired processes per feature policy,
+nine alternating batches per case, at least 10 ms process CPU per batch,
+matching physical build paths and checked outputs. Cache-enabled 32-byte encode
+fell from 38.161 ns to 12.003 ns (68.5% less time); a separate single-artifact
+check gave 11.989 ns. Default 32-byte encode stayed 11.847/11.870 ns, and
+64-byte encode stayed near 24 ns in both policies. Other encode controls at
+31/33/63/65 B, 8/64 KiB and 1 MiB ranged from −1.65% to +0.49% in aggregate;
+their median within-process changes ranged from −0.77% to +0.92%.
+
+One process affected by a detected unrelated compiler was preserved and retried
+in full, independently of latency. AC power was checked. The placement change
+and reproduced fix support explicit alignment; the exact CPU mechanism remains
+an inference. This is a focused M5 result, not a speedup claim for other hosts.
+
+
 ## Historical paired formatter comparison
 
 Measured 2026-10-29: PR #1 at `053f00810de3f39b03f2891a2771348e67bfa4e6`

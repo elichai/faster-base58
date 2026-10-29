@@ -39,7 +39,9 @@ Eight-row, four-column panels share SIMD multiply-add kernels. Scheduled carry
 passes and compile-time bounds keep accumulations within `u64`.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
-local sums. Fixed dimensions remove table construction and dimension handling;
+local sums. Their table type keeps rows first and 16-byte aligned for NEON
+column loads, avoiding sensitivity to incidental constant placement.
+Fixed dimensions remove table construction and dimension handling;
 64-byte kernels also segment the carry chain. Auto and `no_alloc` select these
 specializations directly. The internal Matrix comparison hooks use the general
 matrix kernel. Their short carry schedule needs
