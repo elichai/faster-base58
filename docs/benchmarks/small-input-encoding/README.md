@@ -1,9 +1,12 @@
 # Pair-table formatting for small Base58 inputs
 
-The encoder previously extracted each five-character group with five serial
-division/remainder steps. It now emits the leading digit and reuses the existing
-`matrix::four_digits` pair table for the remaining four. This preserves the public
-API and output, adds no heap allocation or unsafe code, and does not change dispatch.
+The first optimization replaced five serial division/remainder steps per
+five-character group with a leading digit and the existing `matrix::four_digits`
+pair table. The historical measurements below describe that version.
+
+The current encoder formats each complete ten-digit limb as five pairs from
+independent quotients. See the [whole-limb follow-up](whole-limb/README.md) for
+measurements against the first optimization, exact source hashes, and validation.
 
 ## Measurements
 
@@ -37,7 +40,7 @@ unchanged. See [original sizes](size-baseline.csv) and [new sizes](size-pairs.cs
 
 ## Correctness and reproduction
 
-`five_digits_matches_division` exhausts all three-digit suffixes at both ends of
+The first version's `five_digits_matches_division` exhausts all three-digit suffixes at both ends of
 the five-digit range, every single-digit radix boundary and its neighbors, and
 10,000 seeded random values against an independent serial-division reference.
 Existing suites cover leading zeros, exact and undersized buffers, round trips,

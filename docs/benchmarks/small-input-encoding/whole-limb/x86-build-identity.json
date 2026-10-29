@@ -1,0 +1,92 @@
+{
+  "same_identity": {
+    "source": "/dev/shm/base58-pr1-canonical/source",
+    "commands": [
+      [
+        "cargo",
+        "rustc",
+        "--manifest-path",
+        "/dev/shm/base58-pr1-canonical/build/probe/Cargo.toml",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "--lib",
+        "--",
+        "--cfg",
+        "size_backend=\"auto\"",
+        "--cfg",
+        "size_direction=\"both\""
+      ],
+      [
+        "cargo",
+        "rustc",
+        "--manifest-path",
+        "/dev/shm/base58-pr1-canonical/build/probe/Cargo.toml",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "--lib",
+        "--",
+        "--cfg",
+        "size_backend=\"no-alloc\"",
+        "--cfg",
+        "size_direction=\"both\""
+      ]
+    ],
+    "rustflags": "-C target-cpu=native",
+    "profile": "[package]\nname = \"base58-code-size\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\nfaster-base58 = { path = \"/dev/shm/base58-pr1-canonical/source\" }\nmalachite-nz = { version = \"=0.14.0\", optional = true }\nbs58 = { version = \"=0.5.1\", optional = true }\nfive8 = { version = \"=1.0.0\", optional = true }\n[features]\nmalachite = [\"dep:malachite-nz\", \"faster-base58/__internals\"]\nbs58 = [\"dep:bs58\"]\nfive8 = [\"dep:five8\"]\nbenchmark-controls = [\"faster-base58/__internals\"]\ncache = [\"faster-base58/cache\"]\n[lib]\ncrate-type = [\"cdylib\"]\n[[bin]]\nname = \"base58-code-size\"\npath = \"src/main.rs\"\n[profile.release]\nopt-level = 3\nlto = \"fat\"\ncodegen-units = 16\ndebug = false\nstrip = false\nincremental = false\n",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n"
+  },
+  "source_hashes": {
+    "reference": {
+      "src/encode/batched.rs": "644e10ac82255fd1b6749b4f902e4c8b67e5ced30cf3cd79f8b68d2bbf1d45c8",
+      "src/encode/dc.rs": "e145074a9f8ea1962786846a767eb1c2d3fd64b17fff7eba1e73d1cce41ed4c9",
+      "src/encode/matrix/fixed/portable.rs": "d95dc3be8147ed4426bbc47b602c11e6b6ebb4b61ee83e287281ac1f1452daa5",
+      "src/encode/matrix/fixed.rs": "f6013e6e7193fa93cb009fa81af31d03fd6dad736e24273e1fd1260bd0ffb7ca",
+      "src/encode/matrix/neon.rs": "b19a0e64e8658569744520eccc72cc07d8975e80891daf061a8fb92e301f2bac",
+      "src/encode/matrix/table.rs": "b8554844c5806365bd861e1335ce33bce7ee5d7e6198233a75fb40e847625b76",
+      "src/encode/matrix/x86.rs": "93ee716a456a8cb84d2bba2cbc43b69b5e4eaded8f45733fa16e62e965e5f9f1",
+      "src/encode/matrix.rs": "f32a4fe962ef4794ba87fb00b85be5336db18fbc23b73064ee3c04e14e21663d",
+      "src/encode/mod.rs": "87f2ec8a9935c5f8c69d8fbea4dba8ec94b8e6ae48b7c315620770f631ec78c7",
+      "src/encode/tests.rs": "a5104aae91d03eb136dc5fb9f71154c9d1a42ac11733d3b258a73c663bfee037"
+    },
+    "candidate": {
+      "src/encode/batched.rs": "644e10ac82255fd1b6749b4f902e4c8b67e5ced30cf3cd79f8b68d2bbf1d45c8",
+      "src/encode/dc.rs": "e145074a9f8ea1962786846a767eb1c2d3fd64b17fff7eba1e73d1cce41ed4c9",
+      "src/encode/matrix/fixed/portable.rs": "d95dc3be8147ed4426bbc47b602c11e6b6ebb4b61ee83e287281ac1f1452daa5",
+      "src/encode/matrix/fixed.rs": "f6013e6e7193fa93cb009fa81af31d03fd6dad736e24273e1fd1260bd0ffb7ca",
+      "src/encode/matrix/neon.rs": "b19a0e64e8658569744520eccc72cc07d8975e80891daf061a8fb92e301f2bac",
+      "src/encode/matrix/table.rs": "b8554844c5806365bd861e1335ce33bce7ee5d7e6198233a75fb40e847625b76",
+      "src/encode/matrix/x86.rs": "93ee716a456a8cb84d2bba2cbc43b69b5e4eaded8f45733fa16e62e965e5f9f1",
+      "src/encode/matrix.rs": "c7371d4f8e4a6bdca964a4c54d3bd93093f5e4bed8edd7e3d0df58a2bc1b19e3",
+      "src/encode/mod.rs": "d455689cc1959109393a4cb2ff941fd891c714ad2c756036ec32b4fe7e771472",
+      "src/encode/tests.rs": "b9a3b8e12698bac20a22c5efa0823f78d106474408d1302dcfc5fdaea313be61"
+    }
+  },
+  "artifact_hashes": {
+    "reference": {
+      "auto": "5157831a00d87ef15e74725c000c773f8fa4305cae9fa84d9125419f59fc7b56",
+      "no-alloc": "e650e041d890b7c6ff03e03d7d968bda2f86a86e5a46c7aba11d588ba16c98ea"
+    },
+    "candidate": {
+      "auto": "3106925de607c6cca712a86e84c5884018f7f1023e69f6e133ebd875d649bca5",
+      "no-alloc": "b1c9aae8298b636e9c8a4433273da0396cf1c5d1ba9ffb0f365253d832266652"
+    }
+  },
+  "formatter_symbols": {
+    "reference": [
+      "0000000000017470 <size_encode>:",
+      "000000000001a760 <size_repeat_decode_prevalidated>:",
+      "000000000001a820 <size_repeat_encode>:"
+    ],
+    "candidate": [
+      "0000000000017470 <size_encode>:",
+      "000000000001a760 <size_repeat_decode_prevalidated>:",
+      "000000000001a820 <size_repeat_encode>:"
+    ]
+  }
+}
