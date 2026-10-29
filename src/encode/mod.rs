@@ -64,7 +64,7 @@ fn ten_digits(y: u64) -> [u8; 10] {
     let quotients = [y / TWO.pow(3), y / TWO.pow(2), y / TWO, y];
     let mut d = [0; 10];
     d[..2].copy_from_slice(&top);
-    for (pair, q) in d[2..].chunks_exact_mut(2).zip(quotients) {
+    for (pair, q) in d[2..].as_chunks_mut::<2>().0.iter_mut().zip(quotients) {
         pair.copy_from_slice(&matrix::CHAR_PAIRS[(q % TWO) as usize]);
     }
     d
