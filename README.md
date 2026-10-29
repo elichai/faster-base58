@@ -103,12 +103,18 @@ on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-co
 
 ## Performance
 
-**Measured 2026-10-27, Rust 1.99.1, default target flags.** Warm calls reuse output
-buffers and include Auto's workspace allocations. Owned helpers are measured
-separately. Native uses process CPU time; Wasm uses V8 elapsed time.
-[Methods, ranges, source snapshots and earlier GCP results](docs/performance.md).
+Warm calls reuse output buffers and include Auto's workspace allocations. Owned
+helpers are measured separately. Native uses process CPU time; Wasm uses V8
+elapsed time. [Methods, ranges and source snapshots](docs/performance.md).
+
+Each table cell is **encode / decode**. Bold marks the lowest observed median,
+not statistical significance. `no_alloc` and bs58 stop at 64 KiB by benchmark
+policy; five8 supports the measured 32/64-byte cases. All sizes remain in the
+data report.
 
 ### Apple M5 Pro
+
+**Public API, measured 2026-10-27, Rust 1.99.1, default target flags.**
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
@@ -120,7 +126,49 @@ separately. Native uses process CPU time; Wasm uses V8 elapsed time.
 | 1 MiB | 62.9 ms / 28.3 ms | **58 ms** / **27.4 ms** | — / — | — / — | — / — |
 | 4 MiB | 298 ms / 142 ms | **280 ms** / **139 ms** | — / — | — / — | — / — |
 
+![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
+
+### x86-64 on AMD EPYC 9B45 (GCP c4d-highcpu-4)
+
+**Measured 2026-10-28 UTC, Rust 1.99.1.** Both builds retain runtime CPU feature
+selection. Each graph shows default/cache × encode/decode for the full backend
+grid, including Auto, no-allocation, bs58 and five8 comparisons where supported.
+These use one internal all-backend worker per CPU/cache cohort and frozen source
+`4e5ac883`, a separate source snapshot and call context from the M5/Wasm public-API
+figures. Tables report the median of nine warm batches across three fresh
+processes. [Full results, source bindings and timing controls](docs/benchmarks/2026-10-27/gcp-boot2/README.md).
+
+**Generic x86-64 target**
+
+| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
+|---|---:|---:|---:|---:|---:|
+| 32 B | 31.7 ns / 26.7 ns | 31 ns / 27.2 ns | **30.9 ns** / **26.4 ns** | 887 ns / 321 ns | 54.1 ns / 49.7 ns |
+| 64 B | 32.8 ns / 48.3 ns | **32 ns** / **48.2 ns** | 32.6 ns / 48.3 ns | 3.9 µs / 1.25 µs | 117 ns / 133 ns |
+| 512 B | 4.26 µs / 994 ns | **1.1 µs** / 1.23 µs | 4.26 µs / **993 ns** | 281 µs / 92.4 µs | — / — |
+| 4 KiB | 51 µs / **33.1 µs** | **41.3 µs** / 33.3 µs | 247 µs / 54.7 µs | 18 ms / 5.85 ms | — / — |
+| 64 KiB | 3.56 ms / 1.36 ms | **2.78 ms** / **1.29 ms** | 62 ms / 13.4 ms | 4.61 s / 1.48 s | — / — |
+| 1 MiB | 75.1 ms / 34.7 ms | **69.8 ms** / **31.7 ms** | — / — | — / — | — / — |
+| 4 MiB | 351 ms / 165 ms | **326 ms** / **163 ms** | — / — | — / — | — / — |
+
+![Internal backend conversion times on AMD EPYC 9B45, generic x86-64 target](docs/benchmarks/2026-10-27/graphs/gcp-generic-backends.svg)
+
+**With `-C target-cpu=native`**
+
+| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
+|---|---:|---:|---:|---:|---:|
+| 32 B | 35.3 ns / 27.1 ns | 35.1 ns / **25.9 ns** | **31 ns** / 26 ns | 765 ns / 317 ns | 32.3 ns / 45.9 ns |
+| 64 B | 32.8 ns / **46.7 ns** | 32.4 ns / 47.4 ns | **32.4 ns** / 47.2 ns | 2.96 µs / 1.25 µs | 58.5 ns / 82.5 ns |
+| 512 B | 4.05 µs / 815 ns | **1.05 µs** / 819 ns | 4.05 µs / **813 ns** | 225 µs / 90.7 µs | — / — |
+| 4 KiB | 48.8 µs / **21.9 µs** | **38.4 µs** / 22.2 µs | 231 µs / 38.8 µs | 14.9 ms / 5.96 ms | — / — |
+| 64 KiB | 3.56 ms / 1.24 ms | **2.77 ms** / **1.17 ms** | 57.8 ms / 9.29 ms | 3.81 s / 1.51 s | — / — |
+| 1 MiB | 73.3 ms / 32.4 ms | **66.8 ms** / **29.2 ms** | — / — | — / — | — / — |
+| 4 MiB | 340 ms / 156 ms | **313 ms** / **154 ms** | — / — | — / — | — / — |
+
+![Internal backend conversion times on AMD EPYC 9B45, target-cpu=native](docs/benchmarks/2026-10-27/graphs/gcp-native-backends.svg)
+
 ### WebAssembly on Apple M5 Pro (Node/V8)
+
+**Public API, measured 2026-10-27, Rust 1.99.1, default target flags.**
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
@@ -131,12 +179,6 @@ separately. Native uses process CPU time; Wasm uses V8 elapsed time.
 | 64 KiB | 14.1 ms / 6.58 ms | **14 ms** / **6.45 ms** | 116 ms / 70.6 ms | 3.9 s / 1.31 s | — / — |
 | 1 MiB | 339 ms / 168 ms | **339 ms** / **167 ms** | — / — | — / — | — / — |
 | 4 MiB | **1.61 s** / 819 ms | 1.62 s / **818 ms** | — / — | — / — | — / — |
-
-Each cell is **encode / decode**. Bold marks the lowest observed median, not
-statistical significance. `no_alloc` and bs58 stop at 64 KiB by benchmark policy;
-five8 supports the measured 32/64-byte cases. All sizes remain in the data report.
-
-![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
 
 ![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
 
