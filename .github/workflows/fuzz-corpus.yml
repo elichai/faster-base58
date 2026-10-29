@@ -1,0 +1,253 @@
+name: Fuzz corpus
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      run_nightly:
+        description: Run the mutation lanes
+        type: boolean
+        default: false
+      publish:
+        description: Publish a validated nightly union
+        type: boolean
+        default: false
+      fuzz_seconds:
+        description: Seconds per target in each nightly lane
+        type: string
+        default: '300'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-corpus-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  corpus_snapshot:
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.revision.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: fuzz-corpus
+          path: .fuzz-corpus
+      - run: mkdir -p .fuzz-corpus/corpora
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - id: revision
+        run: echo "commit=$(git -C .fuzz-corpus rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: corpus_snapshot
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: macos-14, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: macos-14, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: macos-14, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: macos-14, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+      RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: ${{ needs.corpus_snapshot.outputs.commit }}
+          path: .fuzz-corpus
+      - run: mkdir -p .fuzz-corpus/corpora
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - if: runner.os == 'Linux'
+        run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      - run: python3 fuzz/seed_corpus.py
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+
+  nightly:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
+    needs: corpus_snapshot
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: macos-14, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: macos-14, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: macos-14, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: macos-14, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+      FUZZ_SECONDS: ${{ inputs.fuzz_seconds || '300' }}
+      FUZZ_SEED: ${{ github.run_id }}
+      RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: ${{ needs.corpus_snapshot.outputs.commit }}
+          path: .fuzz-corpus
+      - run: mkdir -p .fuzz-corpus/corpora
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - if: runner.os == 'Linux'
+        run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      - run: python3 fuzz/seed_corpus.py
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - run: mkdir -p fuzz/campaign
+      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/campaign/
+      - run: cp -a .fuzz-corpus/corpora/. fuzz/campaign/
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: mkdir -p fuzz/publish
+      - run: >-
+          python3 fuzz/provenance.py --output fuzz/publish/provenance.json
+          --field source_commit=${{ github.sha }} --field corpus_commit=${{ needs.corpus_snapshot.outputs.commit }}
+          --field run_id=${{ github.run_id }} --field arch=${{ matrix.arch }} --field target_cpu=${{ matrix.cpu }}
+          --field features=${{ matrix.label }} --field sanitizer=address --field seed="$FUZZ_SEED"
+          --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=nightly-2026-10-26
+          --field cargo_fuzz=0.13.2 --field rustflags="$RUSTFLAGS" --field exit=0
+          --field targets=encode_all,decode_all,encode_full_width --digest dictionary=fuzz/base58.dict
+      - run: mv fuzz/campaign fuzz/publish/campaign
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-corpus-nightly-${{ matrix.arch }}-${{ matrix.cpu }}-${{ matrix.label }}
+          path: fuzz/publish
+          if-no-files-found: error
+          retention-days: 14
+
+  candidate_smoke:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
+    needs: [corpus_snapshot, nightly]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: macos-14, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: macos-14, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: macos-14, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: macos-14, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+      RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: ${{ needs.corpus_snapshot.outputs.commit }}
+          path: .fuzz-corpus
+      - run: mkdir -p .fuzz-corpus/corpora
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: fuzz-corpus-nightly-*
+          path: incoming
+      - run: |
+          for run in incoming/*; do
+            python3 fuzz/corpus_store.py stage "$run/campaign" .fuzz-corpus/corpora
+          done
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - if: runner.os == 'Linux'
+        run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      - run: python3 fuzz/seed_corpus.py
+      - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+
+  publish:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly && inputs.publish)
+    needs: [corpus_snapshot, nightly, candidate_smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: fuzz-corpus
+          path: .fuzz-corpus
+      - run: mkdir -p .fuzz-corpus/corpora
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: fuzz-corpus-nightly-*
+          path: incoming
+      - run: |
+          for run in incoming/*; do
+            python3 fuzz/corpus_store.py stage "$run/campaign" .fuzz-corpus/corpora
+          done
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - run: mkdir -p .fuzz-corpus/runs/${{ github.run_id }}
+      - run: |
+          for run in incoming/*; do
+            cp "$run/provenance.json" ".fuzz-corpus/runs/${{ github.run_id }}/$(basename "$run").json"
+          done
+      - run: git -C .fuzz-corpus config user.name github-actions[bot]
+      - run: git -C .fuzz-corpus config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - run: git -C .fuzz-corpus add corpora runs
+      - run: git -C .fuzz-corpus diff --cached --quiet || git -C .fuzz-corpus commit -m "fuzz corpus ${{ github.run_id }}"
+      - run: git -C .fuzz-corpus pull --rebase origin fuzz-corpus
+      - run: |
+          for attempt in 1 2 3; do
+            echo "push attempt $attempt"
+            if git -C .fuzz-corpus push origin HEAD:fuzz-corpus; then
+              exit 0
+            fi
+            git -C .fuzz-corpus pull --rebase origin fuzz-corpus
+          done
+          exit 1

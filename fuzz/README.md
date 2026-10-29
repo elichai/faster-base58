@@ -71,6 +71,20 @@ including under `python3 -O`. New
 coverage seeds and crash artifacts are ignored by Git. Replay any crash with
 `cargo +nightly-2026-10-26 fuzz run --careful TARGET PATH_TO_ARTIFACT`.
 
+`base58.dict` is versioned on `main` and is passed to the mutating decode lane.
+It supplies invalid ASCII and UTF-8 boundaries; structured 64-byte
+`split-fallback-*` seeds force the correlated base-58^4 condition that makes
+the fixed encoder's split carry use its serial fallback. These inputs belong in
+the deterministic generator because the relationship is arithmetic, not a
+useful byte token for a dictionary.
+
+The shared corpus is not committed to `main`. The protected orphan
+`fuzz-corpus` branch stores content-addressed inputs under
+`corpora/<target>/<sha256>` and per-run metadata under `runs/`. Main/PR CI
+only validates and replays a pinned revision. Nightly workers upload artifacts;
+the separate trusted publisher validates, replays, and additively merges them.
+Use `python3 fuzz/corpus_store.py validate CORPUS_ROOT` before any replay.
+
 See [CORRECTNESS.md](../CORRECTNESS.md) for run counts, sanitizer limits,
 proof domains and missing Miri shims. CI builds, mutates and replays the targets
 in separate steps and retains corpus/crash artifacts for 14 days.

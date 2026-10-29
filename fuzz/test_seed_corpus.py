@@ -65,6 +65,20 @@ class SeedCorpusTests(unittest.TestCase):
             )
             self.assertEqual((root / "encode_full_width" / "dense").read_bytes(), b"\xa5")
 
+    def test_split_carry_fallback_seeds_are_64_byte_inputs(self):
+        with TemporaryDirectory() as directory:
+            previous = seed_corpus.ROOT
+            seed_corpus.ROOT = root = Path(directory)
+            try:
+                with redirect_stdout(StringIO()):
+                    seed_corpus.main()
+            finally:
+                seed_corpus.ROOT = previous
+            self.assertEqual(len(seed_corpus.SPLIT_FALLBACKS), 15)
+            for name in seed_corpus.SPLIT_FALLBACKS:
+                with self.subTest(name=name):
+                    self.assertEqual(len((root / "encode_all" / name).read_bytes()), 64)
+
     def test_existing_seed_edits_are_rejected(self):
         with TemporaryDirectory() as directory:
             previous = seed_corpus.ROOT

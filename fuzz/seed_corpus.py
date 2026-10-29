@@ -24,6 +24,12 @@ DECODE_CARRY_LENGTHS = [
 ]
 UNICODE_LENGTHS = [23, 64, 769, 8193]
 INVALID_UNICODE = [("two-byte", "é"), ("three-byte", "中"), ("four-byte", "🦀")]
+COL_BASE = 58 ** 4
+# shortcut: 22 is max_encoded_len(64).div_ceil(4); update it if fixed-width encoding changes.
+FIXED_64_COLUMNS = 22
+SPLIT_FALLBACKS = tuple(
+    f"split-fallback-k{k}-s{s}" for k in range(2, 7) for s in range(1, k)
+)
 
 
 def write_seed(target, name, data):
@@ -35,10 +41,30 @@ def write_seed(target, name, data):
         path.write_bytes(data)
 
 
+def split_fallback_seed(k, segment):
+    """A 64-byte value with the digit that forces one split-carry fallback zero."""
+    state = (k << 8) | segment
+    data = bytearray(64)
+    for index in range(len(data)):
+        state = (state * 6364136223846793005 + 1) & ((1 << 64) - 1)
+        data[index] = state >> 56
+    value = int.from_bytes(data, "big")
+    digits = []
+    while value:
+        value, digit = divmod(value, COL_BASE)
+        digits.append(digit)
+    digits.extend([0] * (FIXED_64_COLUMNS - len(digits)))
+    digits[segment * FIXED_64_COLUMNS // k + 1] = 0
+    return sum(digit * COL_BASE ** index for index, digit in enumerate(digits)).to_bytes(64, "big")
+
+
 def main():
     for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width"]:
         (ROOT / target).mkdir(parents=True, exist_ok=True)
     write_seed("encode_full_width", "dense", b"\xa5")
+    for k in range(2, 7):
+        for segment in range(1, k):
+            write_seed("encode_all", f"split-fallback-k{k}-s{segment}", split_fallback_seed(k, segment))
     for length in LENGTHS:
         patterned = bytes((i * 73 + 1) % 256 for i in range(length))
         for label, data in [
@@ -80,7 +106,7 @@ def main():
         + sum(n <= SMALL_MAX_BYTES for n in LENGTHS) * 6
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
-        + 5
+        + 5 + len(SPLIT_FALLBACKS)
     )
     print(f"Prepared {count} deterministic seeds in {ROOT}")
 

@@ -59,6 +59,26 @@ jobs:
       - name: Compile every benchmark
         run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 
+  big_endian:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PROPTEST_CASES: '512'
+      CROSS_BUILD_ENV_PASSTHROUGH: PROPTEST_CASES
+      CROSS_TARGET_POWERPC64_UNKNOWN_LINUX_GNU_IMAGE: ghcr.io/cross-rs/powerpc64-unknown-linux-gnu@sha256:4a5e41791b27c3fc159a63fe35c299d8f4e272a56e0793d10d500e8c59f43839
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ['__internals', '__internals,cache']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup update stable --no-self-update
+      - run: rustc +stable -vV
+      - name: Install pinned cross
+        run: cargo +stable install --locked --git https://github.com/cross-rs/cross --rev 74e99b2223de06166f8cdcc1af7f1308ec52baf4 cross
+      - name: Big-endian unit, API, property, and documentation tests
+        run: cross +stable test --locked --target powerpc64-unknown-linux-gnu --features ${{ matrix.features }}
+
   compact:
     env:
       PROPTEST_CASES: '512'
@@ -518,44 +538,140 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  fuzz_coverage:
+  fuzz_corpus_snapshot:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.revision.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: fuzz-corpus
+          path: .fuzz-corpus
+      - run: mkdir -p .fuzz-corpus/corpora
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - id: revision
+        run: echo "commit=$(git -C .fuzz-corpus rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  fuzz_coverage:
+    needs: fuzz_corpus_snapshot
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_BUILD_JOBS: '2'
-      RUSTFLAGS: -Zextra-const-ub-checks -Zstrict-init-checks --cfg careful
+      RUSTFLAGS: -Zextra-const-ub-checks -Zstrict-init-checks --cfg careful -C target-cpu=${{ matrix.cpu }}
       CXXFLAGS: -fno-omit-frame-pointer
     strategy:
       fail-fast: false
       matrix:
-        cache_args: ['', '--features cache']
+        include:
+          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
+          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
+          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
+          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
+          - { runner: macos-14, target: aarch64-apple-darwin, cpu: generic, name: default-generic, cache_args: '' }
+          - { runner: macos-14, target: aarch64-apple-darwin, cpu: generic, name: cache-generic, cache_args: '--features cache' }
+          - { runner: macos-14, target: aarch64-apple-darwin, cpu: native, name: default-native, cache_args: '' }
+          - { runner: macos-14, target: aarch64-apple-darwin, cpu: native, name: cache-native, cache_args: '--features cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: sudo apt-get update
-      - run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: ${{ needs.fuzz_corpus_snapshot.outputs.commit }}
+          path: .fuzz-corpus
+      - run: mkdir -p .fuzz-corpus/corpora
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y g++-12 libz3-4 libxml2 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component llvm-tools-preview --profile minimal
-      - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - if: runner.os == 'Linux'
+        run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: |
-          python3 fuzz/test_seed_corpus.py
-          python3 fuzz/seed_corpus.py
+          cd fuzz
+          python3 -m unittest test_seed_corpus.py test_corpus_store.py test_provenance.py
+          python3 seed_corpus.py
+      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
       # Source coverage uses prebuilt std; careful sanitizer builds run separately.
       - name: Replay boundaries and report source coverage
         run: |
-          llvm_dir="$(rustup run nightly-2026-10-26 rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin"
+          host="$(rustup run nightly-2026-10-26 rustc -vV | sed -n 's/^host: //p')"
+          llvm_dir="$(rustup run nightly-2026-10-26 rustc --print sysroot)/lib/rustlib/$host/bin"
           for target in encode_all decode_all; do
-            cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features ${{ matrix.cache_args }} --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
-            "$llvm_dir/llvm-cov" report "target/coverage/x86_64-unknown-linux-gnu/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/' > "fuzz/coverage/$target/report.txt"
-            "$llvm_dir/llvm-cov" export "target/coverage/x86_64-unknown-linux-gnu/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" --summary-only '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/' > "fuzz/coverage/$target/summary.json"
+            cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target ${{ matrix.target }} --target-dir target/coverage --no-default-features ${{ matrix.cache_args }} --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
+            "$llvm_dir/llvm-cov" report "target/coverage/${{ matrix.target }}/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$' > "fuzz/coverage/$target/report.txt"
+            "$llvm_dir/llvm-cov" export -format=lcov "target/coverage/${{ matrix.target }}/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$' > "fuzz/coverage/$target/lcov.info"
           done
+      - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        with:
+          use_oidc: true
+          files: fuzz/coverage/encode_all/lcov.info,fuzz/coverage/decode_all/lcov.info
+          flags: fuzz-smoke-${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'x86' || 'arm' }}-${{ matrix.name }}
+          fail_ci_if_error: true
       - name: Retain coverage records
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: fuzz-coverage-${{ matrix.cache_args == '' && 'default' || 'cache' }}
+          name: fuzz-coverage-${{ matrix.target }}-${{ matrix.name }}
           path: fuzz/coverage
           if-no-files-found: error
+          retention-days: 14
+
+  proptest_coverage:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROPTEST_CASES: '512'
+      RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, arch: x86, cpu: generic, name: default-generic, features: '__internals' }
+          - { runner: ubuntu-24.04, arch: x86, cpu: generic, name: cache-generic, features: '__internals,cache' }
+          - { runner: ubuntu-24.04, arch: x86, cpu: native, name: default-native, features: '__internals' }
+          - { runner: ubuntu-24.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache' }
+          - { runner: macos-14, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
+          - { runner: macos-14, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
+          - { runner: macos-14, arch: arm, cpu: native, name: default-native, features: '__internals' }
+          - { runner: macos-14, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup update stable --no-self-update
+      - run: rustup component add llvm-tools-preview --toolchain stable
+      - run: cargo +stable install --locked cargo-llvm-cov --version 0.9.1
+      - name: Run property suites and export production coverage
+        run: >-
+          cargo +stable llvm-cov --locked --features ${{ matrix.features }}
+          --test properties --test public_properties
+          --lcov --output-path proptests.lcov
+          --ignore-filename-regex '/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$'
+      - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        with:
+          use_oidc: true
+          files: proptests.lcov
+          flags: proptests-${{ matrix.arch }}-${{ matrix.name }}
+          fail_ci_if_error: true
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: proptests-coverage-${{ matrix.arch }}-${{ matrix.name }}
+          path: proptests.lcov
+          if-no-files-found: ignore
           retention-days: 14
 
   native_sanitizers:
