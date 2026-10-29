@@ -107,17 +107,16 @@ jobs:
           - { name: release, args: '--release' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-hack@0.6.45
       - run: rustup target add --toolchain stable ${{ matrix.target }}
-      - run: cargo +stable build --locked --lib --target ${{ matrix.target }} ${{ matrix.profile.args }}
-      - run: cargo +stable build --locked --lib --features cache --target ${{ matrix.target }} ${{ matrix.profile.args }}
-      - run: cargo +stable build --locked --lib --features __internals --target ${{ matrix.target }} ${{ matrix.profile.args }}
-      - run: cargo +stable build --locked --lib --features __internals,cache --target ${{ matrix.target }} ${{ matrix.profile.args }}
+      # shortcut: default is empty; include it in root powersets if it gains features.
+      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features default --target ${{ matrix.target }} ${{ matrix.profile.args }}
       - if: matrix.profile.name == 'debug'
         run: rustup component add clippy --toolchain stable
       - if: matrix.profile.name == 'debug'
-        run: cargo +stable clippy --locked --lib --target ${{ matrix.target }} -- -D warnings
-      - if: matrix.profile.name == 'debug'
-        run: cargo +stable clippy --locked --lib --all-features --target ${{ matrix.target }} -- -D warnings
+        run: cargo +stable hack clippy --locked --lib --feature-powerset --exclude-features default --target ${{ matrix.target }} -- -D warnings
 
   maximum_transform:
     runs-on: ubuntu-latest
@@ -137,24 +136,22 @@ jobs:
         target: [thumbv7em-none-eabi, x86_64-unknown-none]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-hack@0.6.45
       - run: rustup target add --toolchain stable ${{ matrix.target }}
-      - run: cargo +stable build --locked --lib --no-default-features --target ${{ matrix.target }}
-      - run: cargo +stable build --locked --lib --no-default-features --features __internals --target ${{ matrix.target }}
-      - run: cargo +stable build --locked --release --lib --no-default-features --target ${{ matrix.target }}
-      - run: cargo +stable build --locked --release --lib --no-default-features --features __internals --target ${{ matrix.target }}
+      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features default,std,cache --target ${{ matrix.target }}
+      - run: cargo +stable hack build --locked --release --lib --feature-powerset --exclude-features default,std,cache --target ${{ matrix.target }}
 
   msrv:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-hack@0.6.45
       - run: rustup toolchain install 1.95 --profile minimal
-      - run: cargo +1.95 build --locked --lib
-      - run: cargo +1.95 build --locked --lib --features std
-      - run: cargo +1.95 build --locked --lib --features cache
-      - run: cargo +1.95 build --locked --lib --features __internals
-      - run: cargo +1.95 build --locked --lib --all-features
-      - run: cargo +1.95 build --locked --lib --features compact
-      - run: cargo +1.95 build --locked --lib --features compact,cache
+      - run: cargo +1.95 hack build --locked --lib --feature-powerset --exclude-features default
       - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --features std
         env:
           PROPTEST_CASES: '512'
@@ -191,6 +188,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-hack@0.6.45
       - run: rustup component add clippy --toolchain stable
       - run: rustup component add rustfmt --toolchain stable
       - run: python3 scripts/check_ci_tests.py
@@ -200,17 +200,9 @@ jobs:
       - run: cargo +stable fmt --all -- --check
       - run: cargo +stable fmt --manifest-path tools/resource-profile/Cargo.toml --all -- --check
       - run: cargo +stable fmt --manifest-path fuzz/Cargo.toml --all -- --check
-      - run: cargo +stable clippy --locked --all-targets -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --features std -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --features cache -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --features __internals -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --all-features -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --features compact -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --features std,compact -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --features cache,compact -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --manifest-path tools/resource-profile/Cargo.toml -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --all-features --manifest-path tools/resource-profile/Cargo.toml -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --all-features --manifest-path fuzz/Cargo.toml -- -D warnings
+      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --exclude-features default -- -D warnings
+      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --manifest-path tools/resource-profile/Cargo.toml -- -D warnings
+      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --manifest-path fuzz/Cargo.toml -- -D warnings
       - name: Public and internal API documentation
         env:
           RUSTDOCFLAGS: -D warnings
@@ -220,9 +212,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-hack@0.6.45
       - run: rustup component add clippy --toolchain stable
-      - run: cargo +stable clippy --locked --all-targets -- -D warnings
-      - run: cargo +stable clippy --locked --all-targets --all-features -- -D warnings
+      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --exclude-features default -- -D warnings
 
   measurement_tools:
     runs-on: ubuntu-latest
