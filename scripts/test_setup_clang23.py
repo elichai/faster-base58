@@ -15,13 +15,23 @@ LIBXML2 = {
     'URL': 'https://deb.debian.org/debian/pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb',
 }
 
+LIBICU72 = {
+    'Package': 'libicu72',
+    'Version': '72.1-3+deb12u1',
+    'Filename': 'pool/main/i/icu/libicu72_72.1-3+deb12u1_amd64.deb',
+    'Size': '9376124',
+    'SHA256': 'f7f6f99c6d7b025914df2447fc93e11d22c44c0c8bdd8b6f36691c9e7ddcef88',
+    'URL': 'https://deb.debian.org/debian/pool/main/i/icu/libicu72_72.1-3+deb12u1_amd64.deb',
+}
+
 
 class ClangPackageTests(unittest.TestCase):
-    def test_manifest_includes_the_pinned_libxml2_abi(self):
+    def test_manifest_includes_the_pinned_runtime_abis(self):
         manifest = json.loads(
             Path(setup_clang23.__file__).with_name('clang23-packages.json').read_text())
-        self.assertIn(LIBXML2, manifest['packages'])
-        setup_clang23.validate_package(LIBXML2)
+        for package in [LIBXML2, LIBICU72]:
+            self.assertIn(package, manifest['packages'])
+            setup_clang23.validate_package(package)
 
 
 if __name__ == '__main__':

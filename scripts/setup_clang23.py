@@ -19,6 +19,7 @@ SOURCES = {
                  'libclang1-23', 'libclang-rt-23-dev', 'llvm-23-linker-tools'}
 }
 SOURCES['libxml2'] = (DEBIAN_BASE, ('pool', 'main', 'libx', 'libxml2'))
+SOURCES['libicu72'] = (DEBIAN_BASE, ('pool', 'main', 'i', 'icu'))
 
 
 def self_test(packages):
