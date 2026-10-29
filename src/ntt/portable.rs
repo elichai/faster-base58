@@ -155,7 +155,9 @@ mod tests {
                 let x = samples(&mut rng, p.q, n)[..n].to_vec();
                 let mut a = x.clone();
                 forward(&mut a, p, tw);
-                inverse(&mut a, p, tw);
+                let mut iw = vec![0; n];
+                let iw = tw.inverse(&mut iw);
+                inverse(&mut a, p, iw);
                 for (&got, &x) in a.iter().zip(&x) {
                     assert_eq!(
                         modq(got as i128, p.q),

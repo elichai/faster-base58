@@ -19,8 +19,8 @@ pub(super) fn kernels() -> Option<super::Kernels> {
                 forward(a, p, t)
             }
             #[target_feature(enable = $feature)]
-            fn tf_inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
-                inverse(a, p, t)
+            fn tf_inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
+                inverse(a, p, iw)
             }
             #[target_feature(enable = $feature)]
             fn tf_pointwise(a: &mut [i32], b: &[i32], p: Prime) {
@@ -64,7 +64,7 @@ pub(super) fn kernels() -> Option<super::Kernels> {
                 // SAFETY: built only after detecting $feature.
                 forward: |a, p, t| unsafe { tf_forward(a, p, t) },
                 // SAFETY: built only after detecting $feature.
-                inverse: |a, p, t| unsafe { tf_inverse(a, p, t) },
+                inverse: |a, p, iw| unsafe { tf_inverse(a, p, iw) },
                 // SAFETY: built only after detecting $feature.
                 pointwise: |a, b, p| unsafe { tf_pointwise(a, b, p) },
                 // SAFETY: built only after detecting $feature.
