@@ -2,7 +2,11 @@
 
 use super::*;
 
-/// Compare owned/cached tables with the same leaves and thresholds.
+/// Compare owned/cached decoding with the same leaves and thresholds.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 pub fn decode_ntt_same_leaves(
     input: &str,
     output: &mut [u8],
@@ -16,7 +20,10 @@ pub fn decode_ntt_same_leaves(
     )
 }
 
-/// Compare owned/cached tables with the same leaves and thresholds.
+/// Compare owned/cached encoding with the same leaves and thresholds.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 pub fn encode_ntt_same_leaves(
     input: &[u8],
     output: &mut [u8],
@@ -38,6 +45,7 @@ pub use super::super::tables::cache::cache_memory as ntt_cache_memory;
 
 /// Cache metadata without retention when the `cache` feature is disabled.
 #[cfg(not(feature = "cache"))]
+#[must_use]
 pub fn ntt_cache_memory() -> (
     usize,
     [(u32, bool, usize, usize); super::super::MAX_LOG as usize + 1],

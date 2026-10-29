@@ -86,6 +86,7 @@ pub(crate) mod avx512;
 /// Then `blen <= mb + 8 chunks + 14` and `clen <= ma + mb + 21`, so this is at most
 /// `(3 + 1/k) mb + 58 < 3.9 nb + 62` for both window limits.
 #[cfg(any(test, feature = "__internals"))]
+#[must_use]
 pub const fn scratch_len(na: usize, nb: usize) -> usize {
     Shape::new(na, nb).scratch()
 }
@@ -234,6 +235,7 @@ unsafe fn to_digits<V: V8>(dst: &mut [u64], src: &[u64], g0: usize, g1: usize) {
 /// Safety: `V` values may be created; the pointers as above.
 #[inline(always)]
 unsafe fn kernel<V: V8, const NW: usize>(c: *mut u64, a: *const u64, groups: usize, b: *const u64) {
+    // SAFETY: the caller supplies the padded pointer ranges above and permits V creation.
     unsafe {
         let zero = V::splat(0);
         let (mut l, mut h) = ([zero; NW], [zero; NW]);
@@ -380,7 +382,7 @@ unsafe fn pack<V: V8>(out: &mut [u64], j: usize, u0: V, u1: V) {
     }
 }
 
-/// Lane `t`: digit `i[0][t]` of `u0, u1` shifted right by `s[0][t]`, ORed with digits
+/// Lane `t`: digit `i[0][t]` of `u0, u1` shifted right by `s[0][t]`, bitwise OR with digits
 /// `i[1][t]` and `i[2][t]` shifted left by `s[1][t]` and `s[2][t]` (zero above 63).
 /// Safety: `V` values may be created.
 #[inline(always)]
@@ -412,6 +414,7 @@ mod emulation {
         groups: usize,
         b: *const u64,
     ) {
+        // SAFETY: Kernel callers supply its padded ranges; Emu has no CPU requirements.
         unsafe { kernel::<Emu, NW>(c, a, groups, b) }
     }
 
@@ -423,18 +426,22 @@ mod emulation {
             Emu(x)
         }
         unsafe fn load(p: *const u64) -> Self {
+            // SAFETY: the caller provides eight readable u64 lanes.
             Emu(core::array::from_fn(|i| unsafe { *p.add(i) }))
         }
         unsafe fn load_n(p: *const u64, n: usize) -> Self {
             Emu(core::array::from_fn(|i| {
+                // SAFETY: the caller provides min(n, 8) readable lanes; i < 8.
                 if i < n { unsafe { *p.add(i) } } else { 0 }
             }))
         }
         unsafe fn store(self, p: *mut u64) {
+            // SAFETY: the caller provides eight writable lanes.
             unsafe { self.store_n(p, 8) }
         }
         unsafe fn store_n(self, p: *mut u64, n: usize) {
             for (i, &x) in self.0.iter().enumerate().take(n) {
+                // SAFETY: i < min(n, 8), the caller's writable range.
                 unsafe { *p.add(i) = x }
             }
         }
@@ -481,7 +488,7 @@ mod emulation {
             self.add(p)
         }
         fn bit52(self) -> bool {
-            self.0.iter().any(|&x| x >> 52 & 1 == 1)
+            self.0.iter().any(|&x| (x >> 52) & 1 == 1)
         }
         fn kernel(nw: usize) -> Kernel {
             pick!(kernel_emu, nw)
@@ -652,6 +659,7 @@ mod tests {
 
     #[test]
     fn emu_matches_reference() {
+        // SAFETY: Emu has no CPU requirements; mul_v checks operand and scratch lengths.
         check_shapes(|out, a, b, s| unsafe { mul_v::<Emu>(out, a, b, s) });
     }
 
@@ -661,6 +669,7 @@ mod tests {
         let a = vec![1; MAX_LEN + 1];
         let mut out = vec![0; 2 * a.len()];
         let mut scratch = vec![0; scratch_len(a.len(), a.len())];
+        // SAFETY: Emu has no CPU requirements; mul_v rejects the oversized input.
         unsafe { mul_v::<Emu>(&mut out, &a, &a, &mut scratch) };
     }
 
@@ -715,13 +724,14 @@ mod tests {
                 let d = carry as u64 & M52;
                 carry >>= 52;
                 for (bit, w) in (52 * k..52 * k + 52).zip(0..) {
-                    if bit < 64 * want.len() && d >> w & 1 == 1 {
+                    if bit < 64 * want.len() && (d >> w) & 1 == 1 {
                         want[bit / 64] |= 1 << (bit % 64);
                     }
                 }
             }
             for (i, f) in fs.iter().enumerate() {
                 let mut out = vec![GARBAGE; 52];
+                // SAFETY: fs contains Emu or a detected IFMA backend; c has 64 lanes for 52 limbs.
                 unsafe { f(&mut out, &mut c.clone()) };
                 assert_eq!(out, want, "finish {i}");
             }

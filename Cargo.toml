@@ -43,6 +43,20 @@ rand_xoshiro = "0.8.1"
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
 
+[lints.clippy]
+allow_attributes_without_reason = "warn"
+assertions_on_result_states = "warn"
+chunks_exact_to_as_chunks = "warn"
+doc_markdown = "warn"
+ignore_without_reason = "warn"
+manual_assert_eq = "warn"
+missing_errors_doc = "warn"
+must_use_candidate = "warn"
+or_fun_call = "warn"
+precedence_bits = "warn"
+should_panic_without_expect = "warn"
+undocumented_unsafe_blocks = "warn"
+
 [package.metadata.kani.flags]
 default-unwind = "1"
 

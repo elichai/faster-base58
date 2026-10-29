@@ -17,6 +17,10 @@ const _: () = assert!(LEAF <= DC_THRESHOLD);
 /// Like [`crate::batched::decode_batched`], but subquadratic for large inputs.
 ///
 /// Makes one allocation, for the result, the power table and all scratch space.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 #[cfg(any(test, feature = "__internals", kani))]
 pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     decode_with(input, output, &mut Karatsuba)
@@ -130,6 +134,9 @@ impl Leaf {
 }
 
 /// [`decode`], multiplying with `m`.
+///
+/// # Errors
+/// Returns the same invalid-character and insufficient-buffer errors as [`decode`].
 #[cfg(any(test, feature = "__internals", kani))]
 pub fn decode_with(
     input: &str,

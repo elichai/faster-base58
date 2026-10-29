@@ -121,7 +121,7 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(12);
         let max = (1u128 << 86) - 1;
         let mut coefs: Vec<u128> = vec![0, 1, max, max - 1, 1 << 64, (1 << 85) + 12345];
-        coefs.extend((0..2000).map(|_| (rng.next_u64() as u128) << 22 ^ rng.next_u64() as u128));
+        coefs.extend((0..2000).map(|_| ((rng.next_u64() as u128) << 22) ^ rng.next_u64() as u128));
         coefs.extend((0..2000).map(|_| max - rng.next_u64() as u128));
         // An even count, plus a zero top coefficient so the product fits `out`.
         coefs.truncate(coefs.len() / 4 * 4 - 2);

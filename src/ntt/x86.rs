@@ -58,19 +58,30 @@ pub(super) fn kernels() -> Option<super::Kernels> {
             fn tf_pair(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
                 pair(r, m, iw, iwq, p)
             }
-            // SAFETY (each call): built only after detecting `$feature`.
             super::Kernels {
+                // SAFETY: built only after detecting $feature.
                 load: |d, l, p| unsafe { tf_load(d, l, p) },
+                // SAFETY: built only after detecting $feature.
                 forward: |a, p, t| unsafe { tf_forward(a, p, t) },
+                // SAFETY: built only after detecting $feature.
                 inverse: |a, p, t| unsafe { tf_inverse(a, p, t) },
+                // SAFETY: built only after detecting $feature.
                 pointwise: |a, b, p| unsafe { tf_pointwise(a, b, p) },
+                // SAFETY: built only after detecting $feature.
                 square: |a, p| unsafe { tf_square(a, p) },
+                // SAFETY: built only after detecting $feature.
                 garner: |r| unsafe { tf_garner(r) },
+                // SAFETY: built only after detecting $feature.
                 load_twist: |d, l, p, w, wq| unsafe { tf_load_twist(d, l, p, w, wq) },
+                // SAFETY: built only after detecting $feature.
                 load_add: |d, l, p, sub| unsafe { tf_load_add(d, l, p, sub) },
+                // SAFETY: built only after detecting $feature.
                 twist: |a, w, wq, p| unsafe { tf_twist(a, w, wq, p) },
+                // SAFETY: built only after detecting $feature.
                 fold_sub: |d, s, at, neg, p| unsafe { tf_fold_sub(d, s, at, neg, p) },
+                // SAFETY: built only after detecting $feature.
                 halves: |lo, hi, p| unsafe { tf_halves(lo, hi, p) },
+                // SAFETY: built only after detecting $feature.
                 pair: |r, m, w, wq, p| unsafe { tf_pair(r, m, w, wq, p) },
             }
         }};

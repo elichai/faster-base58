@@ -21,6 +21,10 @@ const MIN_THRESHOLD: usize = 32;
 const _: () = assert!(THRESHOLD >= MIN_THRESHOLD && IFMA_THRESHOLD >= MIN_THRESHOLD);
 
 /// Like `decode_karatsuba`, but uses Toom-3 for large products.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 pub fn decode_toom3(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     let ifma = mul::ifma_threshold() != 0;
     decode_toom3_with(input, output, if ifma { IFMA_THRESHOLD } else { THRESHOLD })
@@ -28,6 +32,9 @@ pub fn decode_toom3(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 
 /// [`decode_toom3`] with Toom-3 for operands of at least `threshold` limbs. Panics if
 /// `threshold` is below 32.
+///
+/// # Errors
+/// Returns the same invalid-character and insufficient-buffer errors as [`decode_toom3`].
 pub fn decode_toom3_with(input: &str, output: &mut [u8], threshold: usize) -> Result<usize, Error> {
     assert!(
         threshold >= MIN_THRESHOLD,
@@ -37,6 +44,9 @@ pub fn decode_toom3_with(input: &str, output: &mut [u8], threshold: usize) -> Re
 }
 
 /// Like `encode_karatsuba`, but uses Toom-3 for large products.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 pub fn encode_toom3(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let threshold = if mul::ifma_threshold() != 0 {
         IFMA_THRESHOLD

@@ -6,6 +6,10 @@ use crate::common::{BASE, DIGITS, chunks, invalid, split_zeros};
 /// Decodes `input` into `output` and returns the number of bytes written.
 ///
 /// Works in place in `output`: no allocation.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 pub fn decode_batched(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     let (zeros, _) = split_zeros(input.as_bytes());
     decode_parts(input, zeros, output)
@@ -14,7 +18,7 @@ pub fn decode_batched(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 /// Batched conversion with the number of leading `'1'` bytes already known.
 pub(crate) fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
     let digits = &input.as_bytes()[zeros..];
-    debug_assert!(digits.first() != Some(&b'1'));
+    debug_assert_ne!(digits.first(), Some(&b'1'));
     let (zero_bytes, buf) = output
         .split_at_mut_checked(zeros)
         .ok_or(Error::BufferTooSmall)?;

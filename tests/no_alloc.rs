@@ -24,21 +24,25 @@ fn record(kind: usize) {
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         record(0);
+        // SAFETY: the caller supplies the valid layout required by GlobalAlloc::alloc.
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         record(1);
+        // SAFETY: the caller supplies the valid layout required by GlobalAlloc::alloc_zeroed.
         unsafe { System.alloc_zeroed(layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record(2);
+        // SAFETY: forward the caller's live allocation, matching layout, and valid new size.
         unsafe { System.realloc(ptr, layout, new_size) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         record(3);
+        // SAFETY: forward the caller's live System allocation and matching layout.
         unsafe { System.dealloc(ptr, layout) }
     }
 }

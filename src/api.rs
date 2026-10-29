@@ -12,6 +12,9 @@ use crate::{BufferTooSmall, Error};
 /// the process lifetime; larger NTT tables live for one conversion.
 /// On success, the output tail is untouched. On error, its contents are unspecified.
 /// Timing depends on the input. Use [`encode_into`] to borrow the resulting string.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 #[inline]
 pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     match input.len() {
@@ -70,6 +73,10 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
 /// the contents of `output` are unspecified. The algorithms have data-dependent timing.
 /// Process-wide table retention requires `cache`; larger NTT tables always live for
 /// one conversion. See the review for the measured feature-enabled routes.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     if input.len() <= 2 {
         return crate::batched::decode_short(input, output);
@@ -148,6 +155,9 @@ fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, E
 /// The output tail is untouched on success; its contents are unspecified on error.
 /// This uses the same automatic dispatch and optional caches as [`crate::encode`].
 ///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
+///
 /// ```
 /// let input = [42; 32];
 /// let mut buffer = [0; 44];
@@ -172,12 +182,18 @@ pub fn encode_string(input: impl AsRef<[u8]>) -> String {
 /// Decodes into an array or slice and borrows the bytes written.
 ///
 /// The output tail is untouched on success; its contents are unspecified on error.
+///
+/// # Errors
+/// Returns the same invalid-character and insufficient-buffer errors as [`decode`].
 pub fn decode_into<'a>(input: &str, output: &'a mut [u8]) -> Result<&'a mut [u8], Error> {
     let len = decode(input, output)?;
     Ok(&mut output[..len])
 }
 
 /// Decodes into an owned byte vector, preserving leading zero bytes.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet.
 #[inline]
 pub fn decode_vec(input: &str) -> Result<Vec<u8>, Error> {
     if input.is_empty() {
@@ -210,6 +226,7 @@ fn decoded_capacity(digits: usize) -> usize {
 
 /// Decodes exactly `N` bytes, without adding or removing leading zeros.
 ///
+/// # Errors
 /// A shorter result returns [`Error::InvalidLength`]; a result longer than `N` returns
 /// [`Error::BufferTooSmall`]. Invalid input can report either invalid-character or
 /// insufficient-buffer errors when both conditions apply, as with [`decode`].

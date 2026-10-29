@@ -1,7 +1,11 @@
 //! Caller-buffer adapters for the separately versioned benchmark competitors.
 
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "Each measurement build selects a subset of these adapters"
+)]
 
+#[cfg(any(feature = "bs58", feature = "five8"))]
 use faster_base58::{BufferTooSmall, Error};
 
 #[cfg(feature = "bs58")]

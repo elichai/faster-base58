@@ -13,6 +13,9 @@ use crate::{BufferTooSmall, Error};
 /// Leading zero bytes each produce a `'1'`. On success, bytes after the result
 /// are untouched. On error, the contents of `output` are unspecified. No heap
 /// storage is allocated, even on first use or insufficient output capacity.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 #[inline]
 pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     match input.len() {
@@ -29,6 +32,10 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
 /// the contents of `output` are unspecified. When input is invalid and capacity
 /// is insufficient, either error can be reported. No heap storage is allocated,
 /// including first use and error paths.
+///
+/// # Errors
+/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 #[inline]
 pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     if input.len() <= 2 {
@@ -44,6 +51,9 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
 /// Borrow arrays and vectors with `&input`; byte slices can be passed directly.
 /// Input storage stays with the caller, so this function never drops owned input.
 /// `crate::max_encoded_len(input.len())` bytes suffice for an actual input slice.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 pub fn encode_into<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a str, BufferTooSmall> {
     let len = encode(input, output)?;
     Ok(core::str::from_utf8(&output[..len]).expect("base58 output is ASCII"))
@@ -52,6 +62,9 @@ pub fn encode_into<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a str, Bu
 /// Decodes into an array or slice and borrows the bytes written.
 ///
 /// Uses [`decode`] with the same allocation and buffer contracts.
+///
+/// # Errors
+/// Returns the same invalid-character and insufficient-buffer errors as [`decode`].
 pub fn decode_into<'a>(input: &str, output: &'a mut [u8]) -> Result<&'a mut [u8], Error> {
     let len = decode(input, output)?;
     Ok(&mut output[..len])
@@ -59,8 +72,10 @@ pub fn decode_into<'a>(input: &str, output: &'a mut [u8]) -> Result<&'a mut [u8]
 
 /// Decodes exactly `N` bytes into an array, without adding or removing zeros.
 ///
-/// The result uses `N` bytes of stack storage, with no heap allocation. A shorter
-/// result returns [`Error::InvalidLength`]; a result longer than `N` returns
+/// The result uses `N` bytes of stack storage, with no heap allocation.
+///
+/// # Errors
+/// A shorter result returns [`Error::InvalidLength`]; a result longer than `N` returns
 /// [`Error::BufferTooSmall`]. Invalid input has the same error contract as [`decode`].
 pub fn decode_array<const N: usize>(input: &str) -> Result<[u8; N], Error> {
     let mut output = [0; N];
