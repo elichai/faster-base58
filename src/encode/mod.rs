@@ -19,7 +19,7 @@ pub use dc::Leaves;
 #[cfg(any(test, feature = "__internals", kani))]
 pub use dc::encode_tuned;
 
-use crate::common::{ALPHABET, BASE};
+use crate::common::BASE;
 
 /// `floor(log_58(2) * 2^64)`.
 const LOG58_2: u128 = 3148993499475808360;
@@ -59,19 +59,15 @@ pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
 /// The ten characters of a limb below [`BASE`], most significant first.
 fn ten_digits(y: u64) -> [u8; 10] {
     debug_assert!(y < BASE);
-    const HALF: u64 = 58u64.pow(5);
+    const TWO: u64 = 58u64.pow(2);
+    let top = matrix::CHAR_PAIRS[(y / TWO.pow(4)) as usize];
+    let quotients = [y / TWO.pow(3), y / TWO.pow(2), y / TWO, y];
     let mut d = [0; 10];
-    five_digits(&mut d[..5], (y / HALF) as u32);
-    five_digits(&mut d[5..], (y % HALF) as u32);
+    d[..2].copy_from_slice(&top);
+    for (pair, q) in d[2..].chunks_exact_mut(2).zip(quotients) {
+        pair.copy_from_slice(&matrix::CHAR_PAIRS[(q % TWO) as usize]);
+    }
     d
-}
-
-/// The five characters of `x < 58^5`.
-fn five_digits(d: &mut [u8], x: u32) {
-    // Reuse the two-character table to emit the low four digits with one division.
-    const FOUR: u32 = 58u32.pow(4);
-    d[0] = ALPHABET[(x / FOUR) as usize];
-    d[1..].copy_from_slice(&matrix::four_digits((x % FOUR) as u64));
 }
 
 #[cfg(kani)]
