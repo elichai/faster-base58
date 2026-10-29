@@ -319,21 +319,22 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[cfg_attr(debug_assertions, should_panic(expected = "n.is_power_of_two()"))]
+    #[cfg_attr(not(debug_assertions), should_panic(expected = "divide by zero"))]
     fn scale_rejects_zero() {
         PRIMES[0].scale(0);
     }
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "n.is_power_of_two()")]
     fn scale_rejects_non_power_of_two() {
         PRIMES[0].scale(3);
     }
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "n <= 1usize << MAX_LOG")]
     fn scale_rejects_length_above_max_log() {
         PRIMES[0].scale(1usize << (MAX_LOG + 1));
     }

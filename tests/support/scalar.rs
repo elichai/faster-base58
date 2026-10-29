@@ -57,6 +57,10 @@ pub fn selector(input: &[u8]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[allow(
+        unused_imports,
+        reason = "Benchmarks compile this module without the test harness"
+    )]
     use super::*;
 
     #[test]

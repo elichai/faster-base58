@@ -102,7 +102,7 @@ pub(crate) mod entry {
     ) -> Result<usize, Error> {
         let digits = &input.as_bytes()[zeros..];
         assert!(digits.len() <= MAX_CHARS, "too many digits for one matrix");
-        debug_assert!(digits.first() != Some(&b'1'));
+        debug_assert_ne!(digits.first(), Some(&b'1'));
         // A nonzero first digit gives at least 58^(d - 1), as in the D&C preflight.
         let min_len = if digits.is_empty() {
             0
@@ -128,11 +128,18 @@ pub(crate) mod internals {
     pub(crate) const PANEL_PORTABLE: Panel = PORTABLE.panel;
 
     /// General matrix decoding, with batched and Karatsuba fallbacks outside its useful range.
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+    /// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
     pub fn decode_matrix(input: &str, output: &mut [u8]) -> Result<usize, Error> {
         decode_with(&BEST, input, output, MATRIX_MIN)
     }
 
     /// [`decode_matrix`] with plain-Rust kernels.
+    ///
+    /// # Errors
+    /// Returns the same invalid-character and insufficient-buffer errors as [`decode_matrix`].
     pub fn decode_matrix_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
         decode_with(&PORTABLE, input, output, MATRIX_MIN)
     }
@@ -168,6 +175,10 @@ pub(crate) mod internals {
         pub use super::super::table::cache_memory as decode_matrix_cache_memory;
 
         /// Force the general matrix kernel within its size limit, bypassing the small fallback.
+        ///
+        /// # Errors
+        /// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
+        /// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
         pub fn decode_matrix_forced(input: &str, output: &mut [u8]) -> Result<usize, Error> {
             decode_with(&BEST, input, output, 0)
         }

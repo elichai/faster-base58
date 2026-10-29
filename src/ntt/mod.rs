@@ -443,7 +443,7 @@ pub(crate) struct Kernels {
 }
 
 impl Kernels {
-    /// The fastest kernels for this CPU: NEON on aarch64; on x86_64 those of `avx512.rs`
+    /// The fastest kernels for this CPU: NEON on aarch64; on `x86_64` those of `avx512.rs`
     /// with AVX-512F, the rest the portable ones compiled for AVX-512 or AVX2 when
     /// available.
     pub fn best() -> Self {
@@ -659,7 +659,10 @@ impl Plan {
 /// An operand has fewer than `2 m` coefficients for the first `m` in `nega`, so [`fold`]
 /// adds at most three blocks to a negacyclic piece. It can span thousands of blocks of
 /// the cyclic rest, which [`sums`] folds once for all primes.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Pass the product slices, transform plan, and optional prepared operand directly"
+)]
 fn pieces(
     out: &mut [u64],
     a: &[u64],
@@ -972,7 +975,7 @@ mod tests {
         };
         let mut out = vec![0; s.len()];
         let n = dc::decode_with(&s, &mut out, &mut ntt).unwrap();
-        assert!(Ok(out[..n].to_vec()) == decode_vec(crate::dc::decode, &s));
+        assert_eq!(Ok(out[..n].to_vec()), decode_vec(crate::dc::decode, &s));
     }
 
     /// The threshold path hands the scratch to Karatsuba.
@@ -1497,7 +1500,7 @@ mod tests {
     /// replaces a reference product. Takes seconds and about 1 GB, so it is ignored by
     /// default: run it with `cargo test -- --ignored`.
     #[test]
-    #[ignore]
+    #[ignore = "Exercises maximum-size transforms; run separately in the maximum_transform CI job"]
     fn largest_transforms() {
         let t = Tables::new(MAX_LOG);
         let m = 1 << 20;

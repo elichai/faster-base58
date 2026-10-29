@@ -116,6 +116,9 @@ value is the median of the three process medians; figure bars show their range.
 No-allocation and bs58 stop at 64 KiB by benchmark policy; five8 covers 32/64 B.
 The figures show all supported sizes from 1 B through 4 MiB.
 
+A separate [basexx comparison](docs/performance.md#basexx-comparison) includes a
+general-purpose comparator that substantially outperforms bs58 at 1 and 4 KiB.
+
 ### Apple M5 Pro
 
 Rust 1.99.1 / LLVM 23.1.1; compiler-default target flags.

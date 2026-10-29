@@ -550,7 +550,7 @@ mod tests {
     /// `inverse_stage` checks its contract in every build, not only with debug assertions:
     /// here `a` is longer than the twiddles serve.
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "n <= t.iw.len()")]
     fn inverse_stage_checks_its_contract() {
         let t = Tables::new(3);
         // SAFETY: NEON is enabled for this build.
@@ -637,13 +637,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "n == r2.len() && n.is_multiple_of(4)")]
     fn garner_two_rejects_unequal_lengths() {
         garner_two(&mut [0; 4], &mut [0; 8]);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "n == r2.len() && n.is_multiple_of(4)")]
     fn garner_two_rejects_partial_vectors() {
         garner_two(&mut [0; 3], &mut [0; 3]);
     }

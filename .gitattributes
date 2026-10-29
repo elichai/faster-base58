@@ -1,11 +1,8 @@
 * text=auto eol=lf
 
-# Preserve source-bound evidence bytes, including original CSV line endings.
-docs/benchmarks/** -text
-docs/verification/** -text
+# Preserve upstream notices and published SVG bytes.
 docs/references/** -text
-assets/graphs/** -text
-*.csv whitespace=cr-at-eol
+assets/graphs/*.svg -text
 
 # Preserve literal context lines and generated SVG path whitespace.
 *.patch whitespace=-blank-at-eol,-blank-at-eof

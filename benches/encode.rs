@@ -14,9 +14,10 @@ use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
 /// Encodes `input` into `out` and returns the number of bytes written.
 type EncodeFn = fn(&[u8], &mut [u8]) -> usize;
+type SizeFilter = fn(usize) -> bool;
 
 /// Add new implementations here, with the sizes to time them at.
-const ENCODERS: &[(&str, EncodeFn, fn(usize) -> bool)] = &[
+const ENCODERS: &[(&str, EncodeFn, SizeFilter)] = &[
     (
         "bs58",
         |d, out| bs58::encode(d).onto(out).unwrap(),

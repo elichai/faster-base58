@@ -55,3 +55,6 @@ members = ["."]
 
 [profile.release]
 overflow-checks = true
+
+[lints.clippy]
+allow_attributes_without_reason = "warn"

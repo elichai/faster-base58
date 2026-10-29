@@ -1,4 +1,7 @@
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "Each test and benchmark uses a subset of these shared helpers"
+)]
 
 pub mod malachite;
 pub mod scalar;

@@ -6,7 +6,10 @@
 //! copied into reused buffers, and malachite allocates each product (and the FFT its own
 //! buffers).
 
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "Each test and benchmark uses a subset of this shared adapter"
+)]
 
 use std::{mem, ptr};
 

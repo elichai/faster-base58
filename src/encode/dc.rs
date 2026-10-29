@@ -56,6 +56,9 @@ pub(crate) mod internals {
     use crate::dc::Karatsuba;
 
     /// Batched encoding below the Karatsuba crossover, then divide and conquer.
+    ///
+    /// # Errors
+    /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
     pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
         encode_with(input, output, &mut Karatsuba)
     }
@@ -72,6 +75,9 @@ pub(crate) mod internals {
 
     /// `encode_karatsuba` with `threshold` and `leaf` in place of `DC_THRESHOLD`
     /// and `DC_LEAF`, and leaves converted by `leaves`.
+    ///
+    /// # Errors
+    /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
     pub fn encode_karatsuba_with(
         input: &[u8],
         output: &mut [u8],
@@ -95,7 +101,7 @@ pub enum Leaves {
 
 impl Leaves {
     /// [`Leaves::Matrix`] where `encode_matrix` has SIMD kernels: NEON, and AVX2 or SSE4.1
-    /// on x86_64, where cached matrix leaves took 2-59% less time than Horner leaves
+    /// on `x86_64`, where cached matrix leaves took 2-59% less time than Horner leaves
     /// in the measured Zen 5 cells. Without `cache`, use Horner so recursive leaves
     /// do not rebuild general matrix tables.
     pub(crate) const BEST: Leaves = if cfg!(all(
@@ -117,6 +123,9 @@ impl Leaves {
 
 /// Divide and conquer above `threshold` bytes, with leaves converted by `leaves`.
 /// Panics unless `leaf` is in `1..=256` for Horner or `1..=1024` for Matrix.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 #[cfg(any(test, feature = "__internals", kani))]
 pub fn encode_tuned(
     input: &[u8],
@@ -181,7 +190,7 @@ pub(crate) fn encode_parts(
 
     let x: Vec<u64> = x
         .rchunks(8)
-        .map(|c| c.iter().fold(0, |v, &b| v << 8 | b as u64))
+        .map(|c| c.iter().fold(0, |v, &b| (v << 8) | b as u64))
         .collect();
     let mut table = vec![0; table_len(unit, levels)];
     let mut scratch = vec![0; m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m))];
@@ -667,10 +676,10 @@ fn div_schoolbook(q: &mut [u64], u: &mut [u64], v: &[u64]) {
     let n = v.len();
     let (v1, v0) = (v[n - 1] as u128, v[n - 2] as u128);
     for j in (0..u.len() - n).rev() {
-        let top = (u[j + n] as u128) << 64 | u[j + n - 1] as u128;
+        let top = ((u[j + n] as u128) << 64) | u[j + n - 1] as u128;
         let (mut qhat, mut rhat) = (top / v1, top % v1);
         // At most two steps make `qhat` exact or one too large.
-        while qhat >> 64 != 0 || qhat * v0 > (rhat << 64 | u[j + n - 2] as u128) {
+        while qhat >> 64 != 0 || qhat * v0 > ((rhat << 64) | u[j + n - 2] as u128) {
             qhat -= 1;
             rhat += v1;
             if rhat >> 64 != 0 {
@@ -710,7 +719,7 @@ fn shl(dst: &mut [u64], src: &[u64], bits: u32) {
     }
     let mut carry = 0;
     for (d, &v) in dst.iter_mut().zip(src) {
-        *d = v << bits | carry;
+        *d = (v << bits) | carry;
         carry = v >> (64 - bits);
     }
     match dst.get_mut(src.len()) {
@@ -726,7 +735,7 @@ fn shr(dst: &mut [u64], src: &[u64], bits: u32) {
             (0, _) | (_, None) => 0,
             (_, Some(&v)) => v << (64 - bits),
         };
-        *d = src[j] >> bits | up;
+        *d = (src[j] >> bits) | up;
     }
 }
 

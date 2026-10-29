@@ -31,6 +31,7 @@ impl Tables {
 /// Static header bytes and (log, initialized, vector length bytes, vector capacity
 /// bytes), without initializing a table.
 #[cfg(feature = "__internals")]
+#[must_use]
 pub fn cache_memory() -> (
     usize,
     [(u32, bool, usize, usize); super::MAX_LOG as usize + 1],

@@ -180,13 +180,11 @@ fn tuning_preconditions_reject_invalid_values() {
             (Leaves::Matrix, 0),
             (Leaves::Matrix, 1025),
         ] {
-            assert!(std::panic::catch_unwind(|| encode(&[], &mut [], 0, leaf, leaves)).is_err());
+            std::panic::catch_unwind(|| encode(&[], &mut [], 0, leaf, leaves)).unwrap_err();
         }
     }
     for threshold in [0, 1, 31] {
-        assert!(
-            std::panic::catch_unwind(|| internals::decode_toom3_with("", &mut [], threshold))
-                .is_err()
-        );
+        std::panic::catch_unwind(|| internals::decode_toom3_with("", &mut [], threshold))
+            .unwrap_err();
     }
 }

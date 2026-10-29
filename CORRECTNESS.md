@@ -77,7 +77,10 @@ unspecified error-buffer contents. Unit tests also cover MiB conversions, all-on
 carry patterns, powers, small exhaustive inputs and all legal NTT scale lengths.
 
 CI selects 512 cases per property in debug and release, cache off/on, across Linux,
-macOS and Windows. Compact builds have additional Linux and macOS rows. Other
+macOS and Windows. Compact builds have additional Linux and macOS rows. Big-endian
+PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
+including unit, integration and documentation tests, with 512 cases per property.
+The cross revision and container image digest are pinned. Other
 jobs cover 32-bit Linux, Malachite's 32-bit limb
 mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
 boundaries, examples, Clippy, formatting and package contents. Build checks alone
