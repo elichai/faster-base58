@@ -1,0 +1,1718 @@
+{
+  "load_order": [
+    "baseline",
+    "candidate"
+  ],
+  "rows": [
+    {
+      "size": 8191,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 128,
+      "median_ns": 121820.3125,
+      "samples_ns": [
+        121078.125,
+        121531.25,
+        121265.625,
+        121648.4375,
+        121820.3125,
+        126617.1875,
+        122781.25,
+        122906.25,
+        123523.4375
+      ]
+    },
+    {
+      "size": 8191,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 128,
+      "median_ns": 122171.875,
+      "samples_ns": [
+        121359.375,
+        121773.4375,
+        121875.0,
+        122656.25,
+        122187.5,
+        121875.0,
+        122804.6875,
+        122171.875,
+        127187.5
+      ]
+    },
+    {
+      "size": 8191,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 128,
+      "median_ns": 123648.4375,
+      "samples_ns": [
+        125703.125,
+        122539.0625,
+        131570.3125,
+        123398.4375,
+        123648.4375,
+        123570.3125,
+        124257.8125,
+        136429.6875,
+        122562.5
+      ]
+    },
+    {
+      "size": 8191,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 128,
+      "median_ns": 123929.6875,
+      "samples_ns": [
+        123929.6875,
+        122234.375,
+        131578.125,
+        127718.75,
+        123226.5625,
+        128632.8125,
+        122390.625,
+        124507.8125,
+        120617.1875
+      ]
+    },
+    {
+      "size": 8191,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 128,
+      "median_ns": 120882.8125,
+      "samples_ns": [
+        120828.125,
+        122703.125,
+        120031.25,
+        120992.1875,
+        120718.75,
+        122367.1875,
+        120828.125,
+        120882.8125,
+        124335.9375
+      ]
+    },
+    {
+      "size": 8191,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 128,
+      "median_ns": 121656.25,
+      "samples_ns": [
+        121859.375,
+        121343.75,
+        121406.25,
+        122218.75,
+        121296.875,
+        121507.8125,
+        121656.25,
+        121875.0,
+        130515.625
+      ]
+    },
+    {
+      "size": 8192,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 128,
+      "median_ns": 128289.0625,
+      "samples_ns": [
+        127234.375,
+        129375.0,
+        131757.8125,
+        137421.875,
+        128289.0625,
+        131171.875,
+        128039.0625,
+        123617.1875,
+        121500.0
+      ]
+    },
+    {
+      "size": 8192,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 128,
+      "median_ns": 128156.25,
+      "samples_ns": [
+        125515.625,
+        133023.4375,
+        129054.6875,
+        127031.25,
+        129679.6875,
+        128156.25,
+        128671.875,
+        125367.1875,
+        122312.5
+      ]
+    },
+    {
+      "size": 8192,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 128,
+      "median_ns": 125625.0,
+      "samples_ns": [
+        121867.1875,
+        122234.375,
+        124500.0,
+        127375.0,
+        126437.5,
+        125625.0,
+        125609.375,
+        127140.625,
+        126796.875
+      ]
+    },
+    {
+      "size": 8192,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 128,
+      "median_ns": 125226.5625,
+      "samples_ns": [
+        121265.625,
+        123593.75,
+        123289.0625,
+        125921.875,
+        125226.5625,
+        126921.875,
+        125960.9375,
+        125101.5625,
+        128085.9375
+      ]
+    },
+    {
+      "size": 8192,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 128,
+      "median_ns": 121484.375,
+      "samples_ns": [
+        125664.0625,
+        123632.8125,
+        121484.375,
+        120953.125,
+        119523.4375,
+        124664.0625,
+        119890.625,
+        121875.0,
+        120265.625
+      ]
+    },
+    {
+      "size": 8192,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 128,
+      "median_ns": 121882.8125,
+      "samples_ns": [
+        125078.125,
+        128117.1875,
+        121882.8125,
+        121640.625,
+        121781.25,
+        121125.0,
+        122328.125,
+        121023.4375,
+        122304.6875
+      ]
+    },
+    {
+      "size": 8193,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 64,
+      "median_ns": 183484.375,
+      "samples_ns": [
+        183484.375,
+        183546.875,
+        181703.125,
+        185062.5,
+        183843.75,
+        185343.75,
+        182296.875,
+        183390.625,
+        182937.5
+      ]
+    },
+    {
+      "size": 8193,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 64,
+      "median_ns": 183156.25,
+      "samples_ns": [
+        182968.75,
+        184078.125,
+        182968.75,
+        181609.375,
+        184093.75,
+        183250.0,
+        183828.125,
+        182812.5,
+        183156.25
+      ]
+    },
+    {
+      "size": 8193,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 64,
+      "median_ns": 182968.75,
+      "samples_ns": [
+        184515.625,
+        182531.25,
+        182812.5,
+        181937.5,
+        182968.75,
+        182671.875,
+        183515.625,
+        183078.125,
+        189859.375
+      ]
+    },
+    {
+      "size": 8193,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 64,
+      "median_ns": 183765.625,
+      "samples_ns": [
+        183515.625,
+        182890.625,
+        183328.125,
+        184390.625,
+        185062.5,
+        183765.625,
+        184546.875,
+        183609.375,
+        184593.75
+      ]
+    },
+    {
+      "size": 8193,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 64,
+      "median_ns": 183578.125,
+      "samples_ns": [
+        183140.625,
+        183312.5,
+        183171.875,
+        184218.75,
+        182281.25,
+        184546.875,
+        193531.25,
+        186953.125,
+        183578.125
+      ]
+    },
+    {
+      "size": 8193,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 64,
+      "median_ns": 183703.125,
+      "samples_ns": [
+        188937.5,
+        183703.125,
+        183562.5,
+        183750.0,
+        183375.0,
+        182250.0,
+        190734.375,
+        186531.25,
+        183187.5
+      ]
+    },
+    {
+      "size": 12288,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 64,
+      "median_ns": 300968.75,
+      "samples_ns": [
+        301796.875,
+        302296.875,
+        301046.875,
+        301859.375,
+        300671.875,
+        300968.75,
+        300125.0,
+        300687.5,
+        300375.0
+      ]
+    },
+    {
+      "size": 12288,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 64,
+      "median_ns": 302234.375,
+      "samples_ns": [
+        303125.0,
+        303375.0,
+        303296.875,
+        302234.375,
+        300640.625,
+        300531.25,
+        300171.875,
+        300062.5,
+        302406.25
+      ]
+    },
+    {
+      "size": 12288,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 64,
+      "median_ns": 315171.875,
+      "samples_ns": [
+        302312.5,
+        303609.375,
+        306125.0,
+        304062.5,
+        319796.875,
+        315171.875,
+        326156.25,
+        325031.25,
+        362296.875
+      ]
+    },
+    {
+      "size": 12288,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 64,
+      "median_ns": 317671.875,
+      "samples_ns": [
+        301921.875,
+        301890.625,
+        300968.75,
+        309734.375,
+        322234.375,
+        318593.75,
+        317671.875,
+        321421.875,
+        356578.125
+      ]
+    },
+    {
+      "size": 12288,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 64,
+      "median_ns": 305640.625,
+      "samples_ns": [
+        331031.25,
+        318140.625,
+        315250.0,
+        316156.25,
+        305640.625,
+        304078.125,
+        302687.5,
+        302953.125,
+        302640.625
+      ]
+    },
+    {
+      "size": 12288,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 64,
+      "median_ns": 306000.0,
+      "samples_ns": [
+        322500.0,
+        320125.0,
+        315843.75,
+        343062.5,
+        306000.0,
+        300812.5,
+        302359.375,
+        303765.625,
+        302296.875
+      ]
+    },
+    {
+      "size": 32768,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 16,
+      "median_ns": 1001062.5,
+      "samples_ns": [
+        995500.0,
+        995000.0,
+        993312.5,
+        1000812.5,
+        1006812.5,
+        1011875.0,
+        1021062.5,
+        1024750.0,
+        1001062.5
+      ]
+    },
+    {
+      "size": 32768,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 16,
+      "median_ns": 1009625.0,
+      "samples_ns": [
+        995312.5,
+        995875.0,
+        995000.0,
+        1030125.0,
+        1013312.5,
+        1023562.5,
+        1009625.0,
+        998250.0,
+        1023812.5
+      ]
+    },
+    {
+      "size": 32768,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 16,
+      "median_ns": 998625.0,
+      "samples_ns": [
+        1003375.0,
+        999187.5,
+        997000.0,
+        997125.0,
+        995500.0,
+        994625.0,
+        998625.0,
+        999812.5,
+        1000937.5
+      ]
+    },
+    {
+      "size": 32768,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 16,
+      "median_ns": 996750.0,
+      "samples_ns": [
+        1002187.5,
+        999937.5,
+        1001187.5,
+        996750.0,
+        992812.5,
+        999500.0,
+        994187.5,
+        996687.5,
+        992875.0
+      ]
+    },
+    {
+      "size": 32768,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 16,
+      "median_ns": 998000.0,
+      "samples_ns": [
+        989375.0,
+        996750.0,
+        990250.0,
+        993937.5,
+        998000.0,
+        1049562.5,
+        1004125.0,
+        1018500.0,
+        1028062.5
+      ]
+    },
+    {
+      "size": 32768,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 16,
+      "median_ns": 997812.5,
+      "samples_ns": [
+        997812.5,
+        990500.0,
+        996500.0,
+        993250.0,
+        1039250.0,
+        1022312.5,
+        1000500.0,
+        997437.5,
+        1033500.0
+      ]
+    },
+    {
+      "size": 65535,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2326625.0,
+      "samples_ns": [
+        2348125.0,
+        2326625.0,
+        2358500.0,
+        2535250.0,
+        2329375.0,
+        2290750.0,
+        2272000.0,
+        2283875.0,
+        2269375.0
+      ]
+    },
+    {
+      "size": 65535,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2301250.0,
+      "samples_ns": [
+        2343125.0,
+        2388625.0,
+        2438875.0,
+        2436500.0,
+        2301250.0,
+        2278125.0,
+        2273625.0,
+        2266250.0,
+        2288250.0
+      ]
+    },
+    {
+      "size": 65535,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2275250.0,
+      "samples_ns": [
+        2286625.0,
+        2278125.0,
+        2276750.0,
+        2267875.0,
+        2272125.0,
+        2275250.0,
+        2270625.0,
+        2287500.0,
+        2273875.0
+      ]
+    },
+    {
+      "size": 65535,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2274875.0,
+      "samples_ns": [
+        2280750.0,
+        2267625.0,
+        2274875.0,
+        2271125.0,
+        2276625.0,
+        2281625.0,
+        2270625.0,
+        2283125.0,
+        2268625.0
+      ]
+    },
+    {
+      "size": 65535,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2282250.0,
+      "samples_ns": [
+        2258125.0,
+        2282250.0,
+        2263875.0,
+        2267375.0,
+        2284750.0,
+        2284625.0,
+        2290250.0,
+        2270875.0,
+        2318750.0
+      ]
+    },
+    {
+      "size": 65535,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2266750.0,
+      "samples_ns": [
+        2266750.0,
+        2264000.0,
+        2265375.0,
+        2266750.0,
+        2276625.0,
+        2321375.0,
+        2279500.0,
+        2264500.0,
+        2276125.0
+      ]
+    },
+    {
+      "size": 65536,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2277875.0,
+      "samples_ns": [
+        2259250.0,
+        2296250.0,
+        2308750.0,
+        2263625.0,
+        2263000.0,
+        2284500.0,
+        2261750.0,
+        2277875.0,
+        2282000.0
+      ]
+    },
+    {
+      "size": 65536,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2289875.0,
+      "samples_ns": [
+        2267125.0,
+        2292375.0,
+        2308125.0,
+        2303250.0,
+        2267500.0,
+        2270875.0,
+        2262625.0,
+        2311375.0,
+        2289875.0
+      ]
+    },
+    {
+      "size": 65536,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2274750.0,
+      "samples_ns": [
+        2527625.0,
+        2598000.0,
+        2283500.0,
+        2295500.0,
+        2274750.0,
+        2267125.0,
+        2261750.0,
+        2262375.0,
+        2271375.0
+      ]
+    },
+    {
+      "size": 65536,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2268750.0,
+      "samples_ns": [
+        2268750.0,
+        2292125.0,
+        2296250.0,
+        2278750.0,
+        2260125.0,
+        2274125.0,
+        2258000.0,
+        2260625.0,
+        2261000.0
+      ]
+    },
+    {
+      "size": 65536,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2274000.0,
+      "samples_ns": [
+        2268250.0,
+        2258875.0,
+        2349625.0,
+        2271625.0,
+        2264750.0,
+        2301750.0,
+        2321125.0,
+        2400125.0,
+        2274000.0
+      ]
+    },
+    {
+      "size": 65536,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2325125.0,
+      "samples_ns": [
+        2261500.0,
+        2257750.0,
+        2331250.0,
+        2325125.0,
+        2362250.0,
+        2307625.0,
+        2335375.0,
+        2267875.0,
+        2328500.0
+      ]
+    },
+    {
+      "size": 65537,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2270625.0,
+      "samples_ns": [
+        2264500.0,
+        2279500.0,
+        2270625.0,
+        2262875.0,
+        2260875.0,
+        2287500.0,
+        2283750.0,
+        2299500.0,
+        2263500.0
+      ]
+    },
+    {
+      "size": 65537,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2273375.0,
+      "samples_ns": [
+        2268000.0,
+        2272250.0,
+        2276500.0,
+        2273375.0,
+        2259000.0,
+        2269125.0,
+        2353375.0,
+        2313375.0,
+        2279625.0
+      ]
+    },
+    {
+      "size": 65537,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2297000.0,
+      "samples_ns": [
+        2273375.0,
+        2266125.0,
+        2310500.0,
+        2297000.0,
+        2325125.0,
+        2319250.0,
+        2279875.0,
+        2300875.0,
+        2296875.0
+      ]
+    },
+    {
+      "size": 65537,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2302625.0,
+      "samples_ns": [
+        2267375.0,
+        2290000.0,
+        2304625.0,
+        2302625.0,
+        2325500.0,
+        2263875.0,
+        2302500.0,
+        2360750.0,
+        2305750.0
+      ]
+    },
+    {
+      "size": 65537,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 8,
+      "median_ns": 2271500.0,
+      "samples_ns": [
+        2271500.0,
+        2331500.0,
+        2266625.0,
+        2323125.0,
+        2264500.0,
+        2274000.0,
+        2297875.0,
+        2264875.0,
+        2263875.0
+      ]
+    },
+    {
+      "size": 65537,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 8,
+      "median_ns": 2286000.0,
+      "samples_ns": [
+        2312125.0,
+        2288000.0,
+        2301250.0,
+        2293000.0,
+        2286000.0,
+        2267875.0,
+        2283750.0,
+        2254125.0,
+        2276250.0
+      ]
+    },
+    {
+      "size": 262143,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11588000.0,
+      "samples_ns": [
+        11547000.0,
+        11529000.0,
+        11588000.0,
+        11861000.0,
+        11616000.0,
+        11583000.0,
+        11487000.0,
+        11589000.0,
+        12040000.0
+      ]
+    },
+    {
+      "size": 262143,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11556000.0,
+      "samples_ns": [
+        11600000.0,
+        11497000.0,
+        11549000.0,
+        11476000.0,
+        11556000.0,
+        11570000.0,
+        11610000.0,
+        11681000.0,
+        11510000.0
+      ]
+    },
+    {
+      "size": 262143,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11575000.0,
+      "samples_ns": [
+        11682000.0,
+        11562000.0,
+        11575000.0,
+        11596000.0,
+        11565000.0,
+        11508000.0,
+        12367000.0,
+        11581000.0,
+        11542000.0
+      ]
+    },
+    {
+      "size": 262143,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11489000.0,
+      "samples_ns": [
+        11489000.0,
+        11516000.0,
+        11573000.0,
+        11676000.0,
+        11479000.0,
+        11487000.0,
+        11481000.0,
+        11484000.0,
+        11498000.0
+      ]
+    },
+    {
+      "size": 262143,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11552000.0,
+      "samples_ns": [
+        11508000.0,
+        11523000.0,
+        11523000.0,
+        11620000.0,
+        11552000.0,
+        11710000.0,
+        12955000.0,
+        11544000.0,
+        11725000.0
+      ]
+    },
+    {
+      "size": 262143,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11530000.0,
+      "samples_ns": [
+        11571000.0,
+        11468000.0,
+        11575000.0,
+        11589000.0,
+        11524000.0,
+        12170000.0,
+        11530000.0,
+        11457000.0,
+        11529000.0
+      ]
+    },
+    {
+      "size": 262144,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11684000.0,
+      "samples_ns": [
+        11613000.0,
+        13254000.0,
+        11684000.0,
+        12044000.0,
+        14161000.0,
+        12418000.0,
+        11562000.0,
+        11431000.0,
+        11406000.0
+      ]
+    },
+    {
+      "size": 262144,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11438000.0,
+      "samples_ns": [
+        11944000.0,
+        11460000.0,
+        11438000.0,
+        11884000.0,
+        11819000.0,
+        11369000.0,
+        11318000.0,
+        11307000.0,
+        11015000.0
+      ]
+    },
+    {
+      "size": 262144,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11343000.0,
+      "samples_ns": [
+        11311000.0,
+        11263000.0,
+        11457000.0,
+        11340000.0,
+        11351000.0,
+        11343000.0,
+        11425000.0,
+        11342000.0,
+        11373000.0
+      ]
+    },
+    {
+      "size": 262144,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11100000.0,
+      "samples_ns": [
+        11066000.0,
+        11100000.0,
+        11052000.0,
+        11117000.0,
+        11172000.0,
+        11226000.0,
+        11115000.0,
+        11071000.0,
+        11036000.0
+      ]
+    },
+    {
+      "size": 262144,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11317000.0,
+      "samples_ns": [
+        11281000.0,
+        11317000.0,
+        11284000.0,
+        11328000.0,
+        11358000.0,
+        11695000.0,
+        11298000.0,
+        11327000.0,
+        11293000.0
+      ]
+    },
+    {
+      "size": 262144,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11065000.0,
+      "samples_ns": [
+        11033000.0,
+        11095000.0,
+        11095000.0,
+        11036000.0,
+        11105000.0,
+        11133000.0,
+        11051000.0,
+        11060000.0,
+        11065000.0
+      ]
+    },
+    {
+      "size": 262145,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11892000.0,
+      "samples_ns": [
+        11375000.0,
+        12018000.0,
+        11892000.0,
+        11833000.0,
+        11735000.0,
+        11849000.0,
+        12521000.0,
+        12054000.0,
+        12024000.0
+      ]
+    },
+    {
+      "size": 262145,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11235000.0,
+      "samples_ns": [
+        10811000.0,
+        11170000.0,
+        11177000.0,
+        11235000.0,
+        11239000.0,
+        11195000.0,
+        11349000.0,
+        11289000.0,
+        11242000.0
+      ]
+    },
+    {
+      "size": 262145,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11844000.0,
+      "samples_ns": [
+        11801000.0,
+        11756000.0,
+        11761000.0,
+        11673000.0,
+        11844000.0,
+        12038000.0,
+        13740000.0,
+        12304000.0,
+        12298000.0
+      ]
+    },
+    {
+      "size": 262145,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 11532000.0,
+      "samples_ns": [
+        11313000.0,
+        11227000.0,
+        11924000.0,
+        11532000.0,
+        11198000.0,
+        12698000.0,
+        11178000.0,
+        11841000.0,
+        11742000.0
+      ]
+    },
+    {
+      "size": 262145,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 11414000.0,
+      "samples_ns": [
+        12057000.0,
+        12004000.0,
+        11727000.0,
+        11424000.0,
+        11414000.0,
+        11350000.0,
+        11345000.0,
+        11354000.0,
+        11302000.0
+      ]
+    },
+    {
+      "size": 262145,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 10941000.0,
+      "samples_ns": [
+        11450000.0,
+        11520000.0,
+        11174000.0,
+        11031000.0,
+        10941000.0,
+        10871000.0,
+        10869000.0,
+        10831000.0,
+        10884000.0
+      ]
+    },
+    {
+      "size": 1048575,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 58676000.0,
+      "samples_ns": [
+        58802000.0,
+        58469000.0,
+        59754000.0,
+        58676000.0,
+        58375000.0,
+        58307000.0,
+        59048000.0,
+        58169000.0,
+        58928000.0
+      ]
+    },
+    {
+      "size": 1048575,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 59645000.0,
+      "samples_ns": [
+        58453000.0,
+        58664000.0,
+        60855000.0,
+        60320000.0,
+        58750000.0,
+        59238000.0,
+        60037000.0,
+        60093000.0,
+        59645000.0
+      ]
+    },
+    {
+      "size": 1048575,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 63525000.0,
+      "samples_ns": [
+        59135000.0,
+        65740000.0,
+        64404000.0,
+        60949000.0,
+        68533000.0,
+        62253000.0,
+        63525000.0,
+        74749000.0,
+        61184000.0
+      ]
+    },
+    {
+      "size": 1048575,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 63410000.0,
+      "samples_ns": [
+        60725000.0,
+        77920000.0,
+        73369000.0,
+        62757000.0,
+        62755000.0,
+        63410000.0,
+        62095000.0,
+        71177000.0,
+        67548000.0
+      ]
+    },
+    {
+      "size": 1048575,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 59841000.0,
+      "samples_ns": [
+        62263000.0,
+        59494000.0,
+        58122000.0,
+        58246000.0,
+        58905000.0,
+        62920000.0,
+        60717000.0,
+        60792000.0,
+        59841000.0
+      ]
+    },
+    {
+      "size": 1048575,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 59077000.0,
+      "samples_ns": [
+        58956000.0,
+        61395000.0,
+        59077000.0,
+        58723000.0,
+        59438000.0,
+        60010000.0,
+        58425000.0,
+        58918000.0,
+        59971000.0
+      ]
+    },
+    {
+      "size": 1048576,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 55666000.0,
+      "samples_ns": [
+        56627000.0,
+        57943000.0,
+        56745000.0,
+        55459000.0,
+        55269000.0,
+        55373000.0,
+        55666000.0,
+        56423000.0,
+        55508000.0
+      ]
+    },
+    {
+      "size": 1048576,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 54080000.0,
+      "samples_ns": [
+        55485000.0,
+        55767000.0,
+        55570000.0,
+        54017000.0,
+        54080000.0,
+        53931000.0,
+        54076000.0,
+        54593000.0,
+        54033000.0
+      ]
+    },
+    {
+      "size": 1048576,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 55653000.0,
+      "samples_ns": [
+        55653000.0,
+        56848000.0,
+        56249000.0,
+        55544000.0,
+        56101000.0,
+        55771000.0,
+        55584000.0,
+        55452000.0,
+        55301000.0
+      ]
+    },
+    {
+      "size": 1048576,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 54221000.0,
+      "samples_ns": [
+        54221000.0,
+        54270000.0,
+        54064000.0,
+        54212000.0,
+        54555000.0,
+        55206000.0,
+        54374000.0,
+        54194000.0,
+        53871000.0
+      ]
+    },
+    {
+      "size": 1048576,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 55654000.0,
+      "samples_ns": [
+        55325000.0,
+        55415000.0,
+        55268000.0,
+        56838000.0,
+        55310000.0,
+        55654000.0,
+        56580000.0,
+        56192000.0,
+        55842000.0
+      ]
+    },
+    {
+      "size": 1048576,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 54036000.0,
+      "samples_ns": [
+        53802000.0,
+        55433000.0,
+        54036000.0,
+        54142000.0,
+        54036000.0,
+        54041000.0,
+        53883000.0,
+        53744000.0,
+        53911000.0
+      ]
+    },
+    {
+      "size": 1048577,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 55570000.0,
+      "samples_ns": [
+        55640000.0,
+        55570000.0,
+        55461000.0,
+        55533000.0,
+        55656000.0,
+        55673000.0,
+        55811000.0,
+        55329000.0,
+        55452000.0
+      ]
+    },
+    {
+      "size": 1048577,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 53144000.0,
+      "samples_ns": [
+        52992000.0,
+        53144000.0,
+        52983000.0,
+        53872000.0,
+        53371000.0,
+        53273000.0,
+        52797000.0,
+        52750000.0,
+        53802000.0
+      ]
+    },
+    {
+      "size": 1048577,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 55917000.0,
+      "samples_ns": [
+        55917000.0,
+        55780000.0,
+        55378000.0,
+        56459000.0,
+        56559000.0,
+        55701000.0,
+        57300000.0,
+        56698000.0,
+        55834000.0
+      ]
+    },
+    {
+      "size": 1048577,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 53256000.0,
+      "samples_ns": [
+        52868000.0,
+        52959000.0,
+        54032000.0,
+        53241000.0,
+        56625000.0,
+        58263000.0,
+        60726000.0,
+        53256000.0,
+        52788000.0
+      ]
+    },
+    {
+      "size": 1048577,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 55817000.0,
+      "samples_ns": [
+        55665000.0,
+        55460000.0,
+        55767000.0,
+        56215000.0,
+        56057000.0,
+        55817000.0,
+        55718000.0,
+        56048000.0,
+        55830000.0
+      ]
+    },
+    {
+      "size": 1048577,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 53322000.0,
+      "samples_ns": [
+        54189000.0,
+        54534000.0,
+        52770000.0,
+        53196000.0,
+        53322000.0,
+        53253000.0,
+        53537000.0,
+        53140000.0,
+        53521000.0
+      ]
+    },
+    {
+      "size": 4194304,
+      "trial": 0,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 261365000.0,
+      "samples_ns": [
+        259462000.0,
+        260589000.0,
+        261365000.0,
+        259747000.0,
+        259603000.0,
+        264516000.0,
+        263177000.0,
+        272253000.0,
+        281850000.0
+      ]
+    },
+    {
+      "size": 4194304,
+      "trial": 0,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 257102000.0,
+      "samples_ns": [
+        254482000.0,
+        254200000.0,
+        257640000.0,
+        254177000.0,
+        272537000.0,
+        256499000.0,
+        257102000.0,
+        257771000.0,
+        257412000.0
+      ]
+    },
+    {
+      "size": 4194304,
+      "trial": 1,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 266499000.0,
+      "samples_ns": [
+        260401000.0,
+        266499000.0,
+        260569000.0,
+        259636000.0,
+        260064000.0,
+        269401000.0,
+        343440000.0,
+        336474000.0,
+        297708000.0
+      ]
+    },
+    {
+      "size": 4194304,
+      "trial": 1,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 256718000.0,
+      "samples_ns": [
+        256718000.0,
+        256039000.0,
+        253929000.0,
+        255253000.0,
+        255358000.0,
+        257853000.0,
+        275689000.0,
+        331725000.0,
+        294314000.0
+      ]
+    },
+    {
+      "size": 4194304,
+      "trial": 2,
+      "variant": "baseline",
+      "library": "/tmp/base58-pr2-size-cache/auto-both-cdylib.dylib",
+      "iterations": 1,
+      "median_ns": 300895000.0,
+      "samples_ns": [
+        304214000.0,
+        287751000.0,
+        300895000.0,
+        301722000.0,
+        299593000.0,
+        310001000.0,
+        300356000.0,
+        285045000.0,
+        302797000.0
+      ]
+    },
+    {
+      "size": 4194304,
+      "trial": 2,
+      "variant": "candidate",
+      "library": "/tmp/base58-pr2-canonical-cache.dylib",
+      "iterations": 1,
+      "median_ns": 284372000.0,
+      "samples_ns": [
+        309284000.0,
+        281484000.0,
+        283113000.0,
+        295678000.0,
+        281458000.0,
+        284372000.0,
+        286909000.0,
+        278583000.0,
+        297123000.0
+      ]
+    }
+  ]
+}

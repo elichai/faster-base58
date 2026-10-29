@@ -27,7 +27,8 @@ Decoding and `no_alloc` are unchanged.
 
 ## Measurements
 
-Standalone default-feature public-API comparison against `09b2df62580cfd88dd436d3c1b4c536fd45a687d`:
+Original default-feature public-API measurements of `0a46d47` against
+`09b2df62580cfd88dd436d3c1b4c536fd45a687d`:
 
 | Input bytes | Main | Large-input branch | Less time |
 | --- | ---: | ---: | ---: |
@@ -54,27 +55,34 @@ measurements, not the standalone-branch results above.
 
 ## Allocation tradeoff
 
-At 1 MiB, peak temporary live memory falls from 50,383,888 to 45,574,053 bytes
-(9.5%), but allocation calls rise from 37 to 65,590, and total allocation requests
-rise from 62,161,312 to 72,510,009 bytes. Default builds retain no allocated bytes
-after return. Recursive vectors cause this traffic; the latency measurements
-include its single-thread cost. These counters are unchanged by the pair formatter.
-
-An experimental scratch arena reduced calls to 57, but its incremental encoder
-gain was 2.76%, below the optimization workflow's 3% retention threshold, so it
-is not part of this change. This tradeoff is relevant for allocation-sensitive
-or concurrent workloads. Raw counters are in
+The original multiplication tree reduced 1 MiB peak temporary live memory from
+50,383,888 to 45,574,053 bytes, but increased allocation calls from 37 to 65,590
+and total allocation requests from 62,161,312 to 72,510,009 bytes. Those historical
+measurements are in
 [baseline allocations](large-baseline-allocations.jsonl) and
-[new allocations](large-final-allocations.jsonl).
+[original multiplication-tree allocations](large-final-allocations.jsonl).
+
+The allocation follow-up now constructs just two owned twiddle sets and reuses
+one digit workspace across recursive calls. At 1 MiB it needs 52 allocation calls,
+37,184,741 requested allocation bytes and 37,185,461 peak temporary live bytes.
+Two reallocations remain in both versions. Default builds retain no allocated
+bytes after return. See the [incremental measurements](improvements/README.md)
+for raw counters, timing ranges and the exact parent/candidate build identities.
 
 ## Correctness and reproduction
 
-New tests compare with bs58 and Malachite through 1 MiB, covering maximum digits,
+Tests compare with bs58 and Malachite through 1 MiB, covering maximum digits,
 sparse values, zero runs, leading zeros, exact and short buffers, and unwritten
 tail guards. Product tests exercise prepared-spectrum prefixes and fused-add
 boundaries. SIMD tests cover extreme residues and coefficients, randomized scalar
 parity, unaligned slices, guard regions and invalid lengths. Compile-time bounds
 establish exact two-prime reconstruction and prevent carry overflow.
+
+`radix_boundaries` adds public-API oracle checks around dispatch boundaries and
+an explicitly run, normally ignored test at 16 MiB minus one, exactly 16 MiB,
+and 16 MiB plus one. On a NEON target, run both feature configurations with
+`cargo test --test radix_boundaries -- --include-ignored --test-threads=1` and
+`cargo test --features cache --test radix_boundaries -- --include-ignored --test-threads=1`.
 
 Build fixtures with `scripts/code_size.py --backends auto --directions both
 --kinds cdylib --cpu generic --strip-tool /path/to/llvm-strip`, using a separate
