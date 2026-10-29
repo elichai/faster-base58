@@ -12,6 +12,9 @@ pub(super) mod cache;
 /// Every prime is `1 mod 2^MAX_LOG`, so transforms have at most `2^MAX_LOG` points.
 pub(crate) const MAX_LOG: u32 = 23;
 
+/// Larger inverse transforms reuse product scratch instead of retaining more roots.
+pub(super) const INVERSE_POINTS: usize = 1 << 16;
+
 /// Barrett shift: [`Prime::reduce`] estimates `x / q` as
 /// `round(floor(x * v / 2^31) / 2^S)`.
 pub(crate) const S: i32 = 26;
@@ -147,14 +150,14 @@ const fn balance(x: u64, q: u64) -> i32 {
 ///
 /// `fw[h + j]` is `w_2h^j` in Montgomery form, balanced, for `j < h` and
 /// `h = 1, 2, 4, ..`. Here `w_2h` is a primitive `2h`-th root of unity and
-/// `w_2h = w_4h^2`. `iw` holds `w_2h^-j` likewise, and `fwq`, `iwq` the [`Prime::wq`]
-/// companions. Index 0 is unused. Stage `h` needs only `h`, so the table serves every
-/// transform of up to `2^log` points.
+/// `w_2h = w_4h^2`. Inverse roots through [`INVERSE_POINTS`] are retained; larger
+/// inverse transforms generate the remaining stages in product scratch.
+/// Montgomery companions are derived with [`Prime::wq`] when loaded. Index 0 is
+/// unused. Stage `h` needs only `h` values, so the table serves every transform of
+/// up to `2^log` points.
 pub(crate) struct Twiddles {
     pub fw: Vec<i32>,
-    pub fwq: Vec<i32>,
     pub iw: Vec<i32>,
-    pub iwq: Vec<i32>,
 }
 
 impl Twiddles {
@@ -185,19 +188,39 @@ impl Twiddles {
             }
             h /= 2;
         }
-        // w_2h^-j = -w_2h^(h - j), since w_2h^h = -1.
-        let mut iw = vec![0; n];
+        let mut iw = vec![0; n.min(INVERSE_POINTS)];
         let mut h = 1;
-        while h < n {
-            iw[h] = fw[h];
-            for j in 1..h {
-                iw[h + j] = -fw[2 * h - j];
-            }
+        while h < iw.len() {
+            invert_roots(&mut iw[h..2 * h], &fw[h..2 * h]);
             h *= 2;
         }
-        let fwq = fw.iter().map(|&w| p.wq(w)).collect();
-        let iwq = iw.iter().map(|&w| p.wq(w)).collect();
-        Twiddles { fw, fwq, iw, iwq }
+        Twiddles { fw, iw }
+    }
+
+    /// Inverse roots for a transform of `dst.len()` points, using a table prefix.
+    pub(super) fn inverse<'a>(&'a self, dst: &'a mut [i32]) -> &'a [i32] {
+        let n = dst.len();
+        assert!(n.is_power_of_two() && n >= 2 && n <= self.fw.len());
+        if n <= self.iw.len() {
+            return &self.iw[..n];
+        }
+        dst[..self.iw.len()].copy_from_slice(&self.iw);
+        let mut h = self.iw.len();
+        while h < n {
+            invert_roots(&mut dst[h..2 * h], &self.fw[h..2 * h]);
+            h *= 2;
+        }
+        dst
+    }
+}
+
+/// Inverse roots of one stage: `w^-j = -w^(h-j)` for `j > 0`, since `w^h = -1`.
+pub(super) fn invert_roots(dst: &mut [i32], fw: &[i32]) {
+    assert!(fw.len().is_power_of_two());
+    assert_eq!(dst.len(), fw.len());
+    dst[0] = fw[0];
+    for (dst, &fw) in dst[1..].iter_mut().zip(fw[1..].iter().rev()) {
+        *dst = -fw;
     }
 }
 
@@ -346,16 +369,44 @@ pub(crate) mod tests {
         for log in [1, 5, 10, 15] {
             let small = Tables::new(log);
             for (s, b) in small.tw.iter().zip(&big.tw) {
-                for (x, y) in [
-                    (&s.fw, &b.fw),
-                    (&s.fwq, &b.fwq),
-                    (&s.iw, &b.iw),
-                    (&s.iwq, &b.iwq),
-                ] {
+                for (x, y) in [(&s.fw, &b.fw), (&s.iw, &b.iw)] {
                     assert_eq!(x[..], y[..x.len()], "log {log}");
                 }
             }
         }
+    }
+
+    #[test]
+    fn inverse_roots_use_only_the_requested_prefix() {
+        let big = Tables::new(18);
+        for log in [1, 2, 5, 16, 17, 18] {
+            let small = Tables::new(log);
+            let n = 1 << log;
+            for (s, b) in small.tw.iter().zip(&big.tw) {
+                let mut want = vec![0; n];
+                let want = s.inverse(&mut want);
+                let mut got = vec![i32::MIN; n + 4];
+                let roots = b.inverse(&mut got[..n]);
+                assert_eq!(roots, want);
+                assert_eq!(roots[0], 0);
+                if n <= INVERSE_POINTS {
+                    assert_eq!(roots.as_ptr(), b.iw.as_ptr());
+                }
+                assert_eq!(got[n..], [i32::MIN; 4]);
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "n.is_power_of_two()")]
+    fn inverse_roots_reject_partial_stages() {
+        Tables::new(3).tw[0].inverse(&mut [0; 7]);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion `left == right` failed")]
+    fn inverse_stage_rejects_mismatched_lengths() {
+        invert_roots(&mut [0; 2], &[1; 4]);
     }
 
     /// Values of magnitude below `bound`: the edges, then `count` random ones.
@@ -410,10 +461,33 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn twiddle_heap_budget() {
+        assert_eq!(size_of::<Twiddles>(), 2 * size_of::<Vec<i32>>());
+        for (log, kib) in [(16, 1536), (18, 3840)] {
+            let t = Tables::new(log);
+            for tw in &t.tw {
+                assert_eq!(tw.iw.len(), (1 << log).min(INVERSE_POINTS));
+                assert_eq!(tw.iw.capacity(), tw.iw.len());
+            }
+            let bytes =
+                t.tw.iter()
+                    .flat_map(|tw| [&tw.fw, &tw.iw])
+                    .map(|v| v.capacity() * size_of::<i32>())
+                    .sum::<usize>();
+            assert!(
+                bytes <= kib * 1024,
+                "log {log}, twiddle heap: {bytes} bytes"
+            );
+        }
+    }
+
+    #[test]
     fn twiddles() {
-        for log in (1..=12).chain([16]) {
+        for log in (1..=12).chain([16, 17]) {
             let t = Tables::new(log);
             for ((p, (_, root)), tw) in PRIMES.iter().zip(PRIMES_AND_ROOTS).zip(&t.tw) {
+                let mut iw = vec![0; 1 << log];
+                let iw = tw.inverse(&mut iw);
                 let q = p.q as u64;
                 let r = (1u64 << 32) % q;
                 let mut h = 1;
@@ -425,11 +499,9 @@ pub(crate) mod tests {
                         let got = modq(tw.fw[h + j] as i128, p.q);
                         assert_eq!(got, want, "log {log}, h {h}, j {j}");
                         // Montgomery forms of x and 1/x multiply to 2^64.
-                        let prod = tw.fw[h + j] as i128 * tw.iw[h + j] as i128;
+                        let prod = tw.fw[h + j] as i128 * iw[h + j] as i128;
                         assert_eq!(modq(prod, p.q), r * r % q);
-                        assert!(tw.fw[h + j].abs() <= p.q / 2 && tw.iw[h + j].abs() <= p.q / 2);
-                        assert_eq!(tw.fwq[h + j], p.wq(tw.fw[h + j]));
-                        assert_eq!(tw.iwq[h + j], p.wq(tw.iw[h + j]));
+                        assert!(tw.fw[h + j].abs() <= p.q / 2 && iw[h + j].abs() <= p.q / 2);
                     }
                     h *= 2;
                 }

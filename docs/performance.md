@@ -8,7 +8,8 @@ internal allocation; its general large conversions remain quadratic.
 
 ## Measurement scope
 
-The current public timings, linked sizes and M5 allocations were measured
+The broad public timings, linked sizes and M5 allocations below are historical,
+before the [NTT heap reductions](#bounded-inverse-root-tables). They were measured
 **2026-10-29**, from combined Git snapshot `06e081591a8ff444f990133411f093e5512610dc`.
 Resource fingerprint: `c9d7163caf8dfa8f52355c09e2da04a84bb7dc205acc2386b5d9b087371580f5`
 (source/manifest/lock/support files, not a Git ID). All platforms use this same
@@ -205,7 +206,7 @@ under ignored `target/measurements/`.
 
 Enabling `cache` changes dispatch and leaf policy as well as retention. The
 current README reports warm behavior; first-call costs above are separate.
-The following ordinary-public M5 allocation windows use the same source and
+The following historical ordinary-public M5 allocation windows use the same source and
 fixtures as the timing refresh. Each size/operation starts in a fresh process;
 the warm window follows its first conversion. No other sizes prime the cache.
 
@@ -242,14 +243,78 @@ No-allocation is an API guarantee; other-platform allocations were not remeasure
 in this refresh.
 
 Matrix table capacities sum to 18,617,760 B; production NTT retention for logs
-5–18 permits 25,164,288 B. Their combined 41.8 MiB capacity depends on call
-history. Cache families have 6,280 B of static headers in the recorded 64-bit
-layout, with unused families subject to dead stripping. Fixed 32/64-byte encoder
+5–18 permits 9,436,416 B after the NTT heap reductions. Their combined 26.8 MiB
+capacity depends on call history. Cache families have 3,544 B of static headers
+in the recorded 64-bit layout, with unused families subject to dead stripping. Fixed 32/64-byte encoder
 constants have a separate 2,208 B reference layout. Construction scratch,
 larger per-call tables, allocator overhead and concurrency add memory; this is
 not an active-heap bound. Wasm linear-memory pages need not return to the host
 when allocations are freed. RSS and full dynamic stack high water were not
 remeasured. See [design memory accounting](../DESIGN.md#heap-stack-and-cache-costs).
+
+### Bounded inverse-root tables
+
+The 2026-10-29 comparison against main at `7962809` covers both NTT heap changes.
+Montgomery companions are derived with a wrapping 32-bit multiply when loaded,
+including SIMD loads. Inverse roots are retained only through 65,536 points per
+prime; larger transforms generate the remaining stages in the existing product
+temporary after pointwise multiplication. The scratch bound falls from
+`16*n + 64` to `12*n + 128` limbs. Primes, transform plans and dispatch thresholds
+are unchanged. This comparison includes main's pooled two-prime AArch64 radix
+encoder. The candidate's public-probe source fingerprint starts `692e6530a28b`.
+
+For a 4 MiB significant binary payload, local aarch64 Auto workers measured:
+
+| Policy | Operation | Peak extra, before → after | Warm requests, before → after |
+| --- | --- | ---: | ---: |
+| Default | Encode | 131,965,668 → 82,158,308 B | 14 → 10 |
+| Default | Decode | 109,997,816 → 63,860,984 B | 27 → 21 |
+| Cache | Encode | 131,965,668 → 82,158,308 B | 14 → 10 |
+| Cache | Decode | 109,997,816 → 63,860,984 B | 27 → 21 |
+
+These are warm operation windows excluding caller buffers and any previously
+retained cache. Cache-enabled decode's first-call peak was
+110,631,416 → 64,494,584 B, retaining the same 616,704 B of Matrix tables.
+Encoding retained no tables at this size. The separate allocation-counted
+Auto workers use `__internals`; they are not timed or pooled with the historical
+ordinary-public cohort above. Worker fixtures are independently checked against
+Malachite. Raw output stays under ignored `target/measurements/` or temporary
+directories; it is not part of the published source tree. Relative to the
+companion-only change at `b84490a`, bounding inverse tables saves another
+15.5 MiB for local encoding and 11.25 MiB for decoding.
+
+The paired public-API timing builds use default CPU flags, opt-level 3 and fat
+LTO, with only default features or `cache`, without `__internals`. Both libraries
+are loaded in one local process and checked byte for byte before and after
+timing. Each of three runs has seven alternating samples, calibrated to at least
+20 ms per batch. The local host is an Apple M5 Pro using aarch64 macOS,
+Rust 1.99.1 and LLVM 23.1.1 on AC power.
+
+The x86-64 comparison uses uncounted Auto workers with `__internals`, not the
+ordinary-public libraries used locally. Each of three alternating process pairs
+has five warm samples, calibrated to at least 3 ms per batch and pinned to CPU 0.
+The host is the GCP EPYC 9B45, using Rust 1.99.0 / LLVM 23.1.1 and generic CPU
+flags with runtime dispatch. Its default 4 MiB encode/decode peaks fell from
+201,207,328 / 109,807,352 B to 117,858,816 / 63,670,520 B. Cache-enabled warm
+peaks were 199,567,960 / 109,807,352 B before and 116,459,384 / 63,670,520 B after.
+
+Both refreshed timing harnesses measure process CPU time. Warm 4 MiB medians,
+with positive percentages meaning slower:
+
+| Platform / policy | Encode, before → after | Decode, before → after |
+| --- | ---: | ---: |
+| Local / default | 251.20 → 251.07 ms (−0.05%) | 142.33 → 142.38 ms (+0.03%) |
+| Local / cache | 253.79 → 252.31 ms (−0.58%) | 138.46 → 138.91 ms (+0.32%) |
+| GCP / default | 345.38 → 334.10 ms (−3.27%) | 158.18 → 151.11 ms (−4.47%) |
+| GCP / cache | 321.44 → 311.39 ms (−3.13%) | 160.06 → 151.64 ms (−5.26%) |
+
+A separate follow-up comparison against `b84490a` used the same harnesses at
+8, 32, 36, 128, 144, 1024 and 4096 KiB with default and cache builds. Its largest
+observed increase was 1.56% locally (32 KiB cache encoding) and 1.04% on x86-64
+(128 KiB cache encoding). Synthesizing every inverse table had slowed local
+cache cases by up to 3.7%; retaining the prefix avoids most of that setup cost.
+The full historical size grid and Wasm timing were not refreshed. These are
+machine-specific medians, not performance guarantees.
 
 ## Linked size and compact
 

@@ -79,10 +79,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 This module shares the root error and buffer contracts. It has no owned-result
 helpers. Enabling `cache` does not change its allocation guarantee.
 
-Auto trades workspace for large-input speed. At 4 MiB, the M5 measurements with
-default features peak at about 126 MiB of extra requested heap for encoding and
-105 MiB for decoding, excluding caller buffers. The sampled 1/4 MiB M5 encode
-calls each make 14 allocations and zero reallocations with either cache policy.
+Auto trades workspace for large-input speed. At 4 MiB, local aarch64 measurements
+with default features peak at about 78 MiB of extra requested heap for encoding
+and 61 MiB for decoding, excluding caller buffers. The sampled 4 MiB encode
+calls make 10 allocations and zero reallocations with either cache policy.
 [Allocation details](DESIGN.md#heap-stack-and-cache-costs).
 
 ## Optional caching
@@ -100,18 +100,18 @@ are initialized; retained heap depends on input sizes, CPU and call history.
 | Cache family | Maximum retained heap payload across production classes |
 | --- | ---: |
 | Encoding and decoding Matrix tables | 18,617,760 B (17.8 MiB) |
-| NTT twiddles | 25,164,288 B (24.0 MiB) |
-| **Combined** | **43,782,048 B (41.8 MiB)** |
+| NTT twiddles | 9,436,416 B (9.0 MiB) |
+| **Combined** | **28,054,176 B (26.8 MiB)** |
 
 This is retained table capacity, **not a limit on total active heap**. Per-call
-scratch and larger uncached tables still allocate. For the measured M5 4 MiB
-warm calls, `cache` encoding makes 14 allocation requests and peaks at about
-126 MiB of extra heap; decoding makes 27 requests and peaks at about 105 MiB.
+scratch and larger uncached tables still allocate. For the measured local 4 MiB
+warm calls, `cache` encoding makes 10 allocation requests and peaks at about
+78 MiB of extra heap; decoding makes 21 requests and peaks at about 61 MiB.
 These peaks exclude caller buffers and previously retained tables. Per-call
 scratch is freed after conversion; allocator overhead and concurrent calls add
 memory. [Measured cold/warm allocation details](docs/performance.md#cache-and-memory).
 
-Cache families also use **6,280 bytes of static headers** in the recorded 64-bit
+Cache families also use **3,544 bytes of static headers** in the recorded 64-bit
 layout, separate from heap payloads; these stores are absent by default. Dead
 stripping can remove unused families. Fixed 32/64-byte constants are separate
 (2,208 bytes of reference layout). None of these figures measures RSS.
@@ -119,7 +119,9 @@ stripping can remove unused families. Fixed 32/64-byte constants are separate
 
 ## Performance
 
-**Measured 2026-10-29 from combined source `06e081591a8f`**, including the
+**Historical measurements from 2026-10-29, source `06e081591a8f`**, before the
+NTT heap reductions. The [paired comparisons](docs/performance.md#bounded-inverse-root-tables)
+are recorded separately. This historical cohort includes the
 formatter, table alignment and radix scratch improvements. Warm calls reuse
 output buffers and include Auto's workspace allocations. Native
 uses process CPU time; Wasm uses V8 elapsed time. Each cell is **encode / decode**.

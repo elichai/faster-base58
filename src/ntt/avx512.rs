@@ -25,7 +25,7 @@ pub(crate) fn kernels() -> Option<super::Kernels> {
         // SAFETY: the AVX-512F check above succeeded.
         forward: |a, p, t| unsafe { z::forward(a, p, t) },
         // SAFETY: the AVX-512F check above succeeded.
-        inverse: |a, p, t| unsafe { z::inverse(a, p, t) },
+        inverse: |a, p, iw| unsafe { z::inverse(a, p, iw) },
         // SAFETY: the AVX-512F check above succeeded.
         pointwise: |a, b, p| unsafe { z::pointwise(a, b, p) },
         // SAFETY: the AVX-512F check above succeeded.
@@ -157,6 +157,7 @@ fn each<V: Copy, const L: usize>(a: [V; L], b: [V; L], f: impl Fn(V, V) -> V) ->
 #[derive(Clone, Copy)]
 struct Consts<V> {
     q: V,
+    qinv: V,
     v: V,
     /// `2^(30 + S)`, which rounds [`reduce`]'s quotient.
     round: V,
@@ -170,6 +171,7 @@ impl<V: V16> Consts<V> {
         unsafe {
             Consts {
                 q: V::splat(p.q),
+                qinv: V::splat(p.qinv),
                 v: V::splat(p.v),
                 round: V::splat64(1 << (30 + S)),
             }
@@ -280,15 +282,18 @@ struct Block<V> {
 }
 
 impl<V: V16> Block<V> {
-    /// From the twiddles `w`, `wq` (forward or inverse) of a transform of at least 32
+    /// From the twiddles `w` (forward or inverse) of a transform of at least 32
     /// points. Safety: `V` values may be created.
     #[inline(always)]
-    unsafe fn new(w: &[i32], wq: &[i32], idx: &[[[i32; 16]; 2]; 5]) -> Self {
+    unsafe fn new(w: &[i32], qinv: V, idx: &[[[i32; 16]; 2]; 5]) -> Self {
         // In layout `h` the second register's lane `i` holds a position that is `i` modulo
         // `h`.
         let at = |t: &[i32], h: usize| core::array::from_fn(|i| t[h + (i & (h - 1))]);
-        // SAFETY: the caller permits V creation; at reads through bounds-checked indexing.
-        let tw = |h| unsafe { (V::from_array(at(w, h)), V::from_array(at(wq, h))) };
+        let tw = |h| {
+            // SAFETY: the caller permits V creation; at uses bounds-checked indexing.
+            let w = unsafe { V::from_array(at(w, h)) };
+            (w, w.mullo(qinv))
+        };
         // SAFETY: the caller permits creation of V index vectors.
         let idx = idx.map(|[a, b]| unsafe { (V::from_array(a), V::from_array(b)) });
         Block {
@@ -352,15 +357,18 @@ fn both<V: V16>((a, aq): (V, V), (b, bq): (V, V)) -> ([V; 2], [V; 2]) {
 #[inline(always)]
 unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     let n = a.len();
-    assert!(n.is_power_of_two() && n <= t.fw.len() && n <= t.fwq.len());
+    assert!(n.is_power_of_two() && n <= t.fw.len());
     if n < 64 {
         return portable::forward(a, p, t);
     }
     // SAFETY: the caller permits V creation, including pairs of V constants.
     let c = unsafe { Consts::<[V; 2]>::new(p) };
-    let (pa, w, wq) = (a.as_mut_ptr(), t.fw.as_ptr(), t.fwq.as_ptr());
-    // SAFETY: callers use i + 16 <= 2 * h <= n, within both asserted twiddle lengths.
-    let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
+    let (pa, w) = (a.as_mut_ptr(), t.fw.as_ptr());
+    let tw = |i: usize| {
+        // SAFETY: callers use i + 16 <= 2 * h <= n, within the asserted twiddle length.
+        let w = unsafe { V::load(w.add(i)) };
+        (w, w.mullo(c.qinv[0]))
+    };
     let mut h = n / 2;
     while h >= 32 {
         if h >= 64 {
@@ -403,7 +411,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
         }
     }
     // SAFETY: the caller permits V creation; n >= 64 guarantees the 32-entry twiddles.
-    let b = unsafe { Block::new(&t.fw, &t.fwq, &FORWARD) };
+    let b = unsafe { Block::new(&t.fw, c.qinv, &FORWARD) };
     for i in (0..n).step_by(64) {
         // SAFETY: `i + 64 <= n`: two blocks of 32.
         unsafe {
@@ -424,18 +432,18 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
 ///
 /// Safety: `V` values may be created.
 #[inline(always)]
-unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
+unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, iw: &[i32]) {
     let n = a.len();
-    assert!(n.is_power_of_two() && n <= t.iw.len() && n <= t.iwq.len());
+    assert!(n.is_power_of_two() && n <= iw.len());
     if n < 32 {
-        return portable::inverse(a, p, t);
+        return portable::inverse(a, p, iw);
     }
     debug_assert!(portable::lazy(2, n) && !portable::lazy(4, n) && portable::lazy(8, n));
     // SAFETY: the caller permits V creation.
     let c = unsafe { Consts::<V>::new(p) };
     let pa = a.as_mut_ptr();
     // SAFETY: the caller permits V creation; n >= 32 guarantees the 32-entry twiddles.
-    let b = unsafe { Block::new(&t.iw, &t.iwq, &INVERSE) };
+    let b = unsafe { Block::new(iw, c.qinv, &INVERSE) };
     for i in (0..n).step_by(32) {
         // SAFETY: `i + 32 <= n`.
         unsafe { inverse32(pa.add(i), &b, &c) }
@@ -443,22 +451,22 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
     let mut h = 32;
     while h < n {
         if 4 * h <= n {
-            // SAFETY: `4 h <= n` and `n <= t.iw.len()`.
+            // SAFETY: `4 h <= n` and `n <= iw.len()`.
             unsafe {
                 match (portable::lazy(h, n), portable::lazy(2 * h, n)) {
-                    (false, false) => inverse4::<V, false, false>(pa, n, h, t, &c),
-                    (false, true) => inverse4::<V, false, true>(pa, n, h, t, &c),
-                    (true, false) => inverse4::<V, true, false>(pa, n, h, t, &c),
-                    (true, true) => inverse4::<V, true, true>(pa, n, h, t, &c),
+                    (false, false) => inverse4::<V, false, false>(pa, n, h, iw, &c),
+                    (false, true) => inverse4::<V, false, true>(pa, n, h, iw, &c),
+                    (true, false) => inverse4::<V, true, false>(pa, n, h, iw, &c),
+                    (true, true) => inverse4::<V, true, true>(pa, n, h, iw, &c),
                 }
             }
             h *= 4;
         } else {
-            // SAFETY: `2 h <= n` and `n <= t.iw.len()`.
+            // SAFETY: `2 h <= n` and `n <= iw.len()`.
             unsafe {
                 match portable::lazy(h, n) {
-                    false => inverse2::<V, false>(pa, n, h, t, &c),
-                    true => inverse2::<V, true>(pa, n, h, t, &c),
+                    false => inverse2::<V, false>(pa, n, h, iw, &c),
+                    true => inverse2::<V, true>(pa, n, h, iw, &c),
                 }
             }
             h *= 2;
@@ -470,18 +478,21 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
 /// reductions.
 ///
 /// Safety: `V` values may be created; `p` has `n` values, `n` is a multiple of `4 h`,
-/// `h` of 16, and `t.iw`, `t.iwq` have at least `4 h`.
+/// `h` of 16, and `iw` has at least `4 h`.
 #[inline(always)]
 unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     p: *mut i32,
     n: usize,
     h: usize,
-    t: &Twiddles,
+    iw: &[i32],
     c: &Consts<V>,
 ) {
-    let (w, wq) = (t.iw.as_ptr(), t.iwq.as_ptr());
-    // SAFETY: callers use i + 16 <= 4 * h, within the promised twiddle lengths.
-    let tw = |i: usize| unsafe { (V::load(w.add(i)), V::load(wq.add(i))) };
+    let w = iw.as_ptr();
+    let tw = |i: usize| {
+        // SAFETY: callers use i + 16 <= 4 * h, within the promised twiddle length.
+        let w = unsafe { V::load(w.add(i)) };
+        (w, w.mullo(c.qinv))
+    };
     for s in (0..n).step_by(4 * h) {
         for j in (0..h).step_by(16) {
             // SAFETY: s + 4*h <= n and j + 16 <= h; all four vectors fit in p.
@@ -508,16 +519,17 @@ unsafe fn inverse2<V: V16, const LAZY: bool>(
     p: *mut i32,
     n: usize,
     h: usize,
-    t: &Twiddles,
+    iw: &[i32],
     c: &Consts<V>,
 ) {
-    let (w, wq) = (t.iw.as_ptr(), t.iwq.as_ptr());
+    let w = iw.as_ptr();
     for s in (0..n).step_by(2 * h) {
         for j in (0..h).step_by(16) {
             // SAFETY: `s + 2 h <= n`, `j + 16 <= h`, twiddle `h + j + 16 <= 2 h`.
             unsafe {
                 let (px, py) = (p.add(s + j), p.add(s + j + h));
-                let tw = (V::load(w.add(h + j)), V::load(wq.add(h + j)));
+                let w = V::load(w.add(h + j));
+                let tw = (w, w.mullo(c.qinv));
                 let (x, y) = dit::<V, LAZY>((V::load(px), V::load(py)), tw, c);
                 x.store(px);
                 y.store(py);
@@ -586,9 +598,9 @@ mod z {
     }
 
     #[target_feature(enable = "avx512f")]
-    pub(super) unsafe fn inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
+    pub(super) unsafe fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
         // SAFETY: this function requires AVX-512F, so Z values may be created.
-        unsafe { super::inverse_v::<Z>(a, p, t) }
+        unsafe { super::inverse_v::<Z>(a, p, iw) }
     }
 
     #[target_feature(enable = "avx512f")]
@@ -813,7 +825,8 @@ mod tests {
             let c = unsafe { Consts::<Emu>::new(p) };
             for (&a, &w) in x.iter().zip(x.iter().rev()) {
                 let (a, w) = (Emu(a), Emu(w));
-                let wq = Emu(w.0.map(|w| p.wq(w)));
+                let wq = w.mullo(c.qinv);
+                assert_eq!(wq.0, w.0.map(|w| p.wq(w)));
                 assert_eq!(
                     reduce(a, &c).0,
                     a.0.map(|a| p.reduce(a)),
@@ -861,15 +874,18 @@ mod tests {
     }
 
     type Forward = unsafe fn(&mut [i32], Prime, &Twiddles);
+    type Inverse = unsafe fn(&mut [i32], Prime, &[i32]);
     type Pointwise = unsafe fn(&mut [i32], &[i32], Prime);
     type Square = unsafe fn(&mut [i32], Prime);
 
     /// The kernels on `V` give exactly what the portable ones give: on random values in
     /// `(-q, q)` and at its ends, for every transform length up to 2^16.
-    fn matches_portable(forward: Forward, inverse: Forward, pointwise: Pointwise, square: Square) {
+    fn matches_portable(forward: Forward, inverse: Inverse, pointwise: Pointwise, square: Square) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(43);
         let tables = Tables::new(16);
         for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
+            let mut iw = vec![0; tw.fw.len()];
+            let iw = tw.inverse(&mut iw);
             let m = p.q - 1;
             for log in 3..=16 {
                 let n = 1 << log;
@@ -883,9 +899,9 @@ mod tests {
                     portable::forward(&mut b, p, tw);
                     assert!(a == b, "forward, n {n}");
                     let (mut a, mut b) = (x.clone(), x.clone());
-                    // SAFETY: the selected kernel supports this CPU; tw serves n points.
-                    unsafe { inverse(&mut a, p, tw) };
-                    portable::inverse(&mut b, p, tw);
+                    // SAFETY: the selected kernel supports this CPU; iw serves n points.
+                    unsafe { inverse(&mut a, p, iw) };
+                    portable::inverse(&mut b, p, iw);
                     assert!(a == b, "inverse, n {n}");
                     let (mut a, mut b) = (x.clone(), x.clone());
                     // SAFETY: the selected kernel supports this CPU; a and y have length n.

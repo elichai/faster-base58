@@ -21,13 +21,13 @@ pub(crate) fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
     debug_assert!(n.is_power_of_two() && n >= 2 && n <= t.fw.len());
     let mut h = n / 2;
     while h >= 2 {
-        let (w, wq) = (&t.fw[h..2 * h], &t.fwq[h..2 * h]);
+        let w = &t.fw[h..2 * h];
         for blk in a.chunks_exact_mut(2 * h) {
             let (x, y) = blk.split_at_mut(h);
-            for (((x, y), &w), &wq) in x.iter_mut().zip(y).zip(w).zip(wq) {
+            for ((x, y), &w) in x.iter_mut().zip(y).zip(w) {
                 let (s, d) = (*x + *y, *x - *y);
                 *x = p.reduce(s);
-                *y = p.mont(d, w, wq);
+                *y = p.mont(d, w, p.wq(w));
             }
         }
         h /= 2;
@@ -37,16 +37,16 @@ pub(crate) fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
 
 /// Decimation in time: bit-reversed order in, natural order out, times `a.len()`.
 #[inline(always)]
-pub(crate) fn inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
+pub(crate) fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
     let n = a.len();
-    debug_assert!(n.is_power_of_two() && n >= 2 && n <= t.iw.len());
+    debug_assert!(n.is_power_of_two() && n >= 2 && n <= iw.len());
     last_stage(a, p);
     let mut h = 2;
     while h < n {
         if lazy(h, n) {
-            inverse_stage::<true>(a, h, p, t);
+            inverse_stage::<true>(a, h, p, iw);
         } else {
-            inverse_stage::<false>(a, h, p, t);
+            inverse_stage::<false>(a, h, p, iw);
         }
         h *= 2;
     }
@@ -54,12 +54,12 @@ pub(crate) fn inverse(a: &mut [i32], p: Prime, t: &Twiddles) {
 
 /// One stage of [`inverse`], on blocks of `2 h`; `LAZY` skips the reductions.
 #[inline(always)]
-fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, t: &Twiddles) {
-    let (w, wq) = (&t.iw[h..2 * h], &t.iwq[h..2 * h]);
+fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
+    let w = &iw[h..2 * h];
     for blk in a.chunks_exact_mut(2 * h) {
         let (x, y) = blk.split_at_mut(h);
-        for (((x, y), &w), &wq) in x.iter_mut().zip(y).zip(w).zip(wq) {
-            let t = p.mont(*y, w, wq);
+        for ((x, y), &w) in x.iter_mut().zip(y).zip(w) {
+            let t = p.mont(*y, w, p.wq(w));
             let (s, d) = (*x + t, *x - t);
             (*x, *y) = if LAZY {
                 (s, d)
@@ -98,10 +98,10 @@ pub(crate) fn square(a: &mut [i32], p: Prime) {
 /// `a[i] = a[i] w[i] / 2^32 mod q`: `a[i]` times the root that Montgomery-form `w[i]`
 /// stands for. `|w| <= q / 2` (as in [`Twiddles`]), so the result is below `0.75 q`.
 #[inline(always)]
-pub(crate) fn twist(a: &mut [i32], w: &[i32], wq: &[i32], p: Prime) {
-    let (w, wq) = (&w[..a.len()], &wq[..a.len()]);
-    for ((x, &w), &wq) in a.iter_mut().zip(w).zip(wq) {
-        *x = p.mont(*x, w, wq);
+pub(crate) fn twist(a: &mut [i32], w: &[i32], p: Prime) {
+    let w = &w[..a.len()];
+    for (x, &w) in a.iter_mut().zip(w) {
+        *x = p.mont(*x, w, p.wq(w));
     }
 }
 
@@ -136,7 +136,7 @@ pub(crate) fn halves(lo: &mut [i32], hi: &mut [i32], p: Prime) {
 }
 
 /// [`super::super::crt()`] for `r = [c mod (x^m + 1) | c mod (x^n - 1)]`, `n = r.len() - m`,
-/// with the first still multiplied by `w^i` at `i` (`iw[i]`, `iwq[i]` undo that), fused
+/// with the first still multiplied by `w^i` at `i` (`iw[i]` undoes that), fused
 /// with undoing it. Requires `n < m`; then `n` divides `m`.
 ///
 /// With `c = sum_k C_k x^(kn)` in blocks of `n`, `k <= m / n`, the first residue is
@@ -144,22 +144,21 @@ pub(crate) fn halves(lo: &mut [i32], hi: &mut [i32], p: Prime) {
 /// `C_0 + C_(m/n)` is the second minus blocks `1..m/n` of the first, and only blocks 0
 /// and `m/n` change.
 #[inline(always)]
-pub(crate) fn pair(r: &mut [i32], m: usize, iw: &[i32], iwq: &[i32], p: Prime) {
+pub(crate) fn pair(r: &mut [i32], m: usize, iw: &[i32], p: Prime) {
     let n = r.len() - m;
-    assert!(n < m && m.is_multiple_of(n) && iw.len() >= m && iwq.len() >= m);
+    assert!(n < m && m.is_multiple_of(n) && iw.len() >= m);
     let (e, s) = r.split_at_mut(m);
     let (e0, mid) = e.split_at_mut(n);
-    let ws = iw[n..m].chunks_exact(n).zip(iwq[n..m].chunks_exact(n));
-    for (blk, (w, wq)) in mid.chunks_exact_mut(n).zip(ws) {
-        for (((x, s), &w), &wq) in blk.iter_mut().zip(s.iter_mut()).zip(w).zip(wq) {
-            *x = p.mont(*x, w, wq);
+    for (blk, w) in mid.chunks_exact_mut(n).zip(iw[n..m].chunks_exact(n)) {
+        for ((x, s), &w) in blk.iter_mut().zip(s.iter_mut()).zip(w) {
+            *x = p.mont(*x, w, p.wq(w));
             // `|s| < q` and `|x| < 0.75 q`.
             *s = p.reduce(*s - *x);
         }
     }
     let (h, hq) = half(p);
-    for (((lo, hi), &w), &wq) in e0.iter_mut().zip(s).zip(&iw[..n]).zip(&iwq[..n]) {
-        let x = p.mont(*lo, w, wq);
+    for ((lo, hi), &w) in e0.iter_mut().zip(s).zip(&iw[..n]) {
+        let x = p.mont(*lo, w, p.wq(w));
         (*lo, *hi) = (p.mont(*hi + x, h, hq), p.mont(*hi - x, h, hq));
     }
 }
