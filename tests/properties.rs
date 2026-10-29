@@ -89,6 +89,17 @@ fn recursive_and_ntt_boundaries_match_bs58() {
 }
 
 #[test]
+fn radix_hooks_fall_back_above_the_transform_limit() {
+    let input = vec![1; (1 << 24) + 1];
+    for encode in [
+        internals::encode_radix as support::Encode,
+        internals::encode_radix_portable,
+    ] {
+        assert_eq!(encode(&input, &mut []), Err(faster_base58::BufferTooSmall));
+    }
+}
+
+#[test]
 fn leading_zeros_and_carry_boundaries() {
     for len in [0, 1, 7, 8, 10, 32, 64, 512, 768, 1504, 5121, 8193] {
         for data in [vec![0; len], vec![0xFF; len]] {

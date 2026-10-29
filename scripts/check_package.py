@@ -16,8 +16,7 @@ EXACT = {'Cargo.toml', 'Cargo.toml.orig', 'Cargo.lock', '.cargo_vcs_info.json',
 REQUIRED = {'Cargo.toml', 'src/lib.rs', 'README.md', 'DESIGN.md', 'CORRECTNESS.md',
             'REFERENCES.md', 'LICENSE-MIT', 'LICENSE-APACHE', 'docs/README.md',
             'docs/performance.md', 'assets/graphs/m5-public.svg',
-            'assets/graphs/wasm-public.svg', 'assets/graphs/gcp-generic-backends.svg',
-            'assets/graphs/gcp-native-backends.svg'}
+            'assets/graphs/wasm-public.svg', 'assets/graphs/gcp-public.svg'}
 
 def require(condition, message):
     if not condition:
@@ -37,7 +36,7 @@ def allowed(name):
 
 def self_test():
     for name in ['src/lib.rs', 'tests/support/scalar.rs', 'REFERENCES.md', 'CORRECTNESS.md',
-                 'assets/graphs/gcp-generic-backends.svg', 'docs/performance.md']:
+                 'assets/graphs/gcp-public.svg', 'docs/performance.md']:
         require(allowed(name), 'Expected package source: ' + name)
     for name in ['', '../secret.rs', '/src/lib.rs', 'src/key.pem', 'fuzz/corpus/input',
                  'docs/benchmarks/source.tgz', 'docs/verification/run.log',

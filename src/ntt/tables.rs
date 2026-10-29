@@ -211,9 +211,15 @@ pub(crate) struct Tables {
 impl Tables {
     /// Requires `1 <= log <= MAX_LOG`.
     pub fn new(log: u32) -> Self {
+        Tables {
+            log,
+            tw: Self::twiddles(log),
+        }
+    }
+
+    pub(super) fn twiddles<const N: usize>(log: u32) -> [Twiddles; N] {
         assert!((1..=MAX_LOG).contains(&log), "log = {log}");
-        let tw = core::array::from_fn(|i| Twiddles::new(PRIMES[i], PRIMES_AND_ROOTS[i].1, log));
-        Tables { log, tw }
+        core::array::from_fn(|i| Twiddles::new(PRIMES[i], PRIMES_AND_ROOTS[i].1, log))
     }
 }
 

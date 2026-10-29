@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NAMES = [f'{direction}_{backend}' for direction in ['encode', 'decode']
          for backend in ['batched', 'karatsuba', 'matrix', 'matrix_portable',
                          'ntt', 'ntt_cached', 'ntt_portable', 'toom3']]
+NAMES += ['encode_radix', 'encode_radix_portable']
 HOOKS = ['Multiplier', 'Leaves', 'decode_with', 'encode_tuned', 'ifma_threshold',
          'mul_with', 'scratch_len', 'encode_karatsuba_with', 'encode_matrix_with',
          'encode_matrix_whole', 'encode_matrix_cache_memory', 'fixed_matrix_table_bytes',
@@ -75,8 +76,9 @@ use faster_base58::internals::{set_ifma_threshold, ifma_mul, ifma_scratch_len};
 fn main() {
     type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
     type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
-    let encoders: [Encode; 8] = [encode_batched, encode_karatsuba, encode_matrix, encode_matrix_portable,
-                               encode_ntt, encode_ntt_cached, encode_ntt_portable, encode_toom3];
+    let encoders: [Encode; 10] = [encode_batched, encode_karatsuba, encode_matrix, encode_matrix_portable,
+                                encode_ntt, encode_ntt_cached, encode_ntt_portable, encode_toom3,
+                                encode_radix, encode_radix_portable];
     let decoders: [Decode; 8] = [decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable,
                                decode_ntt, decode_ntt_cached, decode_ntt_portable, decode_toom3];
     let _: Option<&dyn Multiplier> = None;
@@ -229,11 +231,11 @@ def main():
     assert fingerprint(source) == before, 'library/support sources changed during validation'
     receipt = dict(status='pass', created_utc=datetime.now(timezone.utc).isoformat(), source_sha256=before,
                    checker_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                   root_backend_rejections=64, root_bench_rejections=4, private_encode_rejections=4,
+                   root_backend_rejections=72, root_bench_rejections=4, private_encode_rejections=4,
                    absent_internals_rejections=2, owned_input_rejections=4, public_fixture_runs=4,
-                   named_selector_presence_checks=32, profiles=profiles)
+                   named_selector_presence_checks=36, profiles=profiles)
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
-    print('PASS: 4 feature builds; 64 root selector, 4 root bench, 4 private encode, 2 namespace and 4 owned-input rejections')
+    print('PASS: 4 feature builds; 72 root selector, 4 root bench, 4 private encode, 2 namespace and 4 owned-input rejections')
 
 
 if __name__ == '__main__':

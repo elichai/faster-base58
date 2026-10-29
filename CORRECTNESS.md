@@ -26,6 +26,16 @@ passed.
 | Source coverage | Translated x86 Linux, unsanitized: 169 encode and 201 decode boundary files per cache policy. Encode/decode library lines: 2608/3669 and 1468/3669 without cache; 2699/3777 and 1513/3777 with cache. No branch or native IFMA coverage; overlapping denominators are not added. |
 | Platform gaps | Four native Windows runtime rows were unavailable. Cross-builds and translated execution do not establish native execution. |
 
+On 2026-10-29, the [hosted run for integrated snapshot `fbe6043`](https://github.com/elichai/faster-base58/actions/runs/40905616652)
+completed all four native Windows debug/release and default/cache runtime rows.
+Its cache-enabled careful-ASan job also completed both full-width stages: two
+NTT mutation attempts in 350 seconds and seven radix mutation attempts in 192
+seconds, counted after initialization. These are small structured campaigns.
+The default full-width stages were interrupted by the subsequent CI setup fix;
+the run as a whole did not pass. Four coverage jobs failed before replay because
+the stable tool installer inherited nightly flags; that setup is now corrected
+and locally replayed. The replacement hosted matrix remains separate evidence.
+
 ## Public contract
 
 - The alphabet is Bitcoin Base58. Leading zero bytes become leading `'1'`s.
@@ -54,6 +64,14 @@ passed.
 | [Allocation contract](tests/no_alloc.rs) and [preflight](tests/resource_preflight.rs) | Allocation, zeroed-allocation, reallocation and deallocation counters; cold/success/error paths and impossible-buffer rejection before table construction |
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
 | Concurrency tests | Cold Matrix initialization, shared tables and eight-thread NTT cache/history reuse |
+| [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards; normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |
+
+The radix allocation regression failed on the parent and passes with one reused
+digit workspace. Its 1/4 MiB cases now also bound allocation requests after
+pooling power digits and spectra, and guard both ends of the output.
+Product tests check poisoned output and the live low-child
+prefix consumed by fused carry. Forced best/portable radix hooks participate in
+unit, property and fuzz backend lists; their out-of-domain fallback is checked.
 
 The whole-limb formatter's `ten_digits_matches_division` test compares serial
 division at both domain ends, radix boundaries and 10,000 seeded values.
@@ -103,13 +121,30 @@ characters can expand text. These budgets are not format limits or coverage of
 every transform size. The 8,193-byte native mutation cap does not reach real NTT
 thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
 
+`encode_radix_full_width` uses an independent Malachite oracle on periodic
+256 KiB / 1 MiB values, reaching owned large twiddles. Native ARM careful-ASan
+smoke campaigns for pooled-scratch snapshot `11d0c16` completed on 2026-10-29,
+before the table-alignment and lint integration:
+19 default and 8 cache post-initialization mutation attempts over 65/66 seconds,
+without crashes. These short runs are not a refreshed coverage percentage or a
+proof. General targets cover leading zeros, and boundary tests cover larger
+sizes. Arbitrary large values remain outside this structured fuzzing domain.
+
+A local source-coverage replay on 2026-10-29 used integrated snapshot `fbe6043`,
+native M5/AArch64, generic target CPU, nightly `2026-10-26`, and cargo-fuzz
+`0.13.2`, with `--cfg careful`, debug assertions and no sanitizer. Sixteen
+`encode_radix_full_width` corpus files reached 235/261 lines (90.04%), 334/377
+regions (88.59%) and 21/23 functions in `src/ntt/radix.rs` with default features.
+There is no branch-coverage result. This fixed corpus replay is not a mutation
+campaign, cache-policy coverage, or coverage of all input values.
+
 The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
-audit places those values above the native NTT thresholds. Its two added native
-careful-ASan stages remain **unverified**; helper tests and target compilation
-are not campaign execution. This structured domain does not include every value
-at that width.
+audit places those values above the native NTT thresholds. Its cache-enabled
+native careful-ASan stage passed in the hosted run above; the default stage
+remains **unverified**. Helper tests and target compilation are not campaign
+execution. This structured domain does not include every value at that width.
 
 Campaign callback counts include initial corpus processing and possible repeats;
 they are not distinct mutations or seed-file counts. Full-width stages require
@@ -225,10 +260,10 @@ not refresh a prior result. For performance and memory work, use the separate
    results separate, including strict provenance and both alias models.
 2. Discharge the wider Kani obligations through further decomposition. There is
    no arbitrary-length end-to-end proof of each backend.
-3. Complete the two unverified full-width native ASan stages. Repair or
+3. Complete the default full-width native ASan stages. Repair or
    replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
-   are finite. Run the native Windows tests when a host is available.
+   are finite.
 4. Repeat deployment-specific performance, peak memory and linked-size checks
    using [the measurement guide](docs/performance.md).
 5. Resolve any confirmed source-adaptation notice obligations described in

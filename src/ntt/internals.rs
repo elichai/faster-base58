@@ -106,5 +106,26 @@ pub fn encode_ntt_portable(input: &[u8], output: &mut [u8]) -> Result<usize, Buf
     encode::encode_tuned(input, output, m, threshold, leaf, Leaves::BEST)
 }
 
+/// Force the base-58³ multiplication tree, bypassing production size/CPU selection.
+/// Inputs beyond its transform limit fall back to the division tree.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
+pub fn encode_radix(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    let (zeros, x) = encode::split_zeros(input);
+    super::radix::encode_with(zeros, x, output, Kernels::best())
+        .unwrap_or_else(|| super::encode(zeros, x, output))
+}
+
+/// [`encode_radix`] with portable NTT kernels, including the division-tree fallback.
+///
+/// # Errors
+/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
+pub fn encode_radix_portable(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+    let (zeros, x) = encode::split_zeros(input);
+    super::radix::encode_with(zeros, x, output, Kernels::portable())
+        .unwrap_or_else(|| encode_ntt_portable(input, output))
+}
+
 #[cfg(feature = "__internals")]
 pub(crate) mod diagnostics;

@@ -1,0 +1,11 @@
+# Decode target invalid-byte and UTF-8 boundaries.
+"1"
+"z"
+"0"
+"O"
+"I"
+"l"
+"\x00"
+"\xc3\xa9"
+"\xe4\xb8\xad"
+"\xf0\x9f\xa6\x80"

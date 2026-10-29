@@ -7,6 +7,30 @@ invalid byte index. The backends take
 `&str`, so malformed UTF-8 is tested after lossy conversion; arbitrary raw invalid
 UTF-8 cannot be passed to those APIs.
 
+The forced `radix` and `radix-portable` encoders bypass production CPU/size
+selection and participate in the shared differential checks on every target.
+Thus x86 fuzz CI reaches the multiplication tree even though production selects
+it only on little-endian AArch64 with NEON. Native ARM runs exercise NEON;
+x86 runs do not establish NEON coverage. Both hooks fall back to the division
+tree above the radix transform limit. The general targets' 65,537-byte binary
+cap stays below the 262,144-byte cached production threshold; public dispatch and the 16 MiB limit
+are covered separately by `radix_boundaries` tests.
+
+Radix seeds include binary powers and sparse values around leaf/tree boundaries,
+so zero subtrees and sparse carry paths do not depend on random mutations.
+
+`encode_radix_full_width` repeats each raw input to 256 KiB or 1 MiB, selected
+by its first byte's high bit, then sets the expanded first byte's high bit.
+Each callback selects automatic, forced radix or portable radix
+encoding and checks it against Malachite's independent integer conversion, with
+an exact/oversized buffer and occasional short-buffer checks. Every callback
+performs a full conversion; native/portable seeds initialize both forced hooks.
+Avoiding the quadratic bs58 oracle makes large mutations practical.
+Shrinking cannot avoid the cached production route on NEON; 1 MiB cases also
+reach owned twiddles above log18. The `full-width` feature enables it; CI runs
+180-second careful ASan campaigns for default/cache and requires actual mutations. This periodic
+input domain excludes leading zeros and does not cover every value at either width.
+
 `encode_all` accepts up to 65,537 bytes: one byte past 64 KiB. Full-width inputs
 cross from 8,192 to 8,193 `u64` limbs. `decode_all` derives its raw-input budget from
 `max_encoded_len(65_537)`, currently 89,502 bytes. It checks both lossy strings and
@@ -70,6 +94,20 @@ The generator preserves existing seeds and fails if a named seed was edited,
 including under `python3 -O`. New
 coverage seeds and crash artifacts are ignored by Git. Replay any crash with
 `cargo +nightly-2026-10-26 fuzz run --careful TARGET PATH_TO_ARTIFACT`.
+
+`base58.dict` is versioned on `main` and is passed to the mutating decode lane.
+It supplies invalid ASCII and UTF-8 boundaries; structured 64-byte
+`split-fallback-*` seeds force the correlated base-58^4 condition that makes
+the fixed encoder's split carry use its serial fallback. These inputs belong in
+the deterministic generator because the relationship is arithmetic, not a
+useful byte token for a dictionary.
+
+The shared corpus is not committed to `main`. The protected orphan
+`fuzz-corpus` branch stores content-addressed inputs under
+`corpora/<target>/<sha256>` and per-run metadata under `runs/`. Main/PR CI
+only validates and replays a pinned revision. Nightly workers upload artifacts;
+the separate trusted publisher validates, replays, and additively merges them.
+Use `python3 fuzz/corpus_store.py validate CORPUS_ROOT` before any replay.
 
 See [CORRECTNESS.md](../CORRECTNESS.md) for run counts, sanitizer limits,
 proof domains and missing Miri shims. CI builds, mutates and replays the targets
