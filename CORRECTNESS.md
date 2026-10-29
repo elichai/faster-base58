@@ -26,6 +26,16 @@ passed.
 | Source coverage | Translated x86 Linux, unsanitized: 169 encode and 201 decode boundary files per cache policy. Encode/decode library lines: 2608/3669 and 1468/3669 without cache; 2699/3777 and 1513/3777 with cache. No branch or native IFMA coverage; overlapping denominators are not added. |
 | Platform gaps | Four native Windows runtime rows were unavailable. Cross-builds and translated execution do not establish native execution. |
 
+On 2026-10-29, the [hosted run for integrated snapshot `fbe6043`](https://github.com/elichai/faster-base58/actions/runs/40905616652)
+completed all four native Windows debug/release and default/cache runtime rows.
+Its cache-enabled careful-ASan job also completed both full-width stages: two
+NTT mutation attempts in 350 seconds and seven radix mutation attempts in 192
+seconds, counted after initialization. These are small structured campaigns.
+The default full-width stages were interrupted by the subsequent CI setup fix;
+the run as a whole did not pass. Four coverage jobs failed before replay because
+the stable tool installer inherited nightly flags; that setup is now corrected
+and locally replayed. The replacement hosted matrix remains separate evidence.
+
 ## Public contract
 
 - The alphabet is Bitcoin Base58. Leading zero bytes become leading `'1'`s.
@@ -131,10 +141,10 @@ campaign, cache-policy coverage, or coverage of all input values.
 The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
-audit places those values above the native NTT thresholds. Its two added native
-careful-ASan stages remain **unverified**; helper tests and target compilation
-are not campaign execution. This structured domain does not include every value
-at that width.
+audit places those values above the native NTT thresholds. Its cache-enabled
+native careful-ASan stage passed in the hosted run above; the default stage
+remains **unverified**. Helper tests and target compilation are not campaign
+execution. This structured domain does not include every value at that width.
 
 Campaign callback counts include initial corpus processing and possible repeats;
 they are not distinct mutations or seed-file counts. Full-width stages require
@@ -250,10 +260,10 @@ not refresh a prior result. For performance and memory work, use the separate
    results separate, including strict provenance and both alias models.
 2. Discharge the wider Kani obligations through further decomposition. There is
    no arbitrary-length end-to-end proof of each backend.
-3. Complete the two unverified full-width native ASan stages. Repair or
+3. Complete the default full-width native ASan stages. Repair or
    replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
-   are finite. Run the native Windows tests when a host is available.
+   are finite.
 4. Repeat deployment-specific performance, peak memory and linked-size checks
    using [the measurement guide](docs/performance.md).
 5. Resolve any confirmed source-adaptation notice obligations described in
