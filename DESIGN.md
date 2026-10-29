@@ -23,6 +23,8 @@ zero limbs using `58^k = 2^k * 29^k`, reducing multiplication work.
 [Batched decoding](src/batched.rs) keeps its top limb separate so an exactly
 sized output buffer suffices. [Encoding](src/encode/batched.rs) stores temporary
 limbs inside the eventual output and uses reciprocal splitting by `58^10`.
+Each ten-character chunk is formatted as two five-character groups, reusing the
+two-character lookup table to avoid dividing by 58 for each digit.
 The public paths handle empty and tiny inputs before the general loops.
 
 [Divide-and-conquer decoding](src/dc.rs) combines `high * (58^10)^e + low`.

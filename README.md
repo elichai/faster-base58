@@ -103,89 +103,91 @@ on active heap. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-co
 
 ## Performance
 
-Warm calls reuse output buffers and include Auto's workspace allocations. Owned
-helpers are measured separately. Native uses process CPU time; Wasm uses V8
-elapsed time. [Methods, ranges and source snapshots](docs/performance.md).
+**Measured 2026-10-29 from this branch at `8ca392a84c48`.** These results describe
+this PR alone; they do not combine the independent small- and large-input PRs.
+Warm calls reuse output buffers and include Auto's workspace allocations. Native
+uses process CPU time; Wasm uses V8 elapsed time. Each cell is **encode / decode**.
+Bold marks the lowest observed median, without a statistical significance claim.
+[Methods, cold calls, observed ranges and source identities](docs/performance.md).
 
-Each table cell is **encode / decode**. Bold marks the lowest observed median,
-not statistical significance. `no_alloc` and bs58 stop at 64 KiB by benchmark
-policy; five8 supports the measured 32/64-byte cases. The figures show the full
-measured size range.
+Ordinary public consumers have no `__internals` feature. Each cell uses three
+fresh processes, each with three warm batches of at least 10 ms. The reported
+value is the median of the three process medians; figure bars show their range.
+No-allocation and bs58 stop at 64 KiB by benchmark policy; five8 covers 32/64 B.
+The figures show all supported sizes from 1 B through 4 MiB.
 
 ### Apple M5 Pro
 
-**Public API, measured 2026-10-27, Rust 1.99.1, default target flags.**
+Rust 1.99.1 / LLVM 23.1.1; compiler-default target flags.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 11.9 ns / 15.2 ns | 11.5 ns / **14.1 ns** | **9.79 ns** / 14.4 ns | 779 ns / 324 ns | 33.3 ns / 31.2 ns |
-| 64 B | 24.4 ns / 27.2 ns | 24.3 ns / **27.2 ns** | **24 ns** / 28 ns | 3.08 µs / 1.17 µs | 76.9 ns / 94.1 ns |
-| 512 B | 2.16 µs / 671 ns | **566 ns** / **595 ns** | 2.18 µs / 668 ns | 239 µs / 75.8 µs | — / — |
-| 4 KiB | 110 µs / 39.9 µs | **28.3 µs** / **25.2 µs** | 109 µs / 38.6 µs | 15.1 ms / 5.34 ms | — / — |
-| 64 KiB | 2.77 ms / 1.15 ms | **2.31 ms** / **1.01 ms** | 24.9 ms / 8.89 ms | 3.9 s / 1.37 s | — / — |
-| 1 MiB | 62.9 ms / 28.3 ms | **58 ms** / **27.4 ms** | — / — | — / — | — / — |
-| 4 MiB | 298 ms / 142 ms | **280 ms** / **139 ms** | — / — | — / — | — / — |
+| 32 B | 11.6 ns / 15.1 ns | 11.7 ns / **14.2 ns** | **9.63 ns** / 14.2 ns | 760 ns / 321 ns | 31.1 ns / 31.2 ns |
+| 64 B | 23.8 ns / **27.2 ns** | 23.4 ns / 27.7 ns | **23 ns** / 27.5 ns | 2.96 µs / 1.15 µs | 72.1 ns / 94.5 ns |
+| 512 B | 1.97 µs / 657 ns | **577 ns** / **578 ns** | 2.04 µs / 708 ns | 230 µs / 76.2 µs | — / — |
+| 4 KiB | 103 µs / 39 µs | **28.6 µs** / **25.3 µs** | 104 µs / 36.9 µs | 15.1 ms / 5 ms | — / — |
+| 64 KiB | 2.71 ms / 1.12 ms | **2.23 ms** / **1.02 ms** | 25.8 ms / 9.08 ms | 3.92 s / 1.3 s | — / — |
+| 1 MiB | 63 ms / 28.6 ms | **58.2 ms** / **26.8 ms** | — / — | — / — | — / — |
+| 4 MiB | 301 ms / 140 ms | **276 ms** / **135 ms** | — / — | — / — | — / — |
 
 ![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
 
-### x86-64 on AMD EPYC 9B45 (GCP c4d-highcpu-4)
+### AMD EPYC 9B45 (GCP, generic x86-64)
 
-**Measured 2026-10-28 UTC, Rust 1.99.1, generic x86-64 target flags.** Runtime CPU
-feature selection remains enabled. The graph shows default/cache × encode/decode
-for the full backend grid, including Auto, no-allocation, bs58 and five8
-comparisons where supported. Measurements use one internal all-backend worker
-per cache cohort and frozen source
-`4e5ac883`, a separate source snapshot and call context from the M5/Wasm public-API
-figures. The table reports the median of nine warm batches across three fresh
-processes. [Native-target comparison and timing limits](docs/performance.md#generic-and-native-x86-64).
+Rust 1.99.0 / LLVM 23.1.1; generic target, runtime CPU selection enabled, CPU 0
+pinned. These are ordinary public consumers. The older internal-worker native
+comparison is separate in the [performance guide](docs/performance.md#generic-and-native-x86-64).
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 31.7 ns / 26.7 ns | 31 ns / 27.2 ns | **30.9 ns** / **26.4 ns** | 887 ns / 321 ns | 54.1 ns / 49.7 ns |
-| 64 B | 32.8 ns / 48.3 ns | **32 ns** / **48.2 ns** | 32.6 ns / 48.3 ns | 3.9 µs / 1.25 µs | 117 ns / 133 ns |
-| 512 B | 4.26 µs / 994 ns | **1.1 µs** / 1.23 µs | 4.26 µs / **993 ns** | 281 µs / 92.4 µs | — / — |
-| 4 KiB | 51 µs / **33.1 µs** | **41.3 µs** / 33.3 µs | 247 µs / 54.7 µs | 18 ms / 5.85 ms | — / — |
-| 64 KiB | 3.56 ms / 1.36 ms | **2.78 ms** / **1.29 ms** | 62 ms / 13.4 ms | 4.61 s / 1.48 s | — / — |
-| 1 MiB | 75.1 ms / 34.7 ms | **69.8 ms** / **31.7 ms** | — / — | — / — | — / — |
-| 4 MiB | 351 ms / 165 ms | **326 ms** / **163 ms** | — / — | — / — | — / — |
+| 32 B | 30.6 ns / 25.7 ns | **30.2 ns** / 25.4 ns | 30.3 ns / **25.1 ns** | 886 ns / 320 ns | 52.9 ns / 49 ns |
+| 64 B | **31.2 ns** / 47.5 ns | 31.2 ns / 46.9 ns | 31.3 ns / **46.6 ns** | 3.9 µs / 1.26 µs | 116 ns / 122 ns |
+| 512 B | 4.07 µs / 1.23 µs | **1.1 µs** / 999 ns | 4.3 µs / **997 ns** | 282 µs / 91.8 µs | — / — |
+| 4 KiB | 49.6 µs / **27.4 µs** | **41.6 µs** / 33.2 µs | 265 µs / 55.3 µs | 18 ms / 5.85 ms | — / — |
+| 64 KiB | 3.66 ms / 1.43 ms | **2.82 ms** / **1.3 ms** | 67.4 ms / 13.5 ms | 4.62 s / 1.49 s | — / — |
+| 1 MiB | 81.1 ms / 34.2 ms | **73.6 ms** / **33.1 ms** | — / — | — / — | — / — |
+| 4 MiB | 373 ms / **171 ms** | **345 ms** / 175 ms | — / — | — / — | — / — |
 
-![Internal backend conversion times on AMD EPYC 9B45, generic x86-64 target](assets/graphs/gcp-generic-backends.svg)
+![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
 
 ### WebAssembly on Apple M5 Pro (Node/V8)
 
-**Public API, measured 2026-10-27, Rust 1.99.1, default target flags.**
+Rust 1.99.1 / LLVM 23.1.1; scalar Wasm; Node 26.13.0 / V8 14.6.202.34-node.40.
+Host variation was substantial: byte-identical competitor modules differed
+between source cohorts. These observations do not establish a source-caused
+speedup. [Observed ranges and controls](docs/performance.md#timing-limits).
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 25.7 ns / 54.7 ns | 25.6 ns / 53.8 ns | **25.5 ns** / 50.6 ns | 635 ns / 212 ns | 44.8 ns / **41.2 ns** |
-| 64 B | 99.1 ns / 133 ns | 99.6 ns / 133 ns | 101 ns / **126 ns** | 2.87 µs / 833 ns | **94 ns** / 127 ns |
-| 512 B | 7.76 µs / 5.04 µs | **2.84 µs** / **2.65 µs** | 7.71 µs / 5 µs | 237 µs / 72.1 µs | — / — |
-| 4 KiB | 489 µs / 217 µs | **149 µs** / **124 µs** | 486 µs / 281 µs | 15.4 ms / 5.35 ms | — / — |
-| 64 KiB | 14.1 ms / 6.58 ms | **14 ms** / **6.45 ms** | 116 ms / 70.6 ms | 3.9 s / 1.31 s | — / — |
-| 1 MiB | 339 ms / 168 ms | **339 ms** / **167 ms** | — / — | — / — | — / — |
-| 4 MiB | **1.61 s** / 819 ms | 1.62 s / **818 ms** | — / — | — / — | — / — |
+| 32 B | **26 ns** / 58.7 ns | 26 ns / 56.4 ns | 26.4 ns / 53.8 ns | 695 ns / 221 ns | 46.4 ns / **42.9 ns** |
+| 64 B | 103 ns / 133 ns | 105 ns / 171 ns | 110 ns / 131 ns | 3.03 µs / 844 ns | **99.5 ns** / **127 ns** |
+| 512 B | 8.85 µs / 6.21 µs | **3.81 µs** / **2.77 µs** | 8.95 µs / 4.92 µs | 250 µs / 76.1 µs | — / — |
+| 4 KiB | 466 µs / 224 µs | **158 µs** / **134 µs** | 468 µs / 285 µs | 16.2 ms / 5.42 ms | — / — |
+| 64 KiB | **14.3 ms** / **6.71 ms** | 15.6 ms / 10.3 ms | 119 ms / 71.8 ms | 4.24 s / 1.39 s | — / — |
+| 1 MiB | **370 ms** / **173 ms** | 431 ms / 174 ms | — / — | — / — | — / — |
+| 4 MiB | 2.33 s / **887 ms** | **1.71 s** / 889 ms | — / — | — / — | — / — |
 
 ![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
 
 ## Linked size
 
-Code and data linked **above an empty consumer**, in KiB. Both API directions,
-opt3/fat LTO. These deltas include associated code and metadata. Full files also
-contain runtime, scaffolding and platform padding.
+Code and data linked **above a matching empty consumer**, in KiB, measured
+2026-10-29 from the same branch snapshot as the timing tables. Both API
+directions are reachable: opt-level 3, fat LTO, 16 codegen units, generic target
+flags. These are linked cdylib section deltas, including associated code and
+metadata. Full files also contain runtime, scaffolding and platform padding.
 
 | Consumer | M5 code / readonly | x86-64 code / readonly | Wasm code / data section |
 |---|---:|---:|---:|
-| Auto | 58.5 KiB / 22.6 KiB | 279.6 KiB / 35.0 KiB | 70.1 KiB / 14.4 KiB |
-| Auto + cache | 60.8 KiB / 25.0 KiB | 270.7 KiB / 35.6 KiB | 71.8 KiB / 15.2 KiB |
-| No allocation | 9.6 KiB / 4.1 KiB | 20.5 KiB / 14.5 KiB | 13.5 KiB / 9.6 KiB |
+| Auto | 58.0 KiB / 22.5 KiB | 279.5 KiB / 34.8 KiB | 69.9 KiB / 14.3 KiB |
+| Auto + cache | 60.4 KiB / 25.0 KiB | 270.2 KiB / 35.5 KiB | 71.6 KiB / 15.1 KiB |
+| No allocation | 9.4 KiB / 10.7 KiB | 20.3 KiB / 14.5 KiB | 13.5 KiB / 9.6 KiB |
 | bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.8 KiB |
 
-Linked sizes use frozen source `4e5ac883`; x86-64 uses generic target flags.
-[x86-64 compact tradeoff](docs/performance.md#linked-size-and-compact).
-
-[Allocation, RSS and measurement scope](docs/performance.md#cache-and-memory)
-explain the other costs. Cache headers and retained heap are additional
-costs described above. `no_alloc` supplies the smallest general implementation.
+Readonly constants, initialized data, BSS, cache headers, retained heap and Wasm
+linear-memory pages are different costs. The pair lookup table has 3,364 entries
+of two bytes (6,728 B); whether it survives linking depends on reachable paths.
+[Section accounting, cache memory and historical compact results](docs/performance.md).
 
 On x86-64, `features = ["compact"]` keeps eight IFMA kernel widths instead of
 twelve. This reduces linked code and uses more chunks for some multiplications.

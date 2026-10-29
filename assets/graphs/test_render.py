@@ -32,6 +32,11 @@ class DocumentationTests(unittest.TestCase):
     def test_checks_retained_documents_without_raw_measurements(self):
         self.assertEqual(check(self.root)['svg_figures'], 4)
 
+    def test_historical_native_figure_is_optional(self):
+        (self.root / 'docs/performance.md').write_text('Historical comparison is tabulated only.')
+        (self.root / 'assets/graphs/gcp-native-backends.svg').rename(self.root / 'historical.svg')
+        self.assertEqual(check(self.root)['svg_figures'], 3)
+
     def test_missing_local_link_is_rejected(self):
         (self.root / 'DESIGN.md').write_text('[missing](docs/missing.md)')
         with self.assertRaisesRegex(ValueError, 'missing.md'):
@@ -54,6 +59,13 @@ class DocumentationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'native.*performance'):
             check(self.root)
 
+    def test_public_x86_figure_can_replace_historical_backend_figure(self):
+        guide = self.root / 'README.md'
+        guide.write_text(guide.read_text().replace('gcp-generic-backends.svg', 'gcp-public.svg'))
+        (self.root / 'assets/graphs/gcp-public.svg').write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"><title>Public x86</title></svg>')
+        self.assertEqual(check(self.root)['status'], 'pass')
+
     def test_reference_and_encoded_links_are_checked(self):
         (self.root / 'DESIGN.md').write_text('[reference][target]\n\n[target]: docs/missing%20file.md')
         with self.assertRaisesRegex(ValueError, 'missing file.md'):
@@ -61,23 +73,39 @@ class DocumentationTests(unittest.TestCase):
 
 
 class ExternalInputTests(unittest.TestCase):
-    def rows(self):
+    def rows(self, platforms=('m5', 'wasm')):
         return [dict(platform=platform, cache=cache, backend=backend, operation=operation,
                      decoded_bytes=str(size), status='measured', reason='',
                      role={'auto': 'public', 'no-alloc': 'public', 'bs58': 'competitor',
                            'five8': 'competitor', 'empty': 'scaffold'}[backend], source_fingerprint='a' * 64,
-                     scope='ordinary public consumer; no __internals' if platform == 'm5'
+                     scope='ordinary public consumer; no __internals' if platform != 'wasm'
                      else 'ordinary public Wasm module; no __internals',
-                     primary_clock='process CPU' if platform == 'm5' else 'elapsed',
+                     primary_clock='process CPU' if platform != 'wasm' else 'elapsed',
                      warm_ns='100', process_min_ns='90', process_max_ns='110',
                      fresh_processes='3', warm_batches_per_process='3')
-                for platform in ['m5', 'wasm'] for cache in ['default', 'cache']
+                for platform in platforms for cache in ['default', 'cache']
                 for backend in ['empty', 'auto', 'no-alloc', 'bs58', 'five8']
                 for operation in ['encode', 'decode'] for size in SIZES]
 
     def test_missing_measurements_are_not_silent_skips(self):
         with self.assertRaisesRegex(ValueError, 'Missing.*timing'):
             tables([], [])
+
+    def test_generic_x86_public_measurements_use_native_clock_and_size_sections(self):
+        rows = self.rows(('m5', 'gcp', 'wasm'))
+        cells = timing_cells(rows)
+        self.assertEqual(cells['gcp', 'default', 'auto', 'encode', 32]['primary_clock'], 'process CPU')
+        sizes = [dict(platform=platform, cache=cache, backend=backend, direction='both',
+                      delta_empty_code_bytes='1024', delta_empty_readonly_bytes='2048',
+                      delta_empty_wasm_code_section_bytes='3072', delta_empty_wasm_data_section_bytes='4096')
+                 for platform in ['m5', 'gcp', 'wasm']
+                 for backend, cache in [('auto', 'default'), ('auto', 'cache'), ('no-alloc', 'default'), ('bs58', 'default')]]
+        output = tables(rows, sizes)
+        self.assertIn('### AMD EPYC 9B45 (generic x86-64)', output)
+        self.assertIn('| Auto | 1.0 KiB / 2.0 KiB | 1.0 KiB / 2.0 KiB | 3.0 KiB / 4.0 KiB |', output)
+        next(row for row in rows if row['platform'] == 'gcp')['primary_clock'] = 'elapsed'
+        with self.assertRaises(ValueError):
+            timing_cells(rows)
 
     def test_renderer_requires_explicit_external_inputs(self):
         result = subprocess.run([sys.executable, str(Path(__file__).with_name('render_current.py')), '--help'],
@@ -102,7 +130,8 @@ class ExternalInputTests(unittest.TestCase):
 
     def test_mixed_source_or_internal_scope_is_rejected(self):
         for changes in [dict(scope='internal backend'), dict(role='control'),
-                        dict(source_fingerprint='b' * 64)]:
+                        dict(source_fingerprint='b' * 64), dict(source_commit='b' * 40),
+                        dict(measurement_date='2026-10-29')]:
             with self.subTest(changes=changes):
                 rows = self.rows()
                 rows[0].update(changes)

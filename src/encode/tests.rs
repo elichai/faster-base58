@@ -46,6 +46,39 @@ pub(crate) fn random_bytes(rng: &mut Xoshiro256PlusPlus, len: usize) -> Vec<u8> 
     v
 }
 
+#[test]
+fn ten_digits_matches_division() {
+    const BASE: u64 = 58u64.pow(10);
+
+    fn check(x: u64) {
+        let mut want = [0; 10];
+        let mut value = x;
+        for digit in want.iter_mut().rev() {
+            *digit = ALPHABET[(value % 58) as usize];
+            value /= 58;
+        }
+        assert_eq!(super::ten_digits(x), want, "value {x}");
+    }
+
+    // Exhaust every three-digit suffix at both ends of the ten-digit range.
+    for x in 0..58u64.pow(3) {
+        check(x);
+        check(BASE - 1 - x);
+    }
+    for exponent in 0..10 {
+        for digit in 1..58 {
+            let boundary = digit * 58u64.pow(exponent);
+            for x in [boundary - 1, boundary, boundary + 1] {
+                check(x);
+            }
+        }
+    }
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(58);
+    for _ in 0..10_000 {
+        check(rng.next_u64() % BASE);
+    }
+}
+
 /// Checks every encoder against bs58 on `data`: into an ample buffer, an exactly sized
 /// one and one a byte short.
 fn check(data: &[u8]) {
