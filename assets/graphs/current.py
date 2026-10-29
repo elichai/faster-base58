@@ -107,7 +107,25 @@ def check(root):
     blocks = ['\n'.join(block.splitlines()[2:]) for block in generated.split('### ')[1:]]
     # Bind table values/formatting but leave prose and section names to the README editor.
     for block in blocks:
-        table = '\n'.join(line for line in block.splitlines() if line.startswith('|'))
+        lines = [line for line in block.splitlines() if line.startswith('|')]
+        if lines and lines[0].startswith('| Consumer |'):
+            x86_rows = read(root / DATA / 'gcp-boot2/linked-artifacts.csv')
+            columns = [' x86-64 code / readonly ', '---:']
+            for backend, cache, _ in SERIES[:4]:
+                matches = [row for row in x86_rows if
+                           (row['platform'], row['consumer_scope'], row['cache'], row['backend'], row['direction'], row['kind']) ==
+                           ('gcp-generic', 'frozen all-backend sizes', cache, backend, 'both', 'cdylib')]
+                require(len(matches) == 1, 'Missing/duplicate generic x86 linked-size cell')
+                row = matches[0]
+                values = ' / '.join(f'{int(row[key]) / 1024:.1f} KiB' for key in
+                                    ['above_empty_code_bytes', 'above_empty_readonly_bytes'])
+                columns.append(' ' + values + ' ')
+            require(len(lines) == len(columns), 'Unexpected README linked-size row count')
+            for index, column in enumerate(columns):
+                fields = lines[index].split('|')
+                fields.insert(3, column)
+                lines[index] = '|'.join(fields)
+        table = '\n'.join(lines)
         require(table and table in guide, 'README current table differs from public numeric inputs')
     for name in ['m5-public.svg', 'wasm-public.svg']:
         require('assets/graphs/' + name in guide, 'README is missing current public figure: ' + name)
