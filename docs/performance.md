@@ -215,6 +215,43 @@ cache-off encoding ranged from 0.9095 to 0.9819. Default decoding ranged from
 above. Wide remains the default. Tiny inputs bypass IFMA, so their layout-driven
 differences do not measure an IFMA primitive.
 
+## Historical paired formatter comparison
+
+Measured 2026-10-29: PR #1 at `053f00810de3f39b03f2891a2771348e67bfa4e6`
+versus whole-limb formatter source `47974045e02f7b015c4b5cccc0fca7f96f04e2c5`.
+The formatter emits five pairs using independent quotients instead of two
+five-digit halves. Linked AArch64/x86 assembly uses scalar reciprocal multiplies
+and two-byte table loads; no hardware or SIMD division was observed.
+
+These are complete borrowed-API encodes, not an isolated formatter benchmark.
+Both immutable libraries ran in one process, with identical physical source and
+probe paths, compiler, features, package identity and opt3/fat-LTO settings. Each
+result is the median of three round medians, each with nine alternating batches
+of at least 10 ms process CPU time. Inputs repeat with warm caches. Outputs and
+decoded round trips are checked outside timing.
+
+| Host / build | 16/22/31/33/65 B Auto | Same sizes `no_alloc` | 128 B Auto / `no_alloc` |
+| --- | ---: | ---: | ---: |
+| Apple M5 Pro, AArch64 macOS; Rust 1.99.1 / LLVM 23.1.1; generic CPU | 6.5–17.5% less time | 4.4–16.5% less time | 5.7% / 4.0% less time |
+| AMD EPYC 9B45 Linux; Rust 1.99.0 / LLVM 23.1.1; `target-cpu=native`, one CPU pinned | 6.5–9.5% less time | 6.8–10.2% less time | 4.7% / 3.4% less time |
+
+The benefit tapers by 512 B. Fixed 32/64-byte encoders, decoding and zero scans
+are unchanged-route controls. A native fixed-64 outlier did not reproduce across
+six fresh processes with both load orders: aggregate candidate/reference ratios
+were 0.999 for Auto and 1.000 for `no_alloc`. Code alignment/loading effects
+remain a confound; no gain is attributed to unchanged routes. Cold-cache latency
+and other CPUs were not measured in this paired study. Native linked code shrank
+112/96 B for Auto/`no_alloc`, with unchanged readonly bytes **beyond PR #1**;
+this does not reverse the original pair-table storage cost described above.
+
+The reusable `scripts/compare_public_api.py` accepts two qualified public probe
+libraries, a new output JSON path and optional sizes. Build both at identical
+physical source/probe paths and flags, preserving each immutable artifact before
+replacing the source. A new filename alone does not control Cargo-path-dependent
+code layout. Store outputs under ignored `target/measurements/`; raw samples,
+generated assembly, receipts and path-specific build scripts are not maintained
+documentation. The dated experiment bundle was removed from the branch tree.
+
 ## Measure and update
 
 Run from the repository root. Freeze the revision, use fresh output directories
