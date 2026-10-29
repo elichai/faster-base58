@@ -60,36 +60,47 @@ const CANARY: u8 = 0xA5;
 pub fn check_encoder(name: &str, encode: Encode, data: &[u8], want: &[u8], selector: usize) {
     let n = want.len();
     for capacity in [0, n.saturating_sub(1), n, n + 17, selector % (n + 18)] {
-        let mut storage = vec![CANARY; GUARD + capacity + GUARD];
-        let result = encode(data, &mut storage[GUARD..GUARD + capacity]);
-        assert!(
-            storage[..GUARD].iter().all(|&x| x == CANARY),
-            "{name}: prefix canary"
+        check_encoder_capacity(name, encode, data, want, capacity);
+    }
+}
+
+pub fn check_encoder_capacity(
+    name: &str,
+    encode: Encode,
+    data: &[u8],
+    want: &[u8],
+    capacity: usize,
+) {
+    let n = want.len();
+    let mut storage = vec![CANARY; GUARD + capacity + GUARD];
+    let result = encode(data, &mut storage[GUARD..GUARD + capacity]);
+    assert!(
+        storage[..GUARD].iter().all(|&x| x == CANARY),
+        "{name}: prefix canary"
+    );
+    assert!(
+        storage[GUARD + capacity..].iter().all(|&x| x == CANARY),
+        "{name}: suffix canary"
+    );
+    if capacity < n {
+        assert_eq!(
+            result,
+            Err(BufferTooSmall),
+            "{name}: {} bytes into {capacity}",
+            data.len()
         );
-        assert!(
-            storage[GUARD + capacity..].iter().all(|&x| x == CANARY),
-            "{name}: suffix canary"
+    } else {
+        assert_eq!(
+            result,
+            Ok(n),
+            "{name}: {} bytes into {capacity}",
+            data.len()
         );
-        if capacity < n {
-            assert_eq!(
-                result,
-                Err(BufferTooSmall),
-                "{name}: {} bytes into {capacity}",
-                data.len()
-            );
-        } else {
-            assert_eq!(
-                result,
-                Ok(n),
-                "{name}: {} bytes into {capacity}",
-                data.len()
-            );
-            assert_eq!(&storage[GUARD..GUARD + n], want, "{name}: output");
-            assert!(
-                storage[GUARD + n..].iter().all(|&x| x == CANARY),
-                "{name}: wrote past result"
-            );
-        }
+        assert_eq!(&storage[GUARD..GUARD + n], want, "{name}: output");
+        assert!(
+            storage[GUARD + n..].iter().all(|&x| x == CANARY),
+            "{name}: wrote past result"
+        );
     }
 }
 

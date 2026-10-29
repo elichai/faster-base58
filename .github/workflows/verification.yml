@@ -509,6 +509,13 @@ jobs:
           mkdir -p fuzz/artifacts/encode_full_width
           cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address --no-default-features --features full-width${{ matrix.label == 'cache' && ',cache' || '' }} encode_full_width fuzz/corpus/encode_full_width -- -max_len=8193 -len_control=0 -max_total_time=180 -print_corpus_stats=1 -print_final_stats=1 -seed=1 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/artifacts/encode_full_width/campaign.log
           python3 fuzz/check_mutations.py fuzz/artifacts/encode_full_width/campaign.log > fuzz/artifacts/encode_full_width/mutation-stats.json
+      - name: Full-width radix mutations with independent Malachite oracle
+        if: matrix.sanitizer == 'address' && (matrix.label == 'default' || matrix.label == 'cache')
+        run: |
+          set -e -o pipefail
+          mkdir -p fuzz/artifacts/encode_radix_full_width
+          cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address --no-default-features --features full-width${{ matrix.label == 'cache' && ',cache' || '' }} encode_radix_full_width fuzz/corpus/encode_radix_full_width -- -max_len=8193 -len_control=0 -max_total_time=180 -print_corpus_stats=1 -print_final_stats=1 -seed=1 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/artifacts/encode_radix_full_width/campaign.log
+          python3 fuzz/check_mutations.py fuzz/artifacts/encode_radix_full_width/campaign.log > fuzz/artifacts/encode_radix_full_width/mutation-stats.json
       - name: Retain corpus and failures
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -546,10 +553,11 @@ jobs:
       - name: Replay boundaries and report source coverage
         run: |
           llvm_dir="$(rustup run nightly-2026-10-26 rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin"
-          for target in encode_all decode_all; do
-            cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features ${{ matrix.cache_args }} --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
+          features="full-width${{ matrix.cache_args != '' && ',cache' || '' }}"
+          for target in encode_all decode_all encode_radix_full_width; do
+            cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features --features "$features" --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
             "$llvm_dir/llvm-cov" report "target/coverage/x86_64-unknown-linux-gnu/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/' > "fuzz/coverage/$target/report.txt"
-            if [ "$target" = encode_all ]; then
+            if [ "$target" != decode_all ]; then
               "$llvm_dir/llvm-cov" report "target/coverage/x86_64-unknown-linux-gnu/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" src/ntt/radix.rs > "fuzz/coverage/$target/radix.txt"
             fi
             "$llvm_dir/llvm-cov" export "target/coverage/x86_64-unknown-linux-gnu/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" --summary-only '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/' > "fuzz/coverage/$target/summary.json"

@@ -38,9 +38,13 @@ def write_seed(target, name, data):
 
 
 def main():
-    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width"]:
+    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width", "encode_radix_full_width"]:
         (ROOT / target).mkdir(parents=True, exist_ok=True)
     write_seed("encode_full_width", "dense", b"\xa5")
+    for label, raw in [("dense", b"\xa5"), ("carry", b"\xff"), ("sparse", b"\0"),
+                       ("native", b"\1"), ("portable", b"\2"),
+                       ("native-owned", b"\x82"), ("portable-owned", b"\x80")]:
+        write_seed("encode_radix_full_width", label, raw)
     for length in RADIX_LENGTHS:
         for label, data in [
             ("power", b"\x01" + bytes(length - 1)),
@@ -91,7 +95,7 @@ def main():
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + 2 * (len(RADIX_LENGTHS) + sum(n <= SMALL_MAX_BYTES for n in RADIX_LENGTHS))
-        + 5
+        + 12
     )
     print(f"Prepared {count} deterministic seeds in {ROOT}")
 

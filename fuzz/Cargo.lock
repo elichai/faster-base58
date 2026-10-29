@@ -70,6 +70,7 @@ dependencies = [
  "bs58",
  "faster-base58",
  "libfuzzer-sys",
+ "malachite-base",
  "malachite-nz",
 ]
 

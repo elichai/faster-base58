@@ -82,6 +82,10 @@ class SeedCorpusTests(unittest.TestCase):
                 (root / "encode_all" / "carry-65537").read_bytes(), b"\xff" * 65_537,
             )
             self.assertEqual((root / "encode_full_width" / "dense").read_bytes(), b"\xa5")
+            for name, raw in [("dense", b"\xa5"), ("carry", b"\xff"), ("sparse", b"\0"),
+                              ("native", b"\1"), ("portable", b"\2"),
+                              ("native-owned", b"\x82"), ("portable-owned", b"\x80")]:
+                self.assertEqual((root / "encode_radix_full_width" / name).read_bytes(), raw)
 
     def test_existing_seed_edits_are_rejected(self):
         with TemporaryDirectory() as directory:
