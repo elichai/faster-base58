@@ -64,6 +64,10 @@ cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address encode_all -- -
 cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
 ```
 
+Linux CI installs `clang-23` and `libclang-rt-23-dev` from the signed
+`apt.llvm.org` LLVM 23 repository. The package revision may advance within LLVM
+23, but the compiler major remains matched to Rust's LLVM runtime.
+
 `--careful` rebuilds the standard library with extra initialization and UB checks;
 debug assertions and integer overflow checks remain enabled. Repeat with
 `--features cache`; use `--sanitizer leak` for the separate LeakSanitizer campaign.
