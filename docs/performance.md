@@ -254,7 +254,8 @@ remeasured. See [design memory accounting](../DESIGN.md#heap-stack-and-cache-cos
 
 ### Bounded inverse-root tables
 
-The 2026-10-29 comparison against main at `7962809` covers both NTT heap changes.
+The 2026-11-01 recheck compares main at `7962809` with the PR library at
+`48484bb` and covers both NTT heap changes.
 Montgomery companions are derived with a wrapping 32-bit multiply when loaded,
 including SIMD loads. Inverse roots are retained only through 65,536 points per
 prime; larger transforms generate the remaining stages in the existing product
@@ -283,35 +284,75 @@ directories; it is not part of the published source tree. Relative to the
 companion-only change at `b84490a`, bounding inverse tables saves another
 15.5 MiB for local encoding and 11.25 MiB for decoding.
 
-The paired public-API timing builds use default CPU flags, opt-level 3 and fat
-LTO, with only default features or `cache`, without `__internals`. Both libraries
-are loaded in one local process and checked byte for byte before and after
-timing. Each of three runs has seven alternating samples, calibrated to at least
-20 ms per batch. The local host is an Apple M5 Pro using aarch64 macOS,
+The public-API timing builds use generic CPU flags, opt-level 3, fat LTO,
+16 codegen units, and only default features or `cache`, without `__internals`.
+Both revisions are built sequentially at identical source and consumer paths.
+The harness calls `size_repeat_encode` and `size_repeat_decode_prevalidated`.
+The main timing control alternates three pairs of fresh processes. Each loads
+one ordinary-public Auto cdylib at the same fixed path/inode, verifies the
+deterministic fixture byte for byte, calibrates each operation to at least
+20 ms per batch, and takes seven warm samples. Reported values are medians of
+the three process medians. The local host is an Apple M5 Pro using aarch64 macOS,
 Rust 1.99.1 and LLVM 23.1.1 on AC power.
 
-The x86-64 comparison uses uncounted Auto workers with `__internals`, not the
-ordinary-public libraries used locally. Each of three alternating process pairs
-has five warm samples, calibrated to at least 3 ms per batch and pinned to CPU 0.
-The host is the GCP EPYC 9B45, using Rust 1.99.0 / LLVM 23.1.1 and generic CPU
-flags with runtime dispatch. Its default 4 MiB encode/decode peaks fell from
+The GCP EPYC 9B45 uses the same ordinary-public timing harness and build settings,
+with Rust 1.99.0 / LLVM 23.1.1, generic CPU flags and runtime dispatch. Its timing
+process is pinned to CPU 0. Separate counted workers reproduced the default
+4 MiB encode/decode peaks falling from
 201,207,328 / 109,807,352 B to 117,858,816 / 63,670,520 B. Cache-enabled warm
 peaks were 199,567,960 / 109,807,352 B before and 116,459,384 / 63,670,520 B after.
 
-Both refreshed timing harnesses measure process CPU time. Warm 4 MiB medians,
+Both hosts measure process CPU time. Separate-process warm 4 MiB medians,
 with positive percentages meaning slower:
 
 | Platform / policy | Encode, before → after | Decode, before → after |
 | --- | ---: | ---: |
-| Local / default | 251.20 → 251.07 ms (−0.05%) | 142.33 → 142.38 ms (+0.03%) |
-| Local / cache | 253.79 → 252.31 ms (−0.58%) | 138.46 → 138.91 ms (+0.32%) |
-| GCP / default | 345.38 → 334.10 ms (−3.27%) | 158.18 → 151.11 ms (−4.47%) |
-| GCP / cache | 321.44 → 311.39 ms (−3.13%) | 160.06 → 151.64 ms (−5.26%) |
+| Local / default | 240.56 → 244.33 ms (+1.57%) | 136.94 → 137.09 ms (+0.11%) |
+| Local / cache | 243.51 → 244.98 ms (+0.60%) | 135.63 → 135.13 ms (−0.37%) |
+| GCP / default | 345.22 → 334.74 ms (−3.04%) | 158.19 → 152.01 ms (−3.91%) |
+| GCP / cache | 320.96 → 312.40 ms (−2.67%) | 160.12 → 151.43 ms (−5.43%) |
 
-A separate follow-up comparison against `b84490a` used the same harnesses at
-8, 32, 36, 128, 144, 1024 and 4096 KiB with default and cache builds. Its largest
-observed increase was 1.56% locally (32 KiB cache encoding) and 1.04% on x86-64
-(128 KiB cache encoding). Synthesizing every inverse table had slowed local
+A second cohort loads both libraries in one process, checks distinct handles
+and function addresses, and alternates seven samples in each of three groups
+with the same 20 ms calibration. Its 4 MiB local changes range from −0.45% to
++0.73%; GCP changes range from −3.95% to −1.23%. These cohorts are not pooled.
+
+The recheck covers 4, 8, 16, 32, 36, 64, 128, 144, 256, 1024 and 4096 KiB
+with default and cache builds. **The broader grid fails the no-degradation
+criterion**, despite the modest changes or improvements at 4 MiB. Selected
+smaller-input increases from the separate-process cohort:
+
+| Platform / policy | Decoded size / operation | Before → after | Change |
+| --- | --- | ---: | ---: |
+| Local / cache | 32 KiB encode | 968.13 → 1000.56 µs | +3.35% |
+| Local / cache | 36 KiB decode | 530.23 → 547.27 µs | +3.21% |
+| Local / cache | 64 KiB encode | 2210.63 → 2277.25 µs | +3.01% |
+| Local / cache | 128 KiB encode | 4979.00 → 5134.25 µs | +3.12% |
+| GCP / cache | 144 KiB encode | 7280.95 → 7546.03 µs | +3.64% |
+
+The local cache increases persist when the paired cohort's library load order
+is reversed. A separate focused single-library control measured +3.19% and
++2.99% encoding at 32/64 KiB and +2.90% decoding at 36 KiB. GCP's 144 KiB cache
+increase was only +0.05% in the paired cohort and remains unresolved. Local
+default separate-process outliers (+3.88% decoding at 128 KiB and +5.24% encoding
+at 144 KiB) had substantial variation and were +0.40% / +1.07% in the paired
+cohort; they do not establish stable increases of that size.
+
+An initial cohort using different build paths showed a 20.65% GCP default
+4 KiB decode increase. It did not reproduce with identical build paths
+(+0.10% with separate processes). A 32 KiB GCP cache outlier in the paired run
+also disappeared when library load order was reversed. GCP default encoding's
+3–4% paired increases at 8–32 KiB shrank to +0.27%, +1.37% and +0.04% with
+separate processes. These harness-sensitive outliers are not
+attributed to the PR. Checked hot arithmetic in the initial 4 KiB ELF images
+had identical bytes but different code/data placement; no causal explanation
+has been established. No hardware-counter profiles were collected.
+The older 2026-10-29 x86 timings used internal workers
+with `__internals`, which changes IFMA threshold access and reachable code;
+those results do not establish ordinary-public performance.
+
+The verified memory savings therefore coexist with unresolved smaller-input
+runtime regressions. Synthesizing every inverse table had also slowed local
 cache cases by up to 3.7%; retaining the prefix avoids most of that setup cost.
 The full historical size grid and Wasm timing were not refreshed. These are
 machine-specific medians, not performance guarantees.
