@@ -28,6 +28,9 @@ concurrency:
   group: fuzz-corpus-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  RUST_NIGHTLY: nightly-2026-10-26
+
 defaults:
   run:
     shell: bash
@@ -82,17 +85,17 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
-      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
   nightly:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
@@ -130,7 +133,7 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
-      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version 0.13.2
@@ -139,17 +142,17 @@ jobs:
       - run: mkdir -p fuzz/campaign
       - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/campaign/
       - run: cp -a .fuzz-corpus/corpora/. fuzz/campaign/
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
       - run: mkdir -p fuzz/publish
       - run: >-
           python3 fuzz/provenance.py --output fuzz/publish/provenance.json
           --field source_commit=${{ github.sha }} --field corpus_commit=${{ needs.corpus_snapshot.outputs.commit }}
           --field run_id=${{ github.run_id }} --field arch=${{ matrix.arch }} --field target_cpu=${{ matrix.cpu }}
           --field features=${{ matrix.label }} --field sanitizer=address --field seed="$FUZZ_SEED"
-          --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=nightly-2026-10-26
+          --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=${{ env.RUST_NIGHTLY }}
           --field cargo_fuzz=0.13.2 --field rustflags="$RUSTFLAGS" --field exit=0
           --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width --digest dictionary=fuzz/base58.dict
       - run: mv fuzz/campaign fuzz/publish/campaign
@@ -203,16 +206,16 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
-      - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
+      - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: python3 fuzz/seed_corpus.py
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +nightly-2026-10-26 fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
   publish:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly && inputs.publish)
