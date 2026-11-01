@@ -1,0 +1,21 @@
+name: Set up Clang 23
+description: Install the LLVM 23 sanitizer toolchain from the signed apt.llvm.org repository.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        test "$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")" = resolute
+        key="$RUNNER_TEMP/apt.llvm.org.asc"
+        keyring=/usr/share/keyrings/apt.llvm.org.gpg
+        fingerprint=6084F3CF814B57C1CF12EFD515CF4D18AF4F7421
+        curl --fail --location --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key -o "$key"
+        test "$(gpg --show-keys --with-colons "$key" | awk -F: '$1 == "fpr" { print $10; exit }')" = "$fingerprint"
+        gpg --batch --yes --dearmor --output "$RUNNER_TEMP/apt.llvm.org.gpg" "$key"
+        sudo install -o root -g root -m 0644 "$RUNNER_TEMP/apt.llvm.org.gpg" "$keyring"
+        printf '%s\n' "deb [signed-by=$keyring] https://apt.llvm.org/resolute/ llvm-toolchain-resolute-23 main" | sudo tee /etc/apt/sources.list.d/llvm-23.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y clang-23 libclang-rt-23-dev
+        test "$(clang-23 -dumpversion | cut -d. -f1)" = 23
+        printf '%s\n' CC=clang-23 CXX=clang++-23 CC_x86_64-unknown-linux-gnu=clang-23 CXX_x86_64-unknown-linux-gnu=clang++-23 >> "$GITHUB_ENV"

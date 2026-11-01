@@ -276,10 +276,6 @@ jobs:
       - if: matrix.cache_args == ''
         run: python3 scripts/code_size.py --self-test
       - if: matrix.cache_args == ''
-        run: python3 scripts/setup_clang23.py --self-test
-      - if: matrix.cache_args == ''
-        run: python3 -B -m unittest discover -s scripts -p test_setup_clang23.py -v
-      - if: matrix.cache_args == ''
         run: python3 scripts/run_native_sanitizer.py --self-test
       - if: matrix.cache_args == ''
         run: python3 scripts/check_ci_tests.py --self-test
@@ -533,8 +529,7 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
-      - name: Matching LLVM toolchain
-        run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version 0.13.2
       - run: |
           python3 fuzz/test_seed_corpus.py
@@ -640,7 +635,7 @@ jobs:
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component llvm-tools-preview --profile minimal
       - if: runner.os == 'Linux'
-        run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+        uses: ./.github/actions/setup-clang23
       # Host tooling must not inherit nightly-only target instrumentation.
       - run: env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS cargo install --locked cargo-fuzz --version 0.13.2
       - run: |
@@ -742,7 +737,7 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
-      - run: python3 scripts/setup_clang23.py --prefix "$RUNNER_TEMP/clang23"
+      - uses: ./.github/actions/setup-clang23
       - run: python3 scripts/run_native_sanitizer.py ${{ matrix.sanitizer }} --cache ${{ matrix.cache }} ${{ matrix.compact_args }} --log-dir "$RUNNER_TEMP/native-${{ matrix.label }}/logs"
       - name: Retain sanitizer records
         if: always()
