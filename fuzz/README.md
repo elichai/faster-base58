@@ -27,8 +27,9 @@ an exact/oversized buffer and occasional short-buffer checks. Every callback
 performs a full conversion; native/portable seeds initialize both forced hooks.
 Avoiding the quadratic bs58 oracle makes large mutations practical.
 Shrinking cannot avoid the cached production route on NEON; 1 MiB cases also
-reach owned twiddles above log18. The `full-width` feature enables it; CI runs
-180-second careful ASan campaigns for default/cache and requires actual mutations. This periodic
+reach owned twiddles above log18. The `full-width` feature enables it; the optional
+manual Verification fuzz dispatch runs 180-second careful ASan campaigns for default/cache and
+requires actual mutations. This periodic
 input domain excludes leading zeros and does not cover every value at either width.
 
 `encode_all` accepts up to 65,537 bytes: one byte past 64 KiB. Full-width inputs
@@ -79,8 +80,8 @@ canaries and owned-helper checks. This periodic structured domain does not cover
 every 65,537-byte value. Unsupported CPU instructions are never forced.
 Threshold retuning must recheck the size needed to reach actual transforms.
 
-The fuzz-only `full-width` feature enables this slower target. CI runs it for
-180 seconds with careful ASan in the existing default/cache rows; general
+The fuzz-only `full-width` feature enables this slower target. The optional manual
+Verification fuzz dispatch runs it for 180 seconds with careful ASan in default/cache rows; general
 targets and complete boundary replays remain separate. The raw mutation cap is
 8,193 bytes. `-print_corpus_stats=1` supplies each base input's
 `InputInfo::NumExecutedMutations` from libFuzzer bundled in `libfuzzer-sys`
@@ -105,10 +106,12 @@ useful byte token for a dictionary.
 The shared corpus is not committed to `main`. The protected orphan
 `fuzz-corpus` branch stores content-addressed inputs under
 `corpora/<target>/<sha256>` and per-run metadata under `runs/`. Main/PR CI
-only validates and replays a pinned revision. Nightly workers upload artifacts;
-the separate trusted publisher validates, replays, and additively merges them.
+only validates and replays a pinned revision. The optional Verification dispatch
+with `run_fuzz` runs bounded campaigns on its selected ref but never publishes
+the corpus. Nightly workers upload artifacts; the separate trusted publisher
+validates, replays, and additively merges them.
 Use `python3 fuzz/corpus_store.py validate CORPUS_ROOT` before any replay.
 
 See [CORRECTNESS.md](../CORRECTNESS.md) for run counts, sanitizer limits,
-proof domains and missing Miri shims. CI builds, mutates and replays the targets
-in separate steps and retains corpus/crash artifacts for 14 days.
+proof domains and missing Miri shims. PR CI replays the targets; the optional
+Verification dispatch builds, mutates, and retains corpus/crash artifacts for 14 days.
