@@ -12,6 +12,7 @@ concurrency:
 
 env:
   RUST_NIGHTLY: nightly-2026-10-26
+  CARGO_NEXTEST_VERSION: '0.9.150'
 
 defaults:
   run:
@@ -37,7 +38,7 @@ jobs:
       - if: matrix.name != 'cargo-test'
         uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
-          tool: cargo-nextest@0.9.150
+          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component miri --profile minimal
       - run: cargo +${{ env.RUST_NIGHTLY }} miri setup --target x86_64-unknown-linux-gnu
       - name: Run stock Miri selection

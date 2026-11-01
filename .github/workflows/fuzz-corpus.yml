@@ -30,6 +30,7 @@ concurrency:
 
 env:
   RUST_NIGHTLY: nightly-2026-10-26
+  CARGO_FUZZ_VERSION: '0.13.2'
 
 defaults:
   run:
@@ -88,7 +89,7 @@ jobs:
       - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
-      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
@@ -136,7 +137,7 @@ jobs:
       - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
-      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: mkdir -p fuzz/campaign
@@ -153,7 +154,7 @@ jobs:
           --field run_id=${{ github.run_id }} --field arch=${{ matrix.arch }} --field target_cpu=${{ matrix.cpu }}
           --field features=${{ matrix.label }} --field sanitizer=address --field seed="$FUZZ_SEED"
           --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=${{ env.RUST_NIGHTLY }}
-          --field cargo_fuzz=0.13.2 --field rustflags="$RUSTFLAGS" --field exit=0
+          --field cargo_fuzz=${{ env.CARGO_FUZZ_VERSION }} --field rustflags="$RUSTFLAGS" --field exit=0
           --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width --digest dictionary=fuzz/base58.dict
       - run: mv fuzz/campaign fuzz/publish/campaign
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -209,7 +210,7 @@ jobs:
       - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
-      - run: cargo install --locked cargo-fuzz --version 0.13.2
+      - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: python3 fuzz/seed_corpus.py
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
