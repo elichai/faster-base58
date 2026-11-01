@@ -28,7 +28,7 @@ def public_targets(root):
 def check_lists(workflow, expected):
     lists = []
     for line in workflow.splitlines():
-        if re.search(r'run: cargo \+\S+ (?:test|nextest run) --locked --test api\b', line):
+        if re.search(r'run: cargo \+(?:\S+|\$\{\{[^}]+\}\}) (?:test|nextest run) --locked --test api\b', line):
             words = shlex.split(line.split('run: ', 1)[1])
             names = [words[index + 1] for index, word in enumerate(words) if word == '--test']
             if len(names) != len(set(names)) or set(names) != expected:
@@ -41,7 +41,7 @@ def check_lists(workflow, expected):
 
 def self_test():
     good = '\n'.join('      - run: cargo +' + tool + ' ' + runner + ' --locked --test api --test owned_output'
-                     for tool, runner in [('stable', 'nextest run')] * 3 + [('1.95', 'test')] * 4)
+                     for tool, runner in [('stable', 'nextest run')] * 3 + [('${{ env.RUST_MSRV }}', 'test')] * 4)
     expected = {'api', 'owned_output'}
     if len(check_lists(good, expected)) != 7:
         raise AssertionError('valid test lists rejected')
