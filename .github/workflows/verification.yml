@@ -49,12 +49,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-nextest@0.9.150
       - run: rustup update stable --no-self-update
       - run: rustc +stable -vV
-      - name: Unit, API, and property tests
+      - name: Shared-process unit, API, and property tests
+        if: matrix.os == 'ubuntu-latest' && matrix.profile.name == 'debug'
         run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
+      - name: Unit, API, and property tests
+        if: matrix.os != 'ubuntu-latest' || matrix.profile.name != 'debug'
+        run: cargo +stable nextest run --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
       - name: Public API without internal exports
-        run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+        run: cargo +stable nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Radix transform limit and public fallback
         if: runner.arch == 'ARM64' && matrix.profile.name == 'release'
         run: cargo +stable test --locked --release --test radix_boundaries ${{ matrix.caches.public_args }} -- --ignored --exact full_transform_limit_and_fallback_match_malachite
@@ -110,11 +117,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-nextest@0.9.150
       - run: rustup update stable --no-self-update
-      - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests
-      - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests --release
-      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }}
-      - run: cargo +stable test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} --release
+      - run: cargo +stable nextest run --locked --features ${{ matrix.caches.features }} --lib --tests
+      - run: cargo +stable nextest run --locked --features ${{ matrix.caches.features }} --lib --tests --release
+      - run: cargo +stable nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }}
+      - run: cargo +stable nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} --release
       - run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }}
       - run: cargo +stable build --locked --release --features ${{ matrix.caches.features }} --benches
 
@@ -130,9 +140,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-nextest@0.9.150
       - run: rustup update stable --no-self-update
-      - run: cargo +stable test --locked --lib --tests --features __internals,malachite-nz/32_bit_limbs
-      - run: cargo +stable test --locked --release --lib --tests --features __internals,malachite-nz/32_bit_limbs
+      - run: cargo +stable nextest run --locked --lib --tests --features __internals,malachite-nz/32_bit_limbs
+      - run: cargo +stable nextest run --locked --release --lib --tests --features __internals,malachite-nz/32_bit_limbs
 
   portability:
     runs-on: ubuntu-latest
@@ -204,19 +217,22 @@ jobs:
       - uses: ./.github/actions/cache-cargo-sources
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
+          tool: cargo-nextest@0.9.150
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
           tool: cargo-hack@0.6.45
       - run: rustup toolchain install 1.95 --profile minimal
       - run: cargo +1.95 hack build --locked --lib --feature-powerset --exclude-features default
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std
+      - run: cargo +1.95 nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache
+      - run: cargo +1.95 nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std,compact
+      - run: cargo +1.95 nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std,compact
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +1.95 test --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache,compact
+      - run: cargo +1.95 nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache,compact
         env:
           PROPTEST_CASES: '512'
 
@@ -227,11 +243,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-nextest@0.9.150
       - run: sudo apt-get update
       - run: sudo apt-get install -y gcc-multilib
       - run: rustup target add --toolchain stable i686-unknown-linux-gnu
-      - run: cargo +stable test --locked --target i686-unknown-linux-gnu --features __internals --lib --tests
-      - run: cargo +stable test --locked --target i686-unknown-linux-gnu --features __internals,cache --lib --tests
+      - run: cargo +stable nextest run --locked --target i686-unknown-linux-gnu --features __internals --lib --tests
+      - run: cargo +stable nextest run --locked --target i686-unknown-linux-gnu --features __internals,cache --lib --tests
 
   lint:
     runs-on: ubuntu-latest
@@ -282,12 +301,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
-      - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }}
-      - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features count-allocations ${{ matrix.cache_args }}
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-nextest@0.9.150
+      - run: cargo +stable nextest run --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }}
+      - run: cargo +stable nextest run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features count-allocations ${{ matrix.cache_args }}
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }} -- self-check
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features count-allocations ${{ matrix.cache_args }} -- self-check
-      - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact ${{ matrix.cache_args }}
-      - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact,count-allocations ${{ matrix.cache_args }}
+      - run: cargo +stable nextest run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact ${{ matrix.cache_args }}
+      - run: cargo +stable nextest run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact,count-allocations ${{ matrix.cache_args }}
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact ${{ matrix.cache_args }} -- self-check
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml --features compact,count-allocations ${{ matrix.cache_args }} -- self-check
       - if: matrix.cache_args == ''
@@ -688,9 +710,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-llvm-cov@0.9.1
       - run: rustup update stable --no-self-update
       - run: rustup component add llvm-tools-preview --toolchain stable
-      - run: cargo +stable install --locked cargo-llvm-cov --version 0.9.1
       - name: Run property suites and export production coverage
         run: >-
           cargo +stable llvm-cov --locked --features ${{ matrix.features }}
