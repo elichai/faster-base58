@@ -15,4 +15,10 @@ coverage:
         flags:
           - tests
 
+flags:
+  fuzz:
+    after_n_builds: 8
+  tests:
+    after_n_builds: 8
+
 comment: false
