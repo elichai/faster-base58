@@ -52,15 +52,15 @@ fn lift(c: u32, p: Prime) -> i32 {
 /// `load`, with coefficient `i` multiplied by the root `w[i]` stands for (see
 /// `twist`). Requires `w.len() >= 2 * limbs.len()`.
 #[inline(always)]
-pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32], wq: &[i32]) {
+pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]) {
     let (head, rest) = dst.split_at_mut(2 * limbs.len());
-    let (w, wq) = (&w[..head.len()], &wq[..head.len()]);
+    let w = &w[..head.len()];
     let pairs = head.as_chunks_mut::<2>().0.iter_mut().zip(limbs);
-    for ((d, &l), (w, wq)) in pairs.zip(w.as_chunks::<2>().0.iter().zip(wq.as_chunks::<2>().0)) {
+    for ((d, &l), w) in pairs.zip(w.as_chunks::<2>().0) {
         // `|lift| < 2^31` and `|w| <= q / 2`: `mont` gives below `0.75 q`.
         *d = [
-            p.mont(lift(l as u32, p), w[0], wq[0]),
-            p.mont(lift((l >> 32) as u32, p), w[1], wq[1]),
+            p.mont(lift(l as u32, p), w[0], p.wq(w[0])),
+            p.mont(lift((l >> 32) as u32, p), w[1], p.wq(w[1])),
         ];
     }
     rest.fill(0);
@@ -113,7 +113,7 @@ mod tests {
             return q - 1;
         }
         // fw[n/2 + 1] is w_n in Montgomery form; strip the 2^32.
-        modq(t.fw[n / 2 + 1] as i128, p.q) * pow(1 << 32, q - 2, q) % q
+        modq(t.fw()[n / 2 + 1] as i128, p.q) * pow(1 << 32, q - 2, q) % q
     }
 
     fn bitrev(i: usize, log: u32) -> usize {
@@ -129,7 +129,7 @@ mod tests {
                 let n = 1 << log;
                 let x: Vec<i32> = samples(&mut rng, p.q, n)[..n].to_vec();
                 let mut a = x.clone();
-                forward(&mut a, p, tw);
+                forward(&mut a, p, tw.fw());
                 let w = root(p, tw, n);
                 let q = p.q as u64;
                 for (j, &got) in a.iter().enumerate() {
@@ -154,8 +154,10 @@ mod tests {
                 let n = 1 << log;
                 let x = samples(&mut rng, p.q, n)[..n].to_vec();
                 let mut a = x.clone();
-                forward(&mut a, p, tw);
-                inverse(&mut a, p, tw);
+                forward(&mut a, p, tw.fw());
+                let mut iw = vec![0; n];
+                let iw = tw.inverse(&mut iw);
+                inverse(&mut a, p, iw);
                 for (&got, &x) in a.iter().zip(&x) {
                     assert_eq!(
                         modq(got as i128, p.q),
@@ -221,7 +223,7 @@ mod tests {
         for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
             let (w, q) = (root(p, tw, 128), p.q as u64);
             let mut dst = vec![0x5A5A_5A5A; 2 * limbs.len() + 7];
-            load_twist(&mut dst, &limbs, p, &tw.fw[64..], &tw.fwq[64..]);
+            load_twist(&mut dst, &limbs, p, &tw.fw()[64..]);
             for (i, &got) in dst.iter().enumerate() {
                 let c = limbs
                     .get(i / 2)

@@ -104,25 +104,30 @@ pub(super) fn encode_with(
             &owned
         }
     };
-    let mut arithmetic = Arithmetic {
-        kernels,
-        tw,
-        work: vec![0; 3 * points],
-        sums: Vec::with_capacity(2 * THRESHOLD),
-    };
-    let mut powers = Vec::with_capacity(levels);
     let power_capacity = |bytes| crate::max_encoded_len(bytes + 1).div_ceil(3);
     // Product slots need their untrimmed length, even when the power loses a digit.
     let storage_len = power_capacity(unit)
         + (1..levels)
             .map(|i| 2 * power_capacity(unit << (i - 1)))
             .sum::<usize>();
-    let mut storage = vec![0; storage_len];
     let spectrum_len = (0..levels - 1)
         .map(|i| 2 * (2 * power_capacity(unit << i)).max(8).next_power_of_two())
-        .sum();
-    let mut spectra = vec![0; spectrum_len];
-    let mut spectrum_storage = &mut spectra[..];
+        .sum::<usize>();
+    // Children and power squares need at most points/2 transform points. After
+    // both children finish, their spectra become the root's residue storage.
+    let mut arena = vec![0; (spectrum_len + 3 * (points / 2)).max(3 * points)];
+    let (spectra, work) = arena.split_at_mut(spectrum_len);
+    let (residues, tmp) = work.split_at_mut(points);
+    let mut arithmetic = Arithmetic {
+        kernels,
+        tw,
+        residues,
+        tmp,
+        sums: Vec::with_capacity(2 * THRESHOLD),
+    };
+    let mut powers = Vec::with_capacity(levels);
+    let mut storage = vec![0; storage_len];
+    let mut spectrum_storage = spectra;
     let (seed, mut remaining) = storage.split_at_mut(power_capacity(unit));
     let mut bytes = [0; LEAF_BYTES + 1];
     bytes[0] = 1;
@@ -157,30 +162,49 @@ pub(super) fn encode_with(
     let scratch: usize = (0..powers.len()).map(|n| capacity(&powers[..n])).sum();
     let mut digits = vec![0; out_capacity + scratch];
     let (out, scratch) = digits.split_at_mut(out_capacity);
-    let len = convert(x, &powers, &mut arithmetic, out, scratch);
+    let (root, smaller) = powers.split_last().expect("levels is nonzero");
+    let power = root.digits;
+    let (hi, lo) = x.split_at(x.len() - root.bytes);
+    let (high, scratch) = scratch.split_at_mut(capacity(smaller));
+    let hi_len = convert(hi, smaller, &mut arithmetic, high, scratch);
+    let lo_len = convert(lo, smaller, &mut arithmetic, out, scratch);
+    drop(powers);
+    let Arithmetic {
+        kernels, tw, sums, ..
+    } = arithmetic;
+    let (residues, tmp) = arena.split_at_mut(2 * points);
+    let mut arithmetic = Arithmetic {
+        kernels,
+        tw,
+        residues,
+        tmp: &mut tmp[..points],
+        sums,
+    };
+    let len = arithmetic.multiply_add(&high[..hi_len], power, out, lo_len, None);
     Some(write(zeros, &out[..len], output))
 }
 
-struct Power<'a> {
+struct Power<'a, 's> {
     bytes: usize,
     digits: &'a [u32],
-    spectrum: Option<[&'a [i32]; 2]>,
+    spectrum: Option<[&'s [i32]; 2]>,
 }
 
-struct Arithmetic<'a> {
+struct Arithmetic<'a, 'w> {
     kernels: Kernels,
     tw: &'a [Twiddles],
-    work: Vec<i32>,
+    residues: &'w mut [i32],
+    tmp: &'w mut [i32],
     sums: Vec<u64>,
 }
 
-impl Arithmetic<'_> {
+impl Arithmetic<'_, '_> {
     fn prepare<'a>(&self, b: &[u32], storage: &'a mut [i32]) -> [&'a [i32]; 2] {
         let n = (2 * b.len()).max(8).next_power_of_two();
         assert_eq!(storage.len(), 2 * n);
         for (j, f) in storage.chunks_exact_mut(n).enumerate() {
             load(f, b);
-            (self.kernels.forward)(f, PRIMES[j], &self.tw[j]);
+            (self.kernels.forward)(f, PRIMES[j], self.tw[j].fw());
         }
         let (a, b) = storage.split_at(n);
         [a, b]
@@ -229,8 +253,8 @@ impl Arithmetic<'_> {
             carry(out, self.sums.iter().copied(), add_len);
         } else {
             let n = len.max(8).next_power_of_two();
-            let (r, tmp) = self.work.split_at_mut(2 * n);
-            let tmp = &mut tmp[..n];
+            let r = &mut self.residues[..2 * n];
+            let tmp = &mut self.tmp[..n];
             let square = core::ptr::eq(a, b);
             for (j, r) in r.chunks_exact_mut(n).enumerate() {
                 let p = PRIMES[j];
@@ -239,7 +263,7 @@ impl Arithmetic<'_> {
                     r.copy_from_slice(&f[j][..n]);
                 } else {
                     load(r, a);
-                    (self.kernels.forward)(r, p, tw);
+                    (self.kernels.forward)(r, p, tw.fw());
                 }
                 if square {
                     (self.kernels.square)(r, p);
@@ -249,10 +273,10 @@ impl Arithmetic<'_> {
                     (self.kernels.pointwise)(r, &f[j][..n], p);
                 } else {
                     load(tmp, b);
-                    (self.kernels.forward)(tmp, p, tw);
+                    (self.kernels.forward)(tmp, p, tw.fw());
                     (self.kernels.pointwise)(r, tmp, p);
                 }
-                (self.kernels.inverse)(r, p, tw);
+                (self.kernels.inverse)(r, p, tw.inverse(tmp));
             }
             let (r1, r2) = r.split_at_mut(n);
             garner_two(
@@ -351,14 +375,14 @@ fn leaf_into(bytes: &[u8], out: &mut [u32]) -> usize {
     len
 }
 
-fn capacity(powers: &[Power<'_>]) -> usize {
+fn capacity(powers: &[Power<'_, '_>]) -> usize {
     powers.last().map_or(LEAF_DIGITS, |p| 2 * p.digits.len())
 }
 
 fn convert(
     x: &[u8],
-    powers: &[Power<'_>],
-    arithmetic: &mut Arithmetic<'_>,
+    powers: &[Power<'_, '_>],
+    arithmetic: &mut Arithmetic<'_, '_>,
     out: &mut [u32],
     scratch: &mut [u32],
 ) -> usize {
@@ -415,7 +439,7 @@ mod tests {
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
     fn multiply_add(
-        arithmetic: &mut Arithmetic<'_>,
+        arithmetic: &mut Arithmetic<'_, '_>,
         a: &[u32],
         b: &[u32],
         add: &[u32],
@@ -506,10 +530,13 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(5803);
         for kernels in [Kernels::best(), Kernels::portable()] {
             let tables = Tables::new(11);
+            let mut work = vec![0; 3 << 11];
+            let (residues, tmp) = work.split_at_mut(2 << 11);
             let mut arithmetic = Arithmetic {
                 kernels,
                 tw: &tables.tw,
-                work: vec![0; 3 << 11],
+                residues,
+                tmp,
                 sums: Vec::new(),
             };
             for (n, m) in [1, 63, 64, 65, 127, 128, 129, 255, 256, 257, 511]
@@ -591,14 +618,17 @@ mod tests {
     #[test]
     fn large_inputs_match_malachite() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(5805);
-        for len in [32_769, 262_144, 1_048_576] {
-            let mut data = vec![0; len];
-            rng.fill_bytes(&mut data);
-            data[..7].fill(0);
+        for len in [
+            16_383, 16_384, 16_385, 32_767, 32_768, 32_769, 65_535, 65_536, 65_537, 262_144,
+            1_048_576,
+        ] {
+            let mut data = vec![0; len + 7];
+            rng.fill_bytes(&mut data[7..]);
+            data[7] |= 1;
             let want = oracle(&data);
-            check(&data, &want, Kernels::best(), len == 32_769);
-            if len == 32_769 {
-                check(&data, &want, Kernels::portable(), false);
+            check(&data, &want, Kernels::best(), len <= 65_537);
+            if len <= 65_537 {
+                check(&data, &want, Kernels::portable(), true);
             }
         }
         for pattern in 0..3 {

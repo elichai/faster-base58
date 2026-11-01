@@ -169,37 +169,62 @@ table setup without requiring worst-case output capacity.
 
 The divide-and-conquer decoder packs result, powers and scratch into one arena.
 Encoder divisors borrow one pre-sized payload for normalized powers and
-reciprocals; construction scratch and original powers are dropped before
+reciprocals; original powers and their construction scratch share one buffer, dropped before
 prepared transforms and conversion scratch. Each prepared NTT operand owns one
 vector containing all three prime transforms. A shared prepared-power arena
 saved little peak memory and had no established overall benefit, so it was not retained.
-Karatsuba scratch is `5*n + 64` limbs; NTT scratch is `16*n + 64` for the operand
-bound of those interfaces. Neither formula bounds total conversion memory.
+Skipped prepared powers do not grow metadata, but still clear an existing slot.
+Karatsuba scratch is `5*n + 64` limbs. Within the transform domain, NTT scratch
+uses the nondecreasing workspace envelope of every plan through a product of
+`2*n` limbs, plus 128 spare limbs and clipped at `12*n + 128`. It lies between
+`8*n + 128` and `12*n + 128`; larger inputs keep the linear bound. The envelope
+retains the previous one-piece maximum when a two-piece plan needs less space.
+It is never below Karatsuba and preserves the DC, block and split inequalities.
+These are operand bounds in `u64` limbs, not total conversion memory.
+
+The two-prime radix encoder batches spectra and child workspace in one `i32`
+arena. If the root needs `P` transform points and spectra need `S` elements, the
+arena holds `max(S + 3*P/2, 3*P)` elements instead of `S + 3*P`. Every child and
+power-building square fits `P/2` points: for the digit count of `256^b` in base
+`58^3`, `d(2*b)` is `2*d(b)` or `2*d(b)-1`, and parity removes the apparent
+extra point at the boundary. After both root children finish, the power metadata
+and its spectrum borrows are dropped. The entire arena then serves the root's
+`2*P` residues and `P` temporary elements. The scalar sums buffer is preserved.
+This never increases the arena payload, including small inputs with no spectra.
 
 | Retained with `cache` | Heap payload capacities | Static headers, 64-bit layout |
 | --- | ---: | ---: |
 | All five encoder + four decoder Matrix classes | 18,617,760 bytes | 504 bytes |
-| Production NTT logs 5–18 | 25,164,288 bytes | 5776 bytes |
-| Combined maximum after using every production class | **43,782,048 bytes (41.8 MiB)** | **6280 bytes** |
+| Production NTT logs 5–18 | 9,436,416 bytes | 1672 bytes |
+| Combined maximum after using every production class | **28,054,176 bytes (26.8 MiB)** | **2176 bytes** |
 
 These stores are absent by default. Initialized classes remain for the process
 lifetime, and history affects reuse. The largest Matrix tables retain 11,510,016
-encoder / 2,437,248 decoder bytes. NTT log `l` needs `48 * 2^l` twiddle bytes;
-logs above 18 remain owned even with `cache`. The internal cache helper also
-accepts logs 1–4; filling those would raise its NTT bound to 25,165,728 bytes.
+encoder / 2,437,248 decoder bytes. NTT log `l` needs
+`12 * (2^l + min(2^l, 2^16))` twiddle bytes. Forward roots and a bounded inverse
+prefix share one allocation per prime. Larger inverse transforms generate the remaining stages in
+the product temporary after pointwise multiplication has consumed it; negacyclic
+untwisting reuses that same temporary. Their Montgomery companions are derived
+with a wrapping 32-bit multiply when loaded, including SIMD loads.
+Logs above 18 remain owned even with `cache`. The internal cache helper also
+accepts logs 1–4; filling those would raise its NTT bound to 9,437,136 bytes.
 
 Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
-96 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
+24.75 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
 radix route uses two prime tables instead of three and pools its digit and
-prepared-spectrum scratch. In the 2026-10-29 M5 measurements from `06e081591a8f`,
-1/4 MiB encoding used 14 allocations and zero reallocations per call, peaking at
-32,992,644 / 131,965,668 bytes of extra requested live heap, with no retained heap
-under either cache policy. These counts exclude caller buffers, allocator-internal
+prepared-spectrum scratch. The initial heap reductions brought 4 MiB AArch64
+encoding from 131,965,668 to 82,158,308 bytes of extra requested live heap.
+The 2026-11-01 arena reuse saves another 12 MiB, reaching 69,575,396 bytes, with
+no retained heap under either cache policy. Encoding makes 7 allocation requests
+instead of 10. The three-prime decoder's tighter scratch envelope saves another
+6.75 MiB, reducing its default peak from 63,860,984 to 56,783,096 bytes and its
+allocation requests from 21 to 18. These are measured significant-payload fixtures.
+These counts exclude caller buffers, allocator-internal
 reallocation overlap and RSS. Other routes and sizes differ; process peaks and
 Wasm page high-water are separate metrics. See [measurement scopes](docs/performance.md).
 
-Precomputing every general cache table would embed roughly 41.8 MiB before dead
+Precomputing every general cache table would embed roughly 26.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the
 default for small/Wasm consumers. The small fixed tables are already compile-time.
 

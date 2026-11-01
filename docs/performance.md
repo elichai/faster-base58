@@ -8,7 +8,8 @@ internal allocation; its general large conversions remain quadratic.
 
 ## Measurement scope
 
-The current public timings, linked sizes and M5 allocations were measured
+The broad public timings, linked sizes and M5 allocations below are historical,
+before the [NTT heap reductions](#bounded-inverse-root-tables). They were measured
 **2026-10-29**, from combined Git snapshot `06e081591a8ff444f990133411f093e5512610dc`.
 Resource fingerprint: `c9d7163caf8dfa8f52355c09e2da04a84bb7dc205acc2386b5d9b087371580f5`
 (source/manifest/lock/support files, not a Git ID). All platforms use this same
@@ -205,7 +206,7 @@ under ignored `target/measurements/`.
 
 Enabling `cache` changes dispatch and leaf policy as well as retention. The
 current README reports warm behavior; first-call costs above are separate.
-The following ordinary-public M5 allocation windows use the same source and
+The following historical ordinary-public M5 allocation windows use the same source and
 fixtures as the timing refresh. Each size/operation starts in a fresh process;
 the warm window follows its first conversion. No other sizes prime the cache.
 
@@ -242,14 +243,107 @@ No-allocation is an API guarantee; other-platform allocations were not remeasure
 in this refresh.
 
 Matrix table capacities sum to 18,617,760 B; production NTT retention for logs
-5–18 permits 25,164,288 B. Their combined 41.8 MiB capacity depends on call
-history. Cache families have 6,280 B of static headers in the recorded 64-bit
-layout, with unused families subject to dead stripping. Fixed 32/64-byte encoder
+5–18 permits 9,436,416 B after the NTT heap reductions. Their combined 26.8 MiB
+capacity depends on call history. Cache families have 2,176 B of static headers
+in the recorded 64-bit layout, with unused families subject to dead stripping. Fixed 32/64-byte encoder
 constants have a separate 2,208 B reference layout. Construction scratch,
 larger per-call tables, allocator overhead and concurrency add memory; this is
 not an active-heap bound. Wasm linear-memory pages need not return to the host
 when allocations are freed. RSS and full dynamic stack high water were not
 remeasured. See [design memory accounting](../DESIGN.md#heap-stack-and-cache-costs).
+
+### Bounded inverse-root tables
+
+The 2026-11-01 comparison uses main `373ad39`, the previous PR at `6b1631e`,
+and candidate source fingerprint `8e5d4d11660bfff3744c90714be8abe89d4b63d7fff665f1fd0c785d793a718b`.
+The candidate derives Montgomery companions when roots are loaded, retains
+inverse roots through 65,536 points per prime, and generates larger inverse
+stages in the product temporary after pointwise multiplication. Forward roots
+and the inverse prefix share one boxed allocation per prime. Kernels receive
+root slices; the storage split happens at the call boundary.
+
+Scratch now uses a nondecreasing plan envelope within the transform domain,
+between `8*n + 128` and `12*n + 128` limbs, instead of main's `16*n + 64`.
+The two-prime AArch64 radix encoder reuses expired child spectra as root
+workspace. Division encoding also pools initial powers with construction
+scratch, and skipped prepared powers no longer grow metadata. Prime values,
+transform plans, thresholds and arithmetic results are unchanged. See the
+[workspace bounds](../DESIGN.md#heap-stack-and-cache-costs).
+
+Warm peaks for a 4 MiB significant binary payload, excluding caller buffers
+and cache retained before the operation:
+
+| Host / policy | Operation | Main → previous PR → candidate peak bytes | Allocation requests |
+| --- | --- | ---: | ---: |
+| M5 Pro / default | Encode | 131,965,668 → 82,158,308 → 69,575,396 | 14 → 10 → 7 |
+| M5 Pro / default | Decode | 109,997,816 → 63,860,984 → 56,783,096 | 27 → 21 → 18 |
+| M5 Pro / cache | Encode | 131,965,668 → 82,158,308 → 69,575,396 | 14 → 10 → 7 |
+| M5 Pro / cache | Decode | 109,997,816 → 63,860,984 → 56,783,096 | 27 → 21 → 18 |
+| GCP EPYC 9B45 / default | Encode | 201,207,328 → 117,858,816 → 109,639,584 | 35 → 29 → 23 |
+| GCP EPYC 9B45 / default | Decode | 109,807,352 → 63,670,520 → 56,592,440 | 22 → 16 → 12 |
+| GCP EPYC 9B45 / cache | Encode | 199,567,960 → 116,459,384 → 108,099,416 | 35 → 29 → 23 |
+| GCP EPYC 9B45 / cache | Decode | 109,807,352 → 63,670,520 → 56,592,440 | 22 → 16 → 12 |
+
+Relative to the previous PR, the M5 encoder saves another 12 MiB at 4 MiB
+and 3 MiB at 1 MiB; decoding saves another 6.75 MiB at 4 MiB. Root payload
+and retained cache capacity are unchanged by batching. NTT static headers
+shrink from 3,040 to 1,672 bytes in the measured 64-bit layout.
+
+Timing uses ordinary-public Auto cdylibs built without `__internals`, with
+generic CPU settings, opt-level 3, fat LTO and 16 codegen units. Sources and
+public-consumer builds use identical paths for each revision. Each comparison
+alternates three pairs of fresh processes, loading only one library at one
+fixed path/inode. Each process visits 4, 8, 16, 32, 36, 64, 128, 144, 256,
+1024 and 4096 KiB in ascending order. Every operation calibrates to at least
+20 ms and records seven warm process-CPU samples. Values below are medians
+of the three process medians. Deterministic fixtures and output bytes are
+checked outside timing. Encode/decode sizes both mean binary payload bytes.
+
+The local host is an Apple M5 Pro, aarch64 macOS 26.7.2, Rust 1.99.1 /
+LLVM 23.1.1, with AC power reported. GCP is native AMD EPYC 9B45, Linux 6.1,
+Rust 1.99.0 / LLVM 23.1.1, with the process pinned to CPU 0. Host frequency,
+temperature and background activity are not fixed. No study compiler or test
+job overlapped accepted timing workers. Positive changes mean slower:
+
+| Host / policy | Encode 4 MiB, main → candidate | Decode 4 MiB, main → candidate | Incremental encode / decode vs previous PR |
+| --- | ---: | ---: | ---: |
+| M5 Pro / default | 248.74 → 251.04 ms (+0.93%) | 140.30 → 141.63 ms (+0.95%) | +1.56% / +0.67% |
+| M5 Pro / cache | 248.02 → 248.72 ms (+0.28%) | 136.10 → 137.09 ms (+0.73%) | +0.04% / +0.16% |
+| GCP EPYC 9B45 / default | 347.44 → 334.57 ms (-3.70%) | 161.07 → 151.68 ms (-5.83%) | -0.34% / -0.41% |
+| GCP EPYC 9B45 / cache | 322.40 → 311.93 ms (-3.25%) | 162.50 → 151.47 ms (-6.79%) | -0.03% / -0.10% |
+
+**The broad grid still does not establish no degradation at every size.**
+Against main, M5 cache encoding is +3.39% at 32 KiB and +3.29% at 128 KiB;
+36 KiB decoding is +3.34%. This repeats the previous PR's roughly 3% cache
+cost. GCP default 32 KiB decode is +3.85% with varying process medians.
+
+Against the previous PR, GCP default 144 KiB decode is +8.54% in the full
+sweep (3.710 → 4.027 ms); cache 256 KiB encode is +3.70%. Fresh single-size
+processes instead measure −0.81% (3.998 → 3.965 ms) and −0.26%
+(13.180 → 13.146 ms). An earlier candidate showed the same sweep pattern
+(+8.32% / +2.91%) and fresh-size changes of −0.44% / −0.26%.
+These controls indicate history-sensitive results. They do not justify
+discarding the sweep regressions or establish their cause.
+
+M5 default incremental sweep outliers (+6.35% encoding at 1 MiB, +3.52%
+decoding at 256 KiB, +3.40% encoding at 8 KiB) shrink in fresh-size controls
+to −0.64%, +0.86% and +1.31%. These cohorts are separate and are not pooled.
+Code and allocation placement change between builds; no hardware-counter
+profile establishes a cache-locality cause or a universal speed benefit.
+
+Allocation measurements use separate, untimed `__internals` Auto workers and
+Malachite-checked fixtures. Each size starts in a fresh process; its warm
+window follows one cold conversion. Counts exclude allocator overhead, RSS,
+realloc-internal overlap and stack high water. Workers were rebuilt from
+distinct frozen source paths and checked against known peaks and artifact
+hashes: restoring archived mtimes at one shared source path had otherwise
+caused Cargo to reuse stale counted workers. Those stale results are excluded.
+
+Native default/cache correctness suites and maximum transforms passed on
+both hosts. Local release suites and ignored 16 MiB fallback boundaries also
+passed. Wasm and bare no_std x86 were compile-checked; custom Miri, Wasm runtime
+timing and the full historical size grid were not refreshed. Raw results stay
+outside Git. The README's broad timing/size figures remain historical.
 
 ## Linked size and compact
 

@@ -192,20 +192,21 @@ pub(crate) fn encode_parts(
         .rchunks(8)
         .map(|c| c.iter().fold(0, |v, &b| (v << 8) | b as u64))
         .collect();
-    let mut table = vec![0; table_len(unit, levels)];
-    let mut scratch = vec![0; m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m))];
-    let powers = powers(unit, levels, &mut table, &mut scratch, m, false);
+    let table_len = table_len(unit, levels);
+    let scratch_len = m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m));
+    let mut power_work = vec![0; table_len + scratch_len];
+    let (table, scratch) = power_work.split_at_mut(table_len);
+    let powers = powers(unit, levels, table, scratch, m, false);
     let mut storage = vec![0; powers[..levels].iter().map(Divisor::storage_len).sum()];
     let mut data = &mut storage[..];
     let mut divs: Vec<Divisor<'_>> = Vec::with_capacity(levels);
     for p in &powers[..levels] {
         let slot;
         (slot, data) = data.split_at_mut(Divisor::storage_len(p));
-        let d = Divisor::new(p, divs.last(), slot, &mut scratch, m);
+        let d = Divisor::new(p, divs.last(), slot, scratch, m);
         divs.push(d);
     }
-    drop(table);
-    drop(scratch);
+    drop(power_work);
     // The top divisor serves one division; the others at least two, so their products
     // may keep work on them.
     for (i, d) in divs[..levels - 1].iter().enumerate() {

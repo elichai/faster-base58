@@ -103,8 +103,8 @@ fn requested_tables_are_owned_without_cache() {
         assert!(first.owned.is_some() && second.owned.is_some());
         assert_eq!(a.log, log);
         assert_eq!(b.log, log);
-        assert_eq!(a.tw[0].fw, b.tw[0].fw);
-        assert_ne!(a.tw[0].fw.as_ptr(), b.tw[0].fw.as_ptr());
+        assert_eq!(a.tw[0].fw(), b.tw[0].fw());
+        assert_ne!(a.tw[0].fw().as_ptr(), b.tw[0].fw().as_ptr());
     }
     #[cfg(feature = "__internals")]
     {
@@ -199,7 +199,11 @@ fn retention_is_bounded_across_histories() {
             .iter()
             .all(|r| !r.1)
     );
-    let bound = 48 * ((1usize << (CACHE_LIMIT + 1)) - 32);
+    let bytes = |log: u32| {
+        let n = 1usize << log;
+        12 * (n + n.min(tables::INVERSE_POINTS))
+    };
+    let bound = (5..=CACHE_LIMIT).map(bytes).sum::<usize>();
     let touch = |log: u32| {
         let mut ntt = Ntt::new(Kernels::portable());
         ntt.prepare(1usize << (log - 1));
@@ -209,10 +213,8 @@ fn retention_is_bounded_across_histories() {
         assert_eq!(ntt.owned.is_some(), log > CACHE_LIMIT);
         assert_eq!(ntt.shared.is_some(), log <= CACHE_LIMIT);
         for tw in &t.tw {
-            for v in [&tw.fw, &tw.fwq, &tw.iw, &tw.iwq] {
-                assert_eq!(v.len(), 1 << t.log);
-                assert_eq!(v.capacity(), v.len());
-            }
+            assert_eq!(tw.fw().len(), 1 << t.log);
+            assert_eq!(tw.iw().len(), tw.fw().len().min(tables::INVERSE_POINTS));
         }
         let rows = internals::diagnostics::ntt_cache_memory().1;
         assert!(rows.iter().filter(|r| r.0 > CACHE_LIMIT).all(|r| !r.1));
@@ -265,8 +267,8 @@ fn retention_is_bounded_across_histories() {
     let retained = rows.iter().map(|r| r.3).sum::<usize>();
     match history.as_str() {
         "ascending" => assert_eq!(retained, bound),
-        "descending" => assert_eq!(retained, 48 << CACHE_LIMIT),
-        "mixed" => assert_eq!(retained, 48 * ((1 << CACHE_LIMIT) + 32)),
+        "descending" => assert_eq!(retained, bytes(CACHE_LIMIT)),
+        "mixed" => assert_eq!(retained, bytes(CACHE_LIMIT) + bytes(5)),
         _ => assert!(retained <= bound),
     }
     // Once the maximum cacheable table exists, all smaller requests reuse it.
