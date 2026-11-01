@@ -4,7 +4,7 @@ use super::portable::{
     fold_sub, forward, garner, halves, inverse, load, load_add, load_twist, pair, pointwise,
     square, twist,
 };
-use super::tables::{Prime, Twiddles};
+use super::tables::Prime;
 
 /// These kernels compiled for AVX-512 or AVX2, when this CPU has either.
 pub(super) fn kernels() -> Option<super::Kernels> {
@@ -15,8 +15,8 @@ pub(super) fn kernels() -> Option<super::Kernels> {
                 load(dst, limbs, p)
             }
             #[target_feature(enable = $feature)]
-            fn tf_forward(a: &mut [i32], p: Prime, t: &Twiddles) {
-                forward(a, p, t)
+            fn tf_forward(a: &mut [i32], p: Prime, fw: &[i32]) {
+                forward(a, p, fw)
             }
             #[target_feature(enable = $feature)]
             fn tf_inverse(a: &mut [i32], p: Prime, iw: &[i32]) {

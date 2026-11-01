@@ -103,8 +103,8 @@ fn requested_tables_are_owned_without_cache() {
         assert!(first.owned.is_some() && second.owned.is_some());
         assert_eq!(a.log, log);
         assert_eq!(b.log, log);
-        assert_eq!(a.tw[0].fw, b.tw[0].fw);
-        assert_ne!(a.tw[0].fw.as_ptr(), b.tw[0].fw.as_ptr());
+        assert_eq!(a.tw[0].fw(), b.tw[0].fw());
+        assert_ne!(a.tw[0].fw().as_ptr(), b.tw[0].fw().as_ptr());
     }
     #[cfg(feature = "__internals")]
     {
@@ -213,10 +213,8 @@ fn retention_is_bounded_across_histories() {
         assert_eq!(ntt.owned.is_some(), log > CACHE_LIMIT);
         assert_eq!(ntt.shared.is_some(), log <= CACHE_LIMIT);
         for tw in &t.tw {
-            assert_eq!(tw.fw.len(), 1 << t.log);
-            assert_eq!(tw.fw.capacity(), tw.fw.len());
-            assert_eq!(tw.iw.len(), tw.fw.len().min(tables::INVERSE_POINTS));
-            assert_eq!(tw.iw.capacity(), tw.iw.len());
+            assert_eq!(tw.fw().len(), 1 << t.log);
+            assert_eq!(tw.iw().len(), tw.fw().len().min(tables::INVERSE_POINTS));
         }
         let rows = internals::diagnostics::ntt_cache_memory().1;
         assert!(rows.iter().filter(|r| r.0 > CACHE_LIMIT).all(|r| !r.1));

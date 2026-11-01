@@ -244,7 +244,7 @@ in this refresh.
 
 Matrix table capacities sum to 18,617,760 B; production NTT retention for logs
 5–18 permits 9,436,416 B after the NTT heap reductions. Their combined 26.8 MiB
-capacity depends on call history. Cache families have 3,544 B of static headers
+capacity depends on call history. Cache families have 2,176 B of static headers
 in the recorded 64-bit layout, with unused families subject to dead stripping. Fixed 32/64-byte encoder
 constants have a separate 2,208 B reference layout. Construction scratch,
 larger per-call tables, allocator overhead and concurrency add memory; this is
@@ -254,108 +254,96 @@ remeasured. See [design memory accounting](../DESIGN.md#heap-stack-and-cache-cos
 
 ### Bounded inverse-root tables
 
-The 2026-11-01 recheck compares main at `7962809` with the PR library at
-`48484bb` and covers both NTT heap changes.
-Montgomery companions are derived with a wrapping 32-bit multiply when loaded,
-including SIMD loads. Inverse roots are retained only through 65,536 points per
-prime; larger transforms generate the remaining stages in the existing product
-temporary after pointwise multiplication. The scratch bound falls from
-`16*n + 64` to `12*n + 128` limbs. Primes, transform plans and dispatch thresholds
-are unchanged. This comparison includes main's pooled two-prime AArch64 radix
-encoder. The candidate's public-probe source fingerprint starts `692e6530a28b`.
+The 2026-11-01 comparison uses main `373ad39`, the previous PR at `6b1631e`,
+and candidate source fingerprint `8e5d4d11660bfff3744c90714be8abe89d4b63d7fff665f1fd0c785d793a718b`.
+The candidate derives Montgomery companions when roots are loaded, retains
+inverse roots through 65,536 points per prime, and generates larger inverse
+stages in the product temporary after pointwise multiplication. Forward roots
+and the inverse prefix share one boxed allocation per prime. Kernels receive
+root slices; the storage split happens at the call boundary.
 
-For a 4 MiB significant binary payload, local aarch64 Auto workers measured:
+Scratch now uses a nondecreasing plan envelope within the transform domain,
+between `8*n + 128` and `12*n + 128` limbs, instead of main's `16*n + 64`.
+The two-prime AArch64 radix encoder reuses expired child spectra as root
+workspace. Division encoding also pools initial powers with construction
+scratch, and skipped prepared powers no longer grow metadata. Prime values,
+transform plans, thresholds and arithmetic results are unchanged. See the
+[workspace bounds](../DESIGN.md#heap-stack-and-cache-costs).
 
-| Policy | Operation | Peak extra, before → after | Warm requests, before → after |
+Warm peaks for a 4 MiB significant binary payload, excluding caller buffers
+and cache retained before the operation:
+
+| Host / policy | Operation | Main → previous PR → candidate peak bytes | Allocation requests |
 | --- | --- | ---: | ---: |
-| Default | Encode | 131,965,668 → 82,158,308 B | 14 → 10 |
-| Default | Decode | 109,997,816 → 63,860,984 B | 27 → 21 |
-| Cache | Encode | 131,965,668 → 82,158,308 B | 14 → 10 |
-| Cache | Decode | 109,997,816 → 63,860,984 B | 27 → 21 |
+| M5 Pro / default | Encode | 131,965,668 → 82,158,308 → 69,575,396 | 14 → 10 → 7 |
+| M5 Pro / default | Decode | 109,997,816 → 63,860,984 → 56,783,096 | 27 → 21 → 18 |
+| M5 Pro / cache | Encode | 131,965,668 → 82,158,308 → 69,575,396 | 14 → 10 → 7 |
+| M5 Pro / cache | Decode | 109,997,816 → 63,860,984 → 56,783,096 | 27 → 21 → 18 |
+| GCP EPYC 9B45 / default | Encode | 201,207,328 → 117,858,816 → 109,639,584 | 35 → 29 → 23 |
+| GCP EPYC 9B45 / default | Decode | 109,807,352 → 63,670,520 → 56,592,440 | 22 → 16 → 12 |
+| GCP EPYC 9B45 / cache | Encode | 199,567,960 → 116,459,384 → 108,099,416 | 35 → 29 → 23 |
+| GCP EPYC 9B45 / cache | Decode | 109,807,352 → 63,670,520 → 56,592,440 | 22 → 16 → 12 |
 
-These are warm operation windows excluding caller buffers and any previously
-retained cache. Cache-enabled decode's first-call peak was
-110,631,416 → 64,494,584 B, retaining the same 616,704 B of Matrix tables.
-Encoding retained no tables at this size. The separate allocation-counted
-Auto workers use `__internals`; they are not timed or pooled with the historical
-ordinary-public cohort above. Worker fixtures are independently checked against
-Malachite. Raw output stays under ignored `target/measurements/` or temporary
-directories; it is not part of the published source tree. Relative to the
-companion-only change at `b84490a`, bounding inverse tables saves another
-15.5 MiB for local encoding and 11.25 MiB for decoding.
+Relative to the previous PR, the M5 encoder saves another 12 MiB at 4 MiB
+and 3 MiB at 1 MiB; decoding saves another 6.75 MiB at 4 MiB. Root payload
+and retained cache capacity are unchanged by batching. NTT static headers
+shrink from 3,040 to 1,672 bytes in the measured 64-bit layout.
 
-The public-API timing builds use generic CPU flags, opt-level 3, fat LTO,
-16 codegen units, and only default features or `cache`, without `__internals`.
-Both revisions are built sequentially at identical source and consumer paths.
-The harness calls `size_repeat_encode` and `size_repeat_decode_prevalidated`.
-The main timing control alternates three pairs of fresh processes. Each loads
-one ordinary-public Auto cdylib at the same fixed path/inode, verifies the
-deterministic fixture byte for byte, calibrates each operation to at least
-20 ms per batch, and takes seven warm samples. Reported values are medians of
-the three process medians. The local host is an Apple M5 Pro using aarch64 macOS,
-Rust 1.99.1 and LLVM 23.1.1 on AC power.
+Timing uses ordinary-public Auto cdylibs built without `__internals`, with
+generic CPU settings, opt-level 3, fat LTO and 16 codegen units. Sources and
+public-consumer builds use identical paths for each revision. Each comparison
+alternates three pairs of fresh processes, loading only one library at one
+fixed path/inode. Each process visits 4, 8, 16, 32, 36, 64, 128, 144, 256,
+1024 and 4096 KiB in ascending order. Every operation calibrates to at least
+20 ms and records seven warm process-CPU samples. Values below are medians
+of the three process medians. Deterministic fixtures and output bytes are
+checked outside timing. Encode/decode sizes both mean binary payload bytes.
 
-The GCP EPYC 9B45 uses the same ordinary-public timing harness and build settings,
-with Rust 1.99.0 / LLVM 23.1.1, generic CPU flags and runtime dispatch. Its timing
-process is pinned to CPU 0. Separate counted workers reproduced the default
-4 MiB encode/decode peaks falling from
-201,207,328 / 109,807,352 B to 117,858,816 / 63,670,520 B. Cache-enabled warm
-peaks were 199,567,960 / 109,807,352 B before and 116,459,384 / 63,670,520 B after.
+The local host is an Apple M5 Pro, aarch64 macOS 26.7.2, Rust 1.99.1 /
+LLVM 23.1.1, with AC power reported. GCP is native AMD EPYC 9B45, Linux 6.1,
+Rust 1.99.0 / LLVM 23.1.1, with the process pinned to CPU 0. Host frequency,
+temperature and background activity are not fixed. No study compiler or test
+job overlapped accepted timing workers. Positive changes mean slower:
 
-Both hosts measure process CPU time. Separate-process warm 4 MiB medians,
-with positive percentages meaning slower:
+| Host / policy | Encode 4 MiB, main → candidate | Decode 4 MiB, main → candidate | Incremental encode / decode vs previous PR |
+| --- | ---: | ---: | ---: |
+| M5 Pro / default | 248.74 → 251.04 ms (+0.93%) | 140.30 → 141.63 ms (+0.95%) | +1.56% / +0.67% |
+| M5 Pro / cache | 248.02 → 248.72 ms (+0.28%) | 136.10 → 137.09 ms (+0.73%) | +0.04% / +0.16% |
+| GCP EPYC 9B45 / default | 347.44 → 334.57 ms (-3.70%) | 161.07 → 151.68 ms (-5.83%) | -0.34% / -0.41% |
+| GCP EPYC 9B45 / cache | 322.40 → 311.93 ms (-3.25%) | 162.50 → 151.47 ms (-6.79%) | -0.03% / -0.10% |
 
-| Platform / policy | Encode, before → after | Decode, before → after |
-| --- | ---: | ---: |
-| Local / default | 240.56 → 244.33 ms (+1.57%) | 136.94 → 137.09 ms (+0.11%) |
-| Local / cache | 243.51 → 244.98 ms (+0.60%) | 135.63 → 135.13 ms (−0.37%) |
-| GCP / default | 345.22 → 334.74 ms (−3.04%) | 158.19 → 152.01 ms (−3.91%) |
-| GCP / cache | 320.96 → 312.40 ms (−2.67%) | 160.12 → 151.43 ms (−5.43%) |
+**The broad grid still does not establish no degradation at every size.**
+Against main, M5 cache encoding is +3.39% at 32 KiB and +3.29% at 128 KiB;
+36 KiB decoding is +3.34%. This repeats the previous PR's roughly 3% cache
+cost. GCP default 32 KiB decode is +3.85% with varying process medians.
 
-A second cohort loads both libraries in one process, checks distinct handles
-and function addresses, and alternates seven samples in each of three groups
-with the same 20 ms calibration. Its 4 MiB local changes range from −0.45% to
-+0.73%; GCP changes range from −3.95% to −1.23%. These cohorts are not pooled.
+Against the previous PR, GCP default 144 KiB decode is +8.54% in the full
+sweep (3.710 → 4.027 ms); cache 256 KiB encode is +3.70%. Fresh single-size
+processes instead measure −0.81% (3.998 → 3.965 ms) and −0.26%
+(13.180 → 13.146 ms). An earlier candidate showed the same sweep pattern
+(+8.32% / +2.91%) and fresh-size changes of −0.44% / −0.26%.
+These controls indicate history-sensitive results. They do not justify
+discarding the sweep regressions or establish their cause.
 
-The recheck covers 4, 8, 16, 32, 36, 64, 128, 144, 256, 1024 and 4096 KiB
-with default and cache builds. **The broader grid fails the no-degradation
-criterion**, despite the modest changes or improvements at 4 MiB. Selected
-smaller-input increases from the separate-process cohort:
+M5 default incremental sweep outliers (+6.35% encoding at 1 MiB, +3.52%
+decoding at 256 KiB, +3.40% encoding at 8 KiB) shrink in fresh-size controls
+to −0.64%, +0.86% and +1.31%. These cohorts are separate and are not pooled.
+Code and allocation placement change between builds; no hardware-counter
+profile establishes a cache-locality cause or a universal speed benefit.
 
-| Platform / policy | Decoded size / operation | Before → after | Change |
-| --- | --- | ---: | ---: |
-| Local / cache | 32 KiB encode | 968.13 → 1000.56 µs | +3.35% |
-| Local / cache | 36 KiB decode | 530.23 → 547.27 µs | +3.21% |
-| Local / cache | 64 KiB encode | 2210.63 → 2277.25 µs | +3.01% |
-| Local / cache | 128 KiB encode | 4979.00 → 5134.25 µs | +3.12% |
-| GCP / cache | 144 KiB encode | 7280.95 → 7546.03 µs | +3.64% |
+Allocation measurements use separate, untimed `__internals` Auto workers and
+Malachite-checked fixtures. Each size starts in a fresh process; its warm
+window follows one cold conversion. Counts exclude allocator overhead, RSS,
+realloc-internal overlap and stack high water. Workers were rebuilt from
+distinct frozen source paths and checked against known peaks and artifact
+hashes: restoring archived mtimes at one shared source path had otherwise
+caused Cargo to reuse stale counted workers. Those stale results are excluded.
 
-The local cache increases persist when the paired cohort's library load order
-is reversed. A separate focused single-library control measured +3.19% and
-+2.99% encoding at 32/64 KiB and +2.90% decoding at 36 KiB. GCP's 144 KiB cache
-increase was only +0.05% in the paired cohort and remains unresolved. Local
-default separate-process outliers (+3.88% decoding at 128 KiB and +5.24% encoding
-at 144 KiB) had substantial variation and were +0.40% / +1.07% in the paired
-cohort; they do not establish stable increases of that size.
-
-An initial cohort using different build paths showed a 20.65% GCP default
-4 KiB decode increase. It did not reproduce with identical build paths
-(+0.10% with separate processes). A 32 KiB GCP cache outlier in the paired run
-also disappeared when library load order was reversed. GCP default encoding's
-3–4% paired increases at 8–32 KiB shrank to +0.27%, +1.37% and +0.04% with
-separate processes. These harness-sensitive outliers are not
-attributed to the PR. Checked hot arithmetic in the initial 4 KiB ELF images
-had identical bytes but different code/data placement; no causal explanation
-has been established. No hardware-counter profiles were collected.
-The older 2026-10-29 x86 timings used internal workers
-with `__internals`, which changes IFMA threshold access and reachable code;
-those results do not establish ordinary-public performance.
-
-The verified memory savings therefore coexist with unresolved smaller-input
-runtime regressions. Synthesizing every inverse table had also slowed local
-cache cases by up to 3.7%; retaining the prefix avoids most of that setup cost.
-The full historical size grid and Wasm timing were not refreshed. These are
-machine-specific medians, not performance guarantees.
+Native default/cache correctness suites and maximum transforms passed on
+both hosts. Local release suites and ignored 16 MiB fallback boundaries also
+passed. Wasm and bare no_std x86 were compile-checked; custom Miri, Wasm runtime
+timing and the full historical size grid were not refreshed. Raw results stay
+outside Git. The README's broad timing/size figures remain historical.
 
 ## Linked size and compact
 

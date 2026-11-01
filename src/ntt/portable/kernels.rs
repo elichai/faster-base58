@@ -1,7 +1,7 @@
 //! Full plain-Rust kernels, also used as comparisons and by x86 wrappers.
 
 use super::super::crt::GARNER;
-use super::super::tables::{PRIMES, Prime, Twiddles};
+use super::super::tables::{PRIMES, Prime};
 use super::super::{Kernels, portable};
 use super::{half, lazy, load_one};
 
@@ -16,12 +16,12 @@ pub(crate) fn load(dst: &mut [i32], limbs: &[u64], p: Prime) {
 
 /// Decimation in frequency: natural order in, bit-reversed order out.
 #[inline(always)]
-pub(crate) fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
+pub(crate) fn forward(a: &mut [i32], p: Prime, fw: &[i32]) {
     let n = a.len();
-    debug_assert!(n.is_power_of_two() && n >= 2 && n <= t.fw.len());
+    debug_assert!(n.is_power_of_two() && n >= 2 && n <= fw.len());
     let mut h = n / 2;
     while h >= 2 {
-        let w = &t.fw[h..2 * h];
+        let w = &fw[h..2 * h];
         for blk in a.chunks_exact_mut(2 * h) {
             let (x, y) = blk.split_at_mut(h);
             for ((x, y), &w) in x.iter_mut().zip(y).zip(w) {
@@ -96,7 +96,7 @@ pub(crate) fn square(a: &mut [i32], p: Prime) {
 }
 
 /// `a[i] = a[i] w[i] / 2^32 mod q`: `a[i]` times the root that Montgomery-form `w[i]`
-/// stands for. `|w| <= q / 2` (as in [`Twiddles`]), so the result is below `0.75 q`.
+/// stands for. `|w| <= q / 2` (as in [`crate::ntt::tables::Twiddles`]), so the result is below `0.75 q`.
 #[inline(always)]
 pub(crate) fn twist(a: &mut [i32], w: &[i32], p: Prime) {
     let w = &w[..a.len()];

@@ -12,7 +12,7 @@
 //! on every target.
 
 use super::portable;
-use super::tables::{Prime, S, Twiddles};
+use super::tables::{Prime, S};
 
 /// [`super::Kernels`] with the transforms and pointwise products written here, the rest
 /// from [`super::x86::kernels`], when this CPU has AVX-512F.
@@ -355,15 +355,15 @@ fn both<V: V16>((a, aq): (V, V), (b, bq): (V, V)) -> ([V; 2], [V; 2]) {
 ///
 /// Safety: `V` values may be created.
 #[inline(always)]
-unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
+unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, fw: &[i32]) {
     let n = a.len();
-    assert!(n.is_power_of_two() && n <= t.fw.len());
+    assert!(n.is_power_of_two() && n <= fw.len());
     if n < 64 {
-        return portable::forward(a, p, t);
+        return portable::forward(a, p, fw);
     }
     // SAFETY: the caller permits V creation, including pairs of V constants.
     let c = unsafe { Consts::<[V; 2]>::new(p) };
-    let (pa, w) = (a.as_mut_ptr(), t.fw.as_ptr());
+    let (pa, w) = (a.as_mut_ptr(), fw.as_ptr());
     let tw = |i: usize| {
         // SAFETY: callers use i + 16 <= 2 * h <= n, within the asserted twiddle length.
         let w = unsafe { V::load(w.add(i)) };
@@ -411,7 +411,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, t: &Twiddles) {
         }
     }
     // SAFETY: the caller permits V creation; n >= 64 guarantees the 32-entry twiddles.
-    let b = unsafe { Block::new(&t.fw, c.qinv, &FORWARD) };
+    let b = unsafe { Block::new(fw, c.qinv, &FORWARD) };
     for i in (0..n).step_by(64) {
         // SAFETY: `i + 64 <= n`: two blocks of 32.
         unsafe {
@@ -586,15 +586,15 @@ unsafe fn square_v<V: V16>(a: &mut [i32], p: Prime) {
 /// The kernels on `__m512i`.
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod z {
-    use super::{Prime, Twiddles, V16};
+    use super::{Prime, V16};
     use core::arch::x86_64::*;
 
     // Safety (each): the CPU has AVX-512F.
 
     #[target_feature(enable = "avx512f")]
-    pub(super) unsafe fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
+    pub(super) unsafe fn forward(a: &mut [i32], p: Prime, fw: &[i32]) {
         // SAFETY: this function requires AVX-512F, so Z values may be created.
-        unsafe { super::forward_v::<Z>(a, p, t) }
+        unsafe { super::forward_v::<Z>(a, p, fw) }
     }
 
     #[target_feature(enable = "avx512f")]
@@ -873,7 +873,7 @@ mod tests {
         }
     }
 
-    type Forward = unsafe fn(&mut [i32], Prime, &Twiddles);
+    type Forward = unsafe fn(&mut [i32], Prime, &[i32]);
     type Inverse = unsafe fn(&mut [i32], Prime, &[i32]);
     type Pointwise = unsafe fn(&mut [i32], &[i32], Prime);
     type Square = unsafe fn(&mut [i32], Prime);
@@ -884,7 +884,7 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(43);
         let tables = Tables::new(16);
         for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
-            let mut iw = vec![0; tw.fw.len()];
+            let mut iw = vec![0; tw.fw().len()];
             let iw = tw.inverse(&mut iw);
             let m = p.q - 1;
             for log in 3..=16 {
@@ -895,8 +895,8 @@ mod tests {
                 for x in [x, ends, vec![m; n], vec![-m; n]] {
                     let (mut a, mut b) = (x.clone(), x.clone());
                     // SAFETY: matches_portable receives Emu or CPU-checked AVX-512F kernels.
-                    unsafe { forward(&mut a, p, tw) };
-                    portable::forward(&mut b, p, tw);
+                    unsafe { forward(&mut a, p, tw.fw()) };
+                    portable::forward(&mut b, p, tw.fw());
                     assert!(a == b, "forward, n {n}");
                     let (mut a, mut b) = (x.clone(), x.clone());
                     // SAFETY: the selected kernel supports this CPU; iw serves n points.

@@ -10,6 +10,8 @@ static ALLOCATOR: Counting = Counting;
 thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
     static CALLS: Cell<[usize; 4]> = const { Cell::new([0; 4]) };
+    static LIVE: Cell<isize> = const { Cell::new(0) };
+    static PEAK: Cell<isize> = const { Cell::new(0) };
 }
 
 fn record(kind: usize) {
@@ -20,28 +22,49 @@ fn record(kind: usize) {
     }
 }
 
+fn record_bytes(allocated: usize, deallocated: usize) {
+    if ACTIVE.get() {
+        let live = LIVE.get() - deallocated as isize + allocated as isize;
+        LIVE.set(live);
+        PEAK.set(PEAK.get().max(live));
+    }
+}
+
 // SAFETY: each method delegates the unchanged allocation/layout to System.
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         record(0);
         // SAFETY: the caller supplies the valid layout required by GlobalAlloc::alloc.
-        unsafe { System.alloc(layout) }
+        let ptr = unsafe { System.alloc(layout) };
+        if !ptr.is_null() {
+            record_bytes(layout.size(), 0);
+        }
+        ptr
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         record(1);
         // SAFETY: the caller supplies the valid layout required by GlobalAlloc::alloc_zeroed.
-        unsafe { System.alloc_zeroed(layout) }
+        let ptr = unsafe { System.alloc_zeroed(layout) };
+        if !ptr.is_null() {
+            record_bytes(layout.size(), 0);
+        }
+        ptr
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record(2);
         // SAFETY: forward the caller's live allocation, matching layout, and valid new size.
-        unsafe { System.realloc(ptr, layout, new_size) }
+        let ptr = unsafe { System.realloc(ptr, layout, new_size) };
+        if !ptr.is_null() {
+            record_bytes(new_size, layout.size());
+        }
+        ptr
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         record(3);
+        record_bytes(0, layout.size());
         // SAFETY: forward the caller's live System allocation and matching layout.
         unsafe { System.dealloc(ptr, layout) }
     }
@@ -50,6 +73,8 @@ unsafe impl GlobalAlloc for Counting {
 fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     assert!(!ACTIVE.get());
     CALLS.set([0; 4]);
+    LIVE.set(0);
+    PEAK.set(0);
     ACTIVE.set(true);
     let result = call();
     ACTIVE.set(false);
@@ -313,7 +338,8 @@ fn allocation_counter_is_thread_local() {
             }
         });
     });
-    let (value, calls) = observe(|| std::hint::black_box(vec![0xA5; 128]));
+    let (value, calls) = observe(|| std::hint::black_box(vec![0xA5u8; 128]));
+    assert_eq!(PEAK.get(), 128);
     assert!(
         calls[0] + calls[1] > 0,
         "the observed thread must still count"
@@ -343,9 +369,15 @@ fn large_encoding_does_not_allocate_per_leaf() {
         let input = vec![255; bytes];
         let mut output = vec![0xA5; faster_base58::max_encoded_len(input.len()) + 8];
         let (result, calls) = observe(|| faster_base58::encode(&input, &mut output[1..]));
+        let peak = PEAK.get();
         let len = result.unwrap();
+        let mib = if bytes == 1 << 20 { 18 } else { 67 };
         assert!(
-            calls[0] + calls[1] + calls[2] <= 18,
+            peak <= mib * 1024 * 1024,
+            "large encoding peak: {peak} bytes"
+        );
+        assert!(
+            calls[0] + calls[1] + calls[2] <= 7,
             "large encoding allocated per leaf: {calls:?}"
         );
         assert_eq!(output[0], 0xA5);
@@ -355,4 +387,23 @@ fn large_encoding_does_not_allocate_per_leaf() {
         assert_eq!(faster_base58::decode(text, &mut decoded), Ok(input.len()));
         assert_eq!(decoded, input);
     }
+}
+
+#[cfg(feature = "__internals")]
+#[test]
+fn owned_ntt_tables_use_one_allocation_per_prime() {
+    let input = [0xA5; 4096];
+    let text = bs58::encode(input).into_string();
+    let mut output = [0xA5; 4098];
+    let (result, calls) = observe(|| {
+        faster_base58::internals::decode_ntt_with(&text, &mut output[1..4097], false, 1, usize::MAX)
+    });
+    assert_eq!(result, Ok(input.len()));
+    assert_eq!(output[1..4097], input);
+    assert_eq!((output[0], output[4097]), (0xA5, 0xA5));
+    assert!(
+        calls[0] + calls[1] <= 4,
+        "three prime tables and one conversion workspace: {calls:?}"
+    );
+    assert_eq!(calls[2], 0, "fixed table storage must not reallocate");
 }

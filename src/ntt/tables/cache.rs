@@ -28,8 +28,8 @@ impl Tables {
     }
 }
 
-/// Static header bytes and (log, initialized, vector length bytes, vector capacity
-/// bytes), without initializing a table.
+/// Static header bytes and (log, initialized, payload bytes, owned payload bytes),
+/// without initializing a table. Boxed storage has no spare capacity.
 #[cfg(feature = "__internals")]
 #[must_use]
 pub fn cache_memory() -> (
@@ -38,14 +38,11 @@ pub fn cache_memory() -> (
 ) {
     let rows = core::array::from_fn(|log| match CACHE.get(log).and_then(OnceLock::get) {
         Some(t) => {
-            let vectors = t.tw.iter().flat_map(|tw| [&tw.fw, &tw.iw]);
-            let (len, cap) = vectors.fold((0, 0), |(len, cap), v| {
-                (
-                    len + v.len() * size_of::<i32>(),
-                    cap + v.capacity() * size_of::<i32>(),
-                )
-            });
-            (log as u32, true, len, cap)
+            let bytes =
+                t.tw.iter()
+                    .map(|tw| tw.roots.len() * size_of::<i32>())
+                    .sum();
+            (log as u32, true, bytes, bytes)
         }
         None => (log as u32, false, 0, 0),
     });

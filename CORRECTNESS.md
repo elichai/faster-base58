@@ -67,8 +67,12 @@ and locally replayed. The replacement hosted matrix remains separate evidence.
 | [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards; normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |
 
 The radix allocation regression failed on the parent and passes with one reused
-digit workspace. Its 1/4 MiB cases now also bound allocation requests after
-pooling power digits and spectra, and guard both ends of the output.
+digit workspace. Its 1/4 MiB cases now bound both allocation requests and peak
+requested live bytes after pooling power digits, spectra and root workspace,
+and guard both ends of the output. A forced owned-NTT case checks one allocation
+per prime plus the packed conversion arena, without prepared spectra or reallocations.
+Scratch tests enumerate every plan through the transform limit and retain the
+running workspace maximum, including alignment and recursion requirements.
 Product tests check poisoned output and the live low-child
 prefix consumed by fused carry. Forced best/portable radix hooks participate in
 unit, property and fuzz backend lists; their out-of-domain fallback is checked.

@@ -10,7 +10,7 @@ use core::arch::aarch64::*;
 use super::Kernels;
 use super::crt::GARNER;
 use super::portable;
-use super::tables::{PRIMES, Prime, S, Twiddles};
+use super::tables::{PRIMES, Prime, S};
 
 /// [`Prime::mont`]: `sqdmulh(a, w)` is `floor(a w / 2^31)`, and its difference with
 /// `floor(m q / 2^31)` is even, because `a w = m q mod 2^32`. `sqdmulh` saturates only
@@ -70,9 +70,9 @@ pub(crate) fn load(dst: &mut [i32], limbs: &[u64], p: Prime) {
     unsafe { load_neon(dst, limbs, p) }
 }
 
-pub(crate) fn forward(a: &mut [i32], p: Prime, t: &Twiddles) {
+pub(crate) fn forward(a: &mut [i32], p: Prime, fw: &[i32]) {
     // SAFETY: NEON is enabled for this build.
-    unsafe { forward_neon(a, p, t) }
+    unsafe { forward_neon(a, p, fw) }
 }
 
 pub(crate) fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
@@ -158,14 +158,14 @@ fn load_neon(dst: &mut [i32], limbs: &[u64], p: Prime) {
 }
 
 #[target_feature(enable = "neon")]
-fn forward_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
+fn forward_neon(a: &mut [i32], p: Prime, fw: &[i32]) {
     let n = a.len();
-    assert!(n.is_power_of_two() && n >= 8 && n <= t.fw.len());
+    assert!(n.is_power_of_two() && n >= 8 && n <= fw.len());
     let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
     let ptr = a.as_mut_ptr();
     let mut h = n / 2;
     while h >= 4 {
-        let w = t.fw[h..2 * h].as_ptr();
+        let w = fw[h..2 * h].as_ptr();
         for s in (0..n).step_by(2 * h) {
             for j in (0..h).step_by(4) {
                 // SAFETY: `s + j + h + 4 <= n`, and `j + 4 <= h` twiddles.
@@ -181,7 +181,7 @@ fn forward_neon(a: &mut [i32], p: Prime, t: &Twiddles) {
         }
         h /= 2;
     }
-    let w2 = h2(&t.fw);
+    let w2 = h2(fw);
     let w2q = vmulq_s32(w2, qinv);
     for i in (0..n).step_by(8) {
         // SAFETY: `i + 8 <= n`.
@@ -645,15 +645,15 @@ mod tests {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(40);
         let tables = Tables::new(16);
         for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
-            let mut iw = vec![0; tw.fw.len()];
+            let mut iw = vec![0; tw.fw().len()];
             let iw = tw.inverse(&mut iw);
             for log in 3..=16 {
                 let n = 1 << log;
                 let x = samples(&mut rng, p.q, n)[..n].to_vec();
                 let y = samples(&mut rng, p.q, n)[..n].to_vec();
                 let (mut a, mut b) = (x.clone(), x.clone());
-                forward(&mut a, p, tw);
-                portable::forward(&mut b, p, tw);
+                forward(&mut a, p, tw.fw());
+                portable::forward(&mut b, p, tw.fw());
                 assert_eq!(a, b, "forward, n {n}");
                 let (mut a, mut b) = (x.clone(), x.clone());
                 inverse(&mut a, p, iw);
@@ -674,7 +674,7 @@ mod tests {
                 load(&mut a, &limbs, p);
                 portable::load(&mut b, &limbs, p);
                 assert_eq!(a, b, "load, {} limbs", limbs.len());
-                let w = &tw.fw[32..64];
+                let w = &tw.fw()[32..64];
                 load_twist(&mut a, &limbs, p, w);
                 portable::load_twist(&mut b, &limbs, p, w);
                 assert_eq!(a, b, "load_twist, {} limbs", limbs.len());
