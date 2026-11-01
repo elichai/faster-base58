@@ -48,6 +48,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: rustup update stable --no-self-update
       - run: rustc +stable -vV
       - name: Unit, API, and property tests
@@ -80,6 +81,7 @@ jobs:
         features: ['__internals', '__internals,cache']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: rustup update stable --no-self-update
       - run: rustc +stable -vV
       - name: Install pinned cross
@@ -107,6 +109,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: rustup update stable --no-self-update
       - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests
       - run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests --release
@@ -126,6 +129,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: rustup update stable --no-self-update
       - run: cargo +stable test --locked --lib --tests --features __internals,malachite-nz/32_bit_limbs
       - run: cargo +stable test --locked --release --lib --tests --features __internals,malachite-nz/32_bit_limbs
@@ -135,6 +139,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-hack@0.6.45
@@ -186,6 +191,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: |
           set -e -o pipefail
           cargo +stable test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact 2>&1 | tee "$RUNNER_TEMP/maximum-transform.log"
@@ -195,6 +201,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-hack@0.6.45
@@ -219,6 +226,7 @@ jobs:
       PROPTEST_CASES: '512'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: sudo apt-get update
       - run: sudo apt-get install -y gcc-multilib
       - run: rustup target add --toolchain stable i686-unknown-linux-gnu
@@ -229,6 +237,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-hack@0.6.45
@@ -256,6 +265,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-hack@0.6.45
@@ -271,6 +281,7 @@ jobs:
         cache_args: ['', '--features cache']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }}
       - run: cargo +stable test --locked --release --manifest-path tools/resource-profile/Cargo.toml --features count-allocations ${{ matrix.cache_args }}
       - run: cargo +stable run --locked --release --manifest-path tools/resource-profile/Cargo.toml ${{ matrix.cache_args }} -- self-check
@@ -314,6 +325,7 @@ jobs:
       MIRIFLAGS: -Zmiri-strict-provenance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: rustup toolchain install nightly-2026-10-26 --component miri --profile minimal
       - run: cargo +nightly-2026-10-26 miri setup --target x86_64-unknown-linux-gnu
       - run: |
@@ -348,6 +360,7 @@ jobs:
       MIRIFLAGS: -Zmiri-strict-provenance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: sudo apt-get update
       - run: sudo apt-get install -y gcc-aarch64-linux-gnu
       - run: rustup toolchain install nightly-2026-10-26 --component miri --profile minimal
@@ -376,6 +389,7 @@ jobs:
           - { name: 'on', args: '--cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: elichai/miri
@@ -469,6 +483,7 @@ jobs:
         arch: [arm, x86]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - if: matrix.arch == 'arm'
         run: sudo apt-get update
       - if: matrix.arch == 'arm'
@@ -499,6 +514,7 @@ jobs:
           - { sanitizer: address, cache_args: '--features cache,compact', label: cache-compact }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: sudo apt-get update
       - run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
@@ -596,6 +612,7 @@ jobs:
           - { runner: macos-latest, target: aarch64-apple-darwin, cpu: native, name: cache-native, cache_args: '--features cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ github.event.repository.full_name }}
@@ -670,6 +687,7 @@ jobs:
           - { runner: macos-latest, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: rustup update stable --no-self-update
       - run: rustup component add llvm-tools-preview --toolchain stable
       - run: cargo +stable install --locked cargo-llvm-cov --version 0.9.1
@@ -707,6 +725,7 @@ jobs:
           - { sanitizer: memory, cache: 'on', compact_args: '--compact', label: memory-on-compact }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: sudo apt-get update
       - run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - run: rustup toolchain install nightly-2026-10-26 --component rust-src --profile minimal
@@ -726,6 +745,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
       - run: cargo install --locked kani-verifier --version 0.68.0
       - run: cargo kani setup
       - run: sudo apt-get update
