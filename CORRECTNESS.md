@@ -94,6 +94,8 @@ CI selects 512 cases per property in debug and release, cache off/on, across Lin
 macOS and Windows. Compact builds have additional Linux and macOS rows. Big-endian
 PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
+Native unit and integration rows use Nextest except for Linux debug,
+cache-off/on shared-process rows; documentation examples remain Cargo tests.
 The cross revision and container image digest are pinned. Other
 jobs cover 32-bit Linux, Malachite's 32-bit limb
 mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
@@ -103,9 +105,10 @@ two expensive Matrix sweeps execute with `cache` rather than rebuilding the
 same owned tables for every size.
 
 ```sh
-PROPTEST_CASES=512 cargo test --locked --features __internals --lib --tests
-PROPTEST_CASES=512 cargo test --locked --features __internals,cache --lib --tests
-cargo test --locked --release --features __internals --lib --tests
+PROPTEST_CASES=512 cargo nextest run --locked --features __internals --lib --tests
+PROPTEST_CASES=512 cargo nextest run --locked --features __internals,cache --lib --tests
+cargo nextest run --locked --release --features __internals --lib --tests
+cargo test --locked --features __internals --lib --tests # shared-process lane
 cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact
 cargo test --locked --doc
 ```

@@ -57,3 +57,12 @@ The full sequential test remains available to the stock suite and direct runs.
 These checks cover concrete executions, not complete input domains or native
 x86 behavior. A custom job must pass independently; it must not relabel the
 stock interpreter's unsupported operations as supported.
+
+## Nextest comparison
+
+The dispatch-only `Miri Nextest benchmark` workflow compares the selected
+stock-Miri groups under `cargo miri test`, Nextest with two workers, and
+Nextest with four workers. It retains the current required Miri jobs. Compare
+the artifact's elapsed seconds and the job logs before changing those jobs:
+Nextest uses a separate interpreter process per test and recompiles the test
+crate for each invocation.

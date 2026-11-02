@@ -1,0 +1,15 @@
+name: Restore Cargo sources
+description: Restore Cargo registry and Git sources cached by the main branch.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cargo/git/checkouts
+          ~/.cargo/git/db
+          ~/.cargo/registry/cache
+          ~/.cargo/registry/index
+          ~/.cargo/registry/src
+        key: cargo-sources-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'fuzz/Cargo.lock', 'tools/resource-profile/Cargo.lock') }}
