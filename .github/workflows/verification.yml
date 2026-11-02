@@ -605,7 +605,7 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-26.04
     outputs:
-      commit: ${{ steps.revision.outputs.commit }}
+      revision: ${{ steps.revision.outputs.revision }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -616,7 +616,7 @@ jobs:
       - run: mkdir -p .fuzz-corpus/corpora
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - id: revision
-        run: echo "commit=$(git -C .fuzz-corpus rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: echo "revision=$(git -C .fuzz-corpus rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   fuzz_coverage:
     needs: fuzz_corpus_snapshot
@@ -645,11 +645,11 @@ jobs:
           - { runner: macos-latest, target: aarch64-apple-darwin, cpu: native, name: cache-native, cache_args: '--features cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/cache-cargo-sources
+      # Corpus inputs come from a mutable branch; do not expose an Actions cache token.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ github.event.repository.full_name }}
-          ref: ${{ needs.fuzz_corpus_snapshot.outputs.commit }}
+          ref: ${{ needs.fuzz_corpus_snapshot.outputs.revision }}
           path: .fuzz-corpus
       - run: mkdir -p .fuzz-corpus/corpora
       - if: runner.os == 'Linux'

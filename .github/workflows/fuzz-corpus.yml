@@ -40,7 +40,7 @@ jobs:
   corpus_snapshot:
     runs-on: ubuntu-26.04
     outputs:
-      commit: ${{ steps.revision.outputs.commit }}
+      revision: ${{ steps.revision.outputs.revision }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +51,7 @@ jobs:
       - run: mkdir -p .fuzz-corpus/corpora
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - id: revision
-        run: echo "commit=$(git -C .fuzz-corpus rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: echo "revision=$(git -C .fuzz-corpus rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   smoke:
     needs: corpus_snapshot
@@ -79,7 +79,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ github.event.repository.full_name }}
-          ref: ${{ needs.corpus_snapshot.outputs.commit }}
+          ref: ${{ needs.corpus_snapshot.outputs.revision }}
           path: .fuzz-corpus
       - run: mkdir -p .fuzz-corpus/corpora
       - if: runner.os == 'Linux'
@@ -127,7 +127,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ github.event.repository.full_name }}
-          ref: ${{ needs.corpus_snapshot.outputs.commit }}
+          ref: ${{ needs.corpus_snapshot.outputs.revision }}
           path: .fuzz-corpus
       - run: mkdir -p .fuzz-corpus/corpora
       - if: runner.os == 'Linux'
@@ -150,7 +150,7 @@ jobs:
       - run: mkdir -p fuzz/publish
       - run: >-
           python3 fuzz/provenance.py --output fuzz/publish/provenance.json
-          --field source_commit=${{ github.sha }} --field corpus_commit=${{ needs.corpus_snapshot.outputs.commit }}
+          --field source_commit=${{ github.sha }} --field corpus_commit=${{ needs.corpus_snapshot.outputs.revision }}
           --field run_id=${{ github.run_id }} --field arch=${{ matrix.arch }} --field target_cpu=${{ matrix.cpu }}
           --field features=${{ matrix.label }} --field sanitizer=address --field seed="$FUZZ_SEED"
           --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=${{ env.RUST_NIGHTLY }}
@@ -191,7 +191,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ github.event.repository.full_name }}
-          ref: ${{ needs.corpus_snapshot.outputs.commit }}
+          ref: ${{ needs.corpus_snapshot.outputs.revision }}
           path: .fuzz-corpus
       - run: mkdir -p .fuzz-corpus/corpora
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
