@@ -14,6 +14,8 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     let selector = support::scalar::selector(data);
+    // The public decoder takes raw bytes; backend hooks take lossy `&str`.
+    support::check_decode_bytes(data, selector);
     support::check_decode(&String::from_utf8_lossy(data), selector);
     let mut valid: String = data
         .iter()

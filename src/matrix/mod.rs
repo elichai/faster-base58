@@ -75,7 +75,8 @@ pub(crate) const PANEL: Panel = BEST.panel;
 pub(crate) mod entry {
     use super::table::MAX_CHARS;
     use super::*;
-    use crate::{Error, common::invalid, dc::write_bytes};
+    use crate::common::{DecodeError, invalid};
+    use crate::dc::write_bytes;
 
     /// Inputs with fewer digits than this use the batched decoder, which is faster there.
     /// Tuned by measurement; see `docs/performance.md`.
@@ -84,7 +85,11 @@ pub(crate) mod entry {
     /// Converts `MATRIX_MIN..=MAX_CHARS` significant digits without backend fallbacks.
     #[cfg(feature = "cache")]
     #[inline]
-    pub(crate) fn decode(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
+    pub(crate) fn decode(
+        input: &[u8],
+        zeros: usize,
+        output: &mut [u8],
+    ) -> Result<usize, DecodeError> {
         assert!(
             input.len() - zeros >= MATRIX_MIN,
             "value is too short for the matrix decoder"
@@ -96,11 +101,11 @@ pub(crate) mod entry {
     #[inline(never)]
     pub(super) fn decode_parts(
         k: &Kernels,
-        input: &str,
+        input: &[u8],
         zeros: usize,
         output: &mut [u8],
-    ) -> Result<usize, Error> {
-        let digits = &input.as_bytes()[zeros..];
+    ) -> Result<usize, DecodeError> {
+        let digits = &input[zeros..];
         assert!(digits.len() <= MAX_CHARS, "too many digits for one matrix");
         debug_assert_ne!(digits.first(), Some(&b'1'));
         // A nonzero first digit gives at least 58^(d - 1), as in the D&C preflight.
@@ -110,11 +115,11 @@ pub(crate) mod entry {
             ((digits.len() - 1) as u128 * 732 / 1000) as usize + 1
         };
         if output.len() < zeros + min_len {
-            return Err(Error::BufferTooSmall);
+            return Err(DecodeError::BufferTooSmall);
         }
         let mut scratch = Scratch::new();
         let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input))?;
-        write_bytes(zeros, limbs, output)
+        Ok(write_bytes(zeros, limbs, output)?)
     }
 }
 
@@ -150,20 +155,22 @@ pub(crate) mod internals {
         output: &mut [u8],
         min: usize,
     ) -> Result<usize, Error> {
-        let (zeros, digits) = crate::common::split_zeros(input.as_bytes());
-        if digits.len() < min {
-            return crate::batched::decode_parts(input, zeros, output);
-        }
-        if digits.len() > table::MAX_CHARS {
-            return crate::dc::decode_parts(
+        let input = input.as_bytes();
+        let (zeros, digits) = crate::common::split_zeros(input);
+        let result = if digits.len() < min {
+            crate::batched::decode_parts(input, zeros, output)
+        } else if digits.len() > table::MAX_CHARS {
+            crate::dc::decode_parts(
                 input,
                 zeros,
                 output,
                 &mut crate::dc::Karatsuba,
                 crate::dc::Leaf::Horner,
-            );
-        }
-        decode_parts(k, input, zeros, output)
+            )
+        } else {
+            decode_parts(k, input, zeros, output)
+        };
+        Ok(result?)
     }
 
     #[cfg(feature = "__internals")]
@@ -317,7 +324,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value is too short for the matrix decoder")]
     fn selected_decoder_rejects_short_values() {
-        entry::decode("2", 0, &mut [0; 1]).unwrap();
+        entry::decode(b"2", 0, &mut [0; 1]).unwrap();
     }
 
     /// Class boundaries and the dispatch threshold, each with its neighbours.

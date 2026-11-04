@@ -66,7 +66,10 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
     #[inline(always)]
     #[cfg(feature = "alloc")]
     pub fn into_string(self) -> String {
-        String::from_utf8(self.into_vec()).expect("base58 output is ASCII")
+        let bytes = self.into_vec();
+        debug_assert!(bytes.is_ascii(), "encoders write only alphabet bytes");
+        // SAFETY: every encoder writes only `ALPHABET` bytes, which are ASCII.
+        unsafe { String::from_utf8_unchecked(bytes) }
     }
 
     /// Encodes into owned ASCII bytes.
@@ -93,7 +96,11 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
         let len = match self.encoder.alphabet {
             Alphabet::Bitcoin => crate::api::encode(self.input.as_ref(), output),
         }?;
-        Ok(core::str::from_utf8(&output[..len]).expect("base58 output is ASCII"))
+        let text = &output[..len];
+        debug_assert!(text.is_ascii(), "encoders write only alphabet bytes");
+        // SAFETY: every encoder writes only `ALPHABET` bytes, which are ASCII, to
+        // `output[..len]`.
+        Ok(unsafe { core::str::from_utf8_unchecked(text) })
     }
 }
 
@@ -120,10 +127,11 @@ impl Decoder {
         }
     }
 
-    /// Sets text for one conversion. References borrow; owned strings move in.
+    /// Sets Base58 text for one conversion: a string or raw bytes, which need not be
+    /// UTF-8. References borrow; owned inputs move in.
     /// Conversion starts at a terminal method such as [`DecodeInput::onto`].
     #[inline(always)]
-    pub const fn decode<I: AsRef<str>>(self, input: I) -> DecodeInput<I> {
+    pub const fn decode<I: AsRef<[u8]>>(self, input: I) -> DecodeInput<I> {
         DecodeInput {
             decoder: self,
             input,
@@ -139,7 +147,7 @@ pub struct DecodeInput<I> {
     input: I,
 }
 
-impl<I: AsRef<str>> DecodeInput<I> {
+impl<I: AsRef<[u8]>> DecodeInput<I> {
     /// Decodes into an owned byte vector.
     ///
     /// # Errors
@@ -147,9 +155,9 @@ impl<I: AsRef<str>> DecodeInput<I> {
     #[inline(always)]
     #[cfg(feature = "alloc")]
     pub fn into_vec(self) -> Result<Vec<u8>, Error> {
-        match self.decoder.alphabet {
+        Ok(match self.decoder.alphabet {
             Alphabet::Bitcoin => crate::api::decode_vec(self.input.as_ref()),
-        }
+        }?)
     }
 
     /// Decodes into `output` and borrows the data bytes. Exact data capacity
@@ -169,9 +177,10 @@ impl<I: AsRef<str>> DecodeInput<I> {
     /// Decodes exactly `N` bytes.
     ///
     /// # Errors
-    /// Returns [`Error::InvalidLength`] for a shorter result, or
-    /// [`Error::BufferTooSmall`] for a longer result, in addition to the
-    /// validation errors from [`Self::onto`]. Error precedence is unspecified.
+    /// Returns [`Error::InvalidLength`] for a shorter result. A longer result returns
+    /// [`Error::BufferTooSmall`]: decoding stops when the array is full, so the actual
+    /// length is unknown. Also returns the validation errors from [`Self::onto`].
+    /// Error precedence is unspecified.
     #[inline(always)]
     pub fn into_array<const N: usize>(self) -> Result<[u8; N], Error> {
         let mut output = [0; N];

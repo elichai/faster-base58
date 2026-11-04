@@ -4,11 +4,11 @@
 use alloc::vec::Vec;
 
 #[cfg(feature = "alloc")]
-use crate::{BufferTooSmall, Error};
+use crate::{BufferTooSmall, common::DecodeError};
 
 #[inline]
 #[cfg(feature = "alloc")]
-pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
+pub(crate) fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     match input.len() {
         32 => return crate::encode::matrix::fixed::encode_32(input.try_into().unwrap(), output),
         64 => return crate::encode::matrix::fixed::encode_64(input.try_into().unwrap(), output),
@@ -36,65 +36,60 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
 #[cfg(feature = "alloc")]
 pub(crate) enum EncodeBackend {
     Batched,
-    #[cfg(all(feature = "alloc", not(feature = "cache")))]
+    #[cfg(not(feature = "cache"))]
     Karatsuba {
         leaf: usize,
     },
     #[cfg(feature = "cache")]
     Matrix,
-    #[cfg(feature = "alloc")]
     Ntt,
 }
 
 #[cfg(feature = "alloc")]
 #[inline(always)]
 pub(crate) fn encode_backend(bytes: usize) -> EncodeBackend {
-    #[cfg(not(feature = "alloc"))]
+    #[cfg(feature = "cache")]
     {
-        let _ = bytes;
-        EncodeBackend::Batched
-    }
-    #[cfg(feature = "alloc")]
-    {
-        #[cfg(feature = "cache")]
-        {
-            use crate::encode::matrix::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
-            if bytes < MATRIX_MIN {
-                return EncodeBackend::Batched;
-            }
-            let cap = if crate::mul::ifma_threshold() != 0 {
-                IFMA_CAP
-            } else {
-                MAX_INPUT
-            };
-            if bytes <= cap {
-                return EncodeBackend::Matrix;
-            }
+        use crate::encode::matrix::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
+        if bytes < MATRIX_MIN {
+            return EncodeBackend::Batched;
         }
-        #[cfg(not(feature = "cache"))]
-        if bytes <= crate::ntt::ENCODE_THRESHOLD {
-            let (threshold, leaf) = crate::encode::dc::karatsuba::params();
-            return if bytes > threshold {
-                EncodeBackend::Karatsuba { leaf }
-            } else {
-                EncodeBackend::Batched
-            };
+        let cap = if crate::mul::ifma_threshold() != 0 {
+            IFMA_CAP
+        } else {
+            MAX_INPUT
+        };
+        if bytes <= cap {
+            return EncodeBackend::Matrix;
         }
-        EncodeBackend::Ntt
     }
+    #[cfg(not(feature = "cache"))]
+    if bytes <= crate::ntt::ENCODE_THRESHOLD {
+        let (threshold, leaf) = crate::encode::dc::karatsuba::params();
+        return if bytes > threshold {
+            EncodeBackend::Karatsuba { leaf }
+        } else {
+            EncodeBackend::Batched
+        };
+    }
+    EncodeBackend::Ntt
 }
 
 #[cfg(feature = "alloc")]
-pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+pub(crate) fn decode(input: &[u8], output: &mut [u8]) -> Result<usize, DecodeError> {
     if input.len() <= 2 {
         return crate::batched::decode_short(input, output);
     }
-    let (zeros, _) = crate::common::split_zeros(input.as_bytes());
+    let (zeros, _) = crate::common::split_zeros(input);
     decode_parts(input, zeros, output)
 }
 
 #[cfg(feature = "alloc")]
-pub(crate) fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
+pub(crate) fn decode_parts(
+    input: &[u8],
+    zeros: usize,
+    output: &mut [u8],
+) -> Result<usize, DecodeError> {
     let digits = input.len() - zeros;
     if digits <= decode_small_limit() {
         return crate::batched::decode_parts(input, zeros, output);
@@ -118,22 +113,17 @@ pub(crate) fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Resu
 #[cfg(feature = "alloc")]
 pub(crate) enum DecodeBackend {
     Batched,
-    #[cfg(all(feature = "alloc", not(feature = "cache")))]
+    #[cfg(not(feature = "cache"))]
     Karatsuba,
     #[cfg(feature = "cache")]
     Matrix,
-    #[cfg(feature = "alloc")]
     Ntt,
 }
 
 #[cfg(feature = "alloc")]
 #[inline(always)]
 fn decode_small_limit() -> usize {
-    #[cfg(not(feature = "alloc"))]
-    {
-        usize::MAX
-    }
-    #[cfg(all(feature = "alloc", not(feature = "cache")))]
+    #[cfg(not(feature = "cache"))]
     {
         crate::dc::DC_THRESHOLD * crate::common::CHUNK
     }
@@ -158,48 +148,40 @@ pub(crate) fn decode_backend(digits: usize) -> DecodeBackend {
     if digits <= decode_small_limit() {
         return DecodeBackend::Batched;
     }
-    #[cfg(not(feature = "alloc"))]
+    #[cfg(not(feature = "cache"))]
     {
-        let _ = digits;
-        DecodeBackend::Batched
-    }
-    #[cfg(feature = "alloc")]
-    {
-        #[cfg(not(feature = "cache"))]
-        {
-            if digits <= 5632 {
-                return DecodeBackend::Karatsuba;
-            }
-            DecodeBackend::Ntt
+        if digits <= 5632 {
+            return DecodeBackend::Karatsuba;
         }
-        #[cfg(feature = "cache")]
-        {
-            if digits > 5632 {
+        DecodeBackend::Ntt
+    }
+    #[cfg(feature = "cache")]
+    {
+        if digits > 5632 {
+            return DecodeBackend::Ntt;
+        }
+        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+        if crate::mul::ifma_threshold() != 0 {
+            if digits > 5120 {
                 return DecodeBackend::Ntt;
             }
-            #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-            if crate::mul::ifma_threshold() != 0 {
-                if digits > 5120 {
-                    return DecodeBackend::Ntt;
-                }
-                if cfg!(target_feature = "avx2") {
-                    return DecodeBackend::Batched;
-                }
+            if cfg!(target_feature = "avx2") {
+                return DecodeBackend::Batched;
             }
-            if cfg!(all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            )) || cfg!(target_arch = "wasm32")
-            {
-                return DecodeBackend::Matrix;
-            }
-            #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-            if crate::cpu::sse41() {
-                return DecodeBackend::Matrix;
-            }
-            DecodeBackend::Batched
         }
+        if cfg!(all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        )) || cfg!(target_arch = "wasm32")
+        {
+            return DecodeBackend::Matrix;
+        }
+        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+        if crate::cpu::sse41() {
+            return DecodeBackend::Matrix;
+        }
+        DecodeBackend::Batched
     }
 }
 
@@ -208,7 +190,7 @@ pub(crate) use crate::no_alloc::{decode, encode};
 
 #[inline]
 #[cfg(feature = "alloc")]
-pub fn decode_vec(input: &str) -> Result<Vec<u8>, Error> {
+pub(crate) fn decode_vec(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     if input.is_empty() {
         return Ok(Vec::new());
     }
@@ -217,7 +199,7 @@ pub fn decode_vec(input: &str) -> Result<Vec<u8>, Error> {
 
 #[inline(never)]
 #[cfg(feature = "alloc")]
-fn decode_vec_nonempty(input: &str) -> Result<Vec<u8>, Error> {
+fn decode_vec_nonempty(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     debug_assert!(!input.is_empty());
     if input.len() <= 2 {
         let mut output = vec![0; input.len()];
@@ -225,7 +207,7 @@ fn decode_vec_nonempty(input: &str) -> Result<Vec<u8>, Error> {
         output.truncate(len);
         return Ok(output);
     }
-    let (zeros, digits) = crate::common::split_zeros(input.as_bytes());
+    let (zeros, digits) = crate::common::split_zeros(input);
     let mut output = vec![0; zeros + decoded_capacity(digits.len())];
     let len = decode_parts(input, zeros, output.as_mut_slice())?;
     output.truncate(len);

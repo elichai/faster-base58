@@ -284,6 +284,16 @@ fn invalid_byte_offsets() {
         assert_eq!(output[0], 0xA5);
         assert_eq!(output[31], 0xA5);
     }
+    // Raw bytes need not be UTF-8.
+    for (text, index) in [(&b"\x80"[..], 0), (b"2\xC3", 1), (b"1112\xFF", 4)] {
+        assert_eq!(
+            without_allocations(|| faster_base58::Decoder::bitcoin()
+                .decode(text)
+                .onto(&mut [0; 8])
+                .map(|bytes| bytes.len())),
+            Err(Error::InvalidCharacter { index }),
+        );
+    }
     for index in [0, 1, 9, 10, 19, 20, 575, 576, 5631, 5632, 8192] {
         let mut text = vec![b'2'; 8193];
         text[index] = b'0';

@@ -41,8 +41,9 @@ the existing conversion kernels.
 
 Encoding provides `.into_string()`, `.into_vec()` (ASCII bytes), and `.onto()`
 (borrowed `&str`). Decoding provides `.into_vec()`, `.into_array::<N>()`, and
-`.onto()` (borrowed `&mut [u8]`). Input can be borrowed or owned; decoded input
-must implement `AsRef<str>`. Owned output methods require `alloc` (enabled by
+`.onto()` (borrowed `&mut [u8]`). Input can be borrowed or owned. Decoded input
+implements `AsRef<[u8]>`: strings and raw bytes work, and bytes need no UTF-8
+validation first. Owned output methods require `alloc` (enabled by
 default). Borrowed output and exact arrays are available with either allocation policy.
 
 ```rust
@@ -62,9 +63,10 @@ assert_eq!(DECODER.decode(text).onto(&mut byte_buffer)?, input);
 `ENCODER.max_encoded_len(n)` bounds encoded output; exact result capacity also
 works. Plain decoding needs at most one output byte per input text byte. Leading
 zero bytes round-trip as leading `'1'` characters. `.into_array::<N>()` requires
-exactly `N` bytes: shorter results return `InvalidLength`, longer ones `BufferTooSmall`.
+exactly `N` bytes: shorter results return `InvalidLength`, longer ones `BufferTooSmall`
+(decoding stops when the array is full, so the actual length is not known).
 
-Invalid-character indices are UTF-8 byte offsets. `Error` is `#[non_exhaustive]`;
+Invalid-character indices are byte offsets into the input. `Error` is `#[non_exhaustive]`;
 downstream matches need a wildcard arm. Errors implement `Display` and
 the standard error trait. Successful calls leave the unused output tail untouched;
 on errors, output contents and error precedence are unspecified. Conversion timing

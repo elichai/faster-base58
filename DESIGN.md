@@ -13,6 +13,13 @@ cutoff directly before matching the large backend, keeping enum classification
 off the small path. Fixed-size encoding and tiny decoding run before general
 selection; their wrappers preserve the specialized input contracts.
 
+Decoders take raw bytes and return a crate-private two-variant error; only the
+public terminal methods convert it to `Error`. Kernels that can fail only on
+capacity return the zero-sized `BufferTooSmall`. This keeps hot-loop result
+layouts independent of public, feature-gated error variants. Encoder output is
+alphabet bytes only, so `.onto()` and `.into_string()` skip UTF-8 validation
+(a debug assertion checks it).
+
 ## Conversion families
 
 | Family | Method and role | Main cost |

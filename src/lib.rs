@@ -58,7 +58,13 @@ mod toom3;
 mod verification;
 
 #[cfg(test)]
-pub(crate) use api::{decode, encode};
+pub(crate) use api::encode;
+
+/// Automatic decoding with the hooks' `&str` / [`Error`] signature, for unit tests.
+#[cfg(test)]
+pub(crate) fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+    Ok(api::decode(input.as_bytes(), output)?)
+}
 pub use config::{DecodeInput, Decoder, EncodeInput, Encoder};
 
 #[cfg(any(test, feature = "__internals"))]
@@ -81,15 +87,11 @@ extern crate self as faster_base58;
 #[non_exhaustive]
 pub enum Error {
     /// The byte at `index` is the first that is not in the alphabet.
-    InvalidCharacter {
-        index: usize,
-    },
+    InvalidCharacter { index: usize },
+    /// The output buffer cannot hold the decoded bytes.
     BufferTooSmall,
     /// An exact-length array was requested, but fewer bytes were decoded.
-    InvalidLength {
-        expected: usize,
-        actual: usize,
-    },
+    InvalidLength { expected: usize, actual: usize },
 }
 
 /// An encoding error: the output buffer cannot hold the result.
@@ -111,6 +113,13 @@ impl core::fmt::Display for Error {
 }
 
 impl core::error::Error for Error {}
+
+impl From<BufferTooSmall> for Error {
+    #[inline]
+    fn from(BufferTooSmall: BufferTooSmall) -> Self {
+        Self::BufferTooSmall
+    }
+}
 
 impl core::fmt::Display for BufferTooSmall {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

@@ -91,7 +91,11 @@ const CACHED_LEAF: usize = match Leaves::BEST {
 /// use Horner. Tables are built only when a product uses transforms.
 #[inline(never)]
 #[cfg(feature = "alloc")]
-pub(crate) fn decode(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, crate::Error> {
+pub(crate) fn decode(
+    input: &[u8],
+    zeros: usize,
+    output: &mut [u8],
+) -> Result<usize, crate::common::DecodeError> {
     dc::decode_parts(
         input,
         zeros,

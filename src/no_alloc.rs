@@ -6,7 +6,8 @@
 //! general matrix or NTT caches. General conversion takes quadratic time and
 //! uses the output buffer as scratch. Timing depends on input values and length.
 
-use crate::{BufferTooSmall, Error};
+use crate::BufferTooSmall;
+use crate::common::{DecodeError, split_zeros};
 
 /// Encodes Bitcoin Base58 and returns the number of bytes written.
 ///
@@ -34,13 +35,14 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
 /// including first use and error paths.
 ///
 /// # Errors
-/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
-/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
+/// Returns [`DecodeError::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`DecodeError::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 #[inline]
-pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
+pub(crate) fn decode(input: &[u8], output: &mut [u8]) -> Result<usize, DecodeError> {
     if input.len() <= 2 {
         crate::batched::decode_short(input, output)
     } else {
-        crate::batched::decode_batched(input, output)
+        let (zeros, _) = split_zeros(input);
+        crate::batched::decode_parts(input, zeros, output)
     }
 }

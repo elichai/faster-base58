@@ -3,9 +3,9 @@
 Both targets compare configured Auto, the internal heap-free kernels, and the backends exposed by `__internals`
 with `bs58`. They check empty inputs, leading zeros, exact/short/oversized output
 slices, result suffixes, and canaries around each slice. Decoding checks the first
-invalid byte index. The backends take
-`&str`, so malformed UTF-8 is tested after lossy conversion; arbitrary raw invalid
-UTF-8 cannot be passed to those APIs.
+invalid byte index. The public decoder takes raw bytes, so decode also passes the
+fuzz input unchanged, including invalid UTF-8. The backend hooks take `&str`, so
+they see malformed UTF-8 only after lossy conversion.
 
 The forced `radix` and `radix-portable` encoders bypass production CPU/size
 selection and participate in the shared differential checks on every target.

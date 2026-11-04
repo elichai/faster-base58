@@ -14,6 +14,9 @@ They do not establish performance for this API revision. Constant `Encoder` /
 
 ### Configured API comparison
 
+**Historical:** this cohort predates the internal decode error, raw-byte decode
+input and unchecked ASCII output changes, which alter the measured paths.
+
 Measured 2026-11-04 against `771c174`, with ordinary borrowed public APIs and no
 `__internals`. Native Apple M5 Pro used Rust 1.99.1 / LLVM 23.1.1 and compiler-default
 `aarch64-apple-darwin`; GCP EPYC 9B45 used Rust 1.99.0 / LLVM 23.1.1, generic

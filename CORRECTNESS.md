@@ -48,9 +48,9 @@ rejects the removed free functions and `no_alloc` module.
 - Exact output capacity suffices. Successful calls leave the unused tail intact.
   Buffers may change on error. Invalid-input versus insufficient-capacity error
   precedence is unspecified when both apply.
-- Invalid-character indices are UTF-8 **byte** offsets. `.into_array::<N>()`
-  requires exactly `N` bytes; shorter results return `InvalidLength`, longer
-  ones `BufferTooSmall`.
+- Decoding accepts strings or raw bytes; bytes need not be UTF-8. Invalid-character
+  indices are **byte** offsets. `.into_array::<N>()` requires exactly `N` bytes;
+  shorter results return `InvalidLength`, longer ones `BufferTooSmall`.
 - Without `alloc`, conversion performs no allocator operations, including first
   calls and errors. Borrow input to exclude allocator calls from dropping owned
   input. With `alloc`, conversion may allocate workspace even with caller-provided output. Allocation
@@ -95,8 +95,8 @@ halves with the other half zero, pair boundaries and one million complete limbs.
 That is bounded enumeration, not exhaustive coverage of the `58^10` domain.
 
 Property strategies cover arbitrary binary data, valid Base58 strings and valid
-UTF-8 containing malformed Base58. The API accepts `&str`, so raw invalid UTF-8
-cannot enter it. bs58 0.5.1 supplies an additional oracle, including first-invalid
+UTF-8 containing malformed Base58. The public decoder also takes raw bytes; the
+builder tests, heap-free tests and `decode_all` fuzzer pass invalid UTF-8 to it. bs58 0.5.1 supplies an additional oracle, including first-invalid
 indices. Canary checks surround the passed output slice; they do not assert
 unspecified error-buffer contents. Unit tests also cover MiB conversions, all-one
 carry patterns, powers, small exhaustive inputs and all legal NTT scale lengths.
@@ -228,7 +228,7 @@ loops have explicit bounds. Required harnesses use 60/180/360-second budgets.
 
 | Obligation family | Proven domain or property |
 | --- | --- |
-| Tiny production conversion | Every one-byte encoder value and capacity 0–3; valid UTF-8 text of exactly two bytes and capacity 0–3; alphabet and lookup round trips |
+| Tiny production conversion | Every one-byte encoder value and capacity 0–3; every two-byte input (including non-UTF-8) and capacity 0–3; alphabet and lookup round trips |
 | Generic batched decoding | All `58^2` valid two-digit strings and capacities 0–3; numeric value, leading zeros, errors and output canaries |
 | Parsing | All 256 lookup entries; validity through four bytes, zero split through eight, partial chunks through nine; full ten-byte numeric value and invalid rejection by verified composition |
 | Limb arithmetic | Full-width two-limb carry/borrow; one-limb multiplication; single radix updates; three limbs folded into one modulo `2^64 - 1`; exact Toom division by three |
