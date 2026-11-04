@@ -12,10 +12,10 @@ mod malachite;
 use std::hint::black_box;
 use std::time::Instant;
 
+use faster_base58::BufferTooSmall;
 use faster_base58::internals::{
     Leaves, encode_batched, encode_karatsuba_with, encode_matrix, encode_ntt_with,
 };
-use faster_base58::{BufferTooSmall, max_encoded_len};
 use malachite::encode_malachite_with;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
@@ -91,7 +91,7 @@ fn main() {
         let mut data = vec![0u8; size];
         Xoshiro256PlusPlus::seed_from_u64(size as u64).fill_bytes(&mut data);
         data[0] |= 1;
-        let mut out = vec![0u8; max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
         let n = configs[0].1(&data, &mut out);
         let want = out[..n].to_vec();
         let mut iters = Vec::new();

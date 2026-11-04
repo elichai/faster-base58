@@ -1,7 +1,9 @@
 //! Quadratic decoding with one 64-bit limb update per ten characters.
 
 use crate::Error;
-use crate::common::{BASE, DIGITS, chunks, invalid, split_zeros};
+#[cfg(any(not(feature = "alloc"), test, feature = "__internals", kani))]
+use crate::common::split_zeros;
+use crate::common::{BASE, DIGITS, chunks, invalid};
 
 /// Decodes `input` into `output` and returns the number of bytes written.
 ///
@@ -10,6 +12,7 @@ use crate::common::{BASE, DIGITS, chunks, invalid, split_zeros};
 /// # Errors
 /// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
 /// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
+#[cfg(any(not(feature = "alloc"), test, feature = "__internals", kani))]
 pub fn decode_batched(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     let (zeros, _) = split_zeros(input.as_bytes());
     decode_parts(input, zeros, output)

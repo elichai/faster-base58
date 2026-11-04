@@ -1,3 +1,5 @@
+#![cfg(feature = "alloc")]
+
 //! Owned decoding must keep its tighter allocation large enough for every value.
 
 #[path = "support/scalar.rs"]
@@ -7,7 +9,10 @@ use faster_base58::Error;
 use proptest::prelude::*;
 
 fn check(input: &str, expected: &[u8]) {
-    let output = faster_base58::decode_vec(input).unwrap();
+    let output = faster_base58::Decoder::bitcoin()
+        .decode(input)
+        .into_vec()
+        .unwrap();
     assert_eq!(output, expected);
     assert!(output.capacity() <= input.len());
     let zeros = input.bytes().take_while(|&byte| byte == b'1').count();
@@ -41,7 +46,7 @@ fn late_invalid_bytes_are_reported_after_long_zero_and_numeric_prefixes() {
                 input.push(invalid);
                 input.push('🦀');
                 assert_eq!(
-                    faster_base58::decode_vec(&input),
+                    faster_base58::Decoder::bitcoin().decode(&input).into_vec(),
                     Err(Error::InvalidCharacter {
                         index: prefix.len()
                     }),

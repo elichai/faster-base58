@@ -38,23 +38,34 @@ and locally replayed. The replacement hosted matrix remains separate evidence.
 
 ## Public contract
 
+The default-on `alloc` feature enables allocating backends and owned results.
+`cache` and `__internals` imply `alloc`. Allocation-free public tests run with
+`cargo test --locked --no-default-features --test no_alloc`.
+The downstream API checker also checks owned method availability and
+rejects the removed free functions and `no_alloc` module.
+
 - The alphabet is Bitcoin Base58. Leading zero bytes become leading `'1'`s.
 - Exact output capacity suffices. Successful calls leave the unused tail intact.
   Buffers may change on error. Invalid-input versus insufficient-capacity error
   precedence is unspecified when both apply.
-- Invalid-character indices are UTF-8 **byte** offsets. `decode_array::<N>`
+- Invalid-character indices are UTF-8 **byte** offsets. `.into_array::<N>()`
   requires exactly `N` bytes; shorter results return `InvalidLength`, longer
   ones `BufferTooSmall`.
-- `no_alloc` performs no allocator operations, including first calls and errors.
-  Auto may allocate workspace even with caller-provided output. Allocation
+- Without `alloc`, conversion performs no allocator operations, including first
+  calls and errors. Borrow input to exclude allocator calls from dropping owned
+  input. With `alloc`, conversion may allocate workspace even with caller-provided output. Allocation
   failure can abort; conversion errors do not represent allocation failure.
 - Work and dispatch depend on values and lengths. The crate is not constant-time.
   Transform and fuzz bounds are not maximum input lengths.
+- `Encoder` / `Decoder` configurations are reusable constants. They convert only
+  at terminal methods.
+- `Error` is non-exhaustive; downstream matches must retain a wildcard arm.
 
 ## Tests and independent references
 
 | Check | What it exercises |
 | --- | --- |
+| [Configurable codec](tests/builders.rs) | Const configuration, owned/borrowed inputs, plain codec agreement, exact arrays, and untouched tails |
 | [Public properties](tests/public_properties.rs) | Independent integer/radix conversion, zero prefixes, exact/short/oversized buffers, Unicode error indices, repeated output and dispatch history |
 | [Bitcoin Core vectors](tests/bitcoin_core.rs) | 21 pinned known-answer vectors, zero extensions to 32/64 bytes, short output, preserved tails, and explicit strict whitespace/NUL rules; internal wrappers run when enabled |
 | [Owned decoding](tests/owned_output.rs) | Maximum digits at capacity and dispatch boundaries, arbitrary digits, long zero prefixes, independent scalar values and byte offsets of late invalid characters |
@@ -116,7 +127,7 @@ cargo test --locked --doc
 ## Fuzzing and sanitizers
 
 The [two general differential targets](fuzz/README.md) compare all backend
-wrappers, Auto and `no_alloc`: values, capacities, suffixes, canaries, owned
+wrappers and both allocation policies: values, capacities, suffixes, canaries, owned
 helpers and malformed input. Decode also maps bytes to valid digits and inserts
 invalid ASCII or multibyte characters, including late positions. Small mutation
 inputs keep quadratic oracles useful; named boundary replay covers larger

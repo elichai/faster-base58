@@ -231,11 +231,13 @@ version = "0.0.0"
 edition = "2024"
 [workspace]
 [dependencies]
-faster-base58 = {{ path = {json.dumps(str(source))} }}
+faster-base58 = {{ path = {json.dumps(str(source))}, default-features = false }}
 malachite-nz = {{ version = "=0.14.0", optional = true }}
 bs58 = {{ version = "=0.5.1", optional = true }}
 five8 = {{ version = "=1.0.0", optional = true }}
 [features]
+default = ["alloc"]
+alloc = ["faster-base58/alloc"]
 malachite = ["dep:malachite-nz"{feature}]
 bs58 = ["dep:bs58"]
 five8 = ["dep:five8"]
@@ -336,11 +338,13 @@ incremental = false
                     if kind == "bin":
                         command += ["base58-code-size"]
                     features = []
+                    if backend == "no-alloc":
+                        command += ["--no-default-features"]
                     if backend in ("malachite", "bs58", "five8"):
                         features.append(backend)
                     if backend not in ("empty", "auto", "no-alloc", "malachite", "bs58", "five8"):
                         features.append("benchmark-controls")
-                    if args.cache:
+                    if args.cache and backend != "no-alloc":
                         features.append("cache")
                     if args.compact:
                         features.append("compact")

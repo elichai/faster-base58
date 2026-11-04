@@ -72,7 +72,7 @@ jobs:
         if: matrix.os != 'ubuntu-latest' || matrix.profile.name != 'debug'
         run: cargo +stable nextest run --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
       - name: Public API without internal exports
-        run: cargo +stable nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+        run: cargo +stable nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Radix transform limit and public fallback
         if: runner.arch == 'ARM64' && matrix.profile.name == 'release'
         run: cargo +stable test --locked --release --test radix_boundaries ${{ matrix.caches.public_args }} -- --ignored --exact full_transform_limit_and_fallback_match_malachite
@@ -83,6 +83,9 @@ jobs:
         run: python3 scripts/check_public_api.py --output "$RUNNER_TEMP/base58-api-namespace"
       - name: Documentation examples
         run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+      - name: Public conversion without allocating backends
+        if: matrix.caches.name == 'off'
+        run: cargo +stable nextest run --locked --no-default-features --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core ${{ matrix.profile.args }}
       - name: Compile every benchmark
         run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 
@@ -134,8 +137,8 @@ jobs:
       - run: rustup update stable --no-self-update
       - run: cargo +stable nextest run --locked --features ${{ matrix.caches.features }} --lib --tests
       - run: cargo +stable nextest run --locked --features ${{ matrix.caches.features }} --lib --tests --release
-      - run: cargo +stable nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }}
-      - run: cargo +stable nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} --release
+      - run: cargo +stable nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }}
+      - run: cargo +stable nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} --release
       - run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }}
       - run: cargo +stable build --locked --release --features ${{ matrix.caches.features }} --benches
 
@@ -169,17 +172,16 @@ jobs:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - run: rustup target add --toolchain stable wasm32-unknown-unknown aarch64-unknown-linux-gnu thumbv7em-none-eabi x86_64-unknown-none
       - run: rustup component add clippy llvm-tools --toolchain stable
-      # shortcut: default is empty; include it in root powersets if it gains features.
-      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features default --target wasm32-unknown-unknown
-      - run: cargo +stable hack clippy --locked --lib --feature-powerset --exclude-features default --target wasm32-unknown-unknown -- -D warnings
-      - run: cargo +stable hack build --locked --release --lib --feature-powerset --exclude-features default --target wasm32-unknown-unknown
-      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features default --target aarch64-unknown-linux-gnu
-      - run: cargo +stable hack clippy --locked --lib --feature-powerset --exclude-features default --target aarch64-unknown-linux-gnu -- -D warnings
-      - run: cargo +stable hack build --locked --release --lib --feature-powerset --exclude-features default --target aarch64-unknown-linux-gnu
-      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features default,std,cache --target thumbv7em-none-eabi
-      - run: cargo +stable hack build --locked --release --lib --feature-powerset --exclude-features default,std,cache --target thumbv7em-none-eabi
-      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features default,std,cache --target x86_64-unknown-none
-      - run: cargo +stable hack build --locked --release --lib --feature-powerset --exclude-features default,std,cache --target x86_64-unknown-none
+      - run: cargo +stable hack build --locked --lib --feature-powerset --target wasm32-unknown-unknown
+      - run: cargo +stable hack clippy --locked --lib --feature-powerset --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo +stable hack build --locked --release --lib --feature-powerset --target wasm32-unknown-unknown
+      - run: cargo +stable hack build --locked --lib --feature-powerset --target aarch64-unknown-linux-gnu
+      - run: cargo +stable hack clippy --locked --lib --feature-powerset --target aarch64-unknown-linux-gnu -- -D warnings
+      - run: cargo +stable hack build --locked --release --lib --feature-powerset --target aarch64-unknown-linux-gnu
+      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features std,cache --target thumbv7em-none-eabi
+      - run: cargo +stable hack build --locked --release --lib --feature-powerset --exclude-features std,cache --target thumbv7em-none-eabi
+      - run: cargo +stable hack build --locked --lib --feature-powerset --exclude-features std,cache --target x86_64-unknown-none
+      - run: cargo +stable hack build --locked --release --lib --feature-powerset --exclude-features std,cache --target x86_64-unknown-none
       - run: cargo +stable fetch --locked --manifest-path tools/resource-profile/Cargo.toml
       - name: Build checked and prevalidated benchmark exports
         env:
@@ -233,17 +235,17 @@ jobs:
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - run: rustup toolchain install ${{ env.RUST_MSRV }} --profile minimal
-      - run: cargo +${{ env.RUST_MSRV }} hack build --locked --lib --feature-powerset --exclude-features default
-      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std
+      - run: cargo +${{ env.RUST_MSRV }} hack build --locked --lib --feature-powerset
+      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache
+      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std,compact
+      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std,compact
         env:
           PROPTEST_CASES: '512'
-      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache,compact
+      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache,compact
         env:
           PROPTEST_CASES: '512'
 
@@ -280,7 +282,7 @@ jobs:
       - run: cargo +stable fmt --all -- --check
       - run: cargo +stable fmt --manifest-path tools/resource-profile/Cargo.toml --all -- --check
       - run: cargo +stable fmt --manifest-path fuzz/Cargo.toml --all -- --check
-      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --exclude-features default -- -D warnings
+      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset -- -D warnings
       - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --manifest-path tools/resource-profile/Cargo.toml -- -D warnings
       - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --manifest-path fuzz/Cargo.toml -- -D warnings
       - name: Public and internal API documentation
@@ -300,7 +302,7 @@ jobs:
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - run: rustup component add clippy --toolchain stable
-      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset --exclude-features default -- -D warnings
+      - run: cargo +stable hack clippy --locked --all-targets --feature-powerset -- -D warnings
 
   measurement_tools:
     runs-on: ubuntu-latest

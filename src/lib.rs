@@ -1,18 +1,14 @@
 //! Base58 (Bitcoin alphabet) decoding and encoding on 64-bit limbs. See DESIGN.md for the
 //! design.
 //!
-//! [`encode`] and [`decode`] select a backend by input size and CPU support. Use
-//! [`encode_into`] / [`decode_into`] with arrays or reusable buffers, [`encode_string`]
-//! / [`decode_vec`] for owned results, and [`decode_array`] for an exact decoded size.
-//! Errors can change the contents of a supplied buffer. These algorithms are variable
-//! time and are not designed to hide input values or lengths.
+//! [`Encoder`] and [`Decoder`] provide reusable `const` configuration followed by
+//! `.encode(input)` / `.decode(input)` and a terminal conversion method.
+//! Errors can change a supplied buffer. Conversion is variable-time.
 //!
-//! [`no_alloc`] guarantees zero internal heap allocation, including first calls.
-//! It accepts caller buffers and supports exact arrays. Large inputs use quadratic
-//! conversion; Auto can allocate workspace for faster algorithms.
-//!
-//! The library is `no_std` with `alloc` by default. The `std` feature enables
-//! standard-library support; `cache` enables `std` and shared table retention.
+//! The library is `no_std`. Default feature `alloc` enables allocating backends and
+//! owned results. Disable default features for conversion without heap allocation,
+//! including first calls and errors; large inputs then use quadratic conversion.
+//! `cache` enables `alloc` and `std` and retains shared tables.
 //!
 //! The optional `cache` feature retains bounded NTT and matrix tables across calls.
 //! It is disabled by default. All named backend selectors require `__internals`;
@@ -21,6 +17,7 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 
 #[macro_use]
+#[cfg(any(feature = "alloc", test, kani))]
 extern crate alloc;
 
 #[cfg(all(kani, not(feature = "std")))]
@@ -29,8 +26,10 @@ extern crate std;
 mod api;
 mod batched;
 mod common;
+mod config;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod cpu;
+#[cfg(any(feature = "alloc", test, kani))]
 mod dc;
 mod encode;
 #[cfg(test)]
@@ -38,11 +37,18 @@ mod encode;
 mod malachite;
 #[cfg(test)]
 mod malachite_tests;
+#[cfg(any(feature = "alloc", test, kani))]
 mod matrix;
+#[cfg(any(feature = "alloc", test, kani))]
 mod mul;
-#[cfg(any(all(target_arch = "x86_64", target_feature = "sse2"), test, kani))]
+#[cfg(all(
+    any(feature = "alloc", test, kani),
+    any(all(target_arch = "x86_64", target_feature = "sse2"), test, kani)
+))]
 mod mul_ifma;
-pub mod no_alloc;
+#[cfg(any(not(feature = "alloc"), test, feature = "__internals"))]
+mod no_alloc;
+#[cfg(any(feature = "alloc", test, kani))]
 mod ntt;
 #[cfg(test)]
 mod tests;
@@ -51,8 +57,9 @@ mod toom3;
 #[cfg(kani)]
 mod verification;
 
-pub use api::{decode, decode_array, decode_into, decode_vec, encode, encode_into, encode_string};
-pub use encode::max_encoded_len;
+#[cfg(test)]
+pub(crate) use api::{decode, encode};
+pub use config::{DecodeInput, Decoder, EncodeInput, Encoder};
 
 #[cfg(any(test, feature = "__internals"))]
 pub mod internals;
@@ -69,7 +76,9 @@ extern crate self as faster_base58;
 
 /// A decoding error. When the input has an invalid character and the output buffer is
 /// also too small for it, which of the two is reported is unspecified.
+/// Additional variants may be added; downstream matches need a wildcard arm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Error {
     /// The byte at `index` is the first that is not in the alphabet.
     InvalidCharacter {

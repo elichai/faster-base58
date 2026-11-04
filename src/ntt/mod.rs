@@ -45,7 +45,9 @@ mod x86;
 
 use core::ptr;
 
-use crate::dc::{self, Leaf, Multiplier};
+use crate::dc::Multiplier;
+#[cfg(feature = "alloc")]
+use crate::dc::{self, Leaf};
 use crate::encode::Leaves;
 use crate::mul;
 #[cfg(feature = "cache")]
@@ -88,6 +90,7 @@ const CACHED_LEAF: usize = match Leaves::BEST {
 /// larger twiddles live for this call. Without `cache`, tables are owned and leaves
 /// use Horner. Tables are built only when a product uses transforms.
 #[inline(never)]
+#[cfg(feature = "alloc")]
 pub(crate) fn decode(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, crate::Error> {
     dc::decode_parts(
         input,
@@ -1038,7 +1041,7 @@ mod tests {
     #[test]
     fn no_tables_below_transform_thresholds() {
         let input = vec![0xA5; 8192];
-        let mut encoded = vec![0; crate::max_encoded_len(input.len())];
+        let mut encoded = vec![0; crate::encode::max_encoded_len(input.len())];
         let len = crate::encode_malachite(&input, &mut encoded).unwrap();
         let text = core::str::from_utf8(&encoded[..len]).unwrap();
         for cached in [false, true] {

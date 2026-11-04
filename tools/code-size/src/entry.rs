@@ -17,8 +17,14 @@ macro_rules! backend {
     };
 }
 
-backend!("auto", faster_base58::encode, faster_base58::decode);
-backend!("no-alloc", faster_base58::no_alloc::encode, faster_base58::no_alloc::decode);
+#[cfg(all(any(size_backend = "auto", size_backend = "no-alloc"), not(size_direction = "decode")))]
+fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, faster_base58::BufferTooSmall> {
+    faster_base58::Encoder::bitcoin().encode(input).onto(output).map(str::len)
+}
+#[cfg(all(any(size_backend = "auto", size_backend = "no-alloc"), not(size_direction = "encode")))]
+fn decode(input: &str, output: &mut [u8]) -> Result<usize, faster_base58::Error> {
+    faster_base58::Decoder::bitcoin().decode(input).onto(output).map(|bytes| bytes.len())
+}
 backend!("batched", faster_base58::internals::encode_batched, faster_base58::internals::decode_batched);
 backend!("karatsuba", faster_base58::internals::encode_karatsuba, faster_base58::internals::decode_karatsuba);
 backend!("toom3", faster_base58::internals::encode_toom3, faster_base58::internals::decode_toom3);

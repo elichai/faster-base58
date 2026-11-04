@@ -3,16 +3,23 @@
 //! columns in `u64`, then carry. The multiply-adds use the decoder's panel kernels
 //! (`crate::matrix`).
 
+#[cfg(any(feature = "alloc", test, kani))]
 use core::mem::MaybeUninit;
 
+#[cfg(any(feature = "alloc", test, kani))]
 use super::max_encoded_len;
 #[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 use super::{bits, min_digits};
 #[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 use crate::BufferTooSmall;
 use crate::common::ALPHABET;
+#[cfg(any(feature = "alloc", test, kani))]
 use crate::matrix::{PANEL, Panel, zeroed};
+#[cfg(any(feature = "alloc", test, kani))]
 use table::{CARRY_EVERY, COL_BASE, MAX_BYTES, MAX_COLS, MAX_WORDS, PANEL_BYTES, ROWS, WORD};
+
+#[cfg(not(any(feature = "alloc", test, kani)))]
+const COL_BASE: u64 = 58u64.pow(4);
 
 pub(crate) mod fixed;
 #[cfg(all(
@@ -21,16 +28,19 @@ pub(crate) mod fixed;
     target_feature = "neon"
 ))]
 mod neon;
+#[cfg(any(feature = "alloc", test, kani))]
 mod table;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
 /// One backend's kernels: the decoder's panel kernel, and [`digits`]'s.
+#[cfg(any(feature = "alloc", test, kani))]
 struct Kernels {
     panel: Panel,
     digits: fn(&[u64], &mut [[u8; 4]]),
 }
 
+#[cfg(any(feature = "alloc", test, kani))]
 const BEST: Kernels = core::cfg_select! {
     all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
         Kernels { panel: PANEL, digits: neon::digits }
@@ -53,14 +63,14 @@ pub(crate) mod entry {
     #[inline]
     pub(crate) fn encode(
         zeros: usize,
-        x: &[u8],
+        input: &[u8],
         output: &mut [u8],
     ) -> Result<usize, BufferTooSmall> {
         assert!(
-            x.len() >= MATRIX_MIN,
+            input.len() >= MATRIX_MIN,
             "value is too short for the matrix encoder"
         );
-        encode_parts(&BEST, zeros, x, output)
+        encode_parts(&BEST, zeros, input, output)
     }
 
     /// The largest input `encode_matrix` converts itself when Karatsuba has the AVX-512 IFMA
@@ -85,7 +95,7 @@ pub(crate) mod internals {
     };
 
     /// General matrix encoding, with batched and NTT fallbacks outside its useful range.
-    /// Fixed 32/64-byte encoders belong to Auto and `no_alloc`, not this comparison hook.
+    /// Fixed 32/64-byte encoders belong to both public allocation policies, not this hook.
     ///
     /// # Errors
     /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
@@ -191,12 +201,15 @@ fn encode_parts(
 /// with `cols` 8 bytes off a 16-byte boundary the panels took 7-12% longer at 1-2 KiB
 /// (M5 Pro).
 #[repr(C, align(64))]
+#[cfg(any(feature = "alloc", test, kani))]
 pub(super) struct Scratch {
     words: [MaybeUninit<u32>; MAX_WORDS],
     cols: [MaybeUninit<u64>; MAX_COLS],
 }
+#[cfg(any(feature = "alloc", test, kani))]
 const _: () = assert!(core::mem::offset_of!(Scratch, cols) % 64 == 0);
 
+#[cfg(any(feature = "alloc", test, kani))]
 impl Scratch {
     pub(super) fn new() -> Scratch {
         Scratch {
@@ -207,6 +220,7 @@ impl Scratch {
 }
 
 /// [`convert`] with the fastest kernels: the divide-and-conquer encoders' matrix leaves.
+#[cfg(any(feature = "alloc", test, kani))]
 pub(super) fn columns<'a>(x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
     // A leaf has at most `MATRIX_LEAF` chunks, so at most `8 MATRIX_LEAF` bytes.
     const _: () = assert!(8 * super::dc::MATRIX_LEAF <= MAX_BYTES);
@@ -214,12 +228,14 @@ pub(super) fn columns<'a>(x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
 }
 
 /// [`digits`] with the fastest kernel: `out[i] = four_digits(cols[cols.len() - 1 - i])`.
+#[cfg(any(feature = "alloc", test, kani))]
 pub(super) fn column_digits(cols: &[u64], out: &mut [[u8; 4]]) {
     (BEST.digits)(cols, out);
 }
 
 /// The value of the big-endian `x` in base 58^4, least significant column first and
 /// trimmed, in `scratch`. Requires `x.len() <= MAX_BYTES`.
+#[cfg(any(feature = "alloc", test, kani))]
 fn convert<'a>(k: &Kernels, x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
     if x.is_empty() {
         return &[];
@@ -257,6 +273,7 @@ fn convert<'a>(k: &Kernels, x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
 /// column below 58^4, so nothing leaves the slice.
 ///
 /// Each carry depends only on its own column, so this is not a carry chain.
+#[cfg(any(feature = "alloc", test, kani))]
 fn spread(cols: &mut [u64]) {
     let mut carry = 0;
     for c in cols.iter_mut() {
@@ -275,6 +292,7 @@ fn spread(cols: &mut [u64]) {
 /// remainder plus the carry is below `2 * 58^4` (asserted in `table.rs`), and one
 /// compare finishes the division. Only that compare and the increment are on the carry
 /// chain.
+#[cfg(any(feature = "alloc", test, kani))]
 fn normalize(cols: &mut [u64]) -> usize {
     let (mut spill, mut carry) = (0, 0);
     for c in cols.iter_mut() {
@@ -326,6 +344,7 @@ fn write(
         target_feature = "neon"
     ))
 ))]
+#[cfg(any(feature = "alloc", test, kani))]
 fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
     assert_eq!(cols.len(), out.len());
     for (o, &c) in out.iter_mut().zip(cols.iter().rev()) {
@@ -334,6 +353,16 @@ fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
 }
 
 /// The four characters of a column below 58^4, most significant first.
+#[cfg(any(
+    feature = "alloc",
+    test,
+    kani,
+    not(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
 #[inline(always)]
 pub(super) fn four_digits(c: u64) -> [u8; 4] {
     let c = c as u32;

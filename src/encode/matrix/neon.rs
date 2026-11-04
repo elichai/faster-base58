@@ -4,9 +4,10 @@
 
 use core::arch::aarch64::*;
 
+use super::COL_BASE;
 use super::fixed::{self, Table, words};
+#[cfg(any(feature = "alloc", test, kani))]
 use super::four_digits;
-use super::table::COL_BASE;
 use crate::BufferTooSmall;
 use crate::common::ALPHABET;
 use crate::encode::max_encoded_len;
@@ -111,6 +112,7 @@ fn chars(c: uint32x4_t, table: uint8x16x4_t, reverse: uint8x16_t) -> uint8x16_t 
 }
 
 /// See `super::digits`.
+#[cfg(any(feature = "alloc", test, kani))]
 pub(super) fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
     assert_eq!(cols.len(), out.len());
     let n = cols.len();

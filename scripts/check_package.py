@@ -72,7 +72,7 @@ def main():
                 manifest = tomllib.loads(stream.extractfile(member).read().decode())
     require(REQUIRED <= names, 'Missing package files: ' + str(REQUIRED - names))
     require(manifest['package']['license'] == 'MIT OR Apache-2.0', 'Wrong license metadata')
-    require(manifest['features']['default'] == [] and 'std' in manifest['features']['cache'],
+    require(manifest['features']['default'] == ['alloc'] and {'alloc', 'std'} <= set(manifest['features']['cache']),
             'Default/cache feature policy differs')
     require('malachite-nz' not in manifest.get('dependencies', {}), 'Development oracle leaked into dependencies')
     print(json.dumps(dict(status='pass', archive=str(archive), files=len(names),

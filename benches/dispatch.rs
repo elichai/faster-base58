@@ -31,7 +31,7 @@ fn dispatch(c: &mut Criterion) {
         if let Some(first) = data.first_mut() {
             *first |= 1;
         }
-        let mut encoded = vec![0; faster_base58::max_encoded_len(size)];
+        let mut encoded = vec![0; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
         let len = support::malachite::encode_malachite(&data, &mut encoded).unwrap();
         encoded.truncate(len);
         if size <= 4096 {
@@ -43,7 +43,7 @@ fn dispatch(c: &mut Criterion) {
             if !applicable(name, size) {
                 continue;
             }
-            let mut out = vec![0; faster_base58::max_encoded_len(size)];
+            let mut out = vec![0; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
             assert_eq!(f(&data, &mut out), Ok(len), "{name} encode {size}");
             assert_eq!(&out[..len], encoded, "{name} encode {size}");
             group.bench_with_input(

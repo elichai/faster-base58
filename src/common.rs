@@ -65,6 +65,7 @@ pub(crate) fn invalid(input: &str) -> Error {
 /// Branch-free range checks with no early exit, so the loop vectorizes: on an M5 Pro
 /// 0.075 ns per byte, against 0.16 for [`DIGITS`] lookups and 1.8 for `matches!`, whose
 /// branches mispredict on random input.
+#[cfg(any(feature = "alloc", test, kani))]
 pub(crate) fn all_valid(digits: &[u8]) -> bool {
     let valid = |c: u8| {
         (c.wrapping_sub(b'1') < 9)

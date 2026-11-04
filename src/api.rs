@@ -1,21 +1,13 @@
 //! Automatic dispatch and output conveniences. Process-wide caches are opt-in.
 
-use alloc::{string::String, vec::Vec};
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
+#[cfg(feature = "alloc")]
 use crate::{BufferTooSmall, Error};
 
-/// Encodes Bitcoin Base58 and returns the number of bytes written to `output`.
-///
-/// Without `cache`, fixed 32/64-byte inputs use built-in tables; other inputs use
-/// batched or divide-and-conquer encoding with owned NTT tables for large products.
-/// With `cache`, general matrix tables and bounded-size NTT tables are retained for
-/// the process lifetime; larger NTT tables live for one conversion.
-/// On success, the output tail is untouched. On error, its contents are unspecified.
-/// Timing depends on the input. Use [`encode_into`] to borrow the resulting string.
-///
-/// # Errors
-/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
 #[inline]
+#[cfg(feature = "alloc")]
 pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     match input.len() {
         32 => return crate::encode::matrix::fixed::encode_32(input.try_into().unwrap(), output),
@@ -24,59 +16,75 @@ pub fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> 
         _ => {}
     }
     let (zeros, x) = crate::encode::split_zeros(input);
-    #[cfg(feature = "cache")]
-    {
-        use crate::encode::matrix::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
-        if x.len() < MATRIX_MIN {
-            return crate::encode::batched::encode_parts(zeros, x, output);
-        }
-        let cap = if crate::mul::ifma_threshold() != 0 {
-            IFMA_CAP
-        } else {
-            MAX_INPUT
-        };
-        if x.len() <= cap {
-            return crate::encode::matrix::entry::encode(zeros, x, output);
-        }
+    match encode_backend(x.len()) {
+        EncodeBackend::Batched => crate::encode::batched::encode_parts(zeros, x, output),
+        #[cfg(not(feature = "cache"))]
+        EncodeBackend::Karatsuba { leaf } => crate::encode::dc::encode_parts(
+            zeros,
+            x,
+            output,
+            &mut crate::dc::Karatsuba,
+            leaf,
+            crate::encode::Leaves::Horner,
+        ),
+        #[cfg(feature = "cache")]
+        EncodeBackend::Matrix => crate::encode::matrix::entry::encode(zeros, x, output),
+        EncodeBackend::Ntt => crate::ntt::encode(zeros, x, output),
     }
-    #[cfg(not(feature = "cache"))]
-    {
-        // Conservative crossover based on historical kernel measurements:
-        // Karatsuba/Horner in the medium range, owned NTT above it. This is not
-        // a claim that the crossover is optimal on every target.
-        if x.len() <= crate::ntt::ENCODE_THRESHOLD {
-            let (threshold, leaf) = crate::encode::dc::karatsuba::params();
-            if x.len() > threshold {
-                return crate::encode::dc::encode_parts(
-                    zeros,
-                    x,
-                    output,
-                    &mut crate::dc::Karatsuba,
-                    leaf,
-                    crate::encode::Leaves::Horner,
-                );
-            }
-            return crate::encode::batched::encode_parts(zeros, x, output);
-        }
-    }
-    crate::ntt::encode(zeros, x, output)
 }
 
-/// Decodes Bitcoin Base58 and returns the number of bytes written to `output`.
-///
-/// Without `cache`, small inputs use batched decoding, medium inputs use divide and
-/// conquer, and large inputs use owned NTT tables. With `cache`, medium inputs use
-/// the matrix kernel on selected targets and large inputs use bounded NTT caching.
-///
-/// Leading `'1'` characters each produce a zero byte. Invalid-character indices are
-/// byte offsets. On success, bytes after the returned length are untouched. On error,
-/// the contents of `output` are unspecified. The algorithms have data-dependent timing.
-/// Process-wide table retention requires `cache`; larger NTT tables always live for
-/// one conversion. See the review for the measured feature-enabled routes.
-///
-/// # Errors
-/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
-/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
+#[cfg(feature = "alloc")]
+pub(crate) enum EncodeBackend {
+    Batched,
+    #[cfg(all(feature = "alloc", not(feature = "cache")))]
+    Karatsuba {
+        leaf: usize,
+    },
+    #[cfg(feature = "cache")]
+    Matrix,
+    #[cfg(feature = "alloc")]
+    Ntt,
+}
+
+#[cfg(feature = "alloc")]
+#[inline(always)]
+pub(crate) fn encode_backend(bytes: usize) -> EncodeBackend {
+    #[cfg(not(feature = "alloc"))]
+    {
+        let _ = bytes;
+        EncodeBackend::Batched
+    }
+    #[cfg(feature = "alloc")]
+    {
+        #[cfg(feature = "cache")]
+        {
+            use crate::encode::matrix::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
+            if bytes < MATRIX_MIN {
+                return EncodeBackend::Batched;
+            }
+            let cap = if crate::mul::ifma_threshold() != 0 {
+                IFMA_CAP
+            } else {
+                MAX_INPUT
+            };
+            if bytes <= cap {
+                return EncodeBackend::Matrix;
+            }
+        }
+        #[cfg(not(feature = "cache"))]
+        if bytes <= crate::ntt::ENCODE_THRESHOLD {
+            let (threshold, leaf) = crate::encode::dc::karatsuba::params();
+            return if bytes > threshold {
+                EncodeBackend::Karatsuba { leaf }
+            } else {
+                EncodeBackend::Batched
+            };
+        }
+        EncodeBackend::Ntt
+    }
+}
+
+#[cfg(feature = "alloc")]
 pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     if input.len() <= 2 {
         return crate::batched::decode_short(input, output);
@@ -85,50 +93,97 @@ pub fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     decode_parts(input, zeros, output)
 }
 
-fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
+#[cfg(feature = "alloc")]
+pub(crate) fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
     let digits = input.len() - zeros;
-    #[cfg(not(feature = "cache"))]
+    if digits <= decode_small_limit() {
+        return crate::batched::decode_parts(input, zeros, output);
+    }
+    match decode_backend(digits) {
+        DecodeBackend::Batched => crate::batched::decode_parts(input, zeros, output),
+        #[cfg(not(feature = "cache"))]
+        DecodeBackend::Karatsuba => crate::dc::decode_parts(
+            input,
+            zeros,
+            output,
+            &mut crate::dc::Karatsuba,
+            crate::dc::Leaf::Horner,
+        ),
+        #[cfg(feature = "cache")]
+        DecodeBackend::Matrix => crate::matrix::entry::decode(input, zeros, output),
+        DecodeBackend::Ntt => crate::ntt::decode(input, zeros, output),
+    }
+}
+
+#[cfg(feature = "alloc")]
+pub(crate) enum DecodeBackend {
+    Batched,
+    #[cfg(all(feature = "alloc", not(feature = "cache")))]
+    Karatsuba,
+    #[cfg(feature = "cache")]
+    Matrix,
+    #[cfg(feature = "alloc")]
+    Ntt,
+}
+
+#[cfg(feature = "alloc")]
+#[inline(always)]
+fn decode_small_limit() -> usize {
+    #[cfg(not(feature = "alloc"))]
     {
-        if digits <= crate::dc::DC_THRESHOLD * crate::common::CHUNK {
-            return crate::batched::decode_parts(input, zeros, output);
-        }
-        // Preserve the former medium/large boundary while avoiding matrix setup.
-        // The historical measurements motivate this conservative boundary;
-        // measurements of the complete dispatch do not establish optimality.
-        if digits <= 5632 {
-            return crate::dc::decode_parts(
-                input,
-                zeros,
-                output,
-                &mut crate::dc::Karatsuba,
-                crate::dc::Leaf::Horner,
-            );
-        }
+        usize::MAX
+    }
+    #[cfg(all(feature = "alloc", not(feature = "cache")))]
+    {
+        crate::dc::DC_THRESHOLD * crate::common::CHUNK
     }
     #[cfg(feature = "cache")]
     {
-        let matrix_min = if cfg!(all(
+        if cfg!(all(
             target_arch = "aarch64",
             target_endian = "little",
             target_feature = "neon"
         )) || cfg!(target_arch = "wasm32")
         {
-            576
+            575
         } else {
-            1024
-        };
-        if digits < matrix_min {
-            return crate::batched::decode_parts(input, zeros, output);
+            1023
         }
-        if digits <= 5632 {
+    }
+}
+
+#[cfg(feature = "alloc")]
+#[inline(always)]
+pub(crate) fn decode_backend(digits: usize) -> DecodeBackend {
+    if digits <= decode_small_limit() {
+        return DecodeBackend::Batched;
+    }
+    #[cfg(not(feature = "alloc"))]
+    {
+        let _ = digits;
+        DecodeBackend::Batched
+    }
+    #[cfg(feature = "alloc")]
+    {
+        #[cfg(not(feature = "cache"))]
+        {
+            if digits <= 5632 {
+                return DecodeBackend::Karatsuba;
+            }
+            DecodeBackend::Ntt
+        }
+        #[cfg(feature = "cache")]
+        {
+            if digits > 5632 {
+                return DecodeBackend::Ntt;
+            }
             #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
             if crate::mul::ifma_threshold() != 0 {
                 if digits > 5120 {
-                    return crate::ntt::decode(input, zeros, output);
+                    return DecodeBackend::Ntt;
                 }
-                // Native AVX2 builds make Horner faster than matrix on the measured Zen 5.
                 if cfg!(target_feature = "avx2") {
-                    return crate::batched::decode_parts(input, zeros, output);
+                    return DecodeBackend::Batched;
                 }
             }
             if cfg!(all(
@@ -137,64 +192,22 @@ fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, E
                 target_feature = "neon"
             )) || cfg!(target_arch = "wasm32")
             {
-                return crate::matrix::entry::decode(input, zeros, output);
+                return DecodeBackend::Matrix;
             }
             #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
             if crate::cpu::sse41() {
-                return crate::matrix::entry::decode(input, zeros, output);
+                return DecodeBackend::Matrix;
             }
-            return crate::batched::decode_parts(input, zeros, output);
+            DecodeBackend::Batched
         }
     }
-    crate::ntt::decode(input, zeros, output)
 }
 
-/// Encodes into an array or slice and borrows the resulting ASCII string.
-///
-/// `max_encoded_len(input.len())` bytes always suffice for an actual input slice.
-/// The output tail is untouched on success; its contents are unspecified on error.
-/// This uses the same automatic dispatch and optional caches as [`crate::encode`].
-///
-/// # Errors
-/// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
-///
-/// ```
-/// let input = [42; 32];
-/// let mut buffer = [0; 44];
-/// let text = faster_base58::encode_into(input, &mut buffer)?;
-/// assert_eq!(faster_base58::decode_array::<32>(text)?, input);
-/// # Ok::<(), Box<dyn core::error::Error>>(())
-/// ```
-pub fn encode_into(input: impl AsRef<[u8]>, output: &mut [u8]) -> Result<&str, BufferTooSmall> {
-    let len = encode(input.as_ref(), output)?;
-    Ok(core::str::from_utf8(&output[..len]).expect("base58 output is ASCII"))
-}
+#[cfg(not(feature = "alloc"))]
+pub(crate) use crate::no_alloc::{decode, encode};
 
-/// Encodes an array or byte slice into an owned string.
-pub fn encode_string(input: impl AsRef<[u8]>) -> String {
-    let input = input.as_ref();
-    let mut output = vec![0; crate::max_encoded_len(input.len())];
-    let len = encode(input, &mut output).expect("max_encoded_len bounds the result");
-    output.truncate(len);
-    String::from_utf8(output).expect("base58 output is ASCII")
-}
-
-/// Decodes into an array or slice and borrows the bytes written.
-///
-/// The output tail is untouched on success; its contents are unspecified on error.
-///
-/// # Errors
-/// Returns the same invalid-character and insufficient-buffer errors as [`decode`].
-pub fn decode_into<'a>(input: &str, output: &'a mut [u8]) -> Result<&'a mut [u8], Error> {
-    let len = decode(input, output)?;
-    Ok(&mut output[..len])
-}
-
-/// Decodes into an owned byte vector, preserving leading zero bytes.
-///
-/// # Errors
-/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet.
 #[inline]
+#[cfg(feature = "alloc")]
 pub fn decode_vec(input: &str) -> Result<Vec<u8>, Error> {
     if input.is_empty() {
         return Ok(Vec::new());
@@ -202,8 +215,8 @@ pub fn decode_vec(input: &str) -> Result<Vec<u8>, Error> {
     decode_vec_nonempty(input)
 }
 
-/// Requires nonempty input. Keep the nonempty decoder's frame off the empty path.
 #[inline(never)]
+#[cfg(feature = "alloc")]
 fn decode_vec_nonempty(input: &str) -> Result<Vec<u8>, Error> {
     debug_assert!(!input.is_empty());
     if input.len() <= 2 {
@@ -214,32 +227,15 @@ fn decode_vec_nonempty(input: &str) -> Result<Vec<u8>, Error> {
     }
     let (zeros, digits) = crate::common::split_zeros(input.as_bytes());
     let mut output = vec![0; zeros + decoded_capacity(digits.len())];
-    let len = decode_parts(input, zeros, &mut output)?;
+    let len = decode_parts(input, zeros, output.as_mut_slice())?;
     output.truncate(len);
     Ok(output)
 }
 
+#[cfg(any(feature = "alloc", kani))]
 fn decoded_capacity(digits: usize) -> usize {
     // 58^64 < 256^47; separate floors keep this above 47*digits/64 without overflow.
     digits - digits / 4 - digits / 64
-}
-
-/// Decodes exactly `N` bytes, without adding or removing leading zeros.
-///
-/// # Errors
-/// A shorter result returns [`Error::InvalidLength`]; a result longer than `N` returns
-/// [`Error::BufferTooSmall`]. Invalid input can report either invalid-character or
-/// insufficient-buffer errors when both conditions apply, as with [`decode`].
-pub fn decode_array<const N: usize>(input: &str) -> Result<[u8; N], Error> {
-    let mut output = [0; N];
-    let actual = decode(input, &mut output)?;
-    if actual != N {
-        return Err(Error::InvalidLength {
-            expected: N,
-            actual,
-        });
-    }
-    Ok(output)
 }
 
 #[cfg(kani)]

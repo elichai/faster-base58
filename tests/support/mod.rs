@@ -13,8 +13,16 @@ pub type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 pub type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 
 pub const ENCODERS: &[(&str, Encode)] = &[
-    ("auto", faster_base58::encode),
-    ("no-alloc", faster_base58::no_alloc::encode),
+    (
+        "auto",
+        (|input, output| {
+            faster_base58::Encoder::bitcoin()
+                .encode(input)
+                .onto(output)
+                .map(str::len)
+        }),
+    ),
+    ("no-alloc", faster_base58::internals::encode_no_alloc),
     ("batched", faster_base58::internals::encode_batched),
     ("dc", faster_base58::internals::encode_karatsuba),
     ("toom3", faster_base58::internals::encode_toom3),
@@ -38,8 +46,16 @@ pub const ENCODERS: &[(&str, Encode)] = &[
 ];
 
 pub const DECODERS: &[(&str, Decode)] = &[
-    ("auto", faster_base58::decode),
-    ("no-alloc", faster_base58::no_alloc::decode),
+    (
+        "auto",
+        (|input, output| {
+            faster_base58::Decoder::bitcoin()
+                .decode(input)
+                .onto(output)
+                .map(|bytes| bytes.len())
+        }),
+    ),
+    ("no-alloc", faster_base58::internals::decode_no_alloc),
     ("batched", faster_base58::internals::decode_batched),
     ("dc", faster_base58::internals::decode_karatsuba),
     ("toom3", faster_base58::internals::decode_toom3),
@@ -112,8 +128,14 @@ pub fn check_encode(data: &[u8], selector: usize) {
     if let Some(scalar) = scalar::encode(data) {
         assert_eq!(want, scalar, "independent u128 encode oracle");
     }
-    assert!(want.len() <= faster_base58::max_encoded_len(data.len()));
-    assert_eq!(faster_base58::encode_string(data).as_bytes(), want);
+    assert!(want.len() <= faster_base58::Encoder::bitcoin().max_encoded_len(data.len()));
+    assert_eq!(
+        faster_base58::Encoder::bitcoin()
+            .encode(data)
+            .into_string()
+            .as_bytes(),
+        want
+    );
     for &(name, encode) in ENCODERS {
         check_encoder(name, encode, data, &want, selector);
     }
@@ -203,7 +225,7 @@ pub fn check_decode(input: &str, selector: usize) {
         check_decoder(name, decode, input, &want, selector);
     }
     assert_eq!(
-        faster_base58::decode_vec(input),
+        faster_base58::Decoder::bitcoin().decode(input).into_vec(),
         want.map_err(|index| Error::InvalidCharacter { index })
     );
 }

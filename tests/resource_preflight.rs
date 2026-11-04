@@ -7,7 +7,15 @@ type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 
 const ENCODERS: [(&str, Encode); 5] = [
-    ("auto", b58::encode),
+    (
+        "auto",
+        (|input, output| {
+            b58::Encoder::bitcoin()
+                .encode(input)
+                .onto(output)
+                .map(str::len)
+        }),
+    ),
     ("matrix", b58::internals::encode_matrix),
     ("portable", b58::internals::encode_matrix_portable),
     ("forced", |input, output| {
@@ -16,7 +24,15 @@ const ENCODERS: [(&str, Encode); 5] = [
     ("whole", internals::encode_matrix_whole),
 ];
 const DECODERS: [(&str, Decode); 4] = [
-    ("auto", b58::decode),
+    (
+        "auto",
+        (|input, output| {
+            b58::Decoder::bitcoin()
+                .decode(input)
+                .onto(output)
+                .map(|bytes| bytes.len())
+        }),
+    ),
     ("matrix", b58::internals::decode_matrix),
     ("portable", b58::internals::decode_matrix_portable),
     ("forced", internals::decode_matrix_forced),
@@ -103,7 +119,9 @@ fn impossible_decode_buffers_build_no_table() {
         }
     }
     assert_eq!(
-        b58::decode_array::<32>(&"z".repeat(4096)),
+        b58::Decoder::bitcoin()
+            .decode(&"z".repeat(4096))
+            .into_array::<32>(),
         Err(Error::BufferTooSmall)
     );
     assert!(!retained());

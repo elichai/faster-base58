@@ -12,7 +12,7 @@
 //! The `x86_64` (AVX2, AVX-512 VBMI) and NEON paths for 64 bytes cut the chain into four
 //! segments (`carry_split`).
 
-use super::table::COL_BASE;
+use super::COL_BASE;
 use crate::BufferTooSmall;
 use crate::encode::max_encoded_len;
 

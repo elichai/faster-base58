@@ -1,6 +1,8 @@
-use faster_base58::{BufferTooSmall, Error, no_alloc};
+#[cfg(not(feature = "alloc"))]
+use faster_base58::{BufferTooSmall, Error};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
+#[cfg(not(feature = "alloc"))]
 use std::sync::atomic::AtomicBool;
 
 struct Counting;
@@ -70,6 +72,15 @@ unsafe impl GlobalAlloc for Counting {
     }
 }
 
+#[cfg(any(
+    not(feature = "alloc"),
+    feature = "__internals",
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    )
+))]
 fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     assert!(!ACTIVE.get());
     CALLS.set([0; 4]);
@@ -81,6 +92,7 @@ fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     (result, CALLS.get())
 }
 
+#[cfg(not(feature = "alloc"))]
 fn without_allocations<T>(call: impl FnOnce() -> T) -> T {
     let (result, calls) = observe(call);
     assert_eq!(
@@ -90,18 +102,28 @@ fn without_allocations<T>(call: impl FnOnce() -> T) -> T {
     result
 }
 
+#[cfg(not(feature = "alloc"))]
 fn cold_paths() {
     let mut fixed = [0xA5; 96];
     assert_eq!(
-        without_allocations(|| no_alloc::encode(&[0xFF; 32], &mut [])),
+        without_allocations(|| faster_base58::Encoder::bitcoin()
+            .encode(&[0xFF; 32])
+            .onto(&mut [])
+            .map(str::len)),
         Err(BufferTooSmall)
     );
     assert_eq!(
-        without_allocations(|| no_alloc::encode(&[0xFF; 64], &mut fixed)),
+        without_allocations(|| faster_base58::Encoder::bitcoin()
+            .encode(&[0xFF; 64])
+            .onto(&mut fixed)
+            .map(str::len)),
         Ok(88)
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode("é", &mut fixed)),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("é")
+            .onto(&mut fixed)
+            .map(|bytes| bytes.len())),
         Err(Error::InvalidCharacter { index: 0 })
     );
 
@@ -110,10 +132,20 @@ fn cold_paths() {
     let input = [0xA5; 8193];
     let mut text = [0xA5; 12_300];
     let mut decoded = [0xA5; 8193];
-    let (encoded, encode_calls) = observe(|| no_alloc::encode(&input, &mut text));
+    let (encoded, encode_calls) = observe(|| {
+        faster_base58::Encoder::bitcoin()
+            .encode(&input)
+            .onto(&mut text)
+            .map(str::len)
+    });
     let len = encoded.unwrap();
     let text = std::str::from_utf8(&text[..len]).unwrap();
-    let (result, decode_calls) = observe(|| no_alloc::decode(text, &mut decoded));
+    let (result, decode_calls) = observe(|| {
+        faster_base58::Decoder::bitcoin()
+            .decode(text)
+            .onto(&mut decoded)
+            .map(|bytes| bytes.len())
+    });
     assert_eq!(result, Ok(input.len()));
     assert_eq!(decoded, input);
     assert_eq!(
@@ -123,6 +155,7 @@ fn cold_paths() {
     );
 }
 
+#[cfg(not(feature = "alloc"))]
 fn check_buffers(input: &[u8]) {
     let expected = bs58::encode(input).into_string();
     for capacity in [
@@ -133,13 +166,22 @@ fn check_buffers(input: &[u8]) {
         for borrowed in [false, true] {
             let mut output = vec![0xA5; capacity + 2];
             let result = if borrowed {
-                without_allocations(|| no_alloc::encode_into(input, &mut output[1..1 + capacity]))
-                    .map(|text| {
-                        assert_eq!(text, expected);
-                        text.len()
-                    })
+                without_allocations(|| {
+                    faster_base58::Encoder::bitcoin()
+                        .encode(input)
+                        .onto(&mut output[1..1 + capacity])
+                })
+                .map(|text| {
+                    assert_eq!(text, expected);
+                    text.len()
+                })
             } else {
-                without_allocations(|| no_alloc::encode(input, &mut output[1..1 + capacity]))
+                without_allocations(|| {
+                    faster_base58::Encoder::bitcoin()
+                        .encode(input)
+                        .onto(&mut output[1..1 + capacity])
+                        .map(str::len)
+                })
             };
             if capacity < expected.len() {
                 assert_eq!(result, Err(BufferTooSmall));
@@ -162,14 +204,21 @@ fn check_buffers(input: &[u8]) {
             let mut output = vec![0xA5; capacity + 2];
             let result = if borrowed {
                 without_allocations(|| {
-                    no_alloc::decode_into(&expected, &mut output[1..1 + capacity])
+                    faster_base58::Decoder::bitcoin()
+                        .decode(&expected)
+                        .onto(&mut output[1..1 + capacity])
                 })
                 .map(|bytes| {
                     assert_eq!(bytes, input);
                     bytes.len()
                 })
             } else {
-                without_allocations(|| no_alloc::decode(&expected, &mut output[1..1 + capacity]))
+                without_allocations(|| {
+                    faster_base58::Decoder::bitcoin()
+                        .decode(&expected)
+                        .onto(&mut output[1..1 + capacity])
+                        .map(|bytes| bytes.len())
+                })
             };
             if capacity < input.len() {
                 assert_eq!(result, Err(Error::BufferTooSmall));
@@ -184,6 +233,7 @@ fn check_buffers(input: &[u8]) {
     }
 }
 
+#[cfg(not(feature = "alloc"))]
 fn differential_boundaries() {
     for size in [
         0, 1, 2, 6, 7, 8, 9, 10, 13, 14, 15, 16, 21, 22, 23, 31, 32, 33, 63, 64, 65, 255, 256, 257,
@@ -209,6 +259,7 @@ fn differential_boundaries() {
     }
 }
 
+#[cfg(not(feature = "alloc"))]
 fn invalid_byte_offsets() {
     for (text, index) in [
         ("0", 0),
@@ -224,7 +275,10 @@ fn invalid_byte_offsets() {
     ] {
         let mut output = [0xA5; 32];
         assert_eq!(
-            without_allocations(|| no_alloc::decode(text, &mut output[1..31])),
+            without_allocations(|| faster_base58::Decoder::bitcoin()
+                .decode(text)
+                .onto(&mut output[1..31])
+                .map(|bytes| bytes.len())),
             Err(Error::InvalidCharacter { index }),
         );
         assert_eq!(output[0], 0xA5);
@@ -236,7 +290,9 @@ fn invalid_byte_offsets() {
         let text = std::str::from_utf8(&text).unwrap();
         let mut output = [0xA5; 8195];
         assert_eq!(
-            without_allocations(|| no_alloc::decode_into(text, &mut output[1..8194])),
+            without_allocations(|| faster_base58::Decoder::bitcoin()
+                .decode(text)
+                .onto(&mut output[1..8194])),
             Err(Error::InvalidCharacter { index }),
         );
         assert_eq!(output[0], 0xA5);
@@ -244,73 +300,110 @@ fn invalid_byte_offsets() {
     }
 }
 
+#[cfg(not(feature = "alloc"))]
 fn borrowed_and_array_contracts() {
     let mut output = [0xA5; 8];
     let start = output.as_ptr();
-    let text = without_allocations(|| no_alloc::encode_into(&[0, 0, 1], &mut output));
+    let text = without_allocations(|| {
+        faster_base58::Encoder::bitcoin()
+            .encode(&[0, 0, 1])
+            .onto(&mut output)
+    });
     let text = text.unwrap();
     assert_eq!(text, "112");
     assert_eq!(text.as_ptr(), start);
-    let decoded = without_allocations(|| no_alloc::decode_into("112", &mut output)).unwrap();
+    let decoded = without_allocations(|| {
+        faster_base58::Decoder::bitcoin()
+            .decode("112")
+            .onto(&mut output)
+    })
+    .unwrap();
     assert_eq!(decoded, [0, 0, 1]);
     assert_eq!(decoded.as_ptr(), start);
     decoded[0] = 9;
     assert_eq!(output[0], 9);
 
     let input = vec![0, 0, 1];
-    let text = without_allocations(|| no_alloc::encode_into(&input, &mut output)).unwrap();
+    let text = without_allocations(|| {
+        faster_base58::Encoder::bitcoin()
+            .encode(&input)
+            .onto(&mut output)
+    })
+    .unwrap();
     drop(input);
     assert_eq!(text, "112");
 
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<0>("")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("")
+            .into_array::<0>()),
         Ok([])
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<1>("1")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("1")
+            .into_array::<1>()),
         Ok([0])
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<2>("11")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("11")
+            .into_array::<2>()),
         Ok([0, 0])
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<0>("1")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("1")
+            .into_array::<0>()),
         Err(Error::BufferTooSmall)
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<1>("11")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("11")
+            .into_array::<1>()),
         Err(Error::BufferTooSmall)
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<2>("2")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("2")
+            .into_array::<2>()),
         Err(Error::InvalidLength {
             expected: 2,
             actual: 1
         }),
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<1>("")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("")
+            .into_array::<1>()),
         Err(Error::InvalidLength {
             expected: 1,
             actual: 0
         }),
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<8>("1é")),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode("1é")
+            .into_array::<8>()),
         Err(Error::InvalidCharacter { index: 1 }),
     );
     let text = bs58::encode([0xFF; 32]).into_string();
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<32>(&text)),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode(&text)
+            .into_array::<32>()),
         Ok([0xFF; 32])
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<31>(&text)),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode(&text)
+            .into_array::<31>()),
         Err(Error::BufferTooSmall)
     );
     assert_eq!(
-        without_allocations(|| no_alloc::decode_array::<33>(&text)),
+        without_allocations(|| faster_base58::Decoder::bitcoin()
+            .decode(&text)
+            .into_array::<33>()),
         Err(Error::InvalidLength {
             expected: 33,
             actual: 32
@@ -318,6 +411,7 @@ fn borrowed_and_array_contracts() {
     );
 }
 
+#[cfg(not(feature = "alloc"))]
 fn allocation_counter_is_thread_local() {
     use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -350,6 +444,7 @@ fn allocation_counter_is_thread_local() {
 // One process keeps first use cold; thread-local counters exclude libtest activity.
 // Assertions/oracle/caller-buffer setup stay outside counting regions.
 #[test]
+#[cfg(not(feature = "alloc"))]
 fn no_allocator_calls_on_cold_success_or_error_paths() {
     cold_paths();
     differential_boundaries();
@@ -359,6 +454,7 @@ fn no_allocator_calls_on_cold_success_or_error_paths() {
 }
 
 #[cfg(all(
+    feature = "alloc",
     target_arch = "aarch64",
     target_endian = "little",
     target_feature = "neon"
@@ -367,8 +463,14 @@ fn no_allocator_calls_on_cold_success_or_error_paths() {
 fn large_encoding_does_not_allocate_per_leaf() {
     for bytes in [1 << 20, 1 << 22] {
         let input = vec![255; bytes];
-        let mut output = vec![0xA5; faster_base58::max_encoded_len(input.len()) + 8];
-        let (result, calls) = observe(|| faster_base58::encode(&input, &mut output[1..]));
+        let mut output =
+            vec![0xA5; faster_base58::Encoder::bitcoin().max_encoded_len(input.len()) + 8];
+        let (result, calls) = observe(|| {
+            faster_base58::Encoder::bitcoin()
+                .encode(&input)
+                .onto(&mut output[1..])
+                .map(str::len)
+        });
         let peak = PEAK.get();
         let len = result.unwrap();
         let mib = if bytes == 1 << 20 { 18 } else { 67 };
@@ -384,7 +486,13 @@ fn large_encoding_does_not_allocate_per_leaf() {
         assert!(output[1 + len..].iter().all(|&c| c == 0xA5));
         let mut decoded = vec![0; input.len()];
         let text = std::str::from_utf8(&output[1..1 + len]).unwrap();
-        assert_eq!(faster_base58::decode(text, &mut decoded), Ok(input.len()));
+        assert_eq!(
+            faster_base58::Decoder::bitcoin()
+                .decode(text)
+                .onto(&mut decoded)
+                .map(|bytes| bytes.len()),
+            Ok(input.len())
+        );
         assert_eq!(decoded, input);
     }
 }

@@ -1,10 +1,17 @@
 # Algorithms and resource costs
 
-The public API has two modes: automatic selection and `no_alloc`. Named backends,
+The public API uses `Encoder` / `Decoder`. Default feature `alloc` selects fast
+allocating backends; disabling it selects heap-free conversion. Named backends,
 portable controls and tuning hooks require `__internals` and are unstable.
-The library uses `core` and `alloc` by default. `cache` enables `std` and retains
+The library uses `core` and `alloc` by default. `cache` enables `alloc` and `std` and retains
 generated tables. See [correctness and verification](CORRECTNESS.md),
 [measurements](docs/performance.md), and [implementation references](REFERENCES.md).
+
+Automatic backend policy lives in `src/api.rs`. Its encode/decode selectors are
+used by public buffer calls. Plain decoding tests the same small
+cutoff directly before matching the large backend, keeping enum classification
+off the small path. Fixed-size encoding and tiny decoding run before general
+selection; their wrappers preserve the specialized input contracts.
 
 ## Conversion families
 
@@ -64,7 +71,7 @@ Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
 local sums. Their table type keeps rows first and 16-byte aligned for NEON
 column loads, avoiding sensitivity to incidental constant placement.
 Fixed dimensions remove table construction and dimension handling;
-64-byte kernels also segment the carry chain. Auto and `no_alloc` select these
+64-byte kernels also segment the carry chain. Both allocation policies select these
 specializations directly. The internal Matrix comparison hooks use the general
 matrix kernel. Their short carry schedule needs fixed-size bounds and cannot
 replace the general schedule directly. Padding nearby lengths into these kernels
@@ -96,7 +103,7 @@ NTT entry points are outlined to keep large stack frames out of tiny encode call
 | --- | --- | --- |
 | Auto, default | Fixed matrices at exactly 32/64 bytes; otherwise batched through 4096 significant bytes, with IFMA Karatsuba at 513–4096; then owned NTT | Tiny through two text bytes; batched through 5120 significant digits; Karatsuba through 5632; then owned NTT |
 | Auto + `cache` | Tiny/fixed routes first; batched below 22 significant bytes; general Matrix through 8192, or 3584 with IFMA; then NTT | Batched below 576 significant digits on NEON/Wasm, 1024 elsewhere; supported medium-size Matrix; then NTT |
-| `no_alloc` | Fixed 32/64-byte matrices; batched elsewhere | Tiny/batched |
+| Without `alloc` | Fixed 32/64-byte matrices; batched elsewhere | Tiny/batched |
 
 Cached decoding uses Matrix only on NEON, Wasm or x86 with SSE4.1. Its upper
 boundary is 5632 significant digits, reduced to 5120 with IFMA. IFMA hosts compiled
@@ -143,16 +150,16 @@ source-level function pointers as runtime dispatch costs.
 
 ## Heap, stack and cache costs
 
-`no_alloc` makes no allocator calls on cold, warm, success or error paths. Its
+Without `alloc`, conversion makes no allocator calls on cold, warm, success or error paths. Its
 general-size conversion remains quadratic. Fixed tables have a combined
 reference layout of 2208 bytes on 64-bit targets; emitted binary bytes can differ.
-`decode_array::<N>` constructs an `N`-byte local result. General Matrix uses about
+`.into_array::<N>()` constructs an `N`-byte local result. General Matrix uses about
 30 KiB encoder / 14 KiB decoder stack; recursive encoder leaves add about 8 KiB.
 These are source estimates, not measured stack high-water marks.
 
-`encode_string` reserves `max_encoded_len(input.len())` bytes and truncates the
+Encoding `.into_string()` reserves `max_encoded_len(input.len())` bytes and truncates the
 length after conversion; it retains that capacity, including for zero-heavy input.
-`decode_vec` reserves one byte per leading `'1'`, then `d - d/4 - d/64` bytes
+Decoding `.into_vec()` reserves one byte per leading `'1'`, then `d - d/4 - d/64` bytes
 for the remaining `d` text bytes. The integer bound follows from `58^64 < 256^47`
 and cannot overflow. It asymptotically saves 26.6% of the significant-text output
 capacity against allocating the full text length; backend scratch is additional. The
@@ -233,7 +240,7 @@ default for small/Wasm consumers. The small fixed tables are already compile-tim
 Measure a stripped consumer with matched compiler, target features, direction,
 scaffold and LTO. An `.rlib` is not deployment size. Dead stripping removes
 unreachable implementations, so deleting an unused backend does not recover its
-source size from a consumer. Auto links more code than `no_alloc`, which supplies
+source size from a consumer. Auto links more code than conversion without `alloc`, which supplies
 a smaller general path. Fixed-only five8 has a narrower contract.
 
 The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to

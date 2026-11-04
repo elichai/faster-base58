@@ -1,7 +1,7 @@
 //! Unstable backend selectors and measurement hooks, enabled by `__internals`.
 //!
 //! This is for differential tests, fuzzing and benchmarks. Prefer the crate's
-//! automatic API or [`crate::no_alloc`] in applications. These hooks may change
+//! [`crate::Encoder`] and [`crate::Decoder`] in applications. These hooks may change
 //! without compatibility guarantees; tuning parameters have backend-specific
 //! preconditions documented on each function.
 
@@ -20,6 +20,7 @@ pub use crate::encode::matrix::internals::{
 pub use crate::encode::{Leaves, encode_batched, encode_tuned};
 pub use crate::matrix::internals::{decode_matrix, decode_matrix_portable};
 pub use crate::mul::{ifma_threshold, mul_with, scratch_len};
+pub use crate::no_alloc::{decode as decode_no_alloc, encode as encode_no_alloc};
 pub use crate::ntt::internals::{
     cached::{decode_ntt_cached, encode_ntt_cached},
     decode_ntt_portable, decode_ntt_with, encode_ntt_portable, encode_ntt_with, encode_radix,
