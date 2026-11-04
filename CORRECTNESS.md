@@ -40,8 +40,8 @@ and locally replayed. The replacement hosted matrix remains separate evidence.
 
 The default-on `alloc` feature enables allocating backends and owned results.
 `cache` and `__internals` imply `alloc`. Allocation-free public tests run with
-`cargo test --locked --no-default-features --test no_alloc`.
-The downstream API checker also checks owned method availability and
+`cargo test --locked --no-default-features --features check --test no_alloc`.
+The downstream API checker also checks owned/check method availability and
 rejects the removed free functions and `no_alloc` module.
 
 - The alphabet is Bitcoin Base58. Leading zero bytes become leading `'1'`s.
@@ -58,21 +58,29 @@ rejects the removed free functions and `no_alloc` module.
 - Work and dispatch depend on values and lengths. The crate is not constant-time.
   Transform and fuzz bounds are not maximum input lengths.
 - `Encoder` / `Decoder` configurations are reusable constants. They convert only
-  at terminal methods.
-- `Error` is non-exhaustive; downstream matches must retain a wildcard arm.
+  at terminal methods. The optional `check` feature adds Base58Check: first four
+  bytes of double SHA-256 over data including any version prefix. Decoding checks
+  the checksum before the requested version, removes only the checksum, and retains
+  the version. Valid empty data is accepted without a version requirement.
+- Checked borrowed output requires only data capacity. A separate four-byte
+  checksum segment is held internally, leaving the entire unused output tail
+  untouched on success. Checked arrays use the same split destination with a
+  plain stack array and report shorter data as `InvalidLength`, longer data
+  as `BufferTooSmall`. `Error` is non-exhaustive; downstream matches must retain
+  a wildcard arm, including when enabling feature-gated checksum/version errors.
 
 ## Tests and independent references
 
 | Check | What it exercises |
 | --- | --- |
-| [Configurable codec](tests/builders.rs) | Const configuration, owned/borrowed inputs, plain codec agreement, exact arrays, and untouched tails |
+| [Configurable codec](tests/builders.rs) | Const configuration, owned/borrowed inputs, plain codec agreement, known Base58Check answers, bs58 differential properties, version insertion/validation/retention, empty/truncated/corrupted frames, large-frame checksum-before-version errors across shared backends, exact data capacity with a separate checksum segment, and untouched guards/tails |
 | [Public properties](tests/public_properties.rs) | Independent integer/radix conversion, zero prefixes, exact/short/oversized buffers, Unicode error indices, repeated output and dispatch history |
 | [Bitcoin Core vectors](tests/bitcoin_core.rs) | 21 pinned known-answer vectors, zero extensions to 32/64 bytes, short output, preserved tails, and explicit strict whitespace/NUL rules; internal wrappers run when enabled |
 | [Owned decoding](tests/owned_output.rs) | Maximum digits at capacity and dispatch boundaries, arbitrary digits, long zero prefixes, independent scalar values and byte offsets of late invalid characters |
 | [Backend properties](tests/properties.rs) | Every registered encoder/decoder, portable controls, tuned leaves and thresholds, malformed text, recursive and NTT boundaries |
 | [Scalar oracle](tests/support/scalar.rs) | Simple `u128` conversion for up to 16 significant binary bytes, with arbitrary leading zeros; independent of production limb arithmetic |
 | [Large radix oracle](src/encode/tests.rs) | Independent Malachite `Natural` conversion plus bs58 comparisons; the [multiplier adapter](tests/support/malachite.rs) shares our conversion tree and is not an independent end-to-end oracle |
-| [Allocation contract](tests/no_alloc.rs) and [preflight](tests/resource_preflight.rs) | Allocation, zeroed-allocation, reallocation and deallocation counters; cold/success/error paths and impossible-buffer rejection before table construction |
+| [Allocation contract](tests/no_alloc.rs) and [preflight](tests/resource_preflight.rs) | Allocation, zeroed-allocation, reallocation and deallocation counters; cold/success/error paths, checked array storage, no extra check-frame allocations versus ordinary codec workspace, and impossible-buffer rejection before table construction |
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
 | Concurrency tests | Cold Matrix initialization, shared tables and eight-thread NTT cache/history reuse |
 | [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards; normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |

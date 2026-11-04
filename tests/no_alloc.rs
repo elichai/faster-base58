@@ -1,4 +1,4 @@
-#[cfg(not(feature = "alloc"))]
+#[cfg(any(not(feature = "alloc"), feature = "check"))]
 use faster_base58::{BufferTooSmall, Error};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -74,6 +74,7 @@ unsafe impl GlobalAlloc for Counting {
 
 #[cfg(any(
     not(feature = "alloc"),
+    feature = "check",
     feature = "__internals",
     all(
         target_arch = "aarch64",
@@ -92,7 +93,7 @@ fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     (result, CALLS.get())
 }
 
-#[cfg(not(feature = "alloc"))]
+#[cfg(any(not(feature = "alloc"), feature = "check"))]
 fn without_allocations<T>(call: impl FnOnce() -> T) -> T {
     let (result, calls) = observe(call);
     assert_eq!(
@@ -100,6 +101,65 @@ fn without_allocations<T>(call: impl FnOnce() -> T) -> T {
         "allocator calls: alloc, zeroed, realloc, dealloc"
     );
     result
+}
+
+#[cfg(all(feature = "check", not(feature = "alloc")))]
+#[test]
+fn checked_conversion_without_allocating_backends() {
+    use faster_base58::{Decoder, Encoder};
+    for len in [0, 1, 21, 27, 28, 59, 60, 512, 8193] {
+        for version in [None, Some(0), Some(42)] {
+            let input = vec![0xa5; len];
+            let encoder = version.map_or(Encoder::bitcoin().with_check(), |v| {
+                Encoder::bitcoin().with_check_version(v)
+            });
+            let decoder = version.map_or(Decoder::bitcoin().with_check(), |v| {
+                Decoder::bitcoin().with_check_version(v)
+            });
+            let expected = match version {
+                Some(v) => bs58::encode(&input).with_check_version(v).into_string(),
+                None => bs58::encode(&input).with_check().into_string(),
+            };
+            let payload = bs58::decode(&expected)
+                .with_check(version)
+                .into_vec()
+                .unwrap();
+            let mut text = vec![0xa5; expected.len() + 1];
+            assert_eq!(
+                without_allocations(|| encoder.encode(&input).onto(&mut text)).unwrap(),
+                expected
+            );
+            assert_eq!(text[expected.len()], 0xa5);
+            let mut output = vec![0xa5; payload.len() + 1];
+            assert_eq!(
+                without_allocations(|| decoder
+                    .decode(&expected)
+                    .onto(&mut output[..payload.len()]))
+                .unwrap(),
+                payload
+            );
+            assert_eq!(output[payload.len()], 0xa5);
+            assert_eq!(
+                without_allocations(|| decoder.decode("0").onto(&mut output)),
+                Err(Error::InvalidCharacter { index: 0 })
+            );
+            if !payload.is_empty() {
+                assert_eq!(
+                    without_allocations(|| decoder
+                        .decode(&expected)
+                        .onto(&mut output[..payload.len() - 1])),
+                    Err(Error::BufferTooSmall)
+                );
+            }
+        }
+    }
+    assert_eq!(
+        without_allocations(|| Decoder::bitcoin()
+            .with_check()
+            .decode("3QJmnh")
+            .into_array::<0>()),
+        Ok([])
+    );
 }
 
 #[cfg(not(feature = "alloc"))]
@@ -449,6 +509,145 @@ fn allocation_counter_is_thread_local() {
         "the observed thread must still count"
     );
     drop(value);
+}
+
+#[cfg(all(feature = "check", feature = "alloc"))]
+#[test]
+fn checked_encoding_uses_only_output_and_normal_codec_workspace() {
+    use faster_base58::Encoder;
+    for version in [None, Some(42)] {
+        let encoder = version.map_or(Encoder::bitcoin().with_check(), |v| {
+            Encoder::bitcoin().with_check_version(v)
+        });
+        for len in [0, 1, 16, 17, 27, 28, 59, 60, 4096, 8193, 16379] {
+            let input = vec![0xff; len];
+            let expected = match version {
+                Some(v) => bs58::encode(&input).with_check_version(v).into_string(),
+                None => bs58::encode(&input).with_check().into_string(),
+            };
+            let frame = faster_base58::Decoder::bitcoin()
+                .decode(&expected)
+                .into_vec()
+                .unwrap();
+            let mut output = vec![0xa5; expected.len() + 7];
+            // Warm optional caches before comparing per-call allocation counts.
+            faster_base58::Encoder::bitcoin()
+                .encode(&frame)
+                .onto(&mut output)
+                .map(str::len)
+                .unwrap();
+            let (plain, baseline) = observe(|| {
+                faster_base58::Encoder::bitcoin()
+                    .encode(&frame)
+                    .onto(&mut output)
+                    .map(str::len)
+            });
+            assert_eq!(plain, Ok(expected.len()));
+            output.fill(0xa5);
+            let (checked, calls) = observe(|| encoder.encode(&input).onto(&mut output));
+            assert_eq!(checked.unwrap(), expected);
+            assert_eq!(
+                calls, baseline,
+                "extra allocator calls for check at {len}, {version:?}"
+            );
+            assert!(output[expected.len()..].iter().all(|&b| b == 0xa5));
+        }
+        let mut output = [0; 1];
+        assert_eq!(
+            without_allocations(|| encoder.encode([42; 32]).onto(&mut output)),
+            Err(BufferTooSmall)
+        );
+        let (text, calls) = observe(|| encoder.encode([0; 21]).into_string());
+        assert_eq!(
+            calls[0] + calls[1],
+            1,
+            "only the returned string needs allocation"
+        );
+        assert_eq!(calls[2..], [0, 0]);
+        assert!(!text.is_empty());
+    }
+}
+
+#[cfg(all(feature = "check", feature = "alloc"))]
+#[test]
+fn checked_arrays_use_stack_checksum_storage() {
+    use faster_base58::{Decoder, Encoder};
+    let input = [42; 16];
+    let encoder = Encoder::bitcoin().with_check();
+    let decoder = Decoder::bitcoin().with_check();
+    let text = encoder.encode(input).into_string();
+    assert_eq!(
+        without_allocations(|| decoder.decode(&text).into_array::<16>()),
+        Ok(input)
+    );
+    assert_eq!(
+        without_allocations(|| decoder.decode("3QJmnh").into_array::<0>()),
+        Ok([])
+    );
+    assert_eq!(
+        without_allocations(|| decoder.decode("0").into_array::<16>()),
+        Err(Error::InvalidCharacter { index: 0 })
+    );
+    let text = encoder.with_check_version(0).encode(input).into_string();
+    let mut expected = [42; 17];
+    expected[0] = 0;
+    assert_eq!(
+        without_allocations(|| decoder
+            .with_check_version(0)
+            .decode(&text)
+            .into_array::<17>()),
+        Ok(expected)
+    );
+    assert_eq!(
+        without_allocations(|| decoder
+            .with_check_version(1)
+            .decode(&text)
+            .into_array::<17>()),
+        Err(Error::InvalidVersion {
+            expected: 1,
+            actual: Some(0)
+        })
+    );
+}
+
+#[cfg(all(feature = "check", feature = "alloc"))]
+#[test]
+fn checked_decoding_uses_exact_payload_storage_without_extra_heap() {
+    use faster_base58::{Decoder, Encoder};
+    for version in [None, Some(0), Some(42)] {
+        let encoder = version.map_or(Encoder::bitcoin().with_check(), |v| {
+            Encoder::bitcoin().with_check_version(v)
+        });
+        let decoder = version.map_or(Decoder::bitcoin().with_check(), |v| {
+            Decoder::bitcoin().with_check_version(v)
+        });
+        for len in [0, 1, 16, 21, 32, 512, 4096, 8193] {
+            let input = vec![42; len];
+            let text = encoder.encode(&input).into_string();
+            let expected = bs58::decode(&text).with_check(version).into_vec().unwrap();
+            let mut framed = vec![0; expected.len() + 4];
+            faster_base58::Decoder::bitcoin()
+                .decode(&text)
+                .onto(&mut framed)
+                .map(|bytes| bytes.len())
+                .unwrap();
+            let (_, baseline) = observe(|| {
+                faster_base58::Decoder::bitcoin()
+                    .decode(&text)
+                    .onto(&mut framed)
+                    .map(|bytes| bytes.len())
+            });
+            let mut output = vec![0xa5; expected.len() + 7];
+            let (result, calls) =
+                observe(|| decoder.decode(&text).onto(&mut output[..expected.len()]));
+            assert_eq!(result.unwrap(), expected);
+            assert_eq!(
+                calls, baseline,
+                "extra check allocator calls at {len}, {version:?}"
+            );
+            assert_eq!(&output[expected.len()..], &[0xa5; 7]);
+        }
+    }
 }
 
 // One process keeps first use cold; thread-local counters exclude libtest activity.

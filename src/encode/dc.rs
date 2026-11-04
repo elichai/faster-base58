@@ -166,21 +166,57 @@ fn check_leaf(leaf: usize, leaves: Leaves) {
 /// Length dispatch belongs to the caller; this never falls back to another encoder.
 pub(crate) fn encode_parts(
     zeros: usize,
-    x: &[u8],
+    input: &[u8],
     output: &mut [u8],
     m: &mut impl Multiplier,
     leaf: usize,
     leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
     check_leaf(leaf, leaves);
+    let (limbs, chunks) = load(input, zeros, output.len())?;
+    encode_limbs(zeros, limbs, chunks, output, m, leaf, leaves)
+}
+
+#[cfg(all(feature = "check", feature = "alloc"))]
+pub(crate) fn encode_staged(
+    zeros: usize,
+    end: usize,
+    output: &mut [u8],
+    m: &mut impl Multiplier,
+    leaf: usize,
+    leaves: Leaves,
+) -> Result<usize, BufferTooSmall> {
+    check_leaf(leaf, leaves);
+    let (limbs, chunks) = load(&output[zeros..end], zeros, output.len())?;
+    encode_limbs(zeros, limbs, chunks, output, m, leaf, leaves)
+}
+
+fn load(x: &[u8], zeros: usize, capacity: usize) -> Result<(Vec<u64>, usize), BufferTooSmall> {
     assert!(!x.is_empty() && x[0] != 0, "expected a nonzero value");
     let min = min_digits(bits(x));
-    let (ones, out) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
-    if out.len() < min {
+    if zeros > capacity || capacity - zeros < min {
         return Err(BufferTooSmall);
     }
     // `x < 58^(min + 2) <= BASE^n`.
     let n = (min + 2).div_ceil(CHUNK);
+    let limbs = x
+        .rchunks(8)
+        .map(|c| c.iter().fold(0, |v, &b| (v << 8) | b as u64))
+        .collect();
+    Ok((limbs, n))
+}
+
+// Keep the conversion tree shared by borrowed and staged input.
+#[inline(never)]
+fn encode_limbs(
+    zeros: usize,
+    x: Vec<u64>,
+    n: usize,
+    output: &mut [u8],
+    m: &mut impl Multiplier,
+    leaf: usize,
+    leaves: Leaves,
+) -> Result<usize, BufferTooSmall> {
     let (unit, levels) = split_unit_leaf(n, leaf);
     assert!(levels != 0, "value is too short for divide and conquer");
     let e = unit << (levels - 1);
@@ -188,10 +224,7 @@ pub(crate) fn encode_parts(
     // no product longer than twice that plus one.
     m.prepare(2 * full(e) + 2);
 
-    let x: Vec<u64> = x
-        .rchunks(8)
-        .map(|c| c.iter().fold(0, |v, &b| (v << 8) | b as u64))
-        .collect();
+    let (ones, out) = output.split_at_mut(zeros);
     let table_len = table_len(unit, levels);
     let scratch_len = m.scratch_len(e).max(divisor_scratch_len(full(e) + 1, m));
     let mut power_work = vec![0; table_len + scratch_len];

@@ -8,9 +8,32 @@ internal allocation; its general large conversions remain quadratic.
 
 ## Measurement scope
 
-Published timing/size tables predate the configurable API and `alloc` feature.
-They do not establish performance for this API revision. Constant `Encoder` /
-`Decoder` configurations delegate to the existing conversion paths.
+Published timing/size tables predate the configurable API, `alloc` feature, and
+Base58Check. They do not establish performance for this API revision.
+Constant plain `Encoder` / `Decoder` configurations delegate to existing paths.
+Runtime-selected settings can retain dispatch branches. Checked calls add SHA-256
+work but avoid temporary frame allocations. Encoding stages the frame in output;
+decoding uses exact data capacity and a separate checksum word on the stack.
+Large conversions retain normal codec workspace allocations.
+Plain and checked calls share the large conversion bodies. Input loading and
+final serialization sit outside those bodies, so checksum mode does not create
+another arithmetic monomorphization. Returned limb/digit vectors reuse the codec's
+existing arenas without copying or shrinking their capacity. Runtime selectors
+and thin format wrappers can still contribute code; this is not a claim that
+using Base58Check has zero linked-size or latency cost.
+Disabling `alloc` also applies to checked conversion; checked output methods then
+use fixed/batched kernels without heap workspace.
+
+`cargo bench --locked --features check --bench check` compares checked buffer
+conversion with contiguous conversion of the same complete frame. The
+`continuous` cases only convert radix; `continuous-verified` decoding also hashes
+and validates the checksum/version. `continuous-hashed` encoding rebuilds the
+frame in a reused buffer and includes hashing. Fixture construction, caller-buffer
+allocation and pre-timing output assertions are excluded. Checked decoding uses
+exact payload capacity; contiguous decoding has four more output bytes. Repeat
+with `--features check,cache` or `--no-default-features --features check` to change
+backend policy. These Criterion timings use wall time and warm reused buffers;
+they are separate from the process-CPU-time public comparison harness below.
 
 ### Configured API comparison
 
@@ -50,6 +73,59 @@ also varied by fractions of a nanosecond. These runs do not prove zero overhead
 for every caller, compiler, target or input. Cold calls, Wasm and allocating output
 helpers were not timed in this comparison. Raw artifacts and samples stay under
 ignored `target/measurements/`.
+
+### Base58Check comparison and unresolved regression
+
+The zero-cost latency goal is **not met**. In the same 2026-11-04 public-consumer
+campaign described above, enabling `check` in the checksum-layer build while using
+a plain decoder made cached EPYC 512-byte decoding slower: median process centers
+were 1.002 to 1.242 µs; the median paired ratio was 1.245, with process ratios
+1.213–1.245. The builder layer and checksum layer also differ in arithmetic-body
+sharing. A follow-up with `check` disabled recovered this case; an unchanged-artifact
+control stayed close to one. Generated tag stores and register allocation differed,
+but the microarchitectural cause is not established. Representation and inlining
+experiments moved slowdowns between workloads and are not retained. This remains
+an open performance issue, not a passing no-regression check.
+
+The measured checksum implementation's Rust-source fingerprint is
+`9d0c5dacfab0694f7d4fc30b8f0ed6b6c7cbcffd610e3953a3497a0f4267be88`
+(sorted source paths and bytes). This matches the retained implementation on both
+hosts. The native public probe has the same flags/clocks/sampling as the builder
+comparison. Its M5 probe-input fingerprint is `70411ca683704a53`; the GCP source
+bundle fingerprint is `76fcf37579754532`.
+
+The committed `check` benchmark separately compares checked decoding with plain
+decoding of the **same complete frame**, then with plain decoding plus checksum
+and version verification. It uses constant configurations inside timed closures
+and the same output address: checked calls see only payload capacity, contiguous
+calls see four additional bytes. Seeded fixtures are checked against bs58 outside
+timing. The final harness SHA-256 begins `08c5b07697350fb9`.
+
+The table below gives selected **unversioned** Criterion sample medians, measured
+2026-11-04 with the host/compiler/opt3/fat-LTO settings above. Each policy used one
+fresh process, 30 samples, 100 ms warmup and 500 ms measurement per cell; GCP was
+pinned to CPU 0. This is wall time, not the paired public probe's process CPU clock.
+Caller allocation and fixture preparation are excluded; normal workspace remains
+included. Sequential cases, host activity and frequency changes limit attribution.
+The full harness also covers version 42, heap-free conversion and encoding with
+preframed or freshly hashed contiguous input. Raw outputs stay outside Git.
+
+| Host / policy | Payload | Full-frame decode | Checked decode | Full-frame decode + verification |
+| --- | ---: | ---: | ---: | ---: |
+| M5 / default | 21 B | 14.0 ns | 53.0 ns | 53.9 ns |
+| M5 / default | 512 B | 693 ns | 917 ns | 889 ns |
+| M5 / cache | 512 B | 614 ns | 861 ns | 800 ns |
+| M5 / cache | 4 KiB | 24.9 µs | 26.8 µs | 26.1 µs |
+| EPYC / default | 21 B | 25.3 ns | 119 ns | 115 ns |
+| EPYC / default | 512 B | 1.060 µs | 1.460 µs | 1.414 µs |
+| EPYC / cache | 4 KiB | 27.1 µs | 31.1 µs | 29.3 µs |
+
+These observations separate hashing from conversion, but do not prove that exact
+checksum storage is free. For example, cached M5 512-byte checked decoding took
+about 7.6% more time than contiguous decoding plus verification in this run.
+Different consumer code can also change compiler decisions; the in-crate benchmark
+does not erase the ordinary-public-consumer regression above. Cold latency,
+translated execution and Wasm were not measured for this feature.
 
 The broad public timings, linked sizes and M5 allocations below are historical,
 before the [NTT heap reductions](#bounded-inverse-root-tables). They were measured

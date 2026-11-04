@@ -81,6 +81,54 @@ pub(crate) fn decode_short(input: &[u8], output: &mut [u8]) -> Result<usize, Dec
     Ok(len)
 }
 
+/// Writes all but the last four frame bytes to `output` and keeps the low checksum
+/// word off-buffer. Returns the frame length and those four bytes.
+#[cfg(feature = "check")]
+pub(crate) fn decode_checked_parts(
+    input: &[u8],
+    zeros: usize,
+    output: &mut [u8],
+) -> Result<(usize, [u8; 4]), DecodeError> {
+    let offset = zeros.min(output.len());
+    let buf = &mut output[offset..];
+    let mut value = Value {
+        limbs: buf.as_chunks_mut::<8>().0,
+        len: 0,
+        top: 0,
+    };
+    let mut low = 0u32;
+    // value = 2^32 * high + low; only high occupies the caller's buffer.
+    let mut next = |chunk: u64| {
+        let product = low as u128 * BASE as u128 + chunk as u128;
+        low = product as u32;
+        (product >> 32) as u64
+    };
+    let mut chunks = chunks(&input[zeros..]).map(|c| c.ok_or_else(|| invalid(input)));
+    while let Some(c1) = chunks.next() {
+        let carry1 = next(c1?);
+        match chunks.next() {
+            Some(c2) => value.mul_add2(carry1, next(c2?))?,
+            None => value.mul_add(carry1)?,
+        }
+    }
+    let Value { len, top, .. } = value;
+    let high_len = 8 * len + 8 - top.leading_zeros() as usize / 8;
+    let numeric_len = if high_len == 0 {
+        4 - low.leading_zeros() as usize / 8
+    } else {
+        high_len + 4
+    };
+    let tail = buf.get_mut(8 * len..high_len).ok_or(BufferTooSmall)?;
+    tail.copy_from_slice(&top.to_le_bytes()[..tail.len()]);
+    buf[..high_len].reverse();
+    // A frame shorter than the checksum has no data; the caller reports it.
+    let frame = zeros + numeric_len;
+    let data_len = frame.saturating_sub(4);
+    let data = output.get_mut(..data_len).ok_or(BufferTooSmall)?;
+    data[..data_len - high_len].fill(0);
+    Ok((frame, low.to_be_bytes()))
+}
+
 /// A value kept little-endian in the output buffer: full limbs in `limbs[..len]`, the
 /// top limb in `top`. Holding the top limb back lets an exactly sized output suffice.
 struct Value<'a> {

@@ -33,46 +33,56 @@ pub(crate) fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferToo
     }
 }
 
-#[cfg(feature = "alloc")]
+/// Backend for `bytes` significant input bytes. Shared by plain and checked encoding.
+#[cfg(any(feature = "alloc", feature = "check"))]
 pub(crate) enum EncodeBackend {
     Batched,
-    #[cfg(not(feature = "cache"))]
+    #[cfg(all(feature = "alloc", not(feature = "cache")))]
     Karatsuba {
         leaf: usize,
     },
     #[cfg(feature = "cache")]
     Matrix,
+    #[cfg(feature = "alloc")]
     Ntt,
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "alloc", feature = "check"))]
 #[inline(always)]
 pub(crate) fn encode_backend(bytes: usize) -> EncodeBackend {
-    #[cfg(feature = "cache")]
-    {
-        use crate::encode::matrix::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
-        if bytes < MATRIX_MIN {
-            return EncodeBackend::Batched;
-        }
-        let cap = if crate::mul::ifma_threshold() != 0 {
-            IFMA_CAP
-        } else {
-            MAX_INPUT
-        };
-        if bytes <= cap {
-            return EncodeBackend::Matrix;
-        }
-    }
-    #[cfg(not(feature = "cache"))]
-    if bytes <= crate::ntt::ENCODE_THRESHOLD {
-        let (threshold, leaf) = crate::encode::dc::karatsuba::params();
-        return if bytes > threshold {
-            EncodeBackend::Karatsuba { leaf }
-        } else {
+    core::cfg_select! {
+        not(feature = "alloc") => {
+            let _ = bytes;
             EncodeBackend::Batched
-        };
+        }
+        feature = "cache" => {
+            use crate::encode::matrix::entry::{IFMA_CAP, MATRIX_MIN, MAX_INPUT};
+            if bytes < MATRIX_MIN {
+                return EncodeBackend::Batched;
+            }
+            let cap = if crate::mul::ifma_threshold() != 0 {
+                IFMA_CAP
+            } else {
+                MAX_INPUT
+            };
+            if bytes <= cap {
+                EncodeBackend::Matrix
+            } else {
+                EncodeBackend::Ntt
+            }
+        }
+        _ => {
+            if bytes > crate::ntt::ENCODE_THRESHOLD {
+                return EncodeBackend::Ntt;
+            }
+            let (threshold, leaf) = crate::encode::dc::karatsuba::params();
+            if bytes > threshold {
+                EncodeBackend::Karatsuba { leaf }
+            } else {
+                EncodeBackend::Batched
+            }
+        }
     }
-    EncodeBackend::Ntt
 }
 
 #[cfg(feature = "alloc")]
@@ -110,78 +120,82 @@ pub(crate) fn decode_parts(
     }
 }
 
-#[cfg(feature = "alloc")]
+/// Backend for `digits` significant characters. Shared by plain and checked decoding.
+#[cfg(any(feature = "alloc", feature = "check"))]
 pub(crate) enum DecodeBackend {
     Batched,
-    #[cfg(not(feature = "cache"))]
+    #[cfg(all(feature = "alloc", not(feature = "cache")))]
     Karatsuba,
     #[cfg(feature = "cache")]
     Matrix,
+    #[cfg(feature = "alloc")]
     Ntt,
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "alloc", feature = "check"))]
 #[inline(always)]
 fn decode_small_limit() -> usize {
-    #[cfg(not(feature = "cache"))]
-    {
-        crate::dc::DC_THRESHOLD * crate::common::CHUNK
-    }
-    #[cfg(feature = "cache")]
-    {
-        if cfg!(all(
-            target_arch = "aarch64",
-            target_endian = "little",
-            target_feature = "neon"
-        )) || cfg!(target_arch = "wasm32")
-        {
-            575
-        } else {
-            1023
+    core::cfg_select! {
+        not(feature = "alloc") => { usize::MAX }
+        feature = "cache" => {
+            if cfg!(all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            )) || cfg!(target_arch = "wasm32")
+            {
+                575
+            } else {
+                1023
+            }
         }
+        _ => { crate::dc::DC_THRESHOLD * crate::common::CHUNK }
     }
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "alloc", feature = "check"))]
 #[inline(always)]
 pub(crate) fn decode_backend(digits: usize) -> DecodeBackend {
     if digits <= decode_small_limit() {
         return DecodeBackend::Batched;
     }
-    #[cfg(not(feature = "cache"))]
-    {
-        if digits <= 5632 {
-            return DecodeBackend::Karatsuba;
-        }
-        DecodeBackend::Ntt
-    }
-    #[cfg(feature = "cache")]
-    {
-        if digits > 5632 {
-            return DecodeBackend::Ntt;
-        }
-        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-        if crate::mul::ifma_threshold() != 0 {
-            if digits > 5120 {
+    core::cfg_select! {
+        // Without `alloc` the small limit covers every length.
+        not(feature = "alloc") => { DecodeBackend::Batched }
+        feature = "cache" => {
+            if digits > 5632 {
                 return DecodeBackend::Ntt;
             }
-            if cfg!(target_feature = "avx2") {
-                return DecodeBackend::Batched;
+            #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+            if crate::mul::ifma_threshold() != 0 {
+                if digits > 5120 {
+                    return DecodeBackend::Ntt;
+                }
+                if cfg!(target_feature = "avx2") {
+                    return DecodeBackend::Batched;
+                }
+            }
+            if cfg!(all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            )) || cfg!(target_arch = "wasm32")
+            {
+                return DecodeBackend::Matrix;
+            }
+            #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+            if crate::cpu::sse41() {
+                return DecodeBackend::Matrix;
+            }
+            DecodeBackend::Batched
+        }
+        _ => {
+            if digits <= 5632 {
+                DecodeBackend::Karatsuba
+            } else {
+                DecodeBackend::Ntt
             }
         }
-        if cfg!(all(
-            target_arch = "aarch64",
-            target_endian = "little",
-            target_feature = "neon"
-        )) || cfg!(target_arch = "wasm32")
-        {
-            return DecodeBackend::Matrix;
-        }
-        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-        if crate::cpu::sse41() {
-            return DecodeBackend::Matrix;
-        }
-        DecodeBackend::Batched
     }
 }
 

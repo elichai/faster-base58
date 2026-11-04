@@ -73,6 +73,24 @@ pub(crate) mod entry {
         encode_parts(&BEST, zeros, input, output)
     }
 
+    #[cfg(all(feature = "cache", feature = "check"))]
+    #[inline(never)]
+    pub(crate) fn encode_staged(
+        zeros: usize,
+        end: usize,
+        output: &mut [u8],
+    ) -> Result<usize, BufferTooSmall> {
+        let input = &output[zeros..end];
+        assert!(
+            input.len() >= MATRIX_MIN,
+            "value is too short for the matrix encoder"
+        );
+        preflight(zeros, input, output.len())?;
+        let mut scratch = Scratch::new();
+        let cols = convert(&BEST, input, &mut scratch);
+        write(&BEST, zeros, cols, output)
+    }
+
     /// The largest input `encode_matrix` converts itself when Karatsuba has the AVX-512 IFMA
     /// leaf. On Zen 5, in one binary, the NTT encoder with matrix leaves took 3% more time
     /// than the matrix at 3584 bytes with default flags and 3.5–6% less at 3840 and 4096
@@ -186,13 +204,20 @@ fn encode_parts(
     x: &[u8],
     output: &mut [u8],
 ) -> Result<usize, BufferTooSmall> {
+    preflight(zeros, x, output.len())?;
+    let mut scratch = Scratch::new();
+    let cols = convert(k, x, &mut scratch);
+    write(k, zeros, cols, output)
+}
+
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
+fn preflight(zeros: usize, x: &[u8], capacity: usize) -> Result<(), BufferTooSmall> {
     assert!(x.len() <= MAX_BYTES, "{} bytes for one matrix", x.len());
     debug_assert_ne!(x.first(), Some(&0));
-    if zeros > output.len() || (!x.is_empty() && output.len() - zeros < min_digits(bits(x))) {
+    if zeros > capacity || (!x.is_empty() && capacity - zeros < min_digits(bits(x))) {
         return Err(BufferTooSmall);
     }
-    let mut scratch = Scratch::new();
-    write(k, zeros, convert(k, x, &mut scratch), output)
+    Ok(())
 }
 
 /// Stack space for one conversion, about 30 KiB. Only the part an input needs is written.
@@ -236,6 +261,7 @@ pub(super) fn column_digits(cols: &[u64], out: &mut [[u8; 4]]) {
 /// The value of the big-endian `x` in base 58^4, least significant column first and
 /// trimmed, in `scratch`. Requires `x.len() <= MAX_BYTES`.
 #[cfg(any(feature = "alloc", test, kani))]
+#[inline(never)]
 fn convert<'a>(k: &Kernels, x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
     if x.is_empty() {
         return &[];

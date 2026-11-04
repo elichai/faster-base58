@@ -57,6 +57,13 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
 
 ## Dependencies, oracles and comparators
 
+The optional `check` feature uses [RustCrypto sha2 0.11](https://docs.rs/sha2/0.11.1/sha2/)
+with default features disabled for SHA-256, under MIT OR Apache-2.0. Base58Check
+framing and version behavior were compared with
+[bs58 0.5.1 encoding](https://docs.rs/bs58/0.5.1/src/bs58/encode.rs.html#472-495)
+and its checked decoder. bs58's `check` feature is enabled only as a development
+oracle. No upstream checksum framing source is copied into the runtime.
+
 Exact release revisions below come from checksum-verified published crates
 and were checked against their upstream Git repositories.
 

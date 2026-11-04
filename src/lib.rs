@@ -2,7 +2,8 @@
 //! design.
 //!
 //! [`Encoder`] and [`Decoder`] provide reusable `const` configuration followed by
-//! `.encode(input)` / `.decode(input)` and a terminal conversion method.
+//! `.encode(input)` / `.decode(input)` and a terminal conversion method. The optional
+//! `check` feature adds Bitcoin `Base58Check` with an optional version prefix.
 //! Errors can change a supplied buffer. Conversion is variable-time.
 //!
 //! The library is `no_std`. Default feature `alloc` enables allocating backends and
@@ -25,6 +26,8 @@ extern crate std;
 
 mod api;
 mod batched;
+#[cfg(feature = "check")]
+mod check;
 mod common;
 mod config;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
@@ -92,6 +95,15 @@ pub enum Error {
     BufferTooSmall,
     /// An exact-length array was requested, but fewer bytes were decoded.
     InvalidLength { expected: usize, actual: usize },
+    /// Fewer than four checksum bytes were decoded.
+    #[cfg(feature = "check")]
+    MissingChecksum,
+    /// The four-byte double-SHA-256 checksum did not match the data.
+    #[cfg(feature = "check")]
+    InvalidChecksum,
+    /// The validated data has a different version, or no version byte.
+    #[cfg(feature = "check")]
+    InvalidVersion { expected: u8, actual: Option<u8> },
 }
 
 /// An encoding error: the output buffer cannot hold the result.
@@ -107,6 +119,24 @@ impl core::fmt::Display for Error {
             Self::BufferTooSmall => BufferTooSmall.fmt(f),
             Self::InvalidLength { expected, actual } => {
                 write!(f, "expected {expected} decoded bytes, got {actual}")
+            }
+            #[cfg(feature = "check")]
+            Self::MissingChecksum => f.write_str("missing Base58Check checksum"),
+            #[cfg(feature = "check")]
+            Self::InvalidChecksum => f.write_str("invalid Base58Check checksum"),
+            #[cfg(feature = "check")]
+            Self::InvalidVersion {
+                expected,
+                actual: Some(actual),
+            } => {
+                write!(f, "expected version {expected}, got {actual}")
+            }
+            #[cfg(feature = "check")]
+            Self::InvalidVersion {
+                expected,
+                actual: None,
+            } => {
+                write!(f, "expected version {expected}, got empty data")
             }
         }
     }

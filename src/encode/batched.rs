@@ -66,6 +66,58 @@ pub(crate) fn encode_parts(
     Ok(zeros + n)
 }
 
+/// Feeds a frame without joining its borrowed parts into a temporary allocation.
+#[cfg(feature = "check")]
+pub(crate) fn encode_segments(
+    zeros: usize,
+    bits: u64,
+    parts: &[&[u8]],
+    output: &mut [u8],
+) -> Result<usize, BufferTooSmall> {
+    let (ones, rest) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
+    if bits == 0 {
+        ones.fill(b'1');
+        return Ok(zeros);
+    }
+    let anchor = min_digits(bits);
+    let region = rest.get_mut(..anchor).ok_or(BufferTooSmall)?;
+    let mut limbs = Limbs {
+        slots: region.as_rchunks_mut::<8>().1,
+        len: 0,
+        top: 0,
+    };
+    let significant = parts.iter().map(|part| part.len()).sum::<usize>() - zeros;
+    let mut bytes = parts
+        .iter()
+        .flat_map(|part| part.iter().copied())
+        .skip(zeros);
+    let mut chunk = [0; 2 * STEP];
+    let head = significant % STEP;
+    if head != 0 {
+        for byte in &mut chunk[..head] {
+            *byte = bytes.next().expect("frame length includes the head");
+        }
+        limbs.feed(&chunk[..head]);
+    }
+    loop {
+        let mut len = 0;
+        for byte in &mut chunk {
+            let Some(next) = bytes.next() else { break };
+            *byte = next;
+            len += 1;
+        }
+        if len == 0 {
+            break;
+        }
+        debug_assert!(len == STEP || len == 2 * STEP);
+        limbs.feed(&chunk[..len]);
+    }
+    let Limbs { len, top, .. } = limbs;
+    let n = write(rest, anchor, len, top)?;
+    ones.fill(b'1');
+    Ok(zeros + n)
+}
+
 /// Writes the digits of the value with `len` limbs right-aligned below `anchor` in `buf`
 /// and the top limb `top > 0`. Returns their count.
 ///

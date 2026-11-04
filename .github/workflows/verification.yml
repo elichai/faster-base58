@@ -83,9 +83,13 @@ jobs:
         run: python3 scripts/check_public_api.py --output "$RUNNER_TEMP/base58-api-namespace"
       - name: Documentation examples
         run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+      - name: Configurable codec and Base58Check
+        run: cargo +stable nextest run --locked --test builders --test no_alloc --features check ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Public conversion without allocating backends
         if: matrix.caches.name == 'off'
-        run: cargo +stable nextest run --locked --no-default-features --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core ${{ matrix.profile.args }}
+        run: cargo +stable nextest run --locked --no-default-features --features check --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core ${{ matrix.profile.args }}
+      - name: Base58Check documentation examples
+        run: cargo +stable test --locked --doc --features check ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Compile every benchmark
         run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 

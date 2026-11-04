@@ -37,23 +37,55 @@ const _: () =
 ))]
 pub(super) fn try_encode(
     zeros: usize,
-    x: &[u8],
+    input: &[u8],
     output: &mut [u8],
 ) -> Option<Result<usize, BufferTooSmall>> {
-    let (_, _, points) = layout(x.len())?;
+    if !preferred(input.len()) {
+        return None;
+    }
+    encode_with(zeros, input, output, Kernels::best())
+}
+
+#[cfg(all(
+    feature = "check",
+    feature = "alloc",
+    target_arch = "aarch64",
+    target_endian = "little",
+    target_feature = "neon"
+))]
+pub(super) fn try_encode_staged(
+    zeros: usize,
+    end: usize,
+    output: &mut [u8],
+) -> Option<Result<usize, BufferTooSmall>> {
+    if !preferred(end - zeros) {
+        return None;
+    }
+    let digits = encode_value(zeros, &output[zeros..end], output.len(), Kernels::best())?;
+    Some(digits.and_then(|digits| write(zeros, &digits, output)))
+}
+
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    )
+))]
+fn preferred(bytes: usize) -> bool {
+    let Some((_, _, points)) = layout(bytes) else {
+        return false;
+    };
     // Full transforms waste work when heavily padded. The balanced tree repeats
     // roughly this padding ratio at each level. Cached division also wins just
     // below binary power-of-two boundaries, so keep it until two input bytes
     // fill each transform point. See the large-value measurements.
-    let preferred = if cfg!(feature = "cache") {
-        x.len() >= 262_144 && x.len() >= 2 * points
+    if cfg!(feature = "cache") {
+        bytes >= 262_144 && bytes >= 2 * points
     } else {
-        x.len() >= 8192 && crate::encode::max_encoded_len(x.len()).div_ceil(3) * 8 >= points * 7
-    };
-    if !preferred {
-        return None;
+        bytes >= 8192 && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * 7
     }
-    encode_with(zeros, x, output, Kernels::best())
 }
 
 fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
@@ -75,21 +107,33 @@ fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
 
 pub(super) fn encode_with(
     zeros: usize,
-    x: &[u8],
+    input: &[u8],
     output: &mut [u8],
     kernels: Kernels,
 ) -> Option<Result<usize, BufferTooSmall>> {
+    let digits = encode_value(zeros, input, output.len(), kernels)?;
+    Some(digits.and_then(|digits| write(zeros, &digits, output)))
+}
+
+// The digit workspace owns the result before the destination is written.
+#[inline(never)]
+fn encode_value(
+    zeros: usize,
+    x: &[u8],
+    output_capacity: usize,
+    kernels: Kernels,
+) -> Option<Result<Vec<u32>, BufferTooSmall>> {
     let (unit, levels, points) = layout(x.len())?;
     let minimum = if x.is_empty() {
         0
     } else {
         crate::encode::min_digits(crate::encode::bits(x))
     };
-    if zeros > output.len() || output.len() - zeros < minimum {
+    if zeros > output_capacity || output_capacity - zeros < minimum {
         return Some(Err(BufferTooSmall));
     }
     if levels == 0 {
-        return Some(write(zeros, &leaf(x), output));
+        return Some(Ok(leaf(x)));
     }
     let log = points.ilog2().max(5);
     #[cfg(feature = "cache")]
@@ -181,7 +225,8 @@ pub(super) fn encode_with(
         sums,
     };
     let len = arithmetic.multiply_add(&high[..hi_len], power, out, lo_len, None);
-    Some(write(zeros, &out[..len], output))
+    digits.truncate(len);
+    Some(Ok(digits))
 }
 
 struct Power<'a, 's> {
