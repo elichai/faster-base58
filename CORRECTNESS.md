@@ -141,6 +141,13 @@ invalid ASCII or multibyte characters, including late positions. Small mutation
 inputs keep quadratic oracles useful; named boundary replay covers larger
 recursive kernels.
 
+`check_all` (feature `check`) compares Base58Check encoding and decoding with
+bs58's checksum validation plus an independent version rule, with and without a
+version, for valid, changed and arbitrary text. It checks exact/short/oversized
+slices, tails and canaries. Payloads up to 8,193 bytes encode to about 11,200
+characters, so decoding the encoded frame can reach every checked encode and decode
+backend; changed frames and arbitrary text share that budget. CI runs it for default and cache policies in the manual fuzz dispatch.
+
 General target budgets are 65,537 binary bytes and
 `max_encoded_len(65_537) = 89,502` decode bytes. Lossy UTF-8 and inserted
 characters can expand text. These budgets are not format limits or coverage of

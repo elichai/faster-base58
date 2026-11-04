@@ -38,7 +38,8 @@ they are separate from the process-CPU-time public comparison harness below.
 ### Configured API comparison
 
 **Historical:** this cohort predates the internal decode error, raw-byte decode
-input and unchecked ASCII output changes, which alter the measured paths.
+input and unchecked ASCII output changes, which alter the measured paths. The
+review remeasurement below covers the current source.
 
 Measured 2026-11-04 against `771c174`, with ordinary borrowed public APIs and no
 `__internals`. Native Apple M5 Pro used Rust 1.99.1 / LLVM 23.1.1 and compiler-default
@@ -74,7 +75,79 @@ for every caller, compiler, target or input. Cold calls, Wasm and allocating out
 helpers were not timed in this comparison. Raw artifacts and samples stay under
 ignored `target/measurements/`.
 
+### Review remeasurement: plain calls with `check` enabled
+
+Measured **2026-11-04** with an ordinary public consumer that never calls
+`with_check`: a cdylib whose exported loops call
+`Encoder::bitcoin().encode(..).onto(..)` and `Decoder::bitcoin().decode(&str).onto(..)`.
+Variants: the base layer before and after its review (`abb8607` → `2be80e8`), and
+this layer after review (`b1fe676`, then without forced inlining of the batched
+decoder's `Value` kernels: the source of this commit) with `check` enabled and
+disabled. The pre-review checksum layer (`219de75`, `check` enabled) ran as a
+control. Each variant was built from the same source, probe and target paths with
+opt3, fat LTO, 16 CGUs and the compiler-default CPU (`RUSTFLAGS=""`), with default and
+`cache` policies. `scripts/compare_public_api.py` loaded two variants in one process
+and timed alternating batches of at least 10 ms with process CPU time: 3 runs of 9
+samples per variant, in 3 fresh processes, the second with reversed load order. A
+ratio is the median over processes of the median over runs of after/before time.
+
+Hosts: GCP EPYC 9B45 (Zen 5, 4 vCPU, Linux, Rust 1.99.0 / LLVM 23.1.1, pinned to
+CPU 0) and Apple M5 Pro (macOS, AC power, Rust 1.99.1 / LLVM 23.1.1, unpinned, other
+work on the host). One session per configuration and host. Grids: 0, 1, 2, 21, 32,
+64, 65, 512, 1024, 4096, 8193, 32768 and 1048576 bytes plus 65/63-, 1024/1008- and
+512/512-zero inputs (unpinned); 21–8193 bytes (aligned). "Aligned" builds add
+`-C llvm-args=-align-all-functions=6 -C llvm-args=-align-loops=64` as a layout
+diagnostic; they are not the shipped configuration. Ranges cover inputs of at least
+21 bytes, including the zero-heavy inputs.
+
+| After/before time | EPYC unpinned | EPYC aligned | M5 unpinned | M5 aligned |
+| --- | --- | --- | --- | --- |
+| Base review, encode 21/32/64 B | 0.79–0.87 | 0.78–0.87 | 0.57–0.90 | 0.79–0.89 |
+| Base review, decode, default | 0.84–1.02 (4 KiB 0.84) | 0.97–1.06 | 0.98–1.02 | 0.92–1.00 |
+| Base review, decode, `cache` | 0.96–1.01 | 0.99–1.02 | 0.98–1.04 | 0.98–1.03 |
+| `b1fe676` + `check`, decode, default | 0.98–1.03 | 0.98–1.01 | 0.98–1.04 | 1.00–1.08 (512 B) |
+| `b1fe676` + `check`, decode, `cache` | 0.99–1.20 (4 KiB) | 0.97–1.03 | 0.99–1.02 | 0.99–1.00 |
+| `b1fe676` + `check`, encode | 0.89–1.03 | 0.89–1.04 | 0.67–1.06 | 0.75–1.01 |
+| `b1fe676`, `check` off, decode, default | 0.98–1.19 (4 KiB) | 0.94–1.00 | 0.98–1.05 | 1.00–1.10 (512 B) |
+| This source + `check`, decode | — | 0.98–1.01 | — | 1.00–1.03 (default only) |
+| This source + `check`, encode | — | 0.89–1.01 | — | 0.76–1.01 (default only) |
+
+The unpinned EPYC 4–32 KiB swings (about 27.5 µs or 33 µs at 4 KiB) occur with
+`check` enabled or disabled and between the two base-layer builds; with aligned
+functions and loops every reviewed-layer EPYC decode cell is within 0.94–1.06. They
+are code placement, not checksum work. In `b1fe676`, toggling `check` changed the M5
+cdylibs' plain encode by no instruction and plain decode by five; fat-LTO probes on
+aarch64 and x86_64 agree for encode, and decode differs only in a wider `% 10` length
+computation. Without forced `Value` inlining, plain decode code changes more with
+`check` (924 disassembly lines) but measured no slower. The pre-review
+control reproduces the earlier slower default 512-byte / 1 KiB EPYC decodes (1.19 /
+1.27 unpinned) and loses them when aligned (0.99 / 0.98): that earlier finding was
+placement too. Aligned outliers remained in single cells with identical consumer code
+(for example, EPYC `cache` 65/63-zero encoding with `check` off, 1.32).
+
+Not placement-explained: M5 default-policy 512-byte decoding takes 1.02–1.10× the
+reviewed base layer's time in every variant of this layer, aligned (1.02 for this
+source with `check`, 1.10 with `check` off). Removing either inlining attribute or
+restoring the base layer's divide-and-conquer body did not remove it; 1 KiB is
+1.00–1.03 and 4 KiB+ 1.00. Its cause is not established. The pre-review base layer
+takes the same time as this layer there, so the reviewed base layer is the faster
+outlier. Small encodes are faster in this layer (21 B: 0.75–0.76 on M5, 0.89–0.90 on
+EPYC, aligned).
+
+Not measured here: checked conversion latency (see the microbenchmark below), cold
+calls, Wasm, owned-output helpers, and other compilers or targets. Inputs below 21
+bytes take 1–10 ns and move with placement. Raw results stay outside Git.
+
+The word-wise checksum serializer (`check::split`) was measured alone on the M5
+(best of 7 loops, busy host): 9.5 ns instead of 180 ns for 516 data bytes and 0.60 µs
+instead of 11.1 µs for 32 KiB, with output compared to the byte loop it replaces.
+
 ### Base58Check comparison and unresolved regression
+
+**Historical:** this section describes the checksum layer before the internal
+decode error, the forced inlining of the shared batched encoder kernels and the
+word-wise checksum serializer. Its results do not describe the current source; see
+the review remeasurement above.
 
 The zero-cost latency goal is **not met**. In the same 2026-11-04 public-consumer
 campaign described above, enabling `check` in the checksum-layer build while using

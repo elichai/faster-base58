@@ -54,6 +54,7 @@ impl Encoder {
 
     /// Prepends `version` and appends a `Base58Check` checksum covering both the
     /// version and input. Replaces any previous checksum/version setting.
+    /// For multi-byte prefixes, include them in the input and use [`Self::with_check`].
     #[cfg(feature = "check")]
     #[inline(always)]
     pub const fn with_check_version(mut self, version: u8) -> Self {
@@ -183,6 +184,7 @@ impl Decoder {
 
     /// Requires a valid `Base58Check` checksum and the given first data byte.
     /// The version byte is retained in the output. Replaces any previous setting.
+    /// For multi-byte prefixes, use [`Self::with_check`] and inspect the data.
     #[cfg(feature = "check")]
     #[inline(always)]
     pub const fn with_check_version(mut self, version: u8) -> Self {

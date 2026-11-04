@@ -16,6 +16,16 @@ tree above the radix transform limit. The general targets' 65,537-byte binary
 cap stays below the 262,144-byte cached production threshold; public dispatch and the 16 MiB limit
 are covered separately by `radix_boundaries` tests.
 
+`check_all` (feature `check`) compares Base58Check encoding and decoding with
+bs58, with and without a version byte selected from the input. It encodes the
+input as a payload, then decodes that frame, the frame with one changed character,
+the raw input and the input mapped to digits. Each case checks exact, short and
+oversized output slices, untouched tails and canaries; capacity errors may precede
+checksum errors only when the data does not fit. The oracle takes bs58's checksum
+result and applies the version rule itself: bs58 0.5.1 compares the version with the
+first checksum byte when the data is empty, while this crate reports a missing
+version. Inputs are capped at 8,193 bytes for the quadratic oracle.
+
 Radix seeds include binary powers and sparse values around leaf/tree boundaries,
 so zero subtrees and sparse carry paths do not depend on random mutations.
 

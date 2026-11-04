@@ -575,6 +575,11 @@ jobs:
         run: |
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all fuzz/corpus/encode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} decode_all fuzz/corpus/decode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
+      - name: Base58Check mutations
+        if: matrix.label == 'default' || matrix.label == 'cache'
+        run: |
+          mkdir -p fuzz/corpus/check_all
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features --features check${{ matrix.label == 'cache' && ',cache' || '' }} check_all fuzz/corpus/check_all -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
       - name: Complete boundary corpus replay
         run: |
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096

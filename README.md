@@ -107,7 +107,9 @@ assert_eq!(VERSIONED_DECODER.decode(&text).into_array::<21>()?, data);
 `.with_check()` hashes the input as supplied. `.with_check_version(v)` prepends
 `v` on encode and requires that first data byte on decode. The version is included
 in the checksum and **retained** in decoded output. Setters replace the previous
-setting; `.with_check()` clears any configured version.
+setting; `.with_check()` clears any configured version. Versions are one byte;
+multi-byte prefixes, such as BIP32's four-byte extended-key version, are part of
+the payload: use `.with_check()` and keep them in the data.
 
 Checked decoding removes the checksum. Errors distinguish `MissingChecksum`,
 `InvalidChecksum`, and `InvalidVersion { expected, actual }`; `actual: None`

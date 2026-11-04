@@ -1,26 +1,29 @@
 //! Bitcoin `Base58Check` framing; only compiled with the `check` feature.
+//!
+//! Conversion backends report [`DecodeError`]; only this layer adds the checksum and
+//! version errors of the public [`Error`].
 
 use sha2::{Digest, Sha256};
 
-use crate::common::DecodeError;
+use crate::api::{DecodeBackend, EncodeBackend};
+use crate::common::{DecodeError, split_zeros};
 use crate::{BufferTooSmall, Error};
 
 fn checksum(data: &[u8], version: Option<u8>) -> [u8; 4] {
     let mut first = Sha256::new();
     first.update(version.as_slice());
     first.update(data);
-    let hash = Sha256::digest(first.finalize());
-    hash[..4]
-        .try_into()
-        .expect("SHA-256 has at least four bytes")
+    let [a, b, c, d, ..]: [u8; 32] = Sha256::digest(first.finalize()).into();
+    [a, b, c, d]
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn encode(
     input: &[u8],
     output: &mut [u8],
     version: Option<u8>,
 ) -> Result<usize, BufferTooSmall> {
+    // Each frame byte takes at least one character, so the frame fits in `output`.
     let total = input.len() + 4 + usize::from(version.is_some());
     if output.len() < total {
         return Err(BufferTooSmall);
@@ -37,32 +40,27 @@ pub(crate) fn encode(
     // Preserve the fixed-size kernels, copying only their small input on the stack.
     if total == 32 {
         stage(output);
-        let bytes: [u8; 32] = output[..32].try_into().unwrap();
+        let bytes: [u8; 32] = *output.first_chunk().unwrap();
         return crate::api::encode(&bytes, output);
     }
     if total == 64 {
         stage(output);
-        let bytes: [u8; 64] = output[..64].try_into().unwrap();
+        let bytes: [u8; 64] = *output.first_chunk().unwrap();
         return crate::api::encode(&bytes, output);
     }
-    let zeros = parts
+    let first = parts
         .iter()
         .flat_map(|part| part.iter())
-        .take_while(|&&b| b == 0)
-        .count();
-    let significant = total - zeros;
-    let bits = if significant == 0 {
-        0
-    } else {
-        let first = parts
-            .iter()
-            .flat_map(|part| part.iter())
-            .nth(zeros)
-            .unwrap();
-        8 * significant as u64 - first.leading_zeros() as u64
+        .enumerate()
+        .find(|&(_, &b)| b != 0);
+    let (zeros, bits) = match first {
+        Some((zeros, first)) => (
+            zeros,
+            8 * (total - zeros) as u64 - first.leading_zeros() as u64,
+        ),
+        None => (total, 0),
     };
-    use crate::api::EncodeBackend;
-    match crate::api::encode_backend(significant) {
+    match crate::api::encode_backend(total - zeros) {
         EncodeBackend::Batched => {
             crate::encode::batched::encode_segments(zeros, bits, &parts, output)
         }
@@ -91,14 +89,16 @@ pub(crate) fn encode(
     }
 }
 
-#[inline(always)]
+/// Splits a decoded frame into its data and checksum, then validates them.
+#[inline]
 #[cfg(feature = "alloc")]
-pub(crate) fn verify(data: &[u8], version: Option<u8>) -> Result<usize, Error> {
-    let len = data.len().checked_sub(4).ok_or(Error::MissingChecksum)?;
-    validate(&data[..len], data[len..].try_into().unwrap(), version)?;
-    Ok(len)
+pub(crate) fn verify(frame: &[u8], version: Option<u8>) -> Result<usize, Error> {
+    let (data, sum) = frame.split_last_chunk().ok_or(Error::MissingChecksum)?;
+    validate(data, *sum, version)?;
+    Ok(data.len())
 }
 
+/// Checks the checksum before the version.
 fn validate(data: &[u8], sum: [u8; 4], version: Option<u8>) -> Result<(), Error> {
     if checksum(data, None) != sum {
         return Err(Error::InvalidChecksum);
@@ -114,7 +114,7 @@ fn validate(data: &[u8], sum: [u8; 4], version: Option<u8>) -> Result<(), Error>
 
 #[inline(always)]
 pub(crate) fn decode(input: &[u8], output: &mut [u8], version: Option<u8>) -> Result<usize, Error> {
-    let (zeros, _) = crate::common::split_zeros(input);
+    let (zeros, _) = split_zeros(input);
     let (frame, sum) = decode_frame(input, zeros, output)?;
     let len = frame.checked_sub(4).ok_or(Error::MissingChecksum)?;
     validate(&output[..len], sum, version)?;
@@ -129,7 +129,6 @@ fn decode_frame(
     zeros: usize,
     output: &mut [u8],
 ) -> Result<(usize, [u8; 4]), DecodeError> {
-    use crate::api::DecodeBackend;
     match crate::api::decode_backend(input.len() - zeros) {
         DecodeBackend::Batched => crate::batched::decode_checked_parts(input, zeros, output),
         #[cfg(all(feature = "alloc", not(feature = "cache")))]
@@ -161,18 +160,25 @@ pub(crate) fn split(
     limbs: &[u64],
     output: &mut [u8],
 ) -> Result<(usize, [u8; 4]), BufferTooSmall> {
-    let numeric_len = limbs
+    let numeric = limbs
         .last()
         .map_or(0, |top| 8 * limbs.len() - top.leading_zeros() as usize / 8);
-    let frame = zeros + numeric_len;
-    let len = frame.saturating_sub(4);
-    let data = output.get_mut(..len).ok_or(BufferTooSmall)?;
-    let high_len = numeric_len.saturating_sub(4);
-    let leading = len - high_len;
-    data[..leading].fill(0);
-    for (i, byte) in data[leading..].iter_mut().rev().enumerate() {
-        let index = i + 4;
-        *byte = (limbs[index / 8] >> (8 * (index % 8))) as u8;
+    let frame = zeros + numeric;
+    let data = output
+        .get_mut(..frame.saturating_sub(4))
+        .ok_or(BufferTooSmall)?;
+    let high_len = numeric.saturating_sub(4);
+    let (leading, high) = data.split_at_mut(data.len() - high_len);
+    leading.fill(0);
+    // `value >> 32` as little-endian words, stored in full 8-byte chunks.
+    let (top, body) = high.as_rchunks_mut::<8>();
+    for (chunk, pair) in body.iter_mut().rev().zip(limbs.windows(2)) {
+        *chunk = ((pair[0] >> 32) | (pair[1] << 32)).to_be_bytes();
+    }
+    if !top.is_empty() {
+        // `high` has at most `8 limbs.len() - 4` bytes, so `body.len() < limbs.len()`.
+        let word = (limbs[body.len()] >> 32) | limbs.get(body.len() + 1).map_or(0, |&l| l << 32);
+        top.copy_from_slice(&word.to_be_bytes()[8 - top.len()..]);
     }
     let sum = (limbs.first().copied().unwrap_or(0) as u32).to_be_bytes();
     Ok((frame, sum))
