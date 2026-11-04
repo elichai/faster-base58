@@ -292,8 +292,14 @@ pub(crate) fn write_bytes(
     let out = output.get_mut(..total).ok_or(BufferTooSmall)?;
     let (z, rest) = out.split_at_mut(zeros);
     z.fill(0);
-    for (dst, l) in rest.rchunks_mut(8).zip(limbs) {
-        dst.copy_from_slice(&l.to_be_bytes()[8 - dst.len()..]);
+    // Whole limbs as fixed 8-byte stores; a variable-length copy per limb compiles
+    // to one `memcpy` call each. Only the top limb can be short.
+    let (head, full) = rest.as_rchunks_mut::<8>();
+    for (dst, l) in full.iter_mut().rev().zip(limbs) {
+        *dst = l.to_be_bytes();
+    }
+    if let Some(l) = limbs.get(full.len()) {
+        head.copy_from_slice(&l.to_be_bytes()[8 - head.len()..]);
     }
     Ok(total)
 }
@@ -465,7 +471,40 @@ mod tests {
     use crate::batched::decode_batched;
     use crate::tests::{Decode, decode_vec, random_string};
     use rand_xoshiro::Xoshiro256PlusPlus;
-    use rand_xoshiro::rand_core::SeedableRng;
+    use rand_xoshiro::rand_core::{Rng, SeedableRng};
+
+    /// Every top-limb width and limb count, into exact, oversized and short buffers.
+    #[test]
+    fn write_bytes_around_limb_boundaries() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(11);
+        for len in 0..=33 {
+            let mut value = vec![0u8; len];
+            rng.fill_bytes(&mut value);
+            if let Some(b) = value.first_mut() {
+                *b |= 1;
+            }
+            let limbs: Vec<u64> = value
+                .rchunks(8)
+                .map(|c| c.iter().fold(0, |v, &b| (v << 8) | u64::from(b)))
+                .collect();
+            for zeros in [0, 1, 7, 8, 9] {
+                let total = zeros + len;
+                for extra in [0, 1, 8, 9] {
+                    let at = format!("{len} bytes, {zeros} zeros, {extra} extra");
+                    let mut out = vec![0xA5; total + extra];
+                    assert_eq!(write_bytes(zeros, &limbs, &mut out), Ok(total), "{at}");
+                    let (z, rest) = out.split_at(zeros);
+                    assert!(z.iter().all(|&b| b == 0), "{at}: zero prefix");
+                    assert_eq!(rest[..len], value, "{at}");
+                    assert!(rest[len..].iter().all(|&b| b == 0xA5), "{at}: tail");
+                }
+                if let Some(short) = total.checked_sub(1) {
+                    let r = write_bytes(zeros, &limbs, &mut vec![0; short]);
+                    assert_eq!(r, Err(BufferTooSmall), "{len} bytes, {zeros} zeros");
+                }
+            }
+        }
+    }
 
     #[test]
     #[should_panic(expected = "value is too short for divide and conquer")]
