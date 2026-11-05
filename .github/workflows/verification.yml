@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm]
         profile:
           - { name: debug, args: '' }
           - { name: release, args: '--release' }
@@ -126,7 +126,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]  # compact changes only x86 IFMA kernels
         caches:
           - { name: 'off', features: '__internals,compact', public_args: '--features compact' }
           - { name: 'on', features: '__internals,cache,compact', public_args: '--features cache,compact' }
@@ -152,7 +152,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -301,7 +301,7 @@ jobs:
       - run: python3 scripts/check_package.py target/package
 
   clippy_arm:
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
@@ -647,10 +647,10 @@ jobs:
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
-          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: generic, name: default-generic, cache_args: '' }
-          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: generic, name: cache-generic, cache_args: '--features cache' }
-          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: native, name: default-native, cache_args: '' }
-          - { runner: macos-latest, target: aarch64-apple-darwin, cpu: native, name: cache-native, cache_args: '--features cache' }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Corpus inputs come from a mutable branch; do not expose an Actions cache token.
@@ -722,10 +722,10 @@ jobs:
           - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: cache-generic, features: '__internals,cache' }
           - { runner: ubuntu-26.04, arch: x86, cpu: native, name: default-native, features: '__internals' }
           - { runner: ubuntu-26.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache' }
-          - { runner: macos-latest, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
-          - { runner: macos-latest, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
-          - { runner: macos-latest, arch: arm, cpu: native, name: default-native, features: '__internals' }
-          - { runner: macos-latest, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
+          - { runner: ubuntu-24.04-arm, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
+          - { runner: ubuntu-24.04-arm, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
+          - { runner: ubuntu-24.04-arm, arch: arm, cpu: native, name: default-native, features: '__internals' }
+          - { runner: ubuntu-24.04-arm, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources

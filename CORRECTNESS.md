@@ -89,8 +89,8 @@ unspecified error-buffer contents. Unit tests also cover MiB conversions, all-on
 carry patterns, powers, small exhaustive inputs, all legal NTT scale lengths and the
 partial-word store at every length from 0 to 8 bytes, with guard bytes.
 
-CI selects 512 cases per property in debug and release, cache off/on, on Linux
-and macOS. Compact builds have additional Linux and macOS rows. Big-endian
+CI selects 512 cases per property in debug and release, cache off/on, on x86-64
+and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian
 PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
 Native unit and integration rows use Nextest except for Linux debug,

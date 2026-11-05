@@ -64,10 +64,10 @@ jobs:
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: macos-latest, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: macos-latest, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: macos-latest, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: macos-latest, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -110,10 +110,10 @@ jobs:
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: macos-latest, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: macos-latest, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: macos-latest, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: macos-latest, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -176,10 +176,10 @@ jobs:
           - { runner: ubuntu-26.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
           - { runner: ubuntu-26.04, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: macos-latest, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: macos-latest, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: macos-latest, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: macos-latest, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04-arm, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04-arm, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-24.04-arm, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-24.04-arm, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
