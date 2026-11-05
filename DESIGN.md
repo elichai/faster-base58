@@ -73,7 +73,7 @@ more than 4096 significant bytes and at least 7/8 utilization of its full
 transform, with or without `cache`. Heavily padded sizes, significant inputs above
 16 MiB, and other targets keep the division tree. The carry pass runs four
 interleaved chains over quarters of the digits, then adds each quarter's carry
-into the next. See the [optimization log](docs/performance.md#optimization-log).
+into the next.
 
 [Matrix encoding](src/encode/matrix.rs) maps 32-bit words to base `58^4`;
 [decoding](src/matrix/mod.rs) maps four-character groups to base `2^32`.
@@ -87,9 +87,9 @@ Fixed dimensions remove table construction and dimension handling;
 64-byte kernels also segment the carry chain. Both allocation policies select these
 specializations directly. The internal Matrix comparison hooks use the general
 matrix kernel. Their short carry schedule needs fixed-size bounds and cannot
-replace the general schedule directly. Padding nearby lengths into these kernels
-regressed zero-heavy inputs. Portable fixed decoder prototypes were slower than
-the general decoder on M5 and added code and tables.
+replace the general schedule directly. Nearby lengths are not padded into these
+kernels, which would slow zero-heavy inputs, and there is no fixed-size decoder: the
+general decoder is faster on M5.
 
 [NTT multiplication](src/ntt/mod.rs) uses two 32-bit coefficients per limb,
 three primes below `2^30`, Montgomery products and exact CRT reconstruction.
@@ -189,8 +189,8 @@ Encoder divisors borrow one pre-sized payload for normalized powers and
 reciprocals; original powers and their construction scratch share one buffer, dropped before
 prepared transforms and conversion scratch. Each prepared NTT operand owns one
 vector containing all three prime transforms; decoding squares each prepared
-power from those transforms, without a forward transform. A shared prepared-power arena
-saved little peak memory and had no established overall benefit, so it was not retained.
+power from those transforms, without a forward transform. Prepared powers do not
+share one arena, which would save little peak memory.
 Skipped prepared powers do not grow metadata, but still clear an existing slot.
 Karatsuba scratch is `5*n + 64` limbs. Within the transform domain, NTT scratch
 uses the nondecreasing workspace envelope of every plan through a product of

@@ -28,8 +28,10 @@ configuration and regression fixtures are different from generated run output.
 ## Documentation to update with code
 
 Update the relevant guide in the same change when its description becomes wrong.
-Keep the wiki-style [documentation index](docs/README.md); consolidate useful
-conclusions into the guides instead of adding another chronological report.
+Keep the wiki-style [documentation index](docs/README.md). The guides describe
+only the current code and current results: no history, changelogs, comparisons
+with earlier revisions or "historical" tables. Record measured alternatives that
+were not adopted in a short comment next to the code they concern.
 
 | Change | Documentation to review/update |
 | --- | --- |
@@ -52,7 +54,7 @@ Published results need their measurement date, source, host/ISA, compiler, flags
 features, harness, clock and sampling scope. Keep material limitations beside
 the result. When replacing a measurement cohort, update its tables, figures and
 scope together. Code or documentation edits do not refresh old measurements;
-label affected results as historical or withdraw them until they are remeasured.
+withdraw affected results until they are remeasured.
 
 Keep ordinary public consumers separate from internal backend workers, timing
 separate from counted allocations, and native execution separate from translated

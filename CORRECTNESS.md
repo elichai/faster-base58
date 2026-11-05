@@ -9,27 +9,8 @@ the semantics of every SIMD instruction. The implementation map is in
 
 ## Recorded check scope
 
-[CI](.github/workflows/verification.yml) is the live record for each commit; a
-passing job establishes only the checks and platforms it executes. On 2026-11-05
-the native Zen 5 VM (AVX-512F/BW/DQ/VL, IFMA and VBMI) passed `cargo test --locked`
-with default features, `cache,check,__internals`, `--no-default-features --features
-check` and `compact,__internals` at `3a619a1`, and the full `__internals` suite
-(197 tests) at `18b2eb8`. On the M5, the final source passed the debug and release
-`__internals` suites with and without `cache` (512 cases per property), the `check`
-and no-allocation lanes, documentation tests, the 16 MiB radix boundaries (both
-policies) and the `2^23`-point transform test.
-
-The sanitizer, Miri, Kani and coverage campaigns below ran on 2026-10-28/29
-snapshots, before the CI and API changes of #6–#18, and were not refreshed:
-
-| Check | Historical scope |
-| --- | --- |
-| ASan / LSan | Native careful-ASan targets passed default/cache/compact/cache+compact; LSan passed default/cache; 180 s per target plus named-boundary replay. The default full-width ASan stages remain unverified. |
-| MSan / TSan | Four Rust/std MSan variants passed 20 tests each on IFMA hardware; native TSan passed five concurrency tests. Full libFuzzer/MSan campaigns remain incomplete. |
-| Maximum transform | Native x86 Linux passed the exact `2^23`-point test. |
-| Miri | 186 custom-interpreter and 16 stock executions of Linux targets, interpreted on the M5. |
-| Kani | 50 required harnesses (18,744 checks) plus three compact executions, translated x86 Linux with 64-bit `usize`. |
-| Source coverage | Translated x86 Linux, unsanitized line coverage only; no branch or native IFMA coverage. Codecov now reports current coverage. |
+[CI](.github/workflows/verification.yml) is the record for each commit; a passing
+job establishes only the checks and platforms it executes. LOCAL_SCOPE
 
 ## Public contract
 
@@ -92,9 +73,8 @@ prefix consumed by fused carry. Forced best/portable radix hooks participate in
 unit, property and fuzz backend lists; their out-of-domain fallback is checked.
 
 The whole-limb formatter's `ten_digits_matches_division` test compares serial
-division at both domain ends, radix boundaries and 10,000 seeded values. A
-one-off 2026-10-29 check also enumerated all 656,356,768 five-digit halves with the
-other half zero; that is not exhaustive coverage of the `58^10` domain.
+division at both domain ends, radix boundaries and 10,000 seeded values; that is
+not exhaustive coverage of the `58^10` domain.
 
 Property strategies cover arbitrary binary data, valid Base58 strings and valid
 UTF-8 containing malformed Base58. The public decoder also takes raw bytes; the
@@ -152,17 +132,15 @@ every transform size. The 8,193-byte native mutation cap does not reach real NTT
 thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
 
 `encode_radix_full_width` uses an independent Malachite oracle on periodic
-256 KiB / 1 MiB values, reaching owned large twiddles. Short native ARM
-careful-ASan campaigns (2026-10-29, tens of mutations) found no crashes, and its 16
-corpus files covered 90% of `src/ntt/radix.rs` lines (no branch coverage). These
-are not proofs; arbitrary large values remain outside this structured domain.
+256 KiB / 1 MiB values, reaching owned large twiddles. Arbitrary large values
+remain outside this structured domain.
 
 The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
-audit places those values above the native NTT thresholds. Its cache-enabled
-native careful-ASan stage passed in a 2026-10-29 hosted run; the default stage
-remains **unverified**. Its bs58 oracle takes seconds per input under ASan, so
+audit places those values above the native NTT thresholds. Its default-policy
+native careful-ASan stage is **unverified**. Its bs58 oracle takes seconds per
+input under ASan, so
 campaigns reach few mutations; a Malachite oracle, as in `encode_radix_full_width`,
 would raise that. This structured domain does not include every value at that width.
 
@@ -214,7 +192,7 @@ differences agree with native ARM execution. Custom-interpreter results remain
 separate from stock results. Its runner checks exact test selection and splits
 all 14 original buffer cases across processes to bound interpreter memory.
 
-In the recorded runs, Tree Borrows covers full ARM/x86 suites under both cache
+In the custom-interpreter jobs, Tree Borrows covers full ARM/x86 suites under both cache
 policies; Stacked Borrows covers kernels. Compact x86 kernels run under both
 models and policies. All 14 buffer cases run separately; no ISA-skip output is
 accepted. SIMD multiplication uses owned tables; native oracle and cache-history
@@ -223,7 +201,7 @@ not native x86 execution or complete-domain proofs.
 
 ## Kani proofs
 
-The recorded proofs use Kani 0.68.0 and CBMC 6.11.0. Repeated bodies are not
+The proofs use Kani 0.68.0 and CBMC 6.11.0. Repeated bodies are not
 additional proofs. Memory, overflow and unwinding checks remain enabled; finite
 loops have explicit bounds. Required harnesses use 60/180/360-second budgets.
 
@@ -250,7 +228,7 @@ Barrett division and the public borrowed-array wrapper remain unresolved.
 Timed-out or untranslated queries are neither counterexamples nor proofs.
 [The open runner](scripts/kani-open.sh) selects eight distinct unresolved queries.
 Direct parser/capacity formulations also remain in source; their properties are
-closed by verified composition and are no longer classified as open.
+closed by verified composition.
 
 ## Reproduce and update checks
 
@@ -283,9 +261,13 @@ not refresh a prior result. For performance and memory work, use the separate
    replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
    are finite.
-4. Repeat deployment-specific performance, peak memory and linked-size checks
+4. Run the native AVX-512 kernel tests on IFMA hardware in every CI run:
+   `avx512_matches_reference` and `avx512_matches_portable` skip unless
+   `BASE58_REQUIRE_IFMA` is set, which only the sanitizer and custom-Miri jobs set,
+   and the IFMA-only dispatch arms run only when a runner has IFMA.
+5. Repeat deployment-specific performance, peak memory and linked-size checks
    using [the measurement guide](docs/performance.md).
-5. Resolve any confirmed source-adaptation notice obligations described in
+6. Resolve any confirmed source-adaptation notice obligations described in
    [REFERENCES.md](REFERENCES.md), and make an explicit release decision after CI.
 
 A passing job establishes only the checks and platforms it actually executes.
