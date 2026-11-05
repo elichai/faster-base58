@@ -387,8 +387,8 @@ fn carry(out: &mut [u32], coef: impl Fn(usize) -> u64, add_len: usize) {
             *c = step(&mut out[k * s + j], k * s + j, *c);
         }
     }
-    for i in K * s..out.len() {
-        carries[K - 1] = step(&mut out[i], i, carries[K - 1]);
+    for (i, digit) in out.iter_mut().enumerate().skip(K * s) {
+        carries[K - 1] = step(digit, i, carries[K - 1]);
     }
     debug_assert_eq!(carries[K - 1], 0);
     for (k, &c) in carries[..K - 1].iter().enumerate() {
