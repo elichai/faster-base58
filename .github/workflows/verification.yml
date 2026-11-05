@@ -813,7 +813,7 @@ jobs:
           --harness partial_chunk_matches_horner --harness two_limb_
           --harness wrapped_fold_preserves_residue --harness one_limb_production_multiply
           --harness carry_preserves_radix52_columns --harness encode_batched_reduce_is_exact
-          --harness radix52_unpack_pack_roundtrip --harness div3_recovers_quotient_with_carry
+          --harness radix52_unpack_pack_roundtrip
           --harness single_update_matches_wide_reference --harness single_limb_update_matches_wide_reference
           --harness encoded_capacity_never_panics
           --harness full_chunk_invalid_rejection --harness digit_table_has_only_valid_values_or_sentinel

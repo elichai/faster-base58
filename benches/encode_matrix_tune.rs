@@ -23,7 +23,7 @@ use std::time::Instant;
 
 use faster_base58::internals::{
     encode_batched, encode_karatsuba, encode_matrix, encode_matrix_whole, encode_matrix_with,
-    encode_ntt_cached, encode_toom3, ifma_threshold,
+    encode_ntt_cached, ifma_threshold,
 };
 use malachite::encode_malachite;
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
@@ -36,14 +36,13 @@ type Encode = fn(&[u8], &mut [u8]) -> usize;
 type Config = (&'static str, Encode, fn(usize) -> bool);
 
 /// `matrix` is last.
-const CONFIGS: [Config; 7] = [
+const CONFIGS: [Config; 6] = [
     (
         "batched",
         |d, o| encode_batched(d, o).unwrap(),
         |size| size <= 8192,
     ),
     ("dc", |d, o| encode_karatsuba(d, o).unwrap(), large),
-    ("dc-toom3", |d, o| encode_toom3(d, o).unwrap(), large),
     ("ntt-cached", |d, o| encode_ntt_cached(d, o).unwrap(), large),
     (
         "dc-malachite",

@@ -27,7 +27,6 @@ fn decode(input: &str, output: &mut [u8]) -> Result<usize, faster_base58::Error>
 }
 backend!("batched", faster_base58::internals::encode_batched, faster_base58::internals::decode_batched);
 backend!("karatsuba", faster_base58::internals::encode_karatsuba, faster_base58::internals::decode_karatsuba);
-backend!("toom3", faster_base58::internals::encode_toom3, faster_base58::internals::decode_toom3);
 backend!("ntt", faster_base58::internals::encode_ntt, faster_base58::internals::decode_ntt);
 backend!("ntt-cached", faster_base58::internals::encode_ntt_cached, faster_base58::internals::decode_ntt_cached);
 backend!("ntt-portable", faster_base58::internals::encode_ntt_portable, faster_base58::internals::decode_ntt_portable);

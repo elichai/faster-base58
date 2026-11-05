@@ -13,7 +13,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = [f'{direction}_{backend}' for direction in ['encode', 'decode']
          for backend in ['batched', 'karatsuba', 'matrix', 'matrix_portable',
-                         'ntt', 'ntt_cached', 'ntt_portable', 'toom3']]
+                         'ntt', 'ntt_cached', 'ntt_portable']]
 NAMES += ['encode_radix', 'encode_radix_portable', 'decode', 'encode_into', 'decode_into',
           'encode_string', 'decode_vec', 'decode_array', 'max_encoded_len']
 HOOKS = ['Multiplier', 'Leaves', 'decode_with', 'encode_tuned', 'ifma_threshold',
@@ -21,7 +21,7 @@ HOOKS = ['Multiplier', 'Leaves', 'decode_with', 'encode_tuned', 'ifma_threshold'
          'encode_matrix_whole', 'encode_matrix_cache_memory', 'fixed_matrix_table_bytes',
          'decode_matrix_cache_memory', 'decode_matrix_forced', 'decode_ntt_with',
          'encode_ntt_with', 'decode_ntt_same_leaves', 'encode_ntt_same_leaves',
-         'ntt_cache_memory', 'decode_toom3_with']
+         'ntt_cache_memory']
 PROFILES = [('default', [], True), ('cache', ['cache'], True),
             ('internals', ['__internals'], True), ('cache-internals', ['cache', '__internals'], True),
             ('no-alloc', [], False), ('no-alloc-check', ['check'], False), ('check', ['check'], True)]
@@ -83,11 +83,11 @@ use faster_base58::internals::{ifma_mul, ifma_scratch_len};
 fn main() {
     type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
     type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
-    let encoders: [Encode; 10] = [encode_batched, encode_karatsuba, encode_matrix, encode_matrix_portable,
-                                encode_ntt, encode_ntt_cached, encode_ntt_portable, encode_toom3,
-                                encode_radix, encode_radix_portable];
-    let decoders: [Decode; 8] = [decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable,
-                               decode_ntt, decode_ntt_cached, decode_ntt_portable, decode_toom3];
+    let encoders: [Encode; 9] = [encode_batched, encode_karatsuba, encode_matrix, encode_matrix_portable,
+                               encode_ntt, encode_ntt_cached, encode_ntt_portable,
+                               encode_radix, encode_radix_portable];
+    let decoders: [Decode; 7] = [decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable,
+                               decode_ntt, decode_ntt_cached, decode_ntt_portable];
     let _: Option<&dyn Multiplier> = None;
     let _ = (Leaves::Horner, Leaves::Matrix);
     for encode in encoders {

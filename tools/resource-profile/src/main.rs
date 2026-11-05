@@ -56,11 +56,6 @@ const BACKENDS: &[(&str, Encode, Decode)] = &[
         b58::internals::decode_karatsuba,
     ),
     (
-        "toom3",
-        b58::internals::encode_toom3,
-        b58::internals::decode_toom3,
-    ),
-    (
         "ntt",
         b58::internals::encode_ntt,
         b58::internals::decode_ntt,

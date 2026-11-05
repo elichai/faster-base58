@@ -160,14 +160,6 @@ fn tuned_backends_match_bs58() {
                 }
             }
         }
-        for threshold in [32, 128, usize::MAX] {
-            let mut out = vec![0; data.len()];
-            assert_eq!(
-                internals::decode_toom3_with(text, &mut out, threshold),
-                Ok(data.len())
-            );
-            assert_eq!(out, data);
-        }
     }
 }
 
@@ -182,9 +174,5 @@ fn tuning_preconditions_reject_invalid_values() {
         ] {
             std::panic::catch_unwind(|| encode(&[], &mut [], 0, leaf, leaves)).unwrap_err();
         }
-    }
-    for threshold in [0, 1, 31] {
-        std::panic::catch_unwind(|| internals::decode_toom3_with("", &mut [], threshold))
-            .unwrap_err();
     }
 }

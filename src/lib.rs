@@ -53,8 +53,6 @@ mod no_alloc;
 mod ntt;
 #[cfg(test)]
 mod tests;
-#[cfg(any(test, feature = "__internals", kani))]
-mod toom3;
 #[cfg(kani)]
 mod verification;
 

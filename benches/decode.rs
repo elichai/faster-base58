@@ -52,11 +52,6 @@ const DECODERS: &[(&str, DecodeFn, usize)] = &[
         usize::MAX,
     ),
     (
-        "dc-toom3",
-        |s, out| faster_base58::internals::decode_toom3(s, out).unwrap(),
-        usize::MAX,
-    ),
-    (
         "ntt",
         |s, out| faster_base58::internals::decode_ntt(s, out).unwrap(),
         usize::MAX,

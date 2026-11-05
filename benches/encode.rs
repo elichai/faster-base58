@@ -57,11 +57,6 @@ const ENCODERS: &[(&str, EncodeFn, SizeFilter)] = &[
         dc,
     ),
     (
-        "dc-toom3",
-        |d, out| faster_base58::internals::encode_toom3(d, out).unwrap(),
-        dc,
-    ),
-    (
         "ntt",
         |d, out| faster_base58::internals::encode_ntt(d, out).unwrap(),
         dc,

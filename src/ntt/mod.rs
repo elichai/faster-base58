@@ -56,7 +56,9 @@ use crate::mul;
 use tables::cache::CACHE_MAX_LOG;
 use tables::{MAX_LOG, PRIMES, Prime, Tables};
 
-/// Products whose shorter operand has fewer limbs than this use Karatsuba.
+/// Products whose shorter operand has fewer limbs than this use Karatsuba. On an M5 Pro,
+/// starting transforms at 256-1024 limbs with Toom-3 below them made whole decodes and
+/// encodes 1.03-1.9x slower.
 const THRESHOLD: usize = 128;
 
 /// Products with a prepared power use transforms when both operands have at least this
@@ -65,7 +67,10 @@ const PREPARED_THRESHOLD: usize = 96;
 
 /// [`THRESHOLD`] and [`PREPARED_THRESHOLD`] when Karatsuba has the AVX-512 IFMA leaf.
 /// Tuned on whole decodes on Zen 5, where Karatsuba wins on prepared products of 1936
-/// limbs and transforms win from 3430.
+/// limbs and transforms win from 3430. A prepared threshold of 3072 made decodes up to 15%
+/// slower. One Toom-3 level on products from 1536 limbs up to these thresholds changed
+/// whole decodes and encodes by -3% to +3% depending on size; from 2304 limbs it gained
+/// 1-3% only at 44-56 KiB.
 const IFMA_THRESHOLD: usize = 3072;
 const IFMA_PREPARED_THRESHOLD: usize = 2048;
 
