@@ -128,7 +128,9 @@ def main():
     if args.cpu is not None:
         os.sched_setaffinity(0, {args.cpu})
     commit = args.source_commit or subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'],
-                                                  check=True, capture_output=True, text=True).stdout.strip()
+                                                  capture_output=True, text=True).stdout.strip()
+    if not commit:
+        parser.error('--source-commit is required outside a Git checkout')
     processes = []
     with tempfile.TemporaryDirectory(prefix='base58-public-') as fixtures:
         for size in args.sizes:

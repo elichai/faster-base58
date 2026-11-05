@@ -6,7 +6,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from current import SIZES, check, tables, timing_cells
+from current import SERIES, TABLE_SIZES, check, size_deltas, tables, timing_cells
 import render_backends
 
 
@@ -20,21 +20,13 @@ class DocumentationTests(unittest.TestCase):
         for name in ['README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md',
                      'docs/README.md', 'docs/performance.md']:
             (self.root / name).write_text('')
-        for name in ['m5-public', 'wasm-public', 'gcp-generic-backends', 'gcp-native-backends']:
+        names = ['m5-public', 'gcp-public', 'wasm-public']
+        for name in names:
             (self.root / f'assets/graphs/{name}.svg').write_text(
                 '<svg xmlns="http://www.w3.org/2000/svg"><title>Example</title></svg>')
-        (self.root / 'README.md').write_text('\n'.join(
-            f'![figure](assets/graphs/{name}.svg)' for name in
-            ['m5-public', 'wasm-public', 'gcp-generic-backends']))
-        (self.root / 'docs/performance.md').write_text(
-            '![native](../assets/graphs/gcp-native-backends.svg)')
+        (self.root / 'README.md').write_text('\n'.join(f'![figure](assets/graphs/{name}.svg)' for name in names))
 
     def test_checks_retained_documents_without_raw_measurements(self):
-        self.assertEqual(check(self.root)['svg_figures'], 4)
-
-    def test_historical_native_figure_is_optional(self):
-        (self.root / 'docs/performance.md').write_text('Historical comparison is tabulated only.')
-        (self.root / 'assets/graphs/gcp-native-backends.svg').rename(self.root / 'historical.svg')
         self.assertEqual(check(self.root)['svg_figures'], 3)
 
     def test_missing_local_link_is_rejected(self):
@@ -49,22 +41,9 @@ class DocumentationTests(unittest.TestCase):
 
     def test_readme_must_embed_selected_figure(self):
         guide = self.root / 'README.md'
-        guide.write_text(guide.read_text().replace('![figure](assets/graphs/m5-public.svg)', ''))
-        with self.assertRaisesRegex(ValueError, 'README.*m5-public'):
+        guide.write_text(guide.read_text().replace('![figure](assets/graphs/gcp-public.svg)', ''))
+        with self.assertRaisesRegex(ValueError, 'README.*gcp-public'):
             check(self.root)
-
-    def test_native_figure_stays_in_performance_document(self):
-        guide = self.root / 'README.md'
-        guide.write_text(guide.read_text() + '\n![native](assets/graphs/gcp-native-backends.svg)')
-        with self.assertRaisesRegex(ValueError, 'native.*performance'):
-            check(self.root)
-
-    def test_public_x86_figure_can_replace_historical_backend_figure(self):
-        guide = self.root / 'README.md'
-        guide.write_text(guide.read_text().replace('gcp-generic-backends.svg', 'gcp-public.svg'))
-        (self.root / 'assets/graphs/gcp-public.svg').write_text(
-            '<svg xmlns="http://www.w3.org/2000/svg"><title>Public x86</title></svg>')
-        self.assertEqual(check(self.root)['status'], 'pass')
 
     def test_reference_and_encoded_links_are_checked(self):
         (self.root / 'DESIGN.md').write_text('[reference][target]\n\n[target]: docs/missing%20file.md')
@@ -75,89 +54,70 @@ class DocumentationTests(unittest.TestCase):
 class ExternalInputTests(unittest.TestCase):
     def rows(self, platforms=('m5', 'wasm')):
         return [dict(platform=platform, cache=cache, backend=backend, operation=operation,
-                     decoded_bytes=str(size), status='measured', reason='',
-                     role={'auto': 'public', 'no-alloc': 'public', 'bs58': 'competitor',
-                           'five8': 'competitor', 'empty': 'scaffold'}[backend], source_fingerprint='a' * 64,
-                     scope='ordinary public consumer; no __internals' if platform != 'wasm'
-                     else 'ordinary public Wasm module; no __internals',
-                     primary_clock='process CPU' if platform != 'wasm' else 'elapsed',
-                     warm_ns='100', process_min_ns='90', process_max_ns='110',
-                     fresh_processes='3', warm_batches_per_process='3')
-                for platform in platforms for cache in ['default', 'cache']
-                for backend in ['empty', 'auto', 'no-alloc', 'bs58', 'five8']
-                for operation in ['encode', 'decode'] for size in SIZES]
+                     decoded_bytes=str(size), warm_ns='100', process_min_ns='90', process_max_ns='110',
+                     clock='elapsed' if platform == 'wasm' else 'process CPU',
+                     measurement_date='2026-11-05', source_commit='a' * 40)
+                for platform in platforms for backend, cache, _ in SERIES
+                for operation in ['encode', 'decode'] for size in TABLE_SIZES
+                if backend != 'five8' or size in (32, 64)]
 
-    def test_missing_measurements_are_not_silent_skips(self):
-        with self.assertRaisesRegex(ValueError, 'Missing.*timing'):
-            tables([], [])
+    def sizes(self, directory, values):
+        """A sizes.csv with an empty probe and BACKEND: (code, readonly, wasm code, wasm data)."""
+        path = Path(directory) / f'sizes-{len(list(Path(directory).iterdir()))}.csv'
+        fields = ['backend', 'direction', 'kind', 'code_bytes', 'readonly_bytes',
+                  'wasm_code_section_bytes', 'wasm_data_section_bytes']
+        with path.open('w', newline='') as stream:
+            writer = csv.writer(stream)
+            writer.writerow(fields)
+            for backend, sizes in {'empty': (1000, 1000, 1000, 1000), **values}.items():
+                writer.writerow([backend, 'both', 'cdylib', *sizes])
+        return path
 
-    def test_generic_x86_public_measurements_use_native_clock_and_size_sections(self):
-        rows = self.rows(('m5', 'gcp', 'wasm'))
-        cells = timing_cells(rows)
-        self.assertEqual(cells['gcp', 'default', 'auto', 'encode', 32]['primary_clock'], 'process CPU')
-        sizes = [dict(platform=platform, cache=cache, backend=backend, direction='both',
-                      delta_empty_code_bytes='1024', delta_empty_readonly_bytes='2048',
-                      delta_empty_wasm_code_section_bytes='3072', delta_empty_wasm_data_section_bytes='4096')
-                 for platform in ['m5', 'gcp', 'wasm']
-                 for backend, cache in [('auto', 'default'), ('auto', 'cache'), ('no-alloc', 'default'), ('bs58', 'default')]]
-        output = tables(rows, sizes)
-        self.assertIn('### AMD EPYC 9B45 (generic x86-64)', output)
-        self.assertIn('| Auto | 1.0 KiB / 2.0 KiB | 1.0 KiB / 2.0 KiB | 3.0 KiB / 4.0 KiB |', output)
-        next(row for row in rows if row['platform'] == 'gcp')['primary_clock'] = 'elapsed'
-        with self.assertRaises(ValueError):
-            timing_cells(rows)
+    def test_tables_bold_minima_and_dash_unmeasured_cells(self):
+        rows = self.rows()
+        next(row for row in rows if row['backend'] == 'bs58' and row['decoded_bytes'] == '32').update(
+            warm_ns='50', process_min_ns='40')
+        with tempfile.TemporaryDirectory() as directory:
+            deltas = size_deltas({'m5': self.sizes(directory, {'auto': (2024, 3048, 0, 0)}),
+                                  'wasm': self.sizes(directory, {'auto': (0, 0, 4072, 5096)})})
+        output = tables(rows, deltas)
+        self.assertIn('### WebAssembly on Apple M5 Pro (Node/V8)', output)
+        self.assertNotIn('AMD EPYC', output)
+        self.assertIn('| 32 B | 100 ns / **100 ns** | 100 ns / **100 ns** | 100 ns / **100 ns** | **50 ns** / **100 ns** | 100 ns / **100 ns** |', output)
+        self.assertIn('| 512 B | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | — / — |', output)
+        self.assertIn('| Auto | 1.0 KiB / 2.0 KiB | 3.0 KiB / 4.0 KiB |', output)
+        self.assertIn('| bs58 | — | — |', output)
 
-    def test_renderer_requires_explicit_external_inputs(self):
-        result = subprocess.run([sys.executable, str(Path(__file__).with_name('render_current.py')), '--help'],
-                                capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('--data', result.stdout)
-        self.assertIn('--sizes', result.stdout)
+    def test_size_cohorts_need_one_empty_probe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.sizes(directory, {'auto': (1, 1, 1, 1)})
+            path.write_text(path.read_text().replace('empty', 'auto'))
+            with self.assertRaisesRegex(ValueError, 'empty'):
+                size_deltas({'m5': path})
+            with self.assertRaisesRegex(ValueError, 'cohort'):
+                size_deltas({'arm': self.sizes(directory, {})})
+
+    def test_invalid_rows_are_rejected(self):
+        for changes in [dict(warm_ns='nan'), dict(process_max_ns='80'), dict(warm_ns=''),
+                        dict(platform='unknown'), dict(clock='elapsed'),
+                        dict(measurement_date='2026-10-29'), dict(source_commit='b' * 40)]:
+            with self.subTest(changes=changes):
+                rows = self.rows()
+                rows[0].update(changes)
+                with self.assertRaises(ValueError):
+                    timing_cells(rows)
 
     def test_duplicate_measurements_are_rejected(self):
         rows = self.rows()
         with self.assertRaisesRegex(ValueError, 'Duplicate timing'):
             timing_cells(rows + [rows[0]])
 
-    def test_invalid_range_and_unexplained_skip_are_rejected(self):
-        for changes in [dict(warm_ns='nan'), dict(process_max_ns='80'),
-                        dict(status='skipped', reason=''), dict(status='skipped', reason='policy cap')]:
-            with self.subTest(changes=changes):
-                rows = self.rows()
-                rows[0].update(changes)
-                with self.assertRaises(ValueError):
-                    timing_cells(rows)
-
-    def test_mixed_source_or_internal_scope_is_rejected(self):
-        for changes in [dict(scope='internal backend'), dict(role='control'),
-                        dict(source_fingerprint='b' * 64), dict(source_commit='b' * 40),
-                        dict(measurement_date='2026-10-29')]:
-            with self.subTest(changes=changes):
-                rows = self.rows()
-                rows[0].update(changes)
-                with self.assertRaises(ValueError):
-                    timing_cells(rows)
-
-    def test_explicit_skip_produces_dash_without_bolding(self):
-        rows = self.rows()
-        for row in rows:
-            if row['backend'] == 'five8':
-                row.update(status='skipped', reason='unsupported size', warm_ns='',
-                           process_min_ns='', process_max_ns='', primary_clock='')
-        sizes = [dict(platform=platform, cache=cache, backend=backend, direction='both',
-                      delta_empty_code_bytes='1024', delta_empty_readonly_bytes='2048',
-                      delta_empty_wasm_code_section_bytes='3072', delta_empty_wasm_data_section_bytes='4096')
-                 for platform in ['m5', 'wasm']
-                 for backend, cache in [('auto', 'default'), ('auto', 'cache'), ('no-alloc', 'default'), ('bs58', 'default')]]
-        output = tables(rows, sizes)
-        self.assertIn('| 32 B | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | — / — |', output)
-        self.assertIn('| Auto | 1.0 KiB / 2.0 KiB | 3.0 KiB / 4.0 KiB |', output)
-        with self.assertRaisesRegex(ValueError, 'duplicate linked-size'):
-            tables(rows, sizes + [sizes[0]])
-        for row in rows:
-            row.update(status='skipped', reason='not measured', warm_ns='',
-                       process_min_ns='', process_max_ns='', primary_clock='')
-        self.assertNotIn('**—**', tables(rows, sizes))
+    def test_renderer_requires_explicit_inputs(self):
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('render_current.py')), '--help'],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('--data', result.stdout)
+        self.assertIn('--sizes', result.stdout)
 
 
 class BackendInputTests(unittest.TestCase):
