@@ -257,6 +257,8 @@ strip = false
 incremental = false
 '''
     (work / "Cargo.toml").write_text(manifest)
+    # Seed the probe's lock with the library's, so every host builds the same versions.
+    shutil.copyfile(source / "Cargo.lock", work / "Cargo.lock")
     for name in ("lib.rs", "entry.rs", "main.rs"):
         shutil.copyfile(ROOT / "tools/code-size/src" / name, work / "src" / name)
     if args.count_allocations:
