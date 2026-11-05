@@ -142,6 +142,33 @@ The word-wise checksum serializer (`check::split`) was measured alone on the M5
 (best of 7 loops, busy host): 9.5 ns instead of 180 ns for 516 data bytes and 0.60 µs
 instead of 11.1 µs for 32 KiB, with output compared to the byte loop it replaces.
 
+### Linked size after review
+
+Measured **2026-11-05**, comparing `219de75` with `a927dbf` (the reviewed source
+plus the x86 no-alloc lint fix). Native M5 Pro, `aarch64-apple-darwin`, Rust 1.99.1
+(`58cf8f9c3`) / LLVM 23.1.1, compiler-default CPU, opt3, fat LTO, 16 CGUs, no debug
+info or extra Rust flags. `alloc` is enabled; default and `cache` are separate
+builds. Each ordinary public-consumer cdylib retains dynamic-input borrowed-buffer
+encoding and decoding; no `__internals` hooks are enabled. Source, probe and build
+paths match between revisions. Round trips at 0/21/32/64/512/8193 bytes pass for
+each retained mode, including exact checked output capacity. The probe's SHA-256
+begins `f160bb908fdaa5c9`. These are linked machine-code bytes, with no clock or
+timing samples; read-only data and file padding are excluded.
+
+| Retained codec modes | Default before → after | Cache before → after |
+| --- | ---: | ---: |
+| Plain, `check` off | 259,688 → 259,780 | 262,336 → 262,748 |
+| Plain, `check` on | 260,136 → 259,844 | 263,104 → 263,068 |
+| Plain + checked | 270,440 → 271,748 | 274,304 → 276,124 |
+| Plain + checked + versioned | 274,152 → 273,796 | 278,144 → 277,916 |
+
+The largest increase is 1,820 bytes (0.66%) for cached plain + checked conversion.
+Enabling `check` while retaining only plain calls adds 64 bytes with the default
+policy and 320 with cache in the new source. This comparison includes all review
+changes; it does not isolate forced inlining. It also does not establish latency
+neutrality or the size of other consumers, x86 or Wasm binaries. Raw artifacts stay
+under ignored `target/measurements/`.
+
 ### Base58Check comparison and unresolved regression
 
 **Historical:** this section describes the checksum layer before the internal
