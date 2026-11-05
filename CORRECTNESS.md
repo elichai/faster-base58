@@ -14,7 +14,10 @@ passing job establishes only the checks and platforms it executes. On 2026-11-05
 the native Zen 5 VM (AVX-512F/BW/DQ/VL, IFMA and VBMI) passed `cargo test --locked`
 with default features, `cache,check,__internals`, `--no-default-features --features
 check` and `compact,__internals` at `3a619a1`, and the full `__internals` suite
-(197 tests) at `18b2eb8`.
+(197 tests) at `18b2eb8`. On the M5, the final source passed the debug and release
+`__internals` suites with and without `cache` (512 cases per property), the `check`
+and no-allocation lanes, documentation tests, the 16 MiB radix boundaries (both
+policies) and the `2^23`-point transform test.
 
 The sanitizer, Miri, Kani and coverage campaigns below ran on 2026-10-28/29
 snapshots, before the CI and API changes of #6–#18, and were not refreshed:
