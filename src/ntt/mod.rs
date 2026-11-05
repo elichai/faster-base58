@@ -338,7 +338,7 @@ impl Multiplier for Ntt {
     fn mul_power(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
         match self.powers.get(i) {
             // `b` is the prepared power, and the product fits its transforms, so also the
-            // tables. A square never gets here: `a` is not a power.
+            // tables. When `a` is `b`, the square takes `a`'s transforms from them too.
             Some(Some(f))
                 if f.is(b)
                     && a.len() >= self.prepared_threshold
@@ -620,7 +620,8 @@ fn split(
 /// `t` must serve: one cyclic transform of `L` points per prime, or the shorter pieces of
 /// a [`Plan`]. When `a` and `b` are the same slice, squares: one forward transform per
 /// prime instead of two. So does a prepared `b`, whose transforms `fb` holds; it needs
-/// `log_len(a.len() + b.len()) <= fb.log`.
+/// `log_len(a.len() + b.len()) <= fb.log`. Squaring a prepared `b` takes no forward
+/// transform.
 fn transform(
     out: &mut [u64],
     a: &[u64],
@@ -641,8 +642,13 @@ fn transform(
     let tmp = &mut rest[..n];
     let rs = [&mut *r1, &mut *r2, &mut *r3];
     for (j, ((r, p), tw)) in rs.into_iter().zip(PRIMES).zip(&t.tw).enumerate() {
-        (k.load)(r, a, p);
-        (k.forward)(r, p, tw.fw());
+        match fb {
+            Some(f) if ptr::eq(a, b) => r.copy_from_slice(&f.prime(j)[..n]),
+            _ => {
+                (k.load)(r, a, p);
+                (k.forward)(r, p, tw.fw());
+            }
+        }
         if ptr::eq(a, b) {
             (k.square)(r, p);
         } else if let Some(f) = fb {
@@ -762,13 +768,19 @@ fn pieces(
                 Some(s) if w.is_none() => narrow(x, s, p),
                 _ => fold(x, v, p, w, k),
             };
-            load(x, a, sa);
-            (k.forward)(x, p, tw.fw());
             let d = x.len();
+            let at = if w.is_some() { d..2 * d } else { 0..d };
+            match f {
+                Some(f) if ptr::eq(a, b) => x.copy_from_slice(&f[at.clone()]),
+                _ => {
+                    load(x, a, sa);
+                    (k.forward)(x, p, tw.fw());
+                }
+            }
             if ptr::eq(a, b) {
                 (k.square)(x, p);
             } else if let Some(f) = f {
-                (k.pointwise)(x, &f[if w.is_some() { d } else { 0 }..][..d], p);
+                (k.pointwise)(x, &f[at], p);
             } else {
                 let y = &mut tmp[..x.len()];
                 load(y, b, sb);
@@ -1315,6 +1327,20 @@ mod tests {
             let mut out = vec![0; na + nb];
             ntt.mul_power(&mut out, &a, i, &b, &mut vec![0; scratch_len(na.max(nb))]);
             assert_eq!(FORWARDS.with(Cell::get), 3 * pieces, "{na} x {nb} limbs");
+        }
+        // Squares of a prepared power take no forward transform: one cyclic transform,
+        // two pieces and three.
+        for (i, n) in [128, 129, 200].into_iter().enumerate() {
+            let b: Vec<u64> = (0..n).map(|_| rng.next_u64()).collect();
+            ntt.prepare_power(shapes.len() + i, &b, 2 * n);
+            FORWARDS.with(|c| c.set(0));
+            let mut out = vec![0; 2 * n];
+            let slot = shapes.len() + i;
+            ntt.mul_power(&mut out, &b, slot, &b, &mut vec![0; scratch_len(n)]);
+            assert_eq!(FORWARDS.with(Cell::get), 0, "{n} limbs");
+            let mut want = vec![0; 2 * n];
+            mul::mul(&mut want, &b, &b, &mut vec![0; mul::scratch_len(n)]);
+            assert_eq!(out, want, "{n} limbs");
         }
         let slots = ntt.powers.len();
         ntt.prepared_threshold = usize::MAX;
