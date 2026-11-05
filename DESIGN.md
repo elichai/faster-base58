@@ -166,12 +166,9 @@ scalar assembly. Wasm `+simd128` requires a SIMD-capable engine and has no scala
 runtime fallback within that module. Measurements show mixed tradeoffs; see
 [performance](docs/performance.md).
 
-Ordinary builds use a constant IFMA threshold; only tests and `__internals`
-retain its tuning atomic. Generic x86 builds still read cached CPU feature flags
-in the NTT short-product fallback. Passing threshold state through multipliers
-had no established overall benefit; narrower reuse of the constructor's choice
-needs controlled measurements. Resolve final linked call targets before treating
-source-level function pointers as runtime dispatch costs.
+The IFMA leaf threshold is a constant. Generic x86 builds still read cached CPU
+feature flags in the NTT short-product fallback; passing threshold state through
+multipliers had no established overall benefit.
 
 ## Heap, stack and cache costs
 

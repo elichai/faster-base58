@@ -39,10 +39,7 @@ pub use crate::{
     },
 };
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-pub use crate::{
-    mul::ifma::set_ifma_threshold,
-    mul_ifma::{avx512::mul as ifma_mul, scratch_len as ifma_scratch_len},
-};
+pub use crate::mul_ifma::{avx512::mul as ifma_mul, scratch_len as ifma_scratch_len};
 
 /// Heap-free decoding: the tiny or batched decoder, as used without `alloc`.
 ///
