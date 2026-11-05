@@ -82,7 +82,7 @@ Measured **2026-11-04** with an ordinary public consumer that never calls
 `Encoder::bitcoin().encode(..).onto(..)` and `Decoder::bitcoin().decode(&str).onto(..)`.
 Variants: the base layer before and after its review (`abb8607` → `2be80e8`), and
 this layer after review (`b1fe676`, then without forced inlining of the batched
-decoder's `Value` kernels: the source of this commit) with `check` enabled and
+decoder's `Value` kernels: the `a927dbf` source) with `check` enabled and
 disabled. The pre-review checksum layer (`219de75`, `check` enabled) ran as a
 control. Each variant was built from the same source, probe and target paths with
 opt3, fat LTO, 16 CGUs and the compiler-default CPU (`RUSTFLAGS=""`), with default and
@@ -109,8 +109,8 @@ diagnostic; they are not the shipped configuration. Ranges cover inputs of at le
 | `b1fe676` + `check`, decode, `cache` | 0.99–1.20 (4 KiB) | 0.97–1.03 | 0.99–1.02 | 0.99–1.00 |
 | `b1fe676` + `check`, encode | 0.89–1.03 | 0.89–1.04 | 0.67–1.06 | 0.75–1.01 |
 | `b1fe676`, `check` off, decode, default | 0.98–1.19 (4 KiB) | 0.94–1.00 | 0.98–1.05 | 1.00–1.10 (512 B) |
-| This source + `check`, decode | — | 0.98–1.01 | — | 1.00–1.03 (default only) |
-| This source + `check`, encode | — | 0.89–1.01 | — | 0.76–1.01 (default only) |
+| `a927dbf` + `check`, decode | — | 0.98–1.01 | — | 1.00–1.03 (default only) |
+| `a927dbf` + `check`, encode | — | 0.89–1.01 | — | 0.76–1.01 (default only) |
 
 The unpinned EPYC 4–32 KiB swings (about 27.5 µs or 33 µs at 4 KiB) occur with
 `check` enabled or disabled and between the two base-layer builds; with aligned
@@ -126,8 +126,8 @@ placement too. Aligned outliers remained in single cells with identical consumer
 (for example, EPYC `cache` 65/63-zero encoding with `check` off, 1.32).
 
 Not placement-explained: M5 default-policy 512-byte decoding takes 1.02–1.10× the
-reviewed base layer's time in every variant of this layer, aligned (1.02 for this
-source with `check`, 1.10 with `check` off). Removing either inlining attribute or
+reviewed base layer's time in every variant of this layer, aligned (1.02 for
+`a927dbf` with `check`, 1.10 with `check` off). Removing either inlining attribute or
 restoring the base layer's divide-and-conquer body did not remove it; 1 KiB is
 1.00–1.03 and 4 KiB+ 1.00. Its cause is not established. The pre-review base layer
 takes the same time as this layer there, so the reviewed base layer is the faster
@@ -141,6 +141,36 @@ bytes take 1–10 ns and move with placement. Raw results stay outside Git.
 The word-wise checksum serializer (`check::split`) was measured alone on the M5
 (best of 7 loops, busy host): 9.5 ns instead of 180 ns for 516 data bytes and 0.60 µs
 instead of 11.1 µs for 32 KiB, with output compared to the byte loop it replaces.
+
+### Batched decode tail stores
+
+Measured **2026-11-05**. Batched plain and checked decoding wrote the top limb's 1–8
+trailing bytes with a variable-length `copy_from_slice`, which compiles to a stack
+spill and a `memcpy` call on aarch64 and x86-64; `check::split` did the same for its
+top word. `common::store_low_le` uses optional 8-, 4-, 2- and 1-byte stores instead,
+like the loads in `core::hash::sip::u8to64_le`. Before: the `a927dbf` source, built
+from its pre-rebase twin `ddd5845` (they differ only in `src/cpu.rs` items compiled
+without `alloc`). After: this source. Same consumer, harness and build profile as
+above, `check` off. Hosts: EPYC 9B45 (Rust 1.99.0, pinned to CPU 0; unaligned and
+aligned builds) and M5 Pro (Rust 1.99.1, AC power; aligned only). Grid: 21, 25, 32,
+33, 64, 65, 78, 82, 128 and 512 bytes plus the three zero-heavy inputs.
+
+| Decode, after/before time | EPYC unaligned | EPYC aligned | M5 aligned |
+| --- | --- | --- | --- |
+| Default | 0.96–1.05; 512 B 0.82 | 0.96–1.00 | 0.90–1.01 |
+| `cache` | 0.99–1.02; 512 B 1.21 | 0.99–1.02 | 0.92–1.02 |
+| Unchanged encode (control) | 0.98–1.15 (512/512 zeros) | 0.99–1.05 | 0.98–1.02 |
+
+The gain is largest at 21–82 bytes on the M5 (1–10% less time); EPYC default decoding
+takes 1–4% less at 21, 32, 64 and 128 bytes, and `cache` is unchanged. The unaligned
+EPYC 512-byte cells and the unchanged 512/512-zero encoding move by up to 21% in both
+directions and are about 1.00 when aligned: placement. One 8-byte store ending at
+the value's length (rewriting the last limb's top bytes) was also tried. Against these
+stores, aligned, it took 0.93–0.95× the time at 21 and 25 bytes on EPYC but 1.02–1.04×
+at 32, 64 and 82 bytes (default policy), and 0.98–1.03× on the M5 (1.01–1.03× in 9
+of the 10 `cache` cells from 21 to 128 bytes), so it was not adopted. Not measured:
+checked decoding (it uses the same stores), Wasm, native CPU flags and linked size;
+the linked-size table below predates this change.
 
 ### Linked size after review
 

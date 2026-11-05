@@ -85,6 +85,31 @@ pub(crate) fn invalid(input: &[u8]) -> DecodeError {
     }
 }
 
+/// Stores the low `out.len()` (at most 8) bytes of `value`, least significant first.
+///
+/// Fixed-width stores, like the loads in `core::hash::sip::u8to64_le`: a
+/// variable-length `copy_from_slice` compiles to a stack spill and a `memcpy` call.
+pub(crate) fn store_low_le(out: &mut [u8], value: u64) {
+    let len = out.len();
+    debug_assert!(len <= 8);
+    if len == 8 {
+        out.copy_from_slice(&value.to_le_bytes());
+        return;
+    }
+    let mut i = 0;
+    if i + 3 < len {
+        out[i..i + 4].copy_from_slice(&(value as u32).to_le_bytes());
+        i += 4;
+    }
+    if i + 1 < len {
+        out[i..i + 2].copy_from_slice(&((value >> (8 * i)) as u16).to_le_bytes());
+        i += 2;
+    }
+    if i < len {
+        out[i] = (value >> (8 * i)) as u8;
+    }
+}
+
 /// Whether every byte of `digits` is in the alphabet.
 ///
 /// Branch-free range checks with no early exit, so the loop vectorizes: on an M5 Pro
@@ -101,4 +126,21 @@ pub(crate) fn all_valid(digits: &[u8]) -> bool {
             | (c.wrapping_sub(b'm') < 14)
     };
     digits.iter().fold(0u8, |bad, &c| bad | !valid(c) as u8) == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn store_low_le_writes_only_its_bytes() {
+        let value = 0x0807_0605_0403_0201;
+        for len in 0..=8 {
+            let mut buf = [0xA5; 10];
+            store_low_le(&mut buf[1..1 + len], value);
+            assert_eq!(buf[1..1 + len], value.to_le_bytes()[..len], "len {len}");
+            assert_eq!(buf[0], 0xA5);
+            assert!(buf[1 + len..].iter().all(|&b| b == 0xA5), "len {len}");
+        }
+    }
 }

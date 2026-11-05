@@ -107,7 +107,8 @@ UTF-8 containing malformed Base58. The public decoder also takes raw bytes; the
 builder tests, heap-free tests and `decode_all` fuzzer pass invalid UTF-8 to it. bs58 0.5.1 supplies an additional oracle, including first-invalid
 indices. Canary checks surround the passed output slice; they do not assert
 unspecified error-buffer contents. Unit tests also cover MiB conversions, all-one
-carry patterns, powers, small exhaustive inputs and all legal NTT scale lengths.
+carry patterns, powers, small exhaustive inputs, all legal NTT scale lengths and the
+partial-word store at every length from 0 to 8 bytes, with guard bytes.
 
 CI selects 512 cases per property in debug and release, cache off/on, across Linux,
 macOS and Windows. Compact builds have additional Linux and macOS rows. Big-endian
