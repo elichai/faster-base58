@@ -206,15 +206,6 @@ jobs:
           node scripts/wasm_allocations.mjs --self-test "$RUNNER_TEMP/base58-wasm-allocations-default"
           python3 scripts/code_size.py --source . --output "$RUNNER_TEMP/base58-wasm-allocations-cache" --target wasm32-unknown-unknown --cpu generic --backends empty,auto,no-alloc --directions both --kinds cdylib --count-allocations --strip-tool "$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-strip" --cache
           node scripts/wasm_allocations.mjs --self-test "$RUNNER_TEMP/base58-wasm-allocations-cache"
-      - name: Refuse counted modules in the timing driver
-        run: |
-          for cache_policy in default cache; do
-            if node scripts/wasm_tradeoffs.mjs --self-test "$RUNNER_TEMP/base58-wasm-allocations-$cache_policy" --backends empty,auto,no-alloc > "$RUNNER_TEMP/wasm-counted-rejection-$cache_policy.log" 2>&1; then
-              cat "$RUNNER_TEMP/wasm-counted-rejection-$cache_policy.log"
-              exit 1
-            fi
-            grep -F 'timing requires uninstrumented modules' "$RUNNER_TEMP/wasm-counted-rejection-$cache_policy.log"
-          done
 
   maximum_transform:
     runs-on: ubuntu-latest
@@ -332,27 +323,21 @@ jobs:
       - if: matrix.cache_args == ''
         run: python3 scripts/resource_report.py self-test
       - if: matrix.cache_args == ''
-        run: python3 scripts/cache_tradeoffs.py --self-test
-      - if: matrix.cache_args == ''
         run: python3 scripts/code_size.py --self-test
       - if: matrix.cache_args == ''
         run: python3 scripts/run_native_sanitizer.py --self-test
       - if: matrix.cache_args == ''
         run: python3 scripts/check_ci_tests.py --self-test
       - if: matrix.cache_args == ''
-        run: python3 scripts/compare_threshold.py --self-test
-      - if: matrix.cache_args == ''
-        run: python3 scripts/ac_power_run.py --self-test
-      - if: matrix.cache_args == ''
         run: python3 -m unittest discover -s assets/graphs -p test_render.py
       - if: matrix.cache_args == ''
         run: python3 assets/graphs/render.py --check
       - if: matrix.cache_args == ''
-        run: python3 -m py_compile scripts/validate_wasm_tradeoffs.py
+        run: python3 -m py_compile scripts/public_bench.py
+      - if: matrix.cache_args == ''
+        run: node --check scripts/public_bench_wasm.mjs
       - if: matrix.cache_args == ''
         run: node --check scripts/code_size_wasm.mjs
-      - if: matrix.cache_args == ''
-        run: node --check scripts/wasm_tradeoffs.mjs
       - if: matrix.cache_args == ''
         run: node --check scripts/wasm_allocations.mjs
 

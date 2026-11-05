@@ -7,7 +7,6 @@ import unittest
 from pathlib import Path
 
 from current import SERIES, TABLE_SIZES, check, size_deltas, tables, timing_cells
-import render_backends
 
 
 class DocumentationTests(unittest.TestCase):
@@ -118,63 +117,6 @@ class ExternalInputTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--data', result.stdout)
         self.assertIn('--sizes', result.stdout)
-
-
-class BackendInputTests(unittest.TestCase):
-    def row(self, **changes):
-        row = dict(platform='gcp-generic', cache='default', backend='auto', operation='encode',
-                   decoded_bytes='32', status='measured', reason='', warm_ns='100',
-                   primary_clock='process CPU', warm_observations='9')
-        row.update(changes)
-        return row
-
-    def test_gcp_schema_accepts_no_source_fingerprint(self):
-        render_backends.validate_rows([self.row()])
-
-    def test_rejects_invalid_measurements_before_output(self):
-        for changes in [dict(warm_ns='nan'), dict(warm_ns='inf'), dict(warm_ns='0'),
-                        dict(primary_clock='elapsed'), dict(warm_observations='3'),
-                        dict(status='unknown'), dict(decoded_bytes='-1'), dict(platform='unknown')]:
-            with self.subTest(changes=changes), self.assertRaises(ValueError):
-                render_backends.validate_rows([self.row(**changes)])
-
-    def test_rejects_duplicates_and_mixed_sources(self):
-        for rows in [[self.row(), self.row()],
-                     [self.row(source_fingerprint='a' * 64),
-                      self.row(decoded_bytes='64', source_fingerprint='b' * 64)]]:
-            with self.subTest(rows=rows), self.assertRaises(ValueError):
-                render_backends.validate_rows(rows)
-
-    def test_skips_require_reason_and_no_timing(self):
-        for changes in [dict(status='skipped', reason=''),
-                        dict(status='skipped', reason='policy cap'),
-                        dict(status='skipped', reason='policy cap', warm_ns='',
-                             primary_clock='', warm_observations='', warm_min_ns='5')]:
-            with self.subTest(changes=changes), self.assertRaises(ValueError):
-                render_backends.validate_rows([self.row(**changes)])
-        render_backends.validate_rows([self.row(status='skipped', reason='policy cap', warm_ns='',
-                                               primary_clock='', warm_observations='')])
-
-    def test_wasm_uses_elapsed_clock(self):
-        render_backends.validate_rows([self.row(platform='wasm', primary_clock='elapsed')])
-        with self.assertRaises(ValueError):
-            render_backends.validate_rows([self.row(platform='wasm')])
-
-    def test_invalid_csv_does_not_create_output(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
-            source, output = directory / 'input.csv', directory / 'output'
-            row = self.row(warm_ns='nan')
-            with source.open('w', newline='') as stream:
-                writer = csv.DictWriter(stream, fieldnames=row)
-                writer.writeheader()
-                writer.writerow(row)
-            result = subprocess.run([sys.executable, str(Path(__file__).with_name('render_backends.py')),
-                                     '--data', str(source), '--output', str(output)],
-                                    capture_output=True, text=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn('Invalid backend input', result.stderr)
-            self.assertFalse(output.exists())
 
 
 if __name__ == '__main__':
