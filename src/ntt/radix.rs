@@ -283,8 +283,7 @@ impl Arithmetic<'_, '_> {
         let len = a.len() + b.len();
         let out = &mut out[..len];
         if a == [1] {
-            let coefficients = b.iter().map(|&d| d as u64).chain(core::iter::repeat(0));
-            carry(out, coefficients, add_len);
+            carry(out, |i| b.get(i).map_or(0, |&d| d as u64), add_len);
         } else if a.len().min(b.len()) < THRESHOLD {
             self.sums.clear();
             self.sums.resize(len, 0);
@@ -295,7 +294,8 @@ impl Arithmetic<'_, '_> {
                     *s += a as u64 * b as u64;
                 }
             }
-            carry(out, self.sums.iter().copied(), add_len);
+            let sums = &self.sums;
+            carry(out, |i| sums[i], add_len);
         } else {
             let n = len.max(8).next_power_of_two();
             let r = &mut self.residues[..2 * n];
@@ -328,12 +328,8 @@ impl Arithmetic<'_, '_> {
                 &mut r1[..len.next_multiple_of(4)],
                 &mut r2[..len.next_multiple_of(4)],
             );
-            let coefficients = r1
-                .iter()
-                .zip(r2.iter())
-                .take(len)
-                .map(|(&r1, &v2)| r1 as u64 + PRIMES[0].q as u64 * v2 as u64);
-            carry(out, coefficients, add_len);
+            let q1 = PRIMES[0].q as u64;
+            carry(out, |i| r1[i] as u64 + q1 * r2[i] as u64, add_len);
         }
         out.iter().rposition(|&d| d != 0).map_or(0, |i| i + 1)
     }
@@ -372,17 +368,45 @@ fn load(out: &mut [i32], digits: &[u32]) {
     tail.fill(0);
 }
 
-fn carry(out: &mut [u32], coefficients: impl Iterator<Item = u64>, add_len: usize) {
-    let mut carry = 0;
-    for (i, (digit, coefficient)) in out.iter_mut().zip(coefficients).enumerate() {
+/// `out` = the coefficients `coef(i)` plus the first `add_len` digits of `out`, in base
+/// `BASE`. The value must fit `out`.
+///
+/// One carry chain waits on a division per digit, so four chains run interleaved over
+/// quarters of `out`, each starting without a carry. Each quarter's carry is then added
+/// at the start of the next, which rarely changes more than three digits.
+fn carry(out: &mut [u32], coef: impl Fn(usize) -> u64, add_len: usize) {
+    const K: usize = 4;
+    let step = |digit: &mut u32, i: usize, carry: u64| {
         // Adding a digit raises the inductive carry bound to
         // MAX_COEFFICIENT / (BASE - 1) + 1; the complete sum still fits u64.
         let add = if i < add_len { *digit as u64 } else { 0 };
-        let value = coefficient + carry + add;
+        let value = coef(i) + carry + add;
         *digit = (value % BASE as u64) as u32;
-        carry = value / BASE as u64;
+        value / BASE as u64
+    };
+    let s = out.len() / K;
+    let mut carries = [0; K];
+    for j in 0..s {
+        for (k, c) in carries.iter_mut().enumerate() {
+            *c = step(&mut out[k * s + j], k * s + j, *c);
+        }
     }
-    debug_assert_eq!(carry, 0);
+    for i in K * s..out.len() {
+        carries[K - 1] = step(&mut out[i], i, carries[K - 1]);
+    }
+    debug_assert_eq!(carries[K - 1], 0);
+    for (k, &c) in carries[..K - 1].iter().enumerate() {
+        let mut carry = c;
+        for digit in &mut out[(k + 1) * s..] {
+            if carry == 0 {
+                break;
+            }
+            let value = *digit as u64 + carry;
+            *digit = (value % BASE as u64) as u32;
+            carry = value / BASE as u64;
+        }
+        debug_assert_eq!(carry, 0);
+    }
 }
 
 /// Horner in groups of five bytes. A digit times 2^40 plus its carry is below 2^58.
