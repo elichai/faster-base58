@@ -21,8 +21,8 @@ uses `default-features = false`; bs58 0.5.1 and five8 1.0.0 use their defaults.
 | Scalar Wasm on the M5 | `18b2eb8` | Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34 | V8 elapsed, 3 |
 
 `18b2eb8` and `8bab387` differ only in the radix route rule, which is compiled for
-little-endian AArch64 with NEON only; the Wasm Auto module is byte-identical
-between them. Each fresh process times every library, interleaved, in three
+little-endian AArch64 with NEON only; the x86-64 and Wasm Auto libraries rebuilt
+from the final source are byte-identical to the measured ones. Each fresh process times every library, interleaved, in three
 batches of at least 10 ms after calibration. A cell is the median of the process
 medians; figure bars span the process medians. Fixtures are random bytes without
 leading zeros. Outputs and round trips are checked outside timing, decode input

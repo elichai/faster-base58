@@ -195,7 +195,8 @@ Rust 1.99.1 / LLVM 23.1.1, `aarch64-apple-darwin`; source `8bab387`, five proces
 ### AMD EPYC 9B45 (GCP, generic x86-64)
 
 Rust 1.99.0 / LLVM 23.1.1, generic `x86_64-unknown-linux-gnu` with runtime CPU
-selection, CPU 0 pinned; source `18b2eb8`, three processes. `-C target-cpu=native`
+selection, CPU 0 pinned; source `18b2eb8` (the Auto library is byte-identical at
+`8bab387`), three processes. `-C target-cpu=native`
 results are in the [performance guide](docs/performance.md#generic-and-native-x86-64).
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
