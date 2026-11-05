@@ -11,12 +11,18 @@ const supported = (label, size) => {
     return backend === "no-alloc" || backend === "bs58" ? size <= 65536 : true;
 };
 const probes = new Map();
-for (const [label, path] of job.libraries) probes.set(label, await openProbe(path));
+for (const [label, path] of job.libraries) {
+    const probe = await openProbe(path);
+    // Allocation counting adds work to every allocation, so it would distort timing.
+    if (probe.exports.includes("size_count_begin")) throw new Error(`timing requires uninstrumented modules: ${path}`);
+    probes.set(label, probe);
+}
 
 const results = [];
 for (const size of job.sizes) {
     const data = new Uint8Array(readFileSync(join(job.fixtures, `${size}.bin`)));
     const labels = job.libraries.map(([label]) => label).filter(label => supported(label, size));
+    if (!labels.length) continue;
     const text = probes.get(labels[0]).call("encode", data).output;
     // Decoding uses an exact buffer, which five8's fixed-width API requires.
     for (const [operation, value, expected, capacity] of [["encode", data, text, 2 * size + 16], ["decode", text, data, size]]) {

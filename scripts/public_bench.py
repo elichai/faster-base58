@@ -67,6 +67,8 @@ def native_worker(job):
     for size in job['sizes']:
         data = Path(job['fixtures'], f'{size}.bin').read_bytes()
         labels = [label for label, _ in job['libraries'] if supported(label, size)]
+        if not labels:
+            continue
         encoded = ctypes.create_string_buffer(2 * size + 16)
         text = result(labels[0], 'encode', ctypes.create_string_buffer(data, size), size, encoded)
         # Decoding uses an exact buffer, which five8's fixed-width API requires.
@@ -123,6 +125,8 @@ def main():
             parser.error(f'bad library: {label}={path}')
     if args.baseline and args.baseline not in dict(libraries):
         parser.error(f'unknown baseline: {args.baseline}')
+    if not any(supported(label, size) for label, _ in libraries for size in args.sizes):
+        parser.error('no library supports any requested size')
     if args.output.exists():
         parser.error(f'{args.output} exists')
     if args.cpu is not None:
