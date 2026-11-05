@@ -10,7 +10,12 @@ the semantics of every SIMD instruction. The implementation map is in
 ## Recorded check scope
 
 [CI](.github/workflows/verification.yml) is the record for each commit; a passing
-job establishes only the checks and platforms it executes. LOCAL_SCOPE
+job establishes only the checks and platforms it executes. This revision passes, on the M5, the debug and
+release `__internals` suites with and without `cache` (512 cases per property), the
+`check` and no-allocation lanes, documentation tests, the 16 MiB radix boundaries
+(both policies) and the `2^23`-point transform test. On a Zen 5 host with AVX-512
+IFMA and VBMI it passes the `__internals` suites with and without `cache` with
+`BASE58_REQUIRE_IFMA=1`, so the native AVX-512 kernel tests run instead of skipping.
 
 ## Public contract
 
