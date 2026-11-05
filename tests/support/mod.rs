@@ -13,8 +13,16 @@ pub type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 pub type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 
 pub const ENCODERS: &[(&str, Encode)] = &[
-    ("auto", faster_base58::encode),
-    ("no-alloc", faster_base58::no_alloc::encode),
+    (
+        "auto",
+        (|input, output| {
+            faster_base58::Encoder::bitcoin()
+                .encode(input)
+                .onto(output)
+                .map(str::len)
+        }),
+    ),
+    ("no-alloc", faster_base58::internals::encode_no_alloc),
     ("batched", faster_base58::internals::encode_batched),
     ("dc", faster_base58::internals::encode_karatsuba),
     ("toom3", faster_base58::internals::encode_toom3),
@@ -38,8 +46,16 @@ pub const ENCODERS: &[(&str, Encode)] = &[
 ];
 
 pub const DECODERS: &[(&str, Decode)] = &[
-    ("auto", faster_base58::decode),
-    ("no-alloc", faster_base58::no_alloc::decode),
+    (
+        "auto",
+        (|input, output| {
+            faster_base58::Decoder::bitcoin()
+                .decode(input)
+                .onto(output)
+                .map(|bytes| bytes.len())
+        }),
+    ),
+    ("no-alloc", faster_base58::internals::decode_no_alloc),
     ("batched", faster_base58::internals::decode_batched),
     ("dc", faster_base58::internals::decode_karatsuba),
     ("toom3", faster_base58::internals::decode_toom3),
@@ -112,8 +128,14 @@ pub fn check_encode(data: &[u8], selector: usize) {
     if let Some(scalar) = scalar::encode(data) {
         assert_eq!(want, scalar, "independent u128 encode oracle");
     }
-    assert!(want.len() <= faster_base58::max_encoded_len(data.len()));
-    assert_eq!(faster_base58::encode_string(data).as_bytes(), want);
+    assert!(want.len() <= faster_base58::Encoder::bitcoin().max_encoded_len(data.len()));
+    assert_eq!(
+        faster_base58::Encoder::bitcoin()
+            .encode(data)
+            .into_string()
+            .as_bytes(),
+        want
+    );
     for &(name, encode) in ENCODERS {
         check_encoder(name, encode, data, &want, selector);
     }
@@ -132,14 +154,17 @@ pub fn check_encode(data: &[u8], selector: usize) {
     }
 }
 
+/// bs58's result for raw bytes: the decoded bytes or the first invalid byte offset.
+pub fn oracle_decode_bytes(input: &[u8]) -> Result<Vec<u8>, usize> {
+    bs58::decode(input).into_vec().map_err(|error| match error {
+        bs58::decode::Error::InvalidCharacter { index, .. }
+        | bs58::decode::Error::NonAsciiCharacter { index } => index,
+        error => panic!("unexpected bs58 error: {error:?}"),
+    })
+}
+
 pub fn oracle_decode(input: &str) -> Result<Vec<u8>, usize> {
-    let result = bs58::decode(input.as_bytes())
-        .into_vec()
-        .map_err(|error| match error {
-            bs58::decode::Error::InvalidCharacter { index, .. }
-            | bs58::decode::Error::NonAsciiCharacter { index } => index,
-            error => panic!("unexpected bs58 error: {error:?}"),
-        });
+    let result = oracle_decode_bytes(input.as_bytes());
     if let Some(scalar) = scalar::decode(input) {
         assert_eq!(
             result, scalar,
@@ -149,14 +174,15 @@ pub fn oracle_decode(input: &str) -> Result<Vec<u8>, usize> {
     result
 }
 
-pub fn check_decoder(
+pub fn check_decoder<T: AsRef<[u8]> + ?Sized>(
     name: &str,
-    decode: Decode,
-    input: &str,
+    decode: impl Fn(&T, &mut [u8]) -> Result<usize, Error>,
+    input: &T,
     want: &Result<Vec<u8>, usize>,
     selector: usize,
 ) {
-    let n = want.as_ref().map_or(input.len(), Vec::len);
+    let len = input.as_ref().len();
+    let n = want.as_ref().map_or(len, Vec::len);
     for capacity in [0, n.saturating_sub(1), n, n + 17, selector % (n + 18)] {
         let mut storage = vec![CANARY; GUARD + capacity + GUARD];
         let result = decode(input, &mut storage[GUARD..GUARD + capacity]);
@@ -170,12 +196,7 @@ pub fn check_decoder(
         );
         match want {
             Ok(bytes) if capacity >= n => {
-                assert_eq!(
-                    result,
-                    Ok(n),
-                    "{name}: {} characters into {capacity}",
-                    input.len()
-                );
+                assert_eq!(result, Ok(n), "{name}: {len} characters into {capacity}");
                 assert_eq!(&storage[GUARD..GUARD + n], bytes, "{name}: output");
                 assert!(
                     storage[GUARD + n..].iter().all(|&x| x == CANARY),
@@ -188,8 +209,7 @@ pub fn check_decoder(
                 let invalid = Err(Error::InvalidCharacter { index });
                 // Error precedence is unspecified when the buffer is also too small.
                 assert!(
-                    result == invalid
-                        || (capacity < input.len() && result == Err(Error::BufferTooSmall)),
+                    result == invalid || (capacity < len && result == Err(Error::BufferTooSmall)),
                     "{name}: {result:?}, expected invalid byte {index}, capacity {capacity}"
                 );
             }
@@ -203,7 +223,23 @@ pub fn check_decode(input: &str, selector: usize) {
         check_decoder(name, decode, input, &want, selector);
     }
     assert_eq!(
-        faster_base58::decode_vec(input),
+        faster_base58::Decoder::bitcoin().decode(input).into_vec(),
+        want.map_err(|index| Error::InvalidCharacter { index })
+    );
+}
+
+/// The public decoder on raw bytes, which need not be UTF-8, against bs58.
+pub fn check_decode_bytes(input: &[u8], selector: usize) {
+    let want = oracle_decode_bytes(input);
+    let public = |input: &[u8], output: &mut [u8]| {
+        faster_base58::Decoder::bitcoin()
+            .decode(input)
+            .onto(output)
+            .map(|bytes| bytes.len())
+    };
+    check_decoder("public-bytes", public, input, &want, selector);
+    assert_eq!(
+        faster_base58::Decoder::bitcoin().decode(input).into_vec(),
         want.map_err(|index| Error::InvalidCharacter { index })
     );
 }

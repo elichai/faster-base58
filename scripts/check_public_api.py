@@ -14,55 +14,48 @@ ROOT = Path(__file__).resolve().parents[1]
 NAMES = [f'{direction}_{backend}' for direction in ['encode', 'decode']
          for backend in ['batched', 'karatsuba', 'matrix', 'matrix_portable',
                          'ntt', 'ntt_cached', 'ntt_portable', 'toom3']]
-NAMES += ['encode_radix', 'encode_radix_portable']
+NAMES += ['encode_radix', 'encode_radix_portable', 'decode', 'encode_into', 'decode_into',
+          'encode_string', 'decode_vec', 'decode_array', 'max_encoded_len']
 HOOKS = ['Multiplier', 'Leaves', 'decode_with', 'encode_tuned', 'ifma_threshold',
          'mul_with', 'scratch_len', 'encode_karatsuba_with', 'encode_matrix_with',
          'encode_matrix_whole', 'encode_matrix_cache_memory', 'fixed_matrix_table_bytes',
          'decode_matrix_cache_memory', 'decode_matrix_forced', 'decode_ntt_with',
          'encode_ntt_with', 'decode_ntt_same_leaves', 'encode_ntt_same_leaves',
          'ntt_cache_memory', 'decode_toom3_with']
-PROFILES = [('default', []), ('cache', ['cache']), ('internals', ['__internals']),
-            ('cache-internals', ['cache', '__internals'])]
+PROFILES = [('default', [], True), ('cache', ['cache'], True),
+            ('internals', ['__internals'], True), ('cache-internals', ['cache', '__internals'], True),
+            ('no-alloc', [], False)]
 
 NORMAL = r'''
-use faster_base58::{encode, decode, encode_into, decode_into, encode_string, decode_vec,
-                  decode_array, max_encoded_len, BufferTooSmall, Error, no_alloc};
+use faster_base58::{Encoder, Decoder, BufferTooSmall, Error};
 fn main() {
-    let input = [0, 0, 1];
+    const ENCODER: Encoder = Encoder::bitcoin();
+    const DECODER: Decoder = Decoder::bitcoin();
     let mut text = [0xA5; 16];
     let mut bytes = [0xA5; 16];
-    assert_eq!(encode(&input, &mut text), Ok(3));
-    assert_eq!(&text[..3], b"112");
+    assert_eq!(ENCODER.encode([0, 0, 1]).onto(&mut text), Ok("112"));
     assert!(text[3..].iter().all(|&b| b == 0xA5));
-    assert_eq!(decode("112", &mut bytes), Ok(3));
-    assert_eq!(&bytes[..3], &input);
+    assert_eq!(DECODER.decode("112").onto(&mut bytes).unwrap(), [0, 0, 1]);
     assert!(bytes[3..].iter().all(|&b| b == 0xA5));
-    assert_eq!(encode_into(input, &mut text), Ok("112"));
-    assert_eq!(decode_into("112", &mut bytes).unwrap(), input);
-    assert_eq!(encode_string(input), "112");
-    assert_eq!(decode_vec("112"), Ok(input.to_vec()));
-    assert_eq!(decode_array::<3>("112"), Ok(input));
-    assert_eq!(decode_array::<4>("112"), Err(Error::InvalidLength { expected: 4, actual: 3 }));
-    assert_eq!(decode_array::<2>("112"), Err(Error::BufferTooSmall));
-    assert_eq!(max_encoded_len(usize::MAX), usize::MAX);
-    assert_eq!(encode(&input, &mut []), Err(BufferTooSmall));
-    assert_eq!(decode("1é", &mut bytes), Err(Error::InvalidCharacter { index: 1 }));
-    let _: fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall> = no_alloc::encode;
-    let _: fn(&str, &mut [u8]) -> Result<usize, Error> = no_alloc::decode;
-    let _: for<'a, 'b> fn(&'a [u8], &'b mut [u8]) -> Result<&'b str, BufferTooSmall> = no_alloc::encode_into;
-    let _: for<'a, 'b> fn(&'a str, &'b mut [u8]) -> Result<&'b mut [u8], Error> = no_alloc::decode_into;
-    assert_eq!(no_alloc::encode(&input, &mut text), Ok(3));
-    assert_eq!(no_alloc::decode("112", &mut bytes), Ok(3));
-    let owned = input.to_vec();
-    let borrowed = no_alloc::encode_into(&owned, &mut text).unwrap();
-    drop(owned);
-    assert_eq!(borrowed, "112");
-    assert_eq!(no_alloc::decode_into("112", &mut bytes).unwrap(), input);
-    assert_eq!(no_alloc::decode_array::<0>(""), Ok([]));
-    assert_eq!(no_alloc::decode_array::<3>("112"), Ok(input));
-    assert_eq!(no_alloc::decode_array::<2>("112"), Err(Error::BufferTooSmall));
-    assert_eq!(no_alloc::decode_array::<4>("112"), Err(Error::InvalidLength { expected: 4, actual: 3 }));
-    assert_eq!(no_alloc::decode("1é", &mut bytes), Err(Error::InvalidCharacter { index: 1 }));
+    assert_eq!(DECODER.decode("112").into_array::<3>(), Ok([0, 0, 1]));
+    assert_eq!(DECODER.decode("112").into_array::<4>(), Err(Error::InvalidLength { expected: 4, actual: 3 }));
+    assert_eq!(DECODER.decode("112").into_array::<2>(), Err(Error::BufferTooSmall));
+    assert_eq!(ENCODER.max_encoded_len(usize::MAX), usize::MAX);
+    assert_eq!(ENCODER.encode([0]).onto(&mut []), Err(BufferTooSmall));
+    assert_eq!(DECODER.decode("1é").onto(&mut bytes), Err(Error::InvalidCharacter { index: 1 }));
+    assert_eq!(match Error::BufferTooSmall {
+        Error::BufferTooSmall => "capacity",
+        _ => "other",
+    }, "capacity");
+}
+'''
+
+OWNED = r'''
+use faster_base58::{Encoder, Decoder};
+fn main() {
+    assert_eq!(Encoder::bitcoin().encode([0, 0, 1]).into_string(), "112");
+    assert_eq!(Encoder::bitcoin().encode([0, 0, 1]).into_vec(), b"112");
+    assert_eq!(Decoder::bitcoin().decode("112").into_vec().unwrap(), [0, 0, 1]);
 }
 '''
 
@@ -190,36 +183,51 @@ def main():
                 'root_bench': 'use faster_base58::bench; fn main() { let _ = bench::ifma_threshold; }\n',
                 'private_encode': 'use faster_base58::encode::encode_batched; fn main() { let _ = encode_batched; }\n',
                 'absent_internals': 'use faster_base58::internals; fn main() { let _ = internals::ifma_threshold; }\n',
-                'owned_input': 'fn main() { let mut out = [0; 8]; let _ = faster_base58::no_alloc::encode_into(vec![1], &mut out); }\n'}
+                'private_no_alloc': 'use faster_base58::no_alloc; fn main() {}\n',
+                'owned': OWNED,
+                'exhaustive_error': '''use faster_base58::Error;
+fn main() { match Error::BufferTooSmall {
+    Error::InvalidCharacter { .. } | Error::BufferTooSmall | Error::InvalidLength { .. } => (),
+} }
+'''}
     fixtures.update({'root_' + name: f'use faster_base58::{name}; fn main() {{ let _ = {name}; }}\n' for name in NAMES})
     for name, content in fixtures.items():
         (output / (name + '.rs')).write_text(content, encoding='utf-8')
     environment = build_environment()
     profiles = []
-    for profile, features in PROFILES:
+    for profile, features, defaults in PROFILES:
         (output / profile).mkdir()
         target = output / profile / 'target'
         command = ['cargo', 'build', '--locked', '--lib', '--manifest-path', source / 'Cargo.toml',
                    '--target-dir', target, '--message-format=json']
+        if not defaults:
+            command += ['--no-default-features']
         if features:
             command += ['--features', ','.join(features)]
         build = run(command, profile + '-build', source, output, environment)
         assert build.returncode == 0, (profile, build.stderr)
         messages = [json.loads(line) for line in build.stdout.splitlines() if line.startswith('{')]
         artifacts = [row for row in messages if row.get('reason') == 'compiler-artifact' and row['target']['name'] == 'faster_base58']
-        expected_features = set(features) | {'default'}
+        expected_features = set(features) | ({'default', 'alloc'} if defaults else set())
+        if '__internals' in features:
+            expected_features.add('alloc')
         if 'cache' in features:
-            expected_features.add('std')
+            expected_features.update(['alloc', 'std'])
         assert len(artifacts) == 1 and set(artifacts[0]['features']) == expected_features
         assert artifacts[0]['profile']['test'] is False
         rlib = target / 'debug/libfaster_base58.rlib'
         checks = [check_fixture('normal', output / 'normal.rs', profile, rlib, source, output, environment)]
+        checks.append(check_fixture('exhaustive_error', output / 'exhaustive_error.rs', profile,
+                                    rlib, source, output, environment, ('E0004', 'non-exhaustive')))
         for name in NAMES:
             checks.append(check_fixture('root_' + name, output / ('root_' + name + '.rs'), profile,
                                         rlib, source, output, environment, ('E0432', name)))
         checks.append(check_fixture('root_bench', output / 'root_bench.rs', profile, rlib, source, output, environment, ('E0432', 'bench')))
         checks.append(check_fixture('private_encode', output / 'private_encode.rs', profile, rlib, source, output, environment, ('E0603', 'encode')))
-        checks.append(check_fixture('owned_input', output / 'owned_input.rs', profile, rlib, source, output, environment, ('E0308', 'mismatched types')))
+        private_code = 'E0603' if not defaults or '__internals' in features else 'E0432'
+        checks.append(check_fixture('private_no_alloc', output / 'private_no_alloc.rs', profile, rlib, source, output, environment, (private_code, 'no_alloc')))
+        checks.append(check_fixture('owned', output / 'owned.rs', profile, rlib, source, output, environment,
+                                    None if 'alloc' in expected_features else ('E0599', 'into_string')))
         if '__internals' in features:
             checks.append(check_fixture('internals_positive', output / 'internals_positive.rs', profile, rlib, source, output, environment))
         else:
@@ -231,11 +239,9 @@ def main():
     assert fingerprint(source) == before, 'library/support sources changed during validation'
     receipt = dict(status='pass', created_utc=datetime.now(timezone.utc).isoformat(), source_sha256=before,
                    checker_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                   root_backend_rejections=72, root_bench_rejections=4, private_encode_rejections=4,
-                   absent_internals_rejections=2, owned_input_rejections=4, public_fixture_runs=4,
-                   named_selector_presence_checks=36, profiles=profiles)
+                   profiles=profiles)
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
-    print('PASS: 4 feature builds; 72 root selector, 4 root bench, 4 private encode, 2 namespace and 4 owned-input rejections')
+    print('PASS:', len(profiles), 'feature builds; API presence and rejection checks passed')
 
 
 if __name__ == '__main__':

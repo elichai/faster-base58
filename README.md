@@ -14,70 +14,80 @@ Requires Rust 1.95 or newer. This crate has not been published to crates.io yet.
 
 ## Encode and decode
 
-Use borrowed output with arrays or reusable buffers, or return owned strings and vectors:
+Reusable configurations can be constants. Conversion starts at the terminal method:
 
 ```rust
-use faster_base58 as b58;
+# #[cfg(feature = "alloc")]
+# {
+use faster_base58::{Encoder, Decoder};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let input = [0, 1, 2, 3];
-    let mut text_buffer = [0; b58::max_encoded_len(4)];
-    let mut byte_buffer = [0; 4];
-    let text = b58::encode_into(input, &mut text_buffer)?;
-    assert_eq!(b58::decode_array::<4>(text)?, input);
-    assert_eq!(b58::decode_into(text, &mut byte_buffer)?, input);
-    let owned_text = b58::encode_string(input);
-    assert_eq!(b58::decode_vec(&owned_text)?, input);
+const ENCODER: Encoder = Encoder::bitcoin();
+const DECODER: Decoder = Decoder::bitcoin();
 
-    let written = b58::encode(&input, &mut text_buffer)?;
-    let text = std::str::from_utf8(&text_buffer[..written])?;
-    let written = b58::decode(text, &mut byte_buffer)?;
-    assert_eq!(&byte_buffer[..written], &input);
-
-    let short: Result<usize, b58::BufferTooSmall> = b58::encode(&[0], &mut []);
-    assert_eq!(short, Err(b58::BufferTooSmall));
-    assert_eq!(b58::decode("0", &mut [0; 1]),
-               Err(b58::Error::InvalidCharacter { index: 0 }));
-    Ok(())
-}
+let data = [0u8; 21];
+let text: String = ENCODER.encode(&data).into_string();
+assert_eq!(DECODER.decode(&text).into_array::<21>()?, data);
+let mut buffer = [0; ENCODER.max_encoded_len(21)];
+assert_eq!(ENCODER.encode(&data).onto(&mut buffer)?, text);
+# }
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`max_encoded_len(n)` bounds the encoded output; an exactly sized result buffer
-also works. Decoding needs at most one output byte per input text byte. Leading
-zero bytes round-trip as leading `'1'` characters. `decode_array::<N>` requires
-exactly `N` bytes: shorter results return `InvalidLength`, longer ones `BufferTooSmall`.
+`Encoder` and `Decoder` store a private alphabet enum; they have no typestate
+parameters. Constructors and `.encode()` / `.decode()` are `const fn`.
+Their methods are marked `#[inline(always)]` so constant configuration can fold
+away. Runtime-selected settings still require dispatch. Plain configurations use
+the existing conversion kernels.
 
-Invalid-character indices are UTF-8 byte offsets. Errors implement `Display` and
+Encoding provides `.into_string()`, `.into_vec()` (ASCII bytes), and `.onto()`
+(borrowed `&str`). Decoding provides `.into_vec()`, `.into_array::<N>()`, and
+`.onto()` (borrowed `&mut [u8]`). Input can be borrowed or owned. Decoded input
+implements `AsRef<[u8]>`: strings and raw bytes work, and bytes need no UTF-8
+validation first. Owned output methods require `alloc` (enabled by
+default). Borrowed output and exact arrays are available with either allocation policy.
+
+```rust
+use faster_base58::{Encoder, Decoder};
+
+const ENCODER: Encoder = Encoder::bitcoin();
+const DECODER: Decoder = Decoder::bitcoin();
+let input = [0, 1, 2, 3];
+let mut text_buffer = [0; ENCODER.max_encoded_len(4)];
+let mut byte_buffer = [0; 4];
+let text = ENCODER.encode(input).onto(&mut text_buffer)?;
+assert_eq!(DECODER.decode(text).into_array::<4>()?, input);
+assert_eq!(DECODER.decode(text).onto(&mut byte_buffer)?, input);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+`ENCODER.max_encoded_len(n)` bounds encoded output; exact result capacity also
+works. Plain decoding needs at most one output byte per input text byte. Leading
+zero bytes round-trip as leading `'1'` characters. `.into_array::<N>()` requires
+exactly `N` bytes: shorter results return `InvalidLength`, longer ones `BufferTooSmall`
+(decoding stops when the array is full, so the actual length is not known).
+
+Invalid-character indices are byte offsets into the input. `Error` is `#[non_exhaustive]`;
+downstream matches need a wildcard arm. Errors implement `Display` and
 the standard error trait. Successful calls leave the unused output tail untouched;
 on errors, output contents and error precedence are unspecified. Conversion timing
 depends on input values and length; these functions are not constant-time.
 
 ## No internal allocation
 
-`no_alloc` makes no heap allocations, including first calls and error paths.
-It uses fixed tables for 32/64-byte encoding and batched conversion elsewhere.
-General large inputs take quadratic time; the default API can allocate workspace
-for faster algorithms. The examples are ordinary `std` programs; the library need not be.
+Disable default features to exclude allocating backends and owned output methods:
 
-```rust
-use faster_base58::{max_encoded_len, no_alloc};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let input = [0, 1, 2, 3];
-    let mut text_buffer = [0; max_encoded_len(4)];
-    let mut byte_buffer = [0; 4];
-    let text = no_alloc::encode_into(&input, &mut text_buffer)?;
-    assert_eq!(no_alloc::decode_array::<4>(text)?, input);
-    assert_eq!(no_alloc::decode_into(text, &mut byte_buffer)?, input);
-    let written = no_alloc::encode(&input, &mut text_buffer)?;
-    let text = std::str::from_utf8(&text_buffer[..written])?;
-    assert_eq!(no_alloc::decode(text, &mut byte_buffer)?, input.len());
-    Ok(())
-}
+```toml
+faster-base58 = { git = "https://github.com/elichai/faster-base58", default-features = false }
 ```
 
-This module shares the root error and buffer contracts. It has no owned-result
-helpers. Enabling `cache` does not change its allocation guarantee.
+The same `Encoder` / `Decoder` buffer and array methods then make no heap
+allocations, including first calls and error paths. Encoding uses fixed tables for
+32/64-byte frames and batched conversion elsewhere; decoding uses tiny/batched
+conversion. General large inputs take quadratic time.
+`cache` and development-only `__internals` enable `alloc`.
+Cargo features are additive: any dependency that enables `alloc` enables it for
+all consumers of that crate instance. Dropping an owned input can still call its
+allocator; borrow inputs when counting all allocator operations.
 
 Auto trades workspace for large-input speed. At 4 MiB, 2026-11-01 M5 Pro (aarch64)
 measurements with default features peak at about 66 MiB of extra requested heap

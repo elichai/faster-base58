@@ -1,27 +1,31 @@
 //! Quadratic decoding with one 64-bit limb update per ten characters.
 
-use crate::Error;
-use crate::common::{BASE, DIGITS, chunks, invalid, split_zeros};
+use crate::BufferTooSmall;
+use crate::common::{BASE, DIGITS, DecodeError, chunks, invalid};
 
 /// Decodes `input` into `output` and returns the number of bytes written.
 ///
 /// Works in place in `output`: no allocation.
 ///
 /// # Errors
-/// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
-/// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
-pub fn decode_batched(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    let (zeros, _) = split_zeros(input.as_bytes());
-    decode_parts(input, zeros, output)
+/// Returns [`crate::Error::InvalidCharacter`] for a byte outside the alphabet, or
+/// [`crate::Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
+#[cfg(any(test, feature = "__internals", kani))]
+pub fn decode_batched(input: &str, output: &mut [u8]) -> Result<usize, crate::Error> {
+    let input = input.as_bytes();
+    let (zeros, _) = crate::common::split_zeros(input);
+    Ok(decode_parts(input, zeros, output)?)
 }
 
 /// Batched conversion with the number of leading `'1'` bytes already known.
-pub(crate) fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Result<usize, Error> {
-    let digits = &input.as_bytes()[zeros..];
+pub(crate) fn decode_parts(
+    input: &[u8],
+    zeros: usize,
+    output: &mut [u8],
+) -> Result<usize, DecodeError> {
+    let digits = &input[zeros..];
     debug_assert_ne!(digits.first(), Some(&b'1'));
-    let (zero_bytes, buf) = output
-        .split_at_mut_checked(zeros)
-        .ok_or(Error::BufferTooSmall)?;
+    let (zero_bytes, buf) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
     let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input)));
     // The first chunk is the starting value; the rest come in pairs.
     let top = chunks.next().transpose()?.unwrap_or(0);
@@ -39,36 +43,35 @@ pub(crate) fn decode_parts(input: &str, zeros: usize, output: &mut [u8]) -> Resu
     let Value { len, top, .. } = value;
     // `top` is non-zero unless the value is zero, so `n` is the exact byte length.
     let n = 8 * len + 8 - top.leading_zeros() as usize / 8;
-    let tail = buf.get_mut(8 * len..n).ok_or(Error::BufferTooSmall)?;
+    let tail = buf.get_mut(8 * len..n).ok_or(BufferTooSmall)?;
     tail.copy_from_slice(&top.to_le_bytes()[..tail.len()]);
     buf[..n].reverse();
     zero_bytes.fill(0);
     Ok(zeros + n)
 }
 
-pub(crate) fn decode_short(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    let bytes = input.as_bytes();
-    let Some(&first) = bytes.first() else {
+pub(crate) fn decode_short(input: &[u8], output: &mut [u8]) -> Result<usize, DecodeError> {
+    let Some(&first) = input.first() else {
         return Ok(0);
     };
     let first = DIGITS[first as usize];
-    let second = bytes.get(1).map(|&b| DIGITS[b as usize]);
+    let second = input.get(1).map(|&b| DIGITS[b as usize]);
     if first == 0xFF || second == Some(0xFF) {
         return Err(invalid(input));
     }
     let Some(second) = second else {
-        *output.first_mut().ok_or(Error::BufferTooSmall)? = first;
+        *output.first_mut().ok_or(BufferTooSmall)? = first;
         return Ok(1);
     };
     if first == 0 {
-        let out = output.get_mut(..2).ok_or(Error::BufferTooSmall)?;
+        let out = output.get_mut(..2).ok_or(BufferTooSmall)?;
         out[0] = 0;
         out[1] = second;
         return Ok(2);
     }
     let value = first as u16 * 58 + second as u16;
     let len = 1 + usize::from(value >= 256);
-    let out = output.get_mut(..len).ok_or(Error::BufferTooSmall)?;
+    let out = output.get_mut(..len).ok_or(BufferTooSmall)?;
     if len == 1 {
         out[0] = value as u8;
     } else {
@@ -88,7 +91,7 @@ struct Value<'a> {
 
 impl Value<'_> {
     /// `value = value * BASE + c`.
-    fn mul_add(&mut self, c: u64) -> Result<(), Error> {
+    fn mul_add(&mut self, c: u64) -> Result<(), BufferTooSmall> {
         let mut carry = c;
         for l in &mut self.limbs[..self.len] {
             let (lo, hi) = u64::from_le_bytes(*l).carrying_mul(BASE, carry);
@@ -102,7 +105,7 @@ impl Value<'_> {
     ///
     /// The second pass runs one limb behind the first, so the CPU overlaps their carry
     /// chains: about twice the throughput of two [`Value::mul_add`] calls.
-    fn mul_add2(&mut self, c1: u64, c2: u64) -> Result<(), Error> {
+    fn mul_add2(&mut self, c1: u64, c2: u64) -> Result<(), BufferTooSmall> {
         let l = &mut self.limbs[..self.len];
         let Some(first) = l.first() else {
             self.mul_add(c1)?;
@@ -133,7 +136,7 @@ impl Value<'_> {
     }
 
     /// `top = top * BASE + carry`, pushing the low limb if it overflows.
-    fn mul_add_top(&mut self, carry: u64) -> Result<(), Error> {
+    fn mul_add_top(&mut self, carry: u64) -> Result<(), BufferTooSmall> {
         let (lo, hi) = self.top.carrying_mul(BASE, carry);
         self.top = lo;
         if hi != 0 {
@@ -143,8 +146,8 @@ impl Value<'_> {
         Ok(())
     }
 
-    fn push(&mut self, limb: u64) -> Result<(), Error> {
-        *self.limbs.get_mut(self.len).ok_or(Error::BufferTooSmall)? = limb.to_le_bytes();
+    fn push(&mut self, limb: u64) -> Result<(), BufferTooSmall> {
+        *self.limbs.get_mut(self.len).ok_or(BufferTooSmall)? = limb.to_le_bytes();
         self.len += 1;
         Ok(())
     }

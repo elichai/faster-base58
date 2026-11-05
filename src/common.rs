@@ -2,7 +2,32 @@
 
 use core::iter;
 
-use crate::Error;
+use crate::{BufferTooSmall, Error};
+
+/// A decoding failure inside the crate. Only the public terminal methods convert it
+/// to [`Error`], so internal result layouts never depend on optional public variants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DecodeError {
+    InvalidCharacter { index: usize },
+    BufferTooSmall,
+}
+
+impl From<BufferTooSmall> for DecodeError {
+    #[inline]
+    fn from(BufferTooSmall: BufferTooSmall) -> Self {
+        Self::BufferTooSmall
+    }
+}
+
+impl From<DecodeError> for Error {
+    #[inline]
+    fn from(error: DecodeError) -> Self {
+        match error {
+            DecodeError::InvalidCharacter { index } => Self::InvalidCharacter { index },
+            DecodeError::BufferTooSmall => Self::BufferTooSmall,
+        }
+    }
+}
 
 pub(crate) const ALPHABET: &[u8; 58] =
     b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -53,9 +78,9 @@ pub(crate) fn chunks(digits: &[u8]) -> impl Iterator<Item = Option<u64>> {
 }
 
 /// The error for the first invalid character in `input`.
-pub(crate) fn invalid(input: &str) -> Error {
-    let index = input.bytes().position(|c| DIGITS[c as usize] == 0xFF);
-    Error::InvalidCharacter {
+pub(crate) fn invalid(input: &[u8]) -> DecodeError {
+    let index = input.iter().position(|&c| DIGITS[c as usize] == 0xFF);
+    DecodeError::InvalidCharacter {
         index: index.expect("caller saw an invalid character"),
     }
 }
@@ -65,6 +90,7 @@ pub(crate) fn invalid(input: &str) -> Error {
 /// Branch-free range checks with no early exit, so the loop vectorizes: on an M5 Pro
 /// 0.075 ns per byte, against 0.16 for [`DIGITS`] lookups and 1.8 for `matches!`, whose
 /// branches mispredict on random input.
+#[cfg(any(feature = "alloc", test, kani))]
 pub(crate) fn all_valid(digits: &[u8]) -> bool {
     let valid = |c: u8| {
         (c.wrapping_sub(b'1') < 9)

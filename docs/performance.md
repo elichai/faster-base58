@@ -1,12 +1,55 @@
 # Performance and resource tradeoffs
 
 The [README tables](../README.md#performance) show selected conversion times and
-linked sizes. Auto trades workspace for large-input speed. `no_alloc` avoids
+linked sizes. Auto trades workspace for large-input speed. Disabling `alloc` avoids
 internal allocation; its general large conversions remain quadratic.
 [DESIGN.md](../DESIGN.md) describes dispatch and algorithms;
 [CORRECTNESS.md](../CORRECTNESS.md) describes validation and remaining gaps.
 
 ## Measurement scope
+
+Published timing/size tables predate the configurable API and `alloc` feature.
+They do not establish performance for this API revision. Constant `Encoder` /
+`Decoder` configurations delegate to the existing conversion paths.
+
+### Configured API comparison
+
+**Historical:** this cohort predates the internal decode error, raw-byte decode
+input and unchecked ASCII output changes, which alter the measured paths.
+
+Measured 2026-11-04 against `771c174`, with ordinary borrowed public APIs and no
+`__internals`. Native Apple M5 Pro used Rust 1.99.1 / LLVM 23.1.1 and compiler-default
+`aarch64-apple-darwin`; GCP EPYC 9B45 used Rust 1.99.0 / LLVM 23.1.1, generic
+`x86_64-unknown-linux-gnu`, pinned to CPU 0. Both used opt3, fat LTO and 16 CGUs.
+Default and `cache` were separate builds. Source, probe and build paths matched
+between variants on each host; immutable artifacts shared caller-buffer addresses.
+The snapshot fingerprints are `8ec03e346c89cd4e` (M5 probe input) and
+`69315f526e4f78a8` (GCP source bundle), rather than Git commit IDs.
+
+The process-CPU-time harness ran three fresh paired processes, reversing load order
+in the second. Each process measured three trials of nine alternating batches
+targeting at least 10 ms. The grid was 0/1/2/21/32/64/65/512/4096/8193/32768/1048576
+bytes, plus 65-byte/63-zero, 1024-byte/1008-zero and 512-byte/all-zero inputs.
+Fixture construction and caller allocation were outside timing; ordinary backend
+workspace allocation and release were inside. Decode text was prevalidated UTF-8.
+Outputs and round trips were checked outside timing. No compiler/test jobs overlapped
+the accepted workers; host frequency, thermals and background activity were not fixed.
+
+For inputs of at least 21 bytes, the ranges below span the median paired
+candidate/base ratio across all encode/decode cells, including zero-heavy inputs.
+Ratios below one mean less time; they are observations, not confidence intervals.
+
+| Host | Default ratio range | `cache` ratio range |
+| --- | ---: | ---: |
+| M5 Pro | 0.990–1.020 | 0.925–1.017 |
+| EPYC 9B45 | 0.983–1.031 | 0.825–1.075 |
+
+The largest slowdown in this subset was cached EPYC encoding with 63 leading
+zeros in 65 bytes: 31.62 to 34.04 ns, with process ratios 1.072–1.077. Tiny inputs
+also varied by fractions of a nanosecond. These runs do not prove zero overhead
+for every caller, compiler, target or input. Cold calls, Wasm and allocating output
+helpers were not timed in this comparison. Raw artifacts and samples stay under
+ignored `target/measurements/`.
 
 The broad public timings, linked sizes and M5 allocations below are historical,
 before the [NTT heap reductions](#bounded-inverse-root-tables). They were measured

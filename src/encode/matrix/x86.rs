@@ -284,9 +284,9 @@ mod tests {
     use rand_xoshiro::Xoshiro256PlusPlus;
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
+    use super::super::COL_BASE;
     use super::super::fixed::TABLE_32;
     use super::super::four_digits;
-    use super::super::table::COL_BASE;
     use super::*;
     use crate::common::ALPHABET;
 

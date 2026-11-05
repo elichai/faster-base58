@@ -2,9 +2,11 @@
 //! splits. [`decode`] multiplies with Karatsuba; [`decode_with`] takes the multiplication.
 
 #[cfg(any(test, feature = "__internals", kani))]
+use crate::Error;
+#[cfg(any(test, feature = "__internals", kani))]
 use crate::common::split_zeros;
-use crate::common::{BASE, CHUNK, all_valid, chunks, invalid};
-use crate::{Error, matrix, mul};
+use crate::common::{BASE, CHUNK, DecodeError, all_valid, chunks, invalid};
+use crate::{BufferTooSmall, matrix, mul};
 
 /// Inputs with more chunks than this use divide-and-conquer. Below it,
 /// [`crate::batched::decode_batched`] is faster.
@@ -154,23 +156,26 @@ pub(crate) fn decode_with_leaf(
     m: &mut impl Multiplier,
     leaf: Leaf,
 ) -> Result<usize, Error> {
-    let (zeros, digits) = split_zeros(input.as_bytes());
-    if digits.len() <= DC_THRESHOLD * CHUNK {
-        return crate::batched::decode_parts(input, zeros, output);
-    }
-    decode_parts(input, zeros, output, m, leaf)
+    let input = input.as_bytes();
+    let (zeros, digits) = split_zeros(input);
+    let result = if digits.len() <= DC_THRESHOLD * CHUNK {
+        crate::batched::decode_parts(input, zeros, output)
+    } else {
+        decode_parts(input, zeros, output, m, leaf)
+    };
+    Ok(result?)
 }
 
 /// Divide-and-conquer conversion after stripping leading `'1'` bytes.
 /// Requires more than `DC_THRESHOLD * CHUNK` significant characters.
 pub(crate) fn decode_parts(
-    input: &str,
+    input: &[u8],
     zeros: usize,
     output: &mut [u8],
     m: &mut impl Multiplier,
     leaf: Leaf,
-) -> Result<usize, Error> {
-    let digits = &input.as_bytes()[zeros..];
+) -> Result<usize, DecodeError> {
+    let digits = &input[zeros..];
     assert!(
         digits.len() > DC_THRESHOLD * CHUNK,
         "value is too short for divide and conquer"
@@ -181,7 +186,7 @@ pub(crate) fn decode_parts(
     // value is at least 58^(d - 1), which takes more than (d - 1) * 0.732 bytes.
     let min_len = ((digits.len() - 1) as u128 * 732 / 1000) as usize + 1;
     if output.len() < zeros + min_len {
-        return Err(Error::BufferTooSmall);
+        return Err(DecodeError::BufferTooSmall);
     }
     if !all_valid(digits) {
         return Err(invalid(input));
@@ -198,7 +203,7 @@ pub(crate) fn decode_parts(
     let (table, scratch) = rest.split_at_mut(table_len);
     let powers = powers(unit, levels, table, scratch, m, true);
     let len = dc(limbs, digits, &powers[..levels], scratch, m, leaf);
-    write_bytes(zeros, &limbs[..len], output)
+    Ok(write_bytes(zeros, &limbs[..len], output)?)
 }
 
 /// `limbs[..len] = limbs[..len] * BASE + c`. Returns the new length.
@@ -260,10 +265,14 @@ fn mul_add_chunks(limbs: &mut [u64], len: usize, chunks: &[u64]) -> usize {
 }
 
 /// Writes `zeros` zero bytes, then `limbs` (trimmed, little-endian) as big-endian bytes.
-pub(crate) fn write_bytes(zeros: usize, limbs: &[u64], output: &mut [u8]) -> Result<usize, Error> {
+pub(crate) fn write_bytes(
+    zeros: usize,
+    limbs: &[u64],
+    output: &mut [u8],
+) -> Result<usize, BufferTooSmall> {
     let top = limbs.last().map_or(0, |l| l.leading_zeros() as usize / 8);
     let total = zeros + limbs.len() * 8 - top;
-    let out = output.get_mut(..total).ok_or(Error::BufferTooSmall)?;
+    let out = output.get_mut(..total).ok_or(BufferTooSmall)?;
     let (z, rest) = out.split_at_mut(zeros);
     z.fill(0);
     for (dst, l) in rest.rchunks_mut(8).zip(limbs) {
@@ -440,7 +449,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value is too short for divide and conquer")]
     fn normalized_decoder_rejects_short_values() {
-        decode_parts("2", 0, &mut [0; 1], &mut Karatsuba, Leaf::Horner).unwrap();
+        decode_parts(b"2", 0, &mut [0; 1], &mut Karatsuba, Leaf::Horner).unwrap();
     }
 
     /// [`decode`] with each leaf.

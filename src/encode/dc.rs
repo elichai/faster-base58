@@ -1141,7 +1141,7 @@ mod tests {
             let mut data = vec![0u8; len];
             rng.fill_bytes(&mut data);
             for data in [data, vec![0xFF; len]] {
-                let mut want = vec![0; crate::max_encoded_len(len)];
+                let mut want = vec![0; crate::encode::max_encoded_len(len)];
                 let n = encode(&data, &mut want).unwrap();
                 for extra in [0, 1, 9] {
                     let mut got = vec![0; want.len()];
@@ -1176,7 +1176,7 @@ mod tests {
                 runs,
                 [vec![0; 2], vec![0xFF; len]].concat(),
             ] {
-                let mut want = vec![0xAA; crate::max_encoded_len(data.len())];
+                let mut want = vec![0xAA; crate::encode::max_encoded_len(data.len())];
                 let n = encode_batched(&data, &mut want);
                 let both = [1, 2, 3, 7, 32, 96, 255, LEAF].into_iter();
                 let both = both.flat_map(|l| [(l, Leaves::Horner), (l, Leaves::Matrix)]);

@@ -40,7 +40,17 @@ const ENCODERS: &[(&str, EncodeFn, SizeFilter)] = &[
         |d, out| faster_base58::internals::encode_batched(d, out).unwrap(),
         quadratic,
     ),
-    ("auto", |d, out| faster_base58::encode(d, out).unwrap(), all),
+    (
+        "auto",
+        |d, out| {
+            faster_base58::Encoder::bitcoin()
+                .encode(d)
+                .onto(out)
+                .map(str::len)
+                .unwrap()
+        },
+        all,
+    ),
     (
         "dc",
         |d, out| faster_base58::internals::encode_karatsuba(d, out).unwrap(),
@@ -173,7 +183,7 @@ fn encode(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
     for size in SIZES {
         let data = random_bytes(size, size as u64);
-        let mut out = vec![0u8; faster_base58::max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
         let encoders = || ENCODERS.iter().filter(|&&(_, _, at)| at(size));
 
         // Sanity check every encoder against malachite before timing it.

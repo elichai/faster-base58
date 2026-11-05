@@ -12,8 +12,18 @@ use faster_base58::{BufferTooSmall, Error};
 
 type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
-const ENCODERS: [Encode; 2] = [faster_base58::encode, faster_base58::no_alloc::encode];
-const DECODERS: [Decode; 2] = [faster_base58::decode, faster_base58::no_alloc::decode];
+const ENCODERS: [Encode; 1] = [(|input, output| {
+    faster_base58::Encoder::bitcoin()
+        .encode(input)
+        .onto(output)
+        .map(str::len)
+})];
+const DECODERS: [Decode; 1] = [(|input, output| {
+    faster_base58::Decoder::bitcoin()
+        .decode(input)
+        .onto(output)
+        .map(|bytes| bytes.len())
+})];
 
 const VECTORS: &[(&str, &str)] = &[
     ("", ""),

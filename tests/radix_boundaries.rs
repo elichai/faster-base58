@@ -19,7 +19,11 @@ fn check(data: &[u8], short: bool) {
         .chain(digits.iter().map(|&d| ALPHABET[d as usize]))
         .collect();
     let mut guarded = vec![0xa5; want.len() + 32];
-    let got = faster_base58::encode(data, &mut guarded[16..16 + want.len()]).unwrap();
+    let got = faster_base58::Encoder::bitcoin()
+        .encode(data)
+        .onto(&mut guarded[16..16 + want.len()])
+        .map(str::len)
+        .unwrap();
     assert_eq!(got, want.len(), "input {}", data.len());
     assert_eq!(&guarded[16..16 + got], want, "input {}", data.len());
     assert!(
@@ -30,7 +34,10 @@ fn check(data: &[u8], short: bool) {
     );
     if short {
         assert_eq!(
-            faster_base58::encode(data, &mut guarded[16..15 + want.len()]),
+            faster_base58::Encoder::bitcoin()
+                .encode(data)
+                .onto(&mut guarded[16..15 + want.len()])
+                .map(str::len),
             Err(faster_base58::BufferTooSmall)
         );
         assert!(

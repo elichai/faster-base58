@@ -295,14 +295,13 @@ fn valid_digit_table_entries_roundtrip_to_character() {
 #[kani::proof]
 #[kani::unwind(6)]
 fn two_byte_short_decode_preserves_radix_errors_and_canaries() {
+    // Any two bytes, including non-UTF-8 input.
     let text: [u8; 2] = kani::any();
-    let Ok(input) = core::str::from_utf8(&text) else {
-        return;
-    };
     let capacity: usize = kani::any();
     kani::assume(capacity <= 3);
     let mut out = [0xA5; 5];
-    let result = crate::batched::decode_short(input, &mut out[1..1 + capacity]);
+    let result =
+        crate::batched::decode_short(&text, &mut out[1..1 + capacity]).map_err(crate::Error::from);
     assert_eq!(out[0], 0xA5);
     assert!(out[1 + capacity..].iter().all(|&byte| byte == 0xA5));
     let first = DIGITS[text[0] as usize];

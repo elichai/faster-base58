@@ -29,7 +29,15 @@ fuzz_target!(|raw: &[u8]| {
         .collect();
     let selector = support::scalar::selector(raw);
     let encoders = [
-        ("auto", faster_base58::encode as support::Encode),
+        (
+            "auto",
+            (|input, output| {
+                faster_base58::Encoder::bitcoin()
+                    .encode(input)
+                    .onto(output)
+                    .map(str::len)
+            }) as support::Encode,
+        ),
         ("radix", faster_base58::internals::encode_radix),
         (
             "radix-portable",

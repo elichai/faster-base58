@@ -37,7 +37,13 @@ const DECODERS: &[(&str, DecodeFn, usize)] = &[
     ),
     (
         "auto",
-        |s, out| faster_base58::decode(s, out).unwrap(),
+        |s, out| {
+            faster_base58::Decoder::bitcoin()
+                .decode(s)
+                .onto(out)
+                .map(|bytes| bytes.len())
+                .unwrap()
+        },
         usize::MAX,
     ),
     (
@@ -153,7 +159,11 @@ fn input(size: usize) -> (String, Vec<u8>) {
         .collect();
     // 58^len <= 2^(8 size) up to rounding, so `size + 1` bytes always suffice.
     let mut data = vec![0; size + 1];
-    let n = faster_base58::decode(&s, &mut data).unwrap();
+    let n = faster_base58::Decoder::bitcoin()
+        .decode(&s)
+        .onto(&mut data)
+        .map(|bytes| bytes.len())
+        .unwrap();
     data.truncate(n);
     (s, data)
 }

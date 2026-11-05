@@ -14,7 +14,7 @@ use crate::common::ALPHABET;
 
 const BASE: u32 = 58u32.pow(3);
 const LEAF_BYTES: usize = 32;
-const LEAF_DIGITS: usize = crate::max_encoded_len(LEAF_BYTES).div_ceil(3);
+const LEAF_DIGITS: usize = crate::encode::max_encoded_len(LEAF_BYTES).div_ceil(3);
 const THRESHOLD: usize = 64;
 
 // A transform has at most 2^23 coefficients. Each ordinary product coefficient
@@ -48,7 +48,7 @@ pub(super) fn try_encode(
     let preferred = if cfg!(feature = "cache") {
         x.len() >= 262_144 && x.len() >= 2 * points
     } else {
-        x.len() >= 8192 && crate::max_encoded_len(x.len()).div_ceil(3) * 8 >= points * 7
+        x.len() >= 8192 && crate::encode::max_encoded_len(x.len()).div_ceil(3) * 8 >= points * 7
     };
     if !preferred {
         return None;
@@ -67,7 +67,7 @@ fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
         8
     } else {
         let power_bytes = unit << (levels - 1);
-        let digits = crate::max_encoded_len(power_bytes).div_ceil(3);
+        let digits = crate::encode::max_encoded_len(power_bytes).div_ceil(3);
         (2 * digits).max(8).next_power_of_two()
     };
     (points <= 1 << MAX_LOG).then_some((unit, levels, points))
@@ -104,7 +104,7 @@ pub(super) fn encode_with(
             &owned
         }
     };
-    let power_capacity = |bytes| crate::max_encoded_len(bytes + 1).div_ceil(3);
+    let power_capacity = |bytes| crate::encode::max_encoded_len(bytes + 1).div_ceil(3);
     // Product slots need their untrimmed length, even when the power loses a digit.
     let storage_len = power_capacity(unit)
         + (1..levels)
@@ -346,7 +346,7 @@ fn leaf(bytes: &[u8]) -> Vec<u32> {
     if bytes.is_empty() {
         return Vec::new();
     }
-    let mut out = vec![0; crate::max_encoded_len(bytes.len()).div_ceil(3)];
+    let mut out = vec![0; crate::encode::max_encoded_len(bytes.len()).div_ceil(3)];
     let len = leaf_into(bytes, &mut out);
     out.truncate(len);
     out

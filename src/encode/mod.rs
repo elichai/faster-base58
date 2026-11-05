@@ -9,12 +9,14 @@
 //!   (`matrix/fixed.rs`).
 
 pub(crate) mod batched;
+#[cfg(any(feature = "alloc", test, kani))]
 pub(crate) mod dc;
 pub(crate) mod matrix;
 #[cfg(test)]
 mod tests;
 
 pub use batched::encode_batched;
+#[cfg(any(feature = "alloc", test, kani))]
 pub use dc::Leaves;
 #[cfg(any(test, feature = "__internals", kani))]
 pub use dc::encode_tuned;
@@ -207,7 +209,9 @@ mod verification {
         let capacity: usize = kani::any();
         kani::assume(capacity <= 3);
         let mut output = [0xA5; 5];
-        let result = crate::encode_into([byte], &mut output[1..1 + capacity]);
+        let result = crate::Encoder::bitcoin()
+            .encode([byte])
+            .onto(&mut output[1..1 + capacity]);
         let digits = if byte < 58 { 1 } else { 2 };
         if capacity < digits {
             assert!(matches!(result, Err(crate::BufferTooSmall)));
@@ -224,13 +228,19 @@ mod verification {
                     crate::common::ALPHABET[(byte / 58) as usize]
                 );
             }
-            assert_eq!(crate::decode_array::<1>(text).unwrap()[0], byte);
+            assert_eq!(
+                crate::Decoder::bitcoin()
+                    .decode(text)
+                    .into_array::<1>()
+                    .unwrap()[0],
+                byte
+            );
             assert!(matches!(
-                crate::decode_array::<0>(text),
+                crate::Decoder::bitcoin().decode(text).into_array::<0>(),
                 Err(crate::Error::BufferTooSmall)
             ));
             assert!(matches!(
-                crate::decode_array::<2>(text),
+                crate::Decoder::bitcoin().decode(text).into_array::<2>(),
                 Err(crate::Error::InvalidLength {
                     expected: 2,
                     actual: 1
