@@ -77,15 +77,11 @@ fn preferred(bytes: usize) -> bool {
     let Some((_, _, points)) = layout(bytes) else {
         return false;
     };
-    // Full transforms waste work when heavily padded. The balanced tree repeats
-    // roughly this padding ratio at each level. Cached division also wins just
-    // below binary power-of-two boundaries, so keep it until two input bytes
-    // fill each transform point. See the large-value measurements.
-    if cfg!(feature = "cache") {
-        bytes >= 262_144 && bytes >= 2 * points
-    } else {
-        bytes >= 8192 && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * 7
-    }
+    // Full transforms waste work when heavily padded, and the balanced tree repeats
+    // roughly this padding ratio at each level. With at least 7/8 of the transform
+    // used, this route beats division wherever Auto's NTT encoder runs (above 4096
+    // bytes), with or without cached tables (M5).
+    bytes > 4096 && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * 7
 }
 
 fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
@@ -573,24 +569,14 @@ mod tests {
 
     #[test]
     fn selection_preserves_fallback_and_short_buffers() {
-        for bytes in [4097, 6144, 12_288, 49_152, 98_304, 786_432] {
+        for bytes in [4096, 6144, 12_288, 49_152, 98_304, 786_432] {
             assert_eq!(try_encode(0, &vec![255; bytes], &mut []), None);
         }
-        let minimum = if cfg!(feature = "cache") {
-            262_144
-        } else {
-            8192
-        };
-        for bytes in [minimum, 1_048_576] {
+        for bytes in [4097, 8192, 262_143, 1_048_575, 1_048_576] {
             assert_eq!(
                 try_encode(0, &vec![255; bytes], &mut []),
                 Some(Err(BufferTooSmall))
             );
-        }
-        if cfg!(feature = "cache") {
-            assert_eq!(try_encode(0, &vec![255; 131_072], &mut []), None);
-            assert_eq!(try_encode(0, &vec![255; 1_007_758], &mut []), None);
-            assert_eq!(try_encode(0, &vec![255; 1_048_575], &mut []), None);
         }
     }
 
