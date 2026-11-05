@@ -178,7 +178,8 @@ pub(crate) fn split(
     if !top.is_empty() {
         // `high` has at most `8 limbs.len() - 4` bytes, so `body.len() < limbs.len()`.
         let word = (limbs[body.len()] >> 32) | limbs.get(body.len() + 1).map_or(0, |&l| l << 32);
-        top.copy_from_slice(&word.to_be_bytes()[8 - top.len()..]);
+        // The low `top.len()` (1 to 7) bytes of `word`, most significant first.
+        crate::common::store_low_le(top, word.swap_bytes() >> (64 - 8 * top.len()));
     }
     let sum = (limbs.first().copied().unwrap_or(0) as u32).to_be_bytes();
     Ok((frame, sum))

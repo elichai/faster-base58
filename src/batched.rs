@@ -1,7 +1,7 @@
 //! Quadratic decoding with one 64-bit limb update per ten characters.
 
 use crate::BufferTooSmall;
-use crate::common::{BASE, DIGITS, DecodeError, chunks, invalid};
+use crate::common::{BASE, DIGITS, DecodeError, chunks, invalid, store_low_le};
 
 /// Decodes `input` into `output` and returns the number of bytes written.
 ///
@@ -44,7 +44,7 @@ pub(crate) fn decode_parts(
     // `top` is non-zero unless the value is zero, so `n` is the exact byte length.
     let n = 8 * len + 8 - top.leading_zeros() as usize / 8;
     let tail = buf.get_mut(8 * len..n).ok_or(BufferTooSmall)?;
-    tail.copy_from_slice(&top.to_le_bytes()[..tail.len()]);
+    store_low_le(tail, top);
     buf[..n].reverse();
     zero_bytes.fill(0);
     Ok(zeros + n)
@@ -119,7 +119,7 @@ pub(crate) fn decode_checked_parts(
         high_len + 4
     };
     let tail = buf.get_mut(8 * len..high_len).ok_or(BufferTooSmall)?;
-    tail.copy_from_slice(&top.to_le_bytes()[..tail.len()]);
+    store_low_le(tail, top);
     buf[..high_len].reverse();
     // A frame shorter than the checksum has no data; the caller reports it.
     let frame = zeros + numeric_len;
