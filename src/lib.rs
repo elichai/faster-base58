@@ -9,10 +9,8 @@
 //! The library is `no_std`. Default feature `alloc` enables allocating backends and
 //! owned results. Disable default features for conversion without heap allocation,
 //! including first calls and errors; large inputs then use quadratic conversion.
-//! `cache` enables `alloc` and `std` and retains shared tables.
-//!
-//! The optional `cache` feature retains bounded NTT and matrix tables across calls.
-//! It is disabled by default. All named backend selectors require `__internals`;
+//! The optional `cache` feature enables `alloc` and `std` and retains bounded NTT and
+//! matrix tables across calls. All named backend selectors require `__internals`;
 //! that feature exposes the unstable `internals` module for tests and measurements.
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]

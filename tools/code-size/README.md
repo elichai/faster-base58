@@ -1,7 +1,8 @@
 # Linked size probe
 
-`scripts/code_size.py` creates a standalone Cargo package from these three source
-files. Each build selects exactly one backend and encode, decode, or both. The
+`scripts/code_size.py` creates a standalone Cargo package from `lib.rs`, `entry.rs`
+and `main.rs` (plus `allocations.rs` with `--count-allocations`), seeded with the
+library's `Cargo.lock`. `scripts/public_bench.py` times its cdylibs for the README. Each build selects exactly one backend and encode, decode, or both. The
 backend and direction are compiler cfgs on the probe only, not library features.
 All named backend selectors and forced-kernel controls enable the library's
 `__internals` feature. Auto and no-allocation probes use `Encoder` / `Decoder`; the no-allocation

@@ -9,32 +9,24 @@ the semantics of every SIMD instruction. The implementation map is in
 
 ## Recorded check scope
 
-As of 2026-10-28, the recorded local checks cover runtime resource source
-`304dc4c5dbf1`, with original test executions under source `7dcfc511`.
-Later workflow and full-width fuzz-target changes have separate qualification.
-These source-scoped local results do not establish that every current CI row
-passed.
+[CI](.github/workflows/verification.yml) is the live record for each commit; a
+passing job establishes only the checks and platforms it executes. On 2026-11-05
+the native Zen 5 VM (AVX-512F/BW/DQ/VL, IFMA and VBMI) passed `cargo test --locked`
+with default features, `cache,check,__internals`, `--no-default-features --features
+check` and `compact,__internals` at `3a619a1`, and the full `__internals` suite
+(197 tests) at `18b2eb8`.
 
-| Check | Recorded result and scope |
+The sanitizer, Miri, Kani and coverage campaigns below ran on 2026-10-28/29
+snapshots, before the CI and API changes of #6–#18, and were not refreshed:
+
+| Check | Historical scope |
 | --- | --- |
-| Tests | Native AMD EPYC 9B45 Linux and Apple M5 ARM, debug/release and cache off/on; compact variants; 512 cases per selected property |
-| ASan / LSan | Existing native careful-ASan targets passed default/cache/compact/cache+compact; LSan passed default/cache; 180 seconds per target followed by named-boundary replay. Two added full-width ASan stages remain unverified. |
-| MSan / TSan | Four native Rust/std MSan variants passed 20 covered tests each, requiring IFMA with no ISA skips; native Linux TSan passed five concurrency tests. Full libFuzzer/MSan campaigns remain incomplete. |
-| Maximum transform | Native x86 Linux execution passed the exact `2^23`-point test. |
-| Miri | M5-host interpretation of Linux targets: 186 custom-interpreter test executions plus eight discovery commands; 16 supported-stock executions. ARM/x86, cache policies, compact kernels and Tree/Stacked models have distinct selections. |
-| Kani | Translated x86 Linux, 64-bit `usize`: 50 distinct required harnesses plus three overlapping compact executions; 18,744 default and 8,096 compact checks. |
-| Source coverage | Translated x86 Linux, unsanitized: 169 encode and 201 decode boundary files per cache policy. Encode/decode library lines: 2608/3669 and 1468/3669 without cache; 2699/3777 and 1513/3777 with cache. No branch or native IFMA coverage; overlapping denominators are not added. |
-| Platform gaps | Four native Windows runtime rows were unavailable. Cross-builds and translated execution do not establish native execution. |
-
-On 2026-10-29, the [hosted run for integrated snapshot `fbe6043`](https://github.com/elichai/faster-base58/actions/runs/40905616652)
-completed all four native Windows debug/release and default/cache runtime rows.
-Its cache-enabled careful-ASan job also completed both full-width stages: two
-NTT mutation attempts in 350 seconds and seven radix mutation attempts in 192
-seconds, counted after initialization. These are small structured campaigns.
-The default full-width stages were interrupted by the subsequent CI setup fix;
-the run as a whole did not pass. Four coverage jobs failed before replay because
-the stable tool installer inherited nightly flags; that setup is now corrected
-and locally replayed. The replacement hosted matrix remains separate evidence.
+| ASan / LSan | Native careful-ASan targets passed default/cache/compact/cache+compact; LSan passed default/cache; 180 s per target plus named-boundary replay. The default full-width ASan stages remain unverified. |
+| MSan / TSan | Four Rust/std MSan variants passed 20 tests each on IFMA hardware; native TSan passed five concurrency tests. Full libFuzzer/MSan campaigns remain incomplete. |
+| Maximum transform | Native x86 Linux passed the exact `2^23`-point test. |
+| Miri | 186 custom-interpreter and 16 stock executions of Linux targets, interpreted on the M5. |
+| Kani | 50 required harnesses (18,744 checks) plus three compact executions, translated x86 Linux with 64-bit `usize`. |
+| Source coverage | Translated x86 Linux, unsanitized line coverage only; no branch or native IFMA coverage. Codecov now reports current coverage. |
 
 ## Public contract
 
@@ -84,11 +76,11 @@ rejects the removed free functions and `no_alloc` module.
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
 | Concurrency tests | Cold Matrix initialization, shared tables and eight-thread NTT cache/history reuse |
 | [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards; normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |
+| [Public API](tests/api.rs) and [tiny inputs](tests/tiny_inputs.rs) | Borrowed/owned agreement, exact arrays, zero prefixes and capacities at dispatch boundaries, standard error traits; every byte and short text against bs58 with byte offsets |
+| [Cold Matrix tables](tests/matrix_cold.rs) and [Miri entry points](tests/miri.rs) | First decodes from several threads in a fresh process; buffer cases split for the custom Miri runner |
 
-The radix allocation regression failed on the parent and passes with one reused
-digit workspace. Its 1/4 MiB cases now bound both allocation requests and peak
-requested live bytes after pooling power digits, spectra and root workspace,
-and guard both ends of the output. A forced owned-NTT case checks one allocation
+Radix allocation tests bound allocation requests and peak requested live bytes at
+1/4 MiB and guard both ends of the output. A forced owned-NTT case checks one allocation
 per prime plus the packed conversion arena, without prepared spectra or reallocations.
 Scratch tests enumerate every plan through the transform limit and retain the
 running workspace maximum, including alignment and recursion requirements.
@@ -97,10 +89,9 @@ prefix consumed by fused carry. Forced best/portable radix hooks participate in
 unit, property and fuzz backend lists; their out-of-domain fallback is checked.
 
 The whole-limb formatter's `ten_digits_matches_division` test compares serial
-division at both domain ends, radix boundaries and 10,000 seeded values.
-The 2026-10-29 extracted-formatter check also tested all 656,356,768 five-digit
-halves with the other half zero, pair boundaries and one million complete limbs.
-That is bounded enumeration, not exhaustive coverage of the `58^10` domain.
+division at both domain ends, radix boundaries and 10,000 seeded values. A
+one-off 2026-10-29 check also enumerated all 656,356,768 five-digit halves with the
+other half zero; that is not exhaustive coverage of the `58^10` domain.
 
 Property strategies cover arbitrary binary data, valid Base58 strings and valid
 UTF-8 containing malformed Base58. The public decoder also takes raw bytes; the
@@ -110,8 +101,8 @@ unspecified error-buffer contents. Unit tests also cover MiB conversions, all-on
 carry patterns, powers, small exhaustive inputs, all legal NTT scale lengths and the
 partial-word store at every length from 0 to 8 bytes, with guard bytes.
 
-CI selects 512 cases per property in debug and release, cache off/on, across Linux,
-macOS and Windows. Compact builds have additional Linux and macOS rows. Big-endian
+CI selects 512 cases per property in debug and release, cache off/on, on Linux
+and macOS. Compact builds have additional Linux and macOS rows. Big-endian
 PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
 Native unit and integration rows use Nextest except for Linux debug,
@@ -119,7 +110,7 @@ cache-off/on shared-process rows; documentation examples remain Cargo tests.
 The cross revision and container image digest are pinned. Other
 jobs cover 32-bit Linux, Malachite's 32-bit limb
 mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
-boundaries, examples, Clippy, formatting and package contents. Build checks alone
+boundaries, Clippy, formatting and package contents. Build checks alone
 do not execute kernels. The maximum `2^23`-point transform test runs separately;
 two expensive Matrix sweeps execute with `cache` rather than rebuilding the
 same owned tables for every size.
@@ -130,7 +121,9 @@ PROPTEST_CASES=512 cargo nextest run --locked --features __internals,cache --lib
 cargo nextest run --locked --release --features __internals --lib --tests
 cargo test --locked --features __internals --lib --tests # shared-process lane
 cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact
-cargo test --locked --doc
+cargo test --locked --features check --test builders --test no_alloc
+cargo test --locked --no-default-features --features check --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core
+cargo test --locked --doc --features check
 ```
 
 ## Fuzzing and sanitizers
@@ -156,29 +149,19 @@ every transform size. The 8,193-byte native mutation cap does not reach real NTT
 thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
 
 `encode_radix_full_width` uses an independent Malachite oracle on periodic
-256 KiB / 1 MiB values, reaching owned large twiddles. Native ARM careful-ASan
-smoke campaigns for pooled-scratch snapshot `11d0c16` completed on 2026-10-29,
-before the table-alignment and lint integration:
-19 default and 8 cache post-initialization mutation attempts over 65/66 seconds,
-without crashes. These short runs are not a refreshed coverage percentage or a
-proof. General targets cover leading zeros, and boundary tests cover larger
-sizes. Arbitrary large values remain outside this structured fuzzing domain.
-
-A local source-coverage replay on 2026-10-29 used integrated snapshot `fbe6043`,
-native M5/AArch64, generic target CPU, nightly `2026-10-26`, and cargo-fuzz
-`0.13.2`, with `--cfg careful`, debug assertions and no sanitizer. Sixteen
-`encode_radix_full_width` corpus files reached 235/261 lines (90.04%), 334/377
-regions (88.59%) and 21/23 functions in `src/ntt/radix.rs` with default features.
-There is no branch-coverage result. This fixed corpus replay is not a mutation
-campaign, cache-policy coverage, or coverage of all input values.
+256 KiB / 1 MiB values, reaching owned large twiddles. Short native ARM
+careful-ASan campaigns (2026-10-29, tens of mutations) found no crashes, and its 16
+corpus files covered 90% of `src/ntt/radix.rs` lines (no branch coverage). These
+are not proofs; arbitrary large values remain outside this structured domain.
 
 The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
 audit places those values above the native NTT thresholds. Its cache-enabled
-native careful-ASan stage passed in the hosted run above; the default stage
-remains **unverified**. Helper tests and target compilation are not campaign
-execution. This structured domain does not include every value at that width.
+native careful-ASan stage passed in a 2026-10-29 hosted run; the default stage
+remains **unverified**. Its bs58 oracle takes seconds per input under ASan, so
+campaigns reach few mutations; a Malachite oracle, as in `encode_radix_full_width`,
+would raise that. This structured domain does not include every value at that width.
 
 Campaign callback counts include initial corpus processing and possible repeats;
 they are not distinct mutations or seed-file counts. Full-width stages require
@@ -230,8 +213,7 @@ all 14 original buffer cases across processes to bound interpreter memory.
 
 In the recorded runs, Tree Borrows covers full ARM/x86 suites under both cache
 policies; Stacked Borrows covers kernels. Compact x86 kernels run under both
-models and policies. The execution total counts 72 exactly matched reused kernel
-invocations once. All 14 buffer cases run separately; no ISA-skip output is
+models and policies. All 14 buffer cases run separately; no ISA-skip output is
 accepted. SIMD multiplication uses owned tables; native oracle and cache-history
 tests supply broader shared-transform coverage. These are concrete executions,
 not native x86 execution or complete-domain proofs.
