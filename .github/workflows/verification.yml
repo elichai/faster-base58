@@ -91,7 +91,7 @@ jobs:
       - name: Base58Check documentation examples
         run: cargo +stable test --locked --doc --features check ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Compile every benchmark
-        run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
+        run: cargo +stable build --locked --features ${{ matrix.caches.features }},check --benches ${{ matrix.profile.args }}
 
   big_endian:
     runs-on: ubuntu-26.04
