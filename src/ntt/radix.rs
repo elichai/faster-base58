@@ -369,7 +369,8 @@ fn load(out: &mut [i32], digits: &[u32]) {
 ///
 /// One carry chain waits on a division per digit, so four chains run interleaved over
 /// quarters of `out`, each starting without a carry. Each quarter's carry is then added
-/// at the start of the next, which rarely changes more than three digits.
+/// at the start of the next, which rarely changes more than three digits. Eight chains
+/// measure no faster than four (M5).
 fn carry(out: &mut [u32], coef: impl Fn(usize) -> u64, add_len: usize) {
     const K: usize = 4;
     let step = |digit: &mut u32, i: usize, carry: u64| {

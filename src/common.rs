@@ -88,7 +88,9 @@ pub(crate) fn invalid(input: &[u8]) -> DecodeError {
 /// Stores the low `out.len()` (at most 8) bytes of `value`, least significant first.
 ///
 /// Fixed-width stores, like the loads in `core::hash::sip::u8to64_le`: a
-/// variable-length `copy_from_slice` compiles to a stack spill and a `memcpy` call.
+/// variable-length `copy_from_slice` compiles to a stack spill and a `memcpy` call. One
+/// overlapping 8-byte store ending at the length measured faster at 21-25 bytes but
+/// slower at 32-82 bytes (Zen 5, M5), so it is not used.
 pub(crate) fn store_low_le(out: &mut [u8], value: u64) {
     let len = out.len();
     debug_assert!(len <= 8);
