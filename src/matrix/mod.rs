@@ -105,6 +105,28 @@ pub(crate) mod entry {
         zeros: usize,
         output: &mut [u8],
     ) -> Result<usize, DecodeError> {
+        let digits = preflight(input, zeros, output.len())?;
+        let mut scratch = Scratch::new();
+        let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input))?;
+        Ok(write_bytes(zeros, limbs, output)?)
+    }
+
+    /// Checked [`decode_parts`]: writes all but the last four frame bytes and returns
+    /// the frame length and those bytes. Not inlined, for the same stack reason.
+    #[cfg(all(feature = "cache", feature = "check"))]
+    #[inline(never)]
+    pub(crate) fn decode_checked(
+        input: &[u8],
+        zeros: usize,
+        output: &mut [u8],
+    ) -> Result<(usize, [u8; 4]), DecodeError> {
+        let digits = preflight(input, zeros, output.len().saturating_add(4))?;
+        let mut scratch = Scratch::new();
+        let limbs = convert(&BEST, digits, &mut scratch).ok_or_else(|| invalid(input))?;
+        Ok(crate::check::split(zeros, limbs, output)?)
+    }
+
+    fn preflight(input: &[u8], zeros: usize, capacity: usize) -> Result<&[u8], DecodeError> {
         let digits = &input[zeros..];
         assert!(digits.len() <= MAX_CHARS, "too many digits for one matrix");
         debug_assert_ne!(digits.first(), Some(&b'1'));
@@ -114,12 +136,10 @@ pub(crate) mod entry {
         } else {
             ((digits.len() - 1) as u128 * 732 / 1000) as usize + 1
         };
-        if output.len() < zeros + min_len {
+        if capacity < zeros + min_len {
             return Err(DecodeError::BufferTooSmall);
         }
-        let mut scratch = Scratch::new();
-        let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input))?;
-        Ok(write_bytes(zeros, limbs, output)?)
+        Ok(digits)
     }
 }
 
@@ -232,6 +252,7 @@ pub(crate) fn zeroed<T: Copy + Default>(buf: &mut [MaybeUninit<T>], len: usize) 
 
 /// The value of `digits` as trimmed little-endian limbs, in `scratch`, or `None` if a
 /// byte is not a base58 digit. Requires `digits.len() <= MAX_CHARS`.
+#[inline(never)]
 fn convert<'a>(k: &Kernels, digits: &[u8], scratch: &'a mut Scratch) -> Option<&'a [u64]> {
     if digits.is_empty() {
         return Some(&[]);

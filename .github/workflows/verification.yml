@@ -83,9 +83,13 @@ jobs:
         run: python3 scripts/check_public_api.py --output "$RUNNER_TEMP/base58-api-namespace"
       - name: Documentation examples
         run: cargo +stable test --locked --doc ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
+      - name: Configurable codec and Base58Check
+        run: cargo +stable nextest run --locked --test builders --test no_alloc --features check ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Public conversion without allocating backends
         if: matrix.caches.name == 'off'
-        run: cargo +stable nextest run --locked --no-default-features --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core ${{ matrix.profile.args }}
+        run: cargo +stable nextest run --locked --no-default-features --features check --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core ${{ matrix.profile.args }}
+      - name: Base58Check documentation examples
+        run: cargo +stable test --locked --doc --features check ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
       - name: Compile every benchmark
         run: cargo +stable build --locked --features ${{ matrix.caches.features }} --benches ${{ matrix.profile.args }}
 
@@ -571,6 +575,11 @@ jobs:
         run: |
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all fuzz/corpus/encode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} decode_all fuzz/corpus/decode_small -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
+      - name: Base58Check mutations
+        if: matrix.label == 'default' || matrix.label == 'cache'
+        run: |
+          mkdir -p fuzz/corpus/check_all
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features --features check${{ matrix.label == 'cache' && ',cache' || '' }} check_all fuzz/corpus/check_all -- -max_len=8193 -len_control=0 -max_total_time=180 -timeout=120 -rss_limit_mb=4096
       - name: Complete boundary corpus replay
         run: |
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --careful --sanitizer ${{ matrix.sanitizer }} --no-default-features ${{ matrix.cache_args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096

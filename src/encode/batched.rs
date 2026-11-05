@@ -66,12 +66,65 @@ pub(crate) fn encode_parts(
     Ok(zeros + n)
 }
 
+/// Feeds a frame without joining its borrowed parts into a temporary allocation.
+#[cfg(feature = "check")]
+pub(crate) fn encode_segments(
+    zeros: usize,
+    bits: u64,
+    parts: &[&[u8]],
+    output: &mut [u8],
+) -> Result<usize, BufferTooSmall> {
+    let (ones, rest) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
+    if bits == 0 {
+        ones.fill(b'1');
+        return Ok(zeros);
+    }
+    let anchor = min_digits(bits);
+    let region = rest.get_mut(..anchor).ok_or(BufferTooSmall)?;
+    let mut limbs = Limbs {
+        slots: region.as_rchunks_mut::<8>().1,
+        len: 0,
+        top: 0,
+    };
+    let significant = parts.iter().map(|part| part.len()).sum::<usize>() - zeros;
+    let mut bytes = parts
+        .iter()
+        .flat_map(|part| part.iter().copied())
+        .skip(zeros);
+    let mut chunk = [0; 2 * STEP];
+    let head = significant % STEP;
+    if head != 0 {
+        for byte in &mut chunk[..head] {
+            *byte = bytes.next().expect("frame length includes the head");
+        }
+        limbs.feed(&chunk[..head]);
+    }
+    loop {
+        let mut len = 0;
+        for byte in &mut chunk {
+            let Some(next) = bytes.next() else { break };
+            *byte = next;
+            len += 1;
+        }
+        if len == 0 {
+            break;
+        }
+        debug_assert!(len == STEP || len == 2 * STEP);
+        limbs.feed(&chunk[..len]);
+    }
+    let Limbs { len, top, .. } = limbs;
+    let n = write(rest, anchor, len, top)?;
+    ones.fill(b'1');
+    Ok(zeros + n)
+}
+
 /// Writes the digits of the value with `len` limbs right-aligned below `anchor` in `buf`
 /// and the top limb `top > 0`. Returns their count.
 ///
 /// The text of a limb is written after the limb is read, top first. With `n <= anchor + 2`
 /// digits, limb `i` (least significant first) sits at `anchor - 8 (i + 1)` and its text at
 /// `n - 10 (i + 1)`, which can reach only limbs at or above `i`: already read.
+#[inline(always)]
 fn write(buf: &mut [u8], anchor: usize, len: usize, top: u64) -> Result<usize, BufferTooSmall> {
     let top_digits = ten_digits(top);
     let skip = top_digits.iter().take_while(|&&c| c == b'1').count();
@@ -118,8 +171,11 @@ pub(super) struct Limbs<'a> {
     pub top: u64,
 }
 
+// Plain and checked encoding both call these kernels and `write`. Inlining a copy into
+// each caller keeps plain-path machine code independent of the `check` feature.
 impl Limbs<'_> {
     /// `value = value * 2^(8 x.len()) + x` for big-endian `x`.
+    #[inline(always)]
     pub fn feed(&mut self, x: &[u8]) {
         let (head, body) = x.as_rchunks::<STEP>();
         let be = |c: &[u8]| c.iter().fold(0u64, |v, &b| (v << 8) | b as u64);
@@ -140,6 +196,7 @@ impl Limbs<'_> {
     /// Each limb gives `t = y * 2^56 + carry`, new limb `t % BASE` and carry `t / BASE`.
     /// The carry is below `2^56` (as `t < BASE * 2^56`), so with `(q, r)` from [`split`],
     /// `r + carry < 2 BASE`: one compare finishes the division.
+    #[inline(always)]
     fn step(&mut self, c: u64) {
         let cap = self.slots.len();
         // The carry into the next limb is `q + k`.
@@ -158,6 +215,7 @@ impl Limbs<'_> {
     ///
     /// The second pass runs one limb behind the first, so the CPU overlaps their carry
     /// chains.
+    #[inline(always)]
     fn step2(&mut self, c1: u64, c2: u64) {
         let cap = self.slots.len();
         let l = &mut self.slots[cap - self.len..];
@@ -195,6 +253,7 @@ impl Limbs<'_> {
     }
 
     /// `top = top * 2^56 + c`, pushing the low limb if it overflows.
+    #[inline(always)]
     fn step_top(&mut self, c: u64) {
         let (t, ct) = step_limb(self.top, c);
         self.top = t;
@@ -204,6 +263,7 @@ impl Limbs<'_> {
         }
     }
 
+    #[inline(always)]
     fn push(&mut self, limb: u64) {
         let i = self.slots.len() - 1 - self.len;
         self.slots[i] = limb.to_ne_bytes();

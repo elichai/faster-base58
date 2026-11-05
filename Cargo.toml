@@ -20,6 +20,7 @@ include = [
 default = ["alloc"]
 alloc = []
 std = []
+check = ["dep:sha2"]
 # Opt in to process-wide matrix tables and bounded NTT twiddle retention.
 cache = ["alloc", "std"]
 # Use smaller x86 IFMA windows to reduce linked code.
@@ -27,13 +28,16 @@ compact = []
 # Unstable hooks for this repository's tests and measurement tools.
 __internals = ["alloc"]
 
+[dependencies]
+sha2 = { version = "0.11", optional = true, default-features = false }
+
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 # Used only without std; Cargo's additive features keep this dependency resolved.
 cpufeatures = "0.3.1"
 
 [dev-dependencies]
 basexx = "0.2.0"
-bs58 = "0.5.1"
+bs58 = { version = "0.5.1", features = ["check"] }
 criterion = "0.8.2"
 five8 = "1.0.0"
 malachite-base = "0.14.0"
@@ -93,6 +97,11 @@ required-features = ["__internals"]
 name = "dispatch"
 harness = false
 required-features = ["__internals"]
+
+[[bench]]
+name = "check"
+harness = false
+required-features = ["check"]
 
 # Unit tests compare against quadratic bs58 at benchmark sizes, so optimize debug
 # builds. Overflow checks and debug assertions stay on.

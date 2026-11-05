@@ -8,7 +8,7 @@ generated tables. See [correctness and verification](CORRECTNESS.md),
 [measurements](docs/performance.md), and [implementation references](REFERENCES.md).
 
 Automatic backend policy lives in `src/api.rs`. Its encode/decode selectors are
-used by public buffer calls. Plain decoding tests the same small
+shared by plain and checked buffer calls. Plain decoding tests the same small
 cutoff directly before matching the large backend, keeping enum classification
 off the small path. Fixed-size encoding and tiny decoding run before general
 selection; their wrappers preserve the specialized input contracts.
@@ -19,6 +19,24 @@ capacity return the zero-sized `BufferTooSmall`. This keeps hot-loop result
 layouts independent of public, feature-gated error variants. Encoder output is
 alphabet bytes only, so `.onto()` and `.into_string()` skip UTF-8 validation
 (a debug assertion checks it).
+
+Base58Check uses these same conversion families. Encoding feeds small frames as
+borrowed segments; larger frames are staged inside the output, then consumed into
+normal codec workspace before the text is written. Fixed-size kernels use small
+stack copies. D&C input loaders consume borrowed or staged bytes into the existing
+limb workspace before entering one shared conversion tree per multiplier. The
+radix encoder returns its existing digit workspace before text serialization;
+Matrix input wrappers share the outlined column conversion. Checked borrowed/array decoding has
+two logical output segments: data storage and a four-byte checksum word.
+Batched decoding updates the high value in the caller's buffer and the low
+checksum word separately. Matrix and large-input writers separate those bytes
+during final serialization. D&C decoding returns its existing arena, truncated to
+the value's limbs, to a plain or checked serializer; Matrix serializers use stack
+scratch. Input/output format does not parameterize the heavy arithmetic bodies.
+The existing multiplier specialization and fast conversion routes remain.
+Checksum verification happens after
+conversion, before version validation. No additional frame vector or unsafe array
+view is needed.
 
 ## Conversion families
 

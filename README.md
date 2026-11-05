@@ -33,8 +33,8 @@ assert_eq!(ENCODER.encode(&data).onto(&mut buffer)?, text);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`Encoder` and `Decoder` store a private alphabet enum; they have no typestate
-parameters. Constructors and `.encode()` / `.decode()` are `const fn`.
+`Encoder` and `Decoder` store private alphabet/check enums; they have no typestate
+parameters. Constructors, setters, and `.encode()` / `.decode()` are `const fn`.
 Their methods are marked `#[inline(always)]` so constant configuration can fold
 away. Runtime-selected settings still require dispatch. Plain configurations use
 the existing conversion kernels.
@@ -72,6 +72,62 @@ the standard error trait. Successful calls leave the unused output tail untouche
 on errors, output contents and error precedence are unspecified. Conversion timing
 depends on input values and length; these functions are not constant-time.
 
+## Optional Base58Check
+
+Enable `features = ["check"]` to add Bitcoin's four-byte double-SHA-256 checksum.
+This enables an optional `sha2` dependency without requiring `std`. With the
+feature disabled, normal dependencies do not include SHA-256. Select checking
+on a configuration:
+
+```rust
+# #[cfg(all(feature = "check", feature = "alloc"))]
+# fn main() -> Result<(), faster_base58::Error> {
+use faster_base58::{Encoder, Decoder};
+
+const ENCODER: Encoder = Encoder::bitcoin().with_check();
+const DECODER: Decoder = Decoder::bitcoin().with_check();
+
+let data = [0u8; 21];
+let text: String = ENCODER.encode(&data).into_string();
+assert_eq!(text, "1111111111111111111114oLvT2");
+assert_eq!(DECODER.decode(&text).into_array::<21>()?, data);
+let mut bytes = [0u8; 21];
+assert_eq!(DECODER.decode(&text).onto(&mut bytes)?, data);
+
+const VERSIONED_ENCODER: Encoder = Encoder::bitcoin().with_check_version(0);
+const VERSIONED_DECODER: Decoder = Decoder::bitcoin().with_check_version(0);
+let text = VERSIONED_ENCODER.encode([0u8; 20]).into_string();
+assert_eq!(VERSIONED_DECODER.decode(&text).into_array::<21>()?, data);
+# Ok(())
+# }
+# #[cfg(not(all(feature = "check", feature = "alloc")))]
+# fn main() {}
+```
+
+`.with_check()` hashes the input as supplied. `.with_check_version(v)` prepends
+`v` on encode and requires that first data byte on decode. The version is included
+in the checksum and **retained** in decoded output. Setters replace the previous
+setting; `.with_check()` clears any configured version. Versions are one byte;
+multi-byte prefixes, such as BIP32's four-byte extended-key version, are part of
+the payload: use `.with_check()` and keep them in the data.
+
+Checked decoding removes the checksum. Errors distinguish `MissingChecksum`,
+`InvalidChecksum`, and `InvalidVersion { expected, actual }`; `actual: None`
+means valid empty data has no version byte. These variants and setters are gated
+by `check`. Checksum verification precedes version validation.
+
+`ENCODER.max_encoded_len(n)` includes checksum and any inserted version.
+Checked decoding with `.onto()` needs room only for the returned data, including
+any retained version. The four checksum bytes are a separate internal output
+segment held on the stack. The entire unused output tail remains untouched.
+`.into_array::<N>()` likewise returns exactly `N` data bytes. Checked encoding
+uses the output buffer for its frame. Neither direction needs a temporary frame
+allocation. Owned conversions
+use their result allocation as workspace. Normal codec workspace allocations
+still apply to large inputs, and hashing adds work. Enabling `check` does not select
+checking for plain configurations. With `alloc` disabled, checked conversions
+also make no allocator calls.
+
 ## No internal allocation
 
 Disable default features to exclude allocating backends and owned output methods:
@@ -83,8 +139,8 @@ faster-base58 = { git = "https://github.com/elichai/faster-base58", default-feat
 The same `Encoder` / `Decoder` buffer and array methods then make no heap
 allocations, including first calls and error paths. Encoding uses fixed tables for
 32/64-byte frames and batched conversion elsewhere; decoding uses tiny/batched
-conversion. General large inputs take quadratic time.
-`cache` and development-only `__internals` enable `alloc`.
+conversion. General large inputs take quadratic time. The optional `check` feature
+works with either policy. `cache` and development-only `__internals` enable `alloc`.
 Cargo features are additive: any dependency that enables `alloc` enables it for
 all consumers of that crate instance. Dropping an owned input can still call its
 allocator; borrow inputs when counting all allocator operations.

@@ -7,6 +7,7 @@ use crate::Error;
 use crate::common::split_zeros;
 use crate::common::{BASE, CHUNK, DecodeError, all_valid, chunks, invalid};
 use crate::{BufferTooSmall, matrix, mul};
+use alloc::vec::Vec;
 
 /// Inputs with more chunks than this use divide-and-conquer. Below it,
 /// [`crate::batched::decode_batched`] is faster.
@@ -175,6 +176,21 @@ pub(crate) fn decode_parts(
     m: &mut impl Multiplier,
     leaf: Leaf,
 ) -> Result<usize, DecodeError> {
+    let limbs = decode_value(input, zeros, output.len(), m, leaf)?;
+    Ok(write_bytes(zeros, &limbs, output)?)
+}
+
+/// The trimmed little-endian value of `input[zeros..]`, in the conversion arena.
+/// `capacity` bounds the decoded length for the early capacity check. Plain and
+/// checked decoding share this arena and arithmetic.
+#[inline(never)]
+pub(crate) fn decode_value(
+    input: &[u8],
+    zeros: usize,
+    capacity: usize,
+    m: &mut impl Multiplier,
+    leaf: Leaf,
+) -> Result<Vec<u64>, DecodeError> {
     let digits = &input[zeros..];
     assert!(
         digits.len() > DC_THRESHOLD * CHUNK,
@@ -185,7 +201,7 @@ pub(crate) fn decode_parts(
     // Fail before allocating or computing anything. The first digit is not '1', so the
     // value is at least 58^(d - 1), which takes more than (d - 1) * 0.732 bytes.
     let min_len = ((digits.len() - 1) as u128 * 732 / 1000) as usize + 1;
-    if output.len() < zeros + min_len {
+    if capacity < zeros + min_len {
         return Err(DecodeError::BufferTooSmall);
     }
     if !all_valid(digits) {
@@ -203,7 +219,8 @@ pub(crate) fn decode_parts(
     let (table, scratch) = rest.split_at_mut(table_len);
     let powers = powers(unit, levels, table, scratch, m, true);
     let len = dc(limbs, digits, &powers[..levels], scratch, m, leaf);
-    Ok(write_bytes(zeros, &limbs[..len], output)?)
+    buf.truncate(len);
+    Ok(buf)
 }
 
 /// `limbs[..len] = limbs[..len] * BASE + c`. Returns the new length.

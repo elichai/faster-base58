@@ -24,7 +24,7 @@ HOOKS = ['Multiplier', 'Leaves', 'decode_with', 'encode_tuned', 'ifma_threshold'
          'ntt_cache_memory', 'decode_toom3_with']
 PROFILES = [('default', [], True), ('cache', ['cache'], True),
             ('internals', ['__internals'], True), ('cache-internals', ['cache', '__internals'], True),
-            ('no-alloc', [], False)]
+            ('no-alloc', [], False), ('no-alloc-check', ['check'], False), ('check', ['check'], True)]
 
 NORMAL = r'''
 use faster_base58::{Encoder, Decoder, BufferTooSmall, Error};
@@ -56,6 +56,20 @@ fn main() {
     assert_eq!(Encoder::bitcoin().encode([0, 0, 1]).into_string(), "112");
     assert_eq!(Encoder::bitcoin().encode([0, 0, 1]).into_vec(), b"112");
     assert_eq!(Decoder::bitcoin().decode("112").into_vec().unwrap(), [0, 0, 1]);
+}
+'''
+
+CHECK = r'''
+use faster_base58::{Encoder, Decoder};
+fn main() {
+    const ENCODER: Encoder = Encoder::bitcoin().with_check_version(0);
+    const DECODER: Decoder = Decoder::bitcoin().with_check_version(0);
+    let mut output = [0; 32];
+    let text = ENCODER.encode([42; 16]).onto(&mut output).unwrap();
+    let mut expected = [42; 17]; expected[0] = 0;
+    assert_eq!(DECODER.decode(text).into_array::<17>().unwrap(), expected);
+    assert_eq!(Decoder::bitcoin().with_check().decode("3QJmnh").into_array::<0>(), Ok([]));
+    assert_eq!(Encoder::bitcoin().with_check().max_encoded_len(usize::MAX), usize::MAX);
 }
 '''
 
@@ -184,7 +198,7 @@ def main():
                 'private_encode': 'use faster_base58::encode::encode_batched; fn main() { let _ = encode_batched; }\n',
                 'absent_internals': 'use faster_base58::internals; fn main() { let _ = internals::ifma_threshold; }\n',
                 'private_no_alloc': 'use faster_base58::no_alloc; fn main() {}\n',
-                'owned': OWNED,
+                'owned': OWNED, 'check': CHECK,
                 'exhaustive_error': '''use faster_base58::Error;
 fn main() { match Error::BufferTooSmall {
     Error::InvalidCharacter { .. } | Error::BufferTooSmall | Error::InvalidLength { .. } => (),
@@ -217,8 +231,9 @@ fn main() { match Error::BufferTooSmall {
         assert artifacts[0]['profile']['test'] is False
         rlib = target / 'debug/libfaster_base58.rlib'
         checks = [check_fixture('normal', output / 'normal.rs', profile, rlib, source, output, environment)]
-        checks.append(check_fixture('exhaustive_error', output / 'exhaustive_error.rs', profile,
-                                    rlib, source, output, environment, ('E0004', 'non-exhaustive')))
+        if 'check' not in features:
+            checks.append(check_fixture('exhaustive_error', output / 'exhaustive_error.rs', profile,
+                                        rlib, source, output, environment, ('E0004', 'non-exhaustive')))
         for name in NAMES:
             checks.append(check_fixture('root_' + name, output / ('root_' + name + '.rs'), profile,
                                         rlib, source, output, environment, ('E0432', name)))
@@ -228,6 +243,8 @@ fn main() { match Error::BufferTooSmall {
         checks.append(check_fixture('private_no_alloc', output / 'private_no_alloc.rs', profile, rlib, source, output, environment, (private_code, 'no_alloc')))
         checks.append(check_fixture('owned', output / 'owned.rs', profile, rlib, source, output, environment,
                                     None if 'alloc' in expected_features else ('E0599', 'into_string')))
+        checks.append(check_fixture('check', output / 'check.rs', profile, rlib, source, output, environment,
+                                    None if 'check' in expected_features else ('E0599', 'with_check')))
         if '__internals' in features:
             checks.append(check_fixture('internals_positive', output / 'internals_positive.rs', profile, rlib, source, output, environment))
         else:

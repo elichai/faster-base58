@@ -45,9 +45,11 @@ mod x86;
 
 use core::ptr;
 
-use crate::dc::Multiplier;
 #[cfg(feature = "alloc")]
-use crate::dc::{self, Leaf};
+use crate::dc;
+#[cfg(feature = "alloc")]
+use crate::dc::Leaf;
+use crate::dc::Multiplier;
 use crate::encode::Leaves;
 use crate::mul;
 #[cfg(feature = "cache")]
@@ -105,6 +107,22 @@ pub(crate) fn decode(
     )
 }
 
+/// [`crate::dc::decode_value`] with the NTT multiplier of [`decode`].
+#[cfg(all(feature = "check", feature = "alloc"))]
+pub(crate) fn decode_value(
+    input: &[u8],
+    zeros: usize,
+    capacity: usize,
+) -> Result<alloc::vec::Vec<u64>, crate::common::DecodeError> {
+    dc::decode_value(
+        input,
+        zeros,
+        capacity,
+        &mut Ntt::new(Kernels::best()),
+        Leaf::BEST,
+    )
+}
+
 /// Large encoding with NTT multiplication. NEON uses a multiplication tree in
 /// base 58^3 when transform padding and input size favor it. Other cases retain
 /// the division tree and feature-selected leaves. Both routes retain twiddles
@@ -113,7 +131,7 @@ pub(crate) fn decode(
 #[inline(never)]
 pub(crate) fn encode(
     zeros: usize,
-    x: &[u8],
+    input: &[u8],
     output: &mut [u8],
 ) -> Result<usize, crate::BufferTooSmall> {
     #[cfg(all(
@@ -121,11 +139,36 @@ pub(crate) fn encode(
         target_endian = "little",
         target_feature = "neon"
     ))]
-    if let Some(result) = radix::try_encode(zeros, x, output) {
+    if let Some(result) = radix::try_encode(zeros, input, output) {
         return result;
     }
     let m = &mut Ntt::new(Kernels::best());
-    crate::encode::dc::encode_parts(zeros, x, output, m, CACHED_LEAF, Leaves::BEST)
+    crate::encode::dc::encode_parts(zeros, input, output, m, CACHED_LEAF, Leaves::BEST)
+}
+
+#[cfg(all(feature = "check", feature = "alloc"))]
+#[inline(never)]
+pub(crate) fn encode_staged(
+    zeros: usize,
+    end: usize,
+    output: &mut [u8],
+) -> Result<usize, crate::BufferTooSmall> {
+    #[cfg(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))]
+    if let Some(result) = radix::try_encode_staged(zeros, end, output) {
+        return result;
+    }
+    crate::encode::dc::encode_staged(
+        zeros,
+        end,
+        output,
+        &mut Ntt::new(Kernels::best()),
+        CACHED_LEAF,
+        Leaves::BEST,
+    )
 }
 
 /// The [`Multiplier`] of the NTT decoders.
