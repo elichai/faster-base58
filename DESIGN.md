@@ -136,7 +136,8 @@ shared `OnceLock` stores. `__internals` does not enable them.
 | Little-endian AArch64 + NEON | Matrix parsing/panels and character packing; fixed encoders; NTT butterflies, pointwise products and CRT | `matrix/neon.rs`, `encode/matrix/neon.rs`, `ntt/neon.rs` |
 | x86-64 SSE4.1 / AVX2 | Matrix panels; AVX2 fixed 64-byte encoding; target-feature Rust NTT wrappers | `matrix/x86.rs`, `encode/matrix/x86.rs`, `ntt/x86.rs` |
 | x86-64 AVX-512 | Native NTT; VBMI fixed 64-byte encoding; IFMA radix-`2^52` schoolbook leaves | `ntt/avx512.rs`, `encode/matrix/x86.rs`, `mul_ifma/avx512.rs` |
-| Wasm and other targets | Portable kernels; LLVM may vectorize them when the target permits it | Shared portable modules |
+| Wasm with `simd128` | Matrix parsing/panels; fixed 64-byte column sums and characters; NTT butterflies, pointwise products and CRT | `matrix/wasm.rs`, `encode/matrix/wasm.rs`, `ntt/wasm.rs` |
+| Scalar Wasm and other targets | Portable kernels; LLVM may vectorize them when the target permits it | Shared portable modules |
 
 On x86, runtime checks guard the required ISA combinations. With `std`, detection
 uses `std::is_x86_feature_detected!`; otherwise it uses `cpufeatures`. The latter
@@ -151,8 +152,13 @@ plain Rust; fixed 64-byte encoding has explicit vector kernels. AVX2 NTT wrapper
 allow LLVM vectorization, while AVX-512 kernels are hand-written. `*_portable`
 hooks replace a kernel family, not every downstream fallback, and do not promise
 scalar assembly. Wasm `+simd128` requires a SIMD-capable engine and has no scalar
-runtime fallback within that module. Measurements show mixed tradeoffs; see
-[performance](docs/performance.md).
+runtime fallback within that module; its kernels are selected at compile time.
+Wasm has no 32-bit high multiply, so they widen products with `extmul` and pick the
+needed halves with one shuffle. Splat operands of those products are read through
+`black_box` inside each loop: otherwise LLVM hoists their extension and emits
+`i64x2.mul`, which V8 expands to several instructions. Fixed 32-byte encoding and
+general Matrix character packing stay scalar on Wasm. Measurements show mixed
+tradeoffs; see [performance](docs/performance.md).
 
 The IFMA leaf threshold is a constant. Generic x86 builds still read cached CPU
 feature flags in the NTT short-product fallback; passing threshold state through

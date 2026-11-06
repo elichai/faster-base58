@@ -40,6 +40,8 @@ mod proofs;
 ))]
 mod radix;
 mod tables;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod wasm;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
@@ -498,7 +500,8 @@ pub(crate) struct Kernels {
 }
 
 impl Kernels {
-    /// The fastest kernels for this CPU: NEON on aarch64; on `x86_64` those of `avx512.rs`
+    /// The fastest kernels for this CPU: NEON on aarch64; SIMD128 on Wasm built with it;
+    /// on `x86_64` those of `avx512.rs`
     /// with AVX-512F, the rest the portable ones compiled for AVX-512 or AVX2 when
     /// available.
     pub fn best() -> Self {
@@ -509,6 +512,7 @@ impl Kernels {
             all(target_arch = "x86_64", target_feature = "sse2") => {
                 avx512::kernels().or_else(x86::kernels).unwrap_or_else(Kernels::portable)
             }
+            all(target_arch = "wasm32", target_feature = "simd128") => Kernels::wasm(),
             _ => Kernels::portable(),
         }
     }
