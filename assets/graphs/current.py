@@ -113,7 +113,7 @@ def tables(timing_rows, deltas):
 def check(root):
     root = Path(root).resolve()
     # Explicit scope excludes unrelated untracked reviews and working notes.
-    names = ['README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md',
+    names = ['README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md', 'CI.md',
              'docs/README.md', 'docs/performance.md']
     documents = {}
     for name in names:
