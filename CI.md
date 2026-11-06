@@ -68,7 +68,7 @@ refuse optimized mode.
 
 | Limit | Effect |
 | --- | --- |
-| AVX-512 kernel tests (`mul_ifma::tests::avx512_matches_reference`, `ntt::avx512::tests::avx512_matches_portable`) | Print `skipped:` and pass on CPUs without the feature. `BASE58_REQUIRE_IFMA=1` changes the skip into a failure. GitHub-hosted x86-64 runners do not guarantee AVX-512. |
+| AVX-512 kernel tests (`mul_ifma::tests::avx512_matches_reference` needs AVX-512F and IFMA; `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F) | Compile only for x86-64. Print `skipped:` and pass on CPUs without the feature. `BASE58_REQUIRE_IFMA=1` changes the skip into a failure. No CI job sets the variable, and GitHub-hosted x86-64 runners do not guarantee AVX-512, so a CI pass does not show that the kernels ran. |
 | AVX2 and VBMI kernel tests | Print `no AVX2 on this CPU` or `no AVX-512 VBMI on this CPU` and pass without the feature. On Apple silicon, Rosetta 2 reports no AVX or AVX2 to x86-64 processes, so these kernels do not run under Rosetta. |
 | NEON kernels | Run natively only on arm64 hosts. x86-64 runs do not establish NEON coverage. The Miri jobs interpret selected NEON paths. |
 | `compact` | Changes only the x86-64 IFMA kernels. |
@@ -246,8 +246,11 @@ cargo run --locked --release --manifest-path tools/resource-profile/Cargo.toml -
 
 CI repeats both with `--features count-allocations`, `compact` and
 `compact,count-allocations`. A second matrix row adds `--features cache` to each
-command. The cache-off row also runs the script checks in
-[Checks without a Rust build](#checks-without-a-rust-build).
+command. The cache-off row also runs the self-tests of `resource_report.py`,
+`code_size.py`, `run_native_sanitizer.py`, `check_ci_tests.py` and
+`check_public_api.py`, the graph tests, the documentation check and the syntax
+checks. [Checks without a Rust build](#checks-without-a-rust-build) lists them
+together with the other checks that need no Rust build.
 
 ### Miri jobs
 
@@ -373,7 +376,9 @@ each selected unit test and integration binary as a separate command. It require
 the exact nonzero pass count and writes `complete.json` to the log directory. The
 default log directory, `target/native-sanitizers/<sanitizer>/logs`, must not
 exist; give each further run a new `--log-dir`. `--require-ifma` sets
-`BASE58_REQUIRE_IFMA=1`; the CI job does not pass it.
+`BASE58_REQUIRE_IFMA=1`. The CI job does not pass it, so on a runner without
+AVX-512 IFMA the memory rows skip `avx512_matches_reference`, pass, and record
+`pass_with_isa_skips` in `complete.json`.
 
 ### Proofs
 
@@ -462,7 +467,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | --- | --- | --- | --- |
 | [`scripts/check_ci_tests.py`](scripts/check_ci_tests.py) | Fails when a public integration test is missing from one of the seven explicit test lists in `verification.yml` | `--self-test` | `lint`, `measurement_tools` |
 | [`scripts/check_package.py`](scripts/check_package.py) | Checks the packaged `.crate`: allowed paths, required files, 2 MiB budget, license and feature metadata | `--self-test`; package directory (default `target/package`) | `lint` |
-| [`scripts/check_public_api.py`](scripts/check_public_api.py) | Compiles downstream fixtures against seven feature profiles: normal API, `internals` namespace, removed paths, owned and checked methods | `--self-test` (needs `--output`, compiles nothing) | `tests` |
+| [`scripts/check_public_api.py`](scripts/check_public_api.py) | Compiles downstream fixtures against seven feature profiles: normal API, `internals` namespace, removed paths, owned and checked methods | `--self-test` (needs `--output`, compiles nothing) | `tests`, `measurement_tools` (self-test) |
 | [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools` |
 | [`scripts/code_size_wasm.mjs`](scripts/code_size_wasm.mjs) | Checks the Wasm probe ABI: allocator, pointers, UTF-8 and outputs | Wasm module paths | `portability` |
 | [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted `empty`, `auto` and `no-alloc` Wasm modules: allocator counts and ABI | `--self-test DIR` only | `portability` |
