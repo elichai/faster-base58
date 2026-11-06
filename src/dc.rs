@@ -392,7 +392,11 @@ pub(crate) fn powers<'a>(
         }
         let sq;
         (sq, table) = table.split_at_mut(2 * last.limbs.len());
-        m.mul(sq, last.limbs, last.limbs, scratch);
+        if prepare {
+            m.mul_power(sq, last.limbs, i - 1, last.limbs, scratch);
+        } else {
+            m.mul(sq, last.limbs, last.limbs, scratch);
+        }
         powers[i] = Power::new(2 * last.exp, sq, 2 * last.shift);
     }
     powers

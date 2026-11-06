@@ -79,7 +79,7 @@ use faster_base58::{BufferTooSmall, Error};
 use faster_base58::internals::*;
 use faster_base58::internals::{HOOK_NAMES};
 #[cfg(target_arch = "x86_64")]
-use faster_base58::internals::{set_ifma_threshold, ifma_mul, ifma_scratch_len};
+use faster_base58::internals::{ifma_mul, ifma_scratch_len};
 fn main() {
     type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
     type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;

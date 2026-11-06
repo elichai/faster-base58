@@ -373,6 +373,28 @@ mod checked {
             );
             assert_eq!(&output[len..], &[0xa5; 7]);
         }
+        // Zero data whose checksum also starts with a zero byte: the zero prefix is longer
+        // than the data and the caller's buffer.
+        let mut found = 0;
+        for len in 0..3000 {
+            let data = vec![0; len];
+            let text = bs58::encode(&data).with_check().into_string();
+            if text.bytes().take_while(|&c| c == b'1').count() == len {
+                continue;
+            }
+            found += 1;
+            for capacity in len.saturating_sub(2)..len + 3 {
+                let mut output = vec![0xa5; capacity + 1];
+                let result = DECODER.decode(&text).onto(&mut output[..capacity]);
+                if capacity < len {
+                    assert_eq!(result, Err(Error::BufferTooSmall), "{len} {capacity}");
+                } else {
+                    assert_eq!(result.unwrap(), data);
+                    assert!(output[len..].iter().all(|&b| b == 0xa5));
+                }
+            }
+        }
+        assert!(found > 1);
         for len in 0..8 {
             let text = "1".repeat(len);
             let mut output = [0xa5; 8];
@@ -382,6 +404,47 @@ mod checked {
                 Error::InvalidChecksum
             };
             assert_eq!(DECODER.decode(&text).onto(&mut output), Err(want));
+        }
+    }
+
+    #[test]
+    fn zero_prefixed_short_frames_at_every_capacity() {
+        for version in [None, Some(0), Some(7)] {
+            let encoder = version.map_or(ENCODER, |v| Encoder::bitcoin().with_check_version(v));
+            let decoder = version.map_or(DECODER, |v| Decoder::bitcoin().with_check_version(v));
+            for zeros in 0..10 {
+                for payload in [&[][..], &[1], &[0xff], &[1, 0], &[0xff; 3], &[0x80; 9]] {
+                    let mut data = vec![0; zeros];
+                    data.extend_from_slice(payload);
+                    let (text, want) = match version {
+                        Some(v) => (
+                            bs58::encode(&data).with_check_version(v).into_string(),
+                            [&[v][..], &data].concat(),
+                        ),
+                        None => (bs58::encode(&data).with_check().into_string(), data.clone()),
+                    };
+                    for capacity in 0..want.len() + 3 {
+                        let mut output = vec![0xa5; capacity + 1];
+                        let result = decoder.decode(&text).onto(&mut output[..capacity]);
+                        if capacity < want.len() {
+                            assert_eq!(result, Err(Error::BufferTooSmall), "{text} {capacity}");
+                        } else {
+                            assert_eq!(result.unwrap(), want);
+                            assert!(output[want.len()..].iter().all(|&b| b == 0xa5));
+                        }
+                    }
+                    for capacity in 0..text.len() + 3 {
+                        let mut output = vec![0x5a; capacity + 1];
+                        let result = encoder.encode(&data).onto(&mut output[..capacity]);
+                        if capacity < text.len() {
+                            assert_eq!(result, Err(BufferTooSmall));
+                        } else {
+                            assert_eq!(result.unwrap(), text);
+                            assert!(output[text.len()..].iter().all(|&b| b == 0x5a));
+                        }
+                    }
+                }
+            }
         }
     }
 

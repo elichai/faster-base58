@@ -20,6 +20,8 @@ pub use crate::encode::matrix::internals::{
 pub use crate::encode::{Leaves, encode_batched, encode_tuned};
 pub use crate::matrix::internals::{decode_matrix, decode_matrix_portable};
 pub use crate::mul::{ifma_threshold, mul_with, scratch_len};
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+pub use crate::mul_ifma::{avx512::mul as ifma_mul, scratch_len as ifma_scratch_len};
 pub use crate::no_alloc::encode as encode_no_alloc;
 pub use crate::ntt::internals::{
     cached::{decode_ntt_cached, encode_ntt_cached},
@@ -37,11 +39,6 @@ pub use crate::{
     ntt::internals::diagnostics::{
         decode_ntt_same_leaves, encode_ntt_same_leaves, ntt_cache_memory,
     },
-};
-#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-pub use crate::{
-    mul::ifma::set_ifma_threshold,
-    mul_ifma::{avx512::mul as ifma_mul, scratch_len as ifma_scratch_len},
 };
 
 /// Heap-free decoding: the tiny or batched decoder, as used without `alloc`.

@@ -18,8 +18,7 @@ additive union with a rebase retry. Pull requests cannot publish a corpus.
 
 Coverage reports exclude tests, fuzz harnesses, dependencies, and diagnostic
 helpers. Each fuzz-smoke and property-test configuration exports LCOV and
-uploads it to Codecov under its own flag, so Codecov can show source-level
-coverage without treating incompatible LLVM profiles as mergeable.
+uploads it to Codecov under the shared `fuzz` or `tests` flag; see `codecov.yml`.
 
 ## One-time branch bootstrap
 

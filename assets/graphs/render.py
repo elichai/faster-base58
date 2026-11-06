@@ -2,7 +2,7 @@
 """Validate retained documentation links and SVG structure; never run benchmarks.
 
 This check does not verify measurements or regenerate table values or pixels.
-Use render_current.py or render_backends.py with external CSVs to update figures.
+Use render_current.py with measurement CSVs to update figures.
 """
 import argparse
 import json

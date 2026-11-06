@@ -20,23 +20,12 @@ layouts independent of public, feature-gated error variants. Encoder output is
 alphabet bytes only, so `.onto()` and `.into_string()` skip UTF-8 validation
 (a debug assertion checks it).
 
-Base58Check uses these same conversion families. Encoding feeds small frames as
-borrowed segments; larger frames are staged inside the output, then consumed into
-normal codec workspace before the text is written. Fixed-size kernels use small
-stack copies. D&C input loaders consume borrowed or staged bytes into the existing
-limb workspace before entering one shared conversion tree per multiplier. The
-radix encoder returns its existing digit workspace before text serialization;
-Matrix input wrappers share the outlined column conversion. Checked borrowed/array decoding has
-two logical output segments: data storage and a four-byte checksum word.
-Batched decoding updates the high value in the caller's buffer and the low
-checksum word separately. Matrix and large-input writers separate those bytes
-during final serialization. D&C decoding returns its existing arena, truncated to
-the value's limbs, to a plain or checked serializer; Matrix serializers use stack
-scratch. Input/output format does not parameterize the heavy arithmetic bodies.
-The existing multiplier specialization and fast conversion routes remain.
-Checksum verification happens after
-conversion, before version validation. No additional frame vector or unsafe array
-view is needed.
+Base58Check uses the same conversion families; input loading and final
+serialization sit outside the arithmetic bodies, so checking adds no arithmetic
+monomorphization. Encoding feeds small frames as borrowed segments and stages
+larger frames inside the output. Checked decoding writes two logical segments,
+the data in the caller's buffer and the four-byte checksum on the stack, and
+verifies the checksum after conversion, before the version.
 
 ## Conversion families
 
@@ -80,12 +69,11 @@ scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
 on the stack; schoolbook sums reserve their usual capacity once and can grow
 for sparse, unbalanced products. All owners are dropped on return.
 This route requires
-at least 8192 significant bytes and at least 7/8 utilization of its full transform.
-With `cache`, it requires 262144 bytes and at least two input bytes per transform
-point, preserving the cheaper division route just below binary power-of-two
-boundaries. Heavily padded sizes, significant inputs above 16 MiB, and other
-targets retain the division tree. These conservative selection rules follow the
-[large-input measurements](docs/performance.md#historical-paired-radix-allocation-comparison).
+more than 4096 significant bytes and at least 7/8 utilization of its full
+transform, with or without `cache`. Heavily padded sizes, significant inputs above
+16 MiB, and other targets keep the division tree. The carry pass runs four
+interleaved chains over quarters of the digits, then adds each quarter's carry
+into the next.
 
 [Matrix encoding](src/encode/matrix.rs) maps 32-bit words to base `58^4`;
 [decoding](src/matrix/mod.rs) maps four-character groups to base `2^32`.
@@ -99,9 +87,9 @@ Fixed dimensions remove table construction and dimension handling;
 64-byte kernels also segment the carry chain. Both allocation policies select these
 specializations directly. The internal Matrix comparison hooks use the general
 matrix kernel. Their short carry schedule needs fixed-size bounds and cannot
-replace the general schedule directly. Padding nearby lengths into these kernels
-regressed zero-heavy inputs. Portable fixed decoder prototypes were slower than
-the general decoder on M5 and added code and tables.
+replace the general schedule directly. Nearby lengths are not padded into these
+kernels, which would slow zero-heavy inputs, and there is no fixed-size decoder: the
+general decoder is faster on M5.
 
 [NTT multiplication](src/ntt/mod.rs) uses two 32-bit coefficients per limb,
 three primes below `2^30`, Montgomery products and exact CRT reconstruction.
@@ -166,12 +154,9 @@ scalar assembly. Wasm `+simd128` requires a SIMD-capable engine and has no scala
 runtime fallback within that module. Measurements show mixed tradeoffs; see
 [performance](docs/performance.md).
 
-Ordinary builds use a constant IFMA threshold; only tests and `__internals`
-retain its tuning atomic. Generic x86 builds still read cached CPU feature flags
-in the NTT short-product fallback. Passing threshold state through multipliers
-had no established overall benefit; narrower reuse of the constructor's choice
-needs controlled measurements. Resolve final linked call targets before treating
-source-level function pointers as runtime dispatch costs.
+The IFMA leaf threshold is a constant. Generic x86 builds still read cached CPU
+feature flags in the NTT short-product fallback; passing threshold state through
+multipliers had no established overall benefit.
 
 ## Heap, stack and cache costs
 
@@ -203,8 +188,9 @@ The divide-and-conquer decoder packs result, powers and scratch into one arena.
 Encoder divisors borrow one pre-sized payload for normalized powers and
 reciprocals; original powers and their construction scratch share one buffer, dropped before
 prepared transforms and conversion scratch. Each prepared NTT operand owns one
-vector containing all three prime transforms. A shared prepared-power arena
-saved little peak memory and had no established overall benefit, so it was not retained.
+vector containing all three prime transforms; decoding squares each prepared
+power from those transforms, without a forward transform. Prepared powers do not
+share one arena, which would save little peak memory.
 Skipped prepared powers do not grow metadata, but still clear an existing slot.
 Karatsuba scratch is `5*n + 64` limbs. Within the transform domain, NTT scratch
 uses the nondecreasing workspace envelope of every plan through a product of
@@ -244,17 +230,9 @@ accepts logs 1–4; filling those would raise its NTT bound to 9,437,136 bytes.
 Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
 24.75 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
-radix route uses two prime tables instead of three and pools its digit and
-prepared-spectrum scratch. The initial heap reductions brought 4 MiB AArch64
-encoding from 131,965,668 to 82,158,308 bytes of extra requested live heap.
-The 2026-11-01 arena reuse saves another 12 MiB, reaching 69,575,396 bytes, with
-no retained heap under either cache policy. Encoding makes 7 allocation requests
-instead of 10. The three-prime decoder's tighter scratch envelope saves another
-6.75 MiB, reducing its default peak from 63,860,984 to 56,783,096 bytes and its
-allocation requests from 21 to 18. These are measured significant-payload fixtures.
-These counts exclude caller buffers, allocator-internal
-reallocation overlap and RSS. Other routes and sizes differ; process peaks and
-Wasm page high-water are separate metrics. See [measurement scopes](docs/performance.md).
+radix route uses two prime tables instead of three, pools its digit and
+prepared-spectrum scratch, and retains nothing under either cache policy. Measured
+4 MiB peaks are in the [performance guide](docs/performance.md#cache-and-memory).
 
 Precomputing every general cache table would embed roughly 26.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the
@@ -269,20 +247,8 @@ source size from a consumer. Auto links more code than conversion without `alloc
 a smaller general path. Fixed-only five8 has a narrower contract.
 
 The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to
-eight vector groups. It removes four large unrolled kernel bodies and increases
-the chunk count for some operand shapes. The 2026-10-28 measurements of runtime
-source `304dc4c5dbf1` show about 93.2 KiB less executable code, 33–37% of the matched
-x86 Auto delta above empty. On one EPYC 9B45 VM, compact's cache-off encoding is
-about 2–9% faster at 4 KiB–4 MiB; large decoding and cache-mode conversions mostly
-cost 1–3%.
-These whole-consumer observations include compiler/call-context effects;
-identical-content controls also varied. M5 and scalar Wasm have no section saving.
-Format, API and the no-allocation contract are unchanged; wide12 remains the
-default. Other production architectures do not use these IFMA kernels.
-
-Use linked-section deltas as well as total file bytes, and keep source generations
-separate. [Performance](docs/performance.md) explains the measurements and update
-workflow; the [README](README.md#linked-size) has the short bs58 comparison.
-The rejected loop and explicit Wasm-panel experiments do not justify further size
-features. See [verification limits](CORRECTNESS.md#remaining-work) before making
-claims about all inputs or architectures.
+eight vector groups. It removes four large unrolled kernel bodies (about 93 KiB of
+code) and increases the chunk count for some operand shapes; the
+[performance guide](docs/performance.md#linked-size-and-compact) has the measured
+tradeoff. Format, API and the no-allocation contract are unchanged; wide12 remains
+the default. Other production architectures do not use these IFMA kernels.

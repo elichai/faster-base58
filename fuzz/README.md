@@ -1,6 +1,6 @@
 # Differential fuzzing
 
-Both targets compare configured Auto, the internal heap-free kernels, and the backends exposed by `__internals`
+`encode_all` and `decode_all` compare configured Auto, the internal heap-free kernels, and the backends exposed by `__internals`
 with `bs58`. They check empty inputs, leading zeros, exact/short/oversized output
 slices, result suffixes, and canaries around each slice. Decoding checks the first
 invalid byte index. The public decoder takes raw bytes, so decode also passes the

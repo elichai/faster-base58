@@ -35,8 +35,11 @@ const MAX_PRODUCT: u128 = (GROUP_BASE as u128 - 1) * u32::MAX as u128;
 const MAX_AFTER_CARRY: u128 = 2 * u32::MAX as u128;
 /// Panels between carry passes. Each panel adds 8 products to a column.
 pub(crate) const CARRY_EVERY: usize = 47;
-const _: () =
-    assert!(MAX_AFTER_CARRY + (ROWS * CARRY_EVERY) as u128 * MAX_PRODUCT <= u64::MAX as u128);
+// A carry pass then adds the previous column's carry, below 2^32.
+const _: () = assert!(
+    MAX_AFTER_CARRY + (ROWS * CARRY_EVERY) as u128 * MAX_PRODUCT + u32::MAX as u128
+        <= u64::MAX as u128
+);
 // One more panel could overflow: the schedule is as long as the bound allows.
 const _: () =
     assert!(MAX_AFTER_CARRY + (ROWS * (CARRY_EVERY + 1)) as u128 * MAX_PRODUCT > u64::MAX as u128);

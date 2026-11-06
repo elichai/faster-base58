@@ -1,9 +1,10 @@
 //! Chinese remaindering for the three primes (Garner), and the carry pass into limbs.
 //!
-//! A product coefficient is at most `min(na, nb) * (2^32 - 1)^2`. Products have at most
-//! `2^23` coefficients (`2 (a.len() + b.len())` is at most the transform length `L`,
-//! which the tables bound), so `min(na, nb) <= 2^22` and the coefficient is below
-//! `2^86`, less than `q1 q2 q3 ~ 2^89.35`: its residues `r1, r2, r3` determine it. With
+//! A product coefficient sums at most `2 min(na, nb)` products of 32-bit coefficients
+//! (two per limb). Products have at most `2^23` coefficients (`2 (a.len() + b.len())`
+//! is at most the transform length `L`, which the tables bound), so `min(na, nb) <=
+//! 2^21` and the coefficient is below `2^86`, less than `q1 q2 q3 ~ 2^89.35`: its
+//! residues `r1, r2, r3` determine it. With
 //! `v2 = (r2 - r1) / q1 mod q2` and `v3 = ((r3 - r1) / q1 - v2) / q2 mod q3`, it is
 //! `r1 + q1 v2 + q1 q2 v3`. The kernels compute `v2` and `v3`; [`carry`] the rest.
 

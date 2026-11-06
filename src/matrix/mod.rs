@@ -227,6 +227,8 @@ pub(crate) fn leaf(out: &mut [u64], digits: &[u8]) -> Option<usize> {
 }
 
 /// Stack space for one conversion, about 14 KiB. Only the part an input needs is written.
+/// Unlike the encoder's scratch it is not 64-byte aligned: that measured no faster at
+/// 512 B-4 KiB (M5).
 struct Scratch {
     groups: [MaybeUninit<u32>; MAX_GROUPS],
     cols: [MaybeUninit<u64>; MAX_COLS],
