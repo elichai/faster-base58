@@ -14,6 +14,7 @@
 //! that feature exposes the unstable `internals` module for tests and measurements.
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[macro_use]
 #[cfg(any(feature = "alloc", test, kani))]

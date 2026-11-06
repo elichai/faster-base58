@@ -148,7 +148,7 @@ details](docs/performance.md#cache-and-memory)).
 Add `features = ["cache"]` to the dependency to retain reusable tables. This
 feature enables `std`. Caching is off by default; it changes dispatch as well as
 retention. First use builds tables; the warm timings below exclude that setup.
-[Cold calls and cache tradeoffs](docs/performance.md#cache-and-memory) help assess
+[Cache and memory costs](docs/performance.md#cache-and-memory) help assess
 whether reuse repays the setup and memory cost for your workload.
 
 Enabling `cache` alone allocates **zero heap bytes**. Conversions allocate tables
