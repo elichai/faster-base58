@@ -56,25 +56,56 @@ pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
 /// Base-`BASE` digits of `digits`, most significant first.
 /// `None` marks a chunk with an invalid character.
 pub(crate) fn chunks(digits: &[u8]) -> impl Iterator<Item = Option<u64>> {
+    let valid = |(v, bad): (u64, u8)| (bad < 0x80).then_some(v);
     let (head, tail) = digits.as_rchunks::<CHUNK>();
-    let head = iter::once(head).filter(|h| !h.is_empty()).map(|s| {
-        let (mut v, mut bad) = (0u64, 0u8);
-        for &c in s {
-            let d = DIGITS[c as usize];
-            bad |= d;
-            // Cannot overflow even with 0xFF digits: 255 * (58^10 - 1) / 57 < 2^61.
-            v = v * 58 + d as u64;
-        }
-        (bad < 0x80).then_some(v)
-    });
-    head.chain(tail.iter().map(|s| {
-        let d = s.map(|c| DIGITS[c as usize]);
-        let bad = d.iter().fold(0, |a, &x| a | x);
-        // Two independent chains of 5, joined: same value as the chain of 10.
-        let half = |h: &[u8]| h.iter().fold(0u64, |v, &x| v * 58 + x as u64);
-        let v = half(&d[..5]) * 58u64.pow(5) + half(&d[5..]);
-        (bad < 0x80).then_some(v)
-    }))
+    let head = iter::once(head)
+        .filter(|h| !h.is_empty())
+        .map(move |s| valid(short_chunk(s)));
+    head.chain(tail.iter().map(move |s| valid(full_chunk(s))))
+}
+
+/// [`chunks`] of valid `digits` into `out`, one value per chunk, in one loop: a caller
+/// that zipped the iterator into its buffer got its `next` as a call per chunk.
+#[cfg(any(feature = "alloc", test, kani))]
+pub(crate) fn values(digits: &[u8], out: &mut [u64]) {
+    let (head, tail) = digits.as_rchunks::<CHUNK>();
+    let short = usize::from(!head.is_empty());
+    assert_eq!(out.len(), short + tail.len(), "one value per chunk");
+    let (first, rest) = out.split_at_mut(short);
+    let mut bad = 0;
+    if let [o] = first {
+        (*o, bad) = short_chunk(head);
+    }
+    for (o, s) in rest.iter_mut().zip(tail) {
+        let (v, b) = full_chunk(s);
+        *o = v;
+        bad |= b;
+    }
+    assert!(bad < 0x80, "caller validates the digits");
+}
+
+/// The value of up to `CHUNK` digits and the OR of their digit values, which reaches
+/// `0x80` for an invalid character.
+#[inline(always)]
+fn short_chunk(s: &[u8]) -> (u64, u8) {
+    let (mut v, mut bad) = (0u64, 0u8);
+    for &c in s {
+        let d = DIGITS[c as usize];
+        bad |= d;
+        // Cannot overflow even with 0xFF digits: 255 * (58^10 - 1) / 57 < 2^61.
+        v = v * 58 + d as u64;
+    }
+    (v, bad)
+}
+
+/// [`short_chunk`] of a full chunk.
+#[inline(always)]
+fn full_chunk(s: &[u8; CHUNK]) -> (u64, u8) {
+    let d = s.map(|c| DIGITS[c as usize]);
+    let bad = d.iter().fold(0, |a, &x| a | x);
+    // Two independent chains of 5, joined: same value as the chain of 10.
+    let half = |h: &[u8]| h.iter().fold(0u64, |v, &x| v * 58 + x as u64);
+    (half(&d[..5]) * 58u64.pow(5) + half(&d[5..]), bad)
 }
 
 /// The error for the first invalid character in `input`.
@@ -144,5 +175,35 @@ mod tests {
             assert_eq!(buf[0], 0xA5);
             assert!(buf[1 + len..].iter().all(|&b| b == 0xA5), "len {len}");
         }
+    }
+
+    #[test]
+    fn values_match_chunks() {
+        // No head, every head length, and a full leaf of 256 chunks.
+        for len in (0..=21).chain([2559, 2560]) {
+            let digits: Vec<u8> = (0..len).map(|i| ALPHABET[(i * 37 + 11) % 58]).collect();
+            let want: Vec<u64> = chunks(&digits).map(Option::unwrap).collect();
+            let mut got = vec![0; want.len()];
+            values(&digits, &mut got);
+            assert_eq!(got, want, "len {len}");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "caller validates the digits")]
+    fn values_reject_an_invalid_head() {
+        values(b"01111111111", &mut [0; 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "caller validates the digits")]
+    fn values_reject_an_invalid_chunk() {
+        values(b"11111111110", &mut [0; 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "one value per chunk")]
+    fn values_need_one_value_per_chunk() {
+        values(b"11111111111", &mut [0; 1]);
     }
 }
