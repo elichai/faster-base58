@@ -5,7 +5,7 @@
 use crate::Error;
 #[cfg(any(test, feature = "__internals", kani))]
 use crate::common::split_zeros;
-use crate::common::{BASE, CHUNK, DecodeError, all_valid, chunks, invalid};
+use crate::common::{BASE, CHUNK, DecodeError, all_valid, invalid, values};
 use crate::{BufferTooSmall, matrix, mul};
 use alloc::vec::Vec;
 
@@ -431,9 +431,7 @@ fn dc(
             return matrix::leaf(out, digits).expect("`decode_with` validates the digits");
         }
         let mut parsed = [0u64; LEAF];
-        for (p, chunk) in parsed.iter_mut().zip(chunks(digits)) {
-            *p = chunk.expect("`decode_with` validates the digits");
-        }
+        values(digits, &mut parsed[..n]);
         return mul_add_chunks(out, 0, &parsed[..n]);
     }
     // value = hi * BASE^p.exp + lo. `powers[0].exp <= LEAF`, so `p` exists,
