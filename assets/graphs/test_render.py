@@ -16,7 +16,7 @@ class DocumentationTests(unittest.TestCase):
         self.root = Path(self.directory.name)
         (self.root / 'assets/graphs').mkdir(parents=True)
         (self.root / 'docs').mkdir()
-        for name in ['README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md',
+        for name in ['README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md', 'CI.md',
                      'docs/README.md', 'docs/performance.md']:
             (self.root / name).write_text('')
         names = ['m5-public', 'gcp-public', 'wasm-public']

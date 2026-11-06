@@ -5,7 +5,8 @@ tests, native sanitizers, Miri and scoped Kani proofs. Each checks different
 properties. Passing these checks does not prove arbitrary-length conversion or
 the semantics of every SIMD instruction. The implementation map is in
 [DESIGN.md](DESIGN.md); repeatable jobs are in
-[the workflow](.github/workflows/verification.yml).
+[the workflow](.github/workflows/verification.yml), and [CI.md](CI.md) gives
+their local commands.
 
 ## Recorded check scope
 
@@ -21,7 +22,7 @@ IFMA and VBMI it passes the `__internals` suites with and without `cache` with
 
 The default-on `alloc` feature enables allocating backends and owned results.
 `cache` and `__internals` imply `alloc`. Allocation-free public tests run with
-`cargo test --locked --no-default-features --features check --test no_alloc`.
+`--no-default-features --features check`.
 The downstream API checker also checks owned/check method availability and
 rejects the removed free functions and `no_alloc` module.
 
@@ -101,7 +102,8 @@ mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
 boundaries, Clippy, formatting and package contents. Build checks alone
 do not execute kernels. The maximum `2^23`-point transform test runs separately;
 two expensive Matrix sweeps execute with `cache` rather than rebuilding the
-same owned tables for every size.
+same owned tables for every size. [CI.md](CI.md#test-jobs) gives the local
+commands for these rows.
 
 The SIMD inlining job builds the Auto consumer library with generic CPU flags on
 x86-64 Linux (default, `cache`, `compact`) and arm64 Linux (default, `cache`).
@@ -111,17 +113,6 @@ SIMD module keeps a function out of line that its `EXPECTED` list does not name
 (dispatch-table entries and functions kept apart on purpose: target-feature entry
 points, kernels selected by pointer and cold paths).
 It reads symbols only: it does not see slow code inside an inlined body.
-
-```sh
-PROPTEST_CASES=512 cargo nextest run --locked --features __internals --lib --tests
-PROPTEST_CASES=512 cargo nextest run --locked --features __internals,cache --lib --tests
-cargo nextest run --locked --release --features __internals --lib --tests
-cargo test --locked --features __internals --lib --tests # shared-process lane
-cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact
-cargo test --locked --features check --test builders --test no_alloc
-cargo test --locked --no-default-features --features check --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core
-cargo test --locked --doc --features check
-```
 
 ## Fuzzing and sanitizers
 
@@ -246,15 +237,8 @@ closed by verified composition.
 
 ## Reproduce and update checks
 
-Use the feature/target matrix and pinned tools in
-[the verification workflow](.github/workflows/verification.yml). The commands
-above cover ordinary local tests; compact, native sanitizer, Miri and proof rows
-need their own selections and hosts. [Fuzzing](fuzz/README.md) documents campaign
-and boundary replay commands. [Development Miri](ci/miri/README.md) describes
-the pinned interpreter; [the extended runner](scripts/miri-extended.sh) isolates
-stock unsupported-intrinsic diagnostics. The workflow selects the full required
-Kani set; [kani-production.sh](scripts/kani-production.sh) runs the tiny public
-conversion and alphabet obligations only.
+[CI.md](CI.md) lists every CI job and repository script with its trigger,
+platforms, prerequisites, host limits and local commands.
 
 When code changes, record the tested source, tool versions, features, target,
 actual execution host and selected tests. Distinguish compiled, executed,

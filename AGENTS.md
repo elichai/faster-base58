@@ -39,7 +39,7 @@ were not adopted in a short comment next to the code they concern.
 | Algorithms, arithmetic invariants, dispatch thresholds, CPU selection or cache ownership | [DESIGN.md](DESIGN.md) |
 | Latency, cold/warm behavior, allocations, retained memory, linked size or benchmark methods | [docs/performance.md](docs/performance.md); affected README summaries/figures |
 | Tests, fuzzing, sanitizers, Miri, proofs, coverage or verification gaps | [CORRECTNESS.md](CORRECTNESS.md) and the affected operational guide |
-| Measurement or verification tooling and commands | The performance/correctness guide and nearby tool instructions |
+| CI jobs, repository scripts, measurement or verification tooling and commands | [CI.md](CI.md), the performance/correctness guide and nearby tool instructions |
 | Consulted/adapted implementations, dependencies or attribution | [REFERENCES.md](REFERENCES.md) and applicable notices |
 | Documentation paths or structure | [docs/README.md](docs/README.md) and incoming links |
 
@@ -67,8 +67,9 @@ The README prioritizes M5, generic x86-64 and Wasm results. Keep
 
 ## Before committing
 
-Run checks appropriate to the change, following [CORRECTNESS.md](CORRECTNESS.md)
-and the [verification workflow](.github/workflows/verification.yml). Add a
+Run checks appropriate to the change, following [CI.md](CI.md),
+[CORRECTNESS.md](CORRECTNESS.md) and the
+[verification workflow](.github/workflows/verification.yml). Add a
 focused regression test for a behavioral fix. For documentation/figure changes,
 run `python3 -B assets/graphs/render.py --check`; for graph tooling, also run
 `python3 -B -m unittest discover -s assets/graphs -p test_render.py`. README Rust
