@@ -1,7 +1,10 @@
-#![cfg(all(
-    target_arch = "aarch64",
-    target_endian = "little",
-    target_feature = "neon"
+#![cfg(any(
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2")
 ))]
 
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};

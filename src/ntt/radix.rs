@@ -105,9 +105,30 @@ fn preferred(bytes: usize) -> bool {
     // Full transforms waste work when heavily padded, and the balanced tree repeats
     // roughly this padding ratio at each level. With at least 7/8 of the transform
     // used, this route beats division wherever Auto's NTT encoder runs (above 4096
-    // bytes), with or without cached tables (M5).
-    bytes > 4096 && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * 7
+    // bytes), with or without cached tables (M5). On Zen 5 (generic flags, public
+    // probes) such sizes took 0.76-0.78x the division tree's time from 64 KiB
+    // (0.83-0.86x with `cache`). Sizes with 0.68 of the transform used took 0.91x
+    // (0.98-1.01x with `cache`), and those with 0.5 used 1.13-1.19x.
+    bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * 7
 }
+
+/// The smallest input is larger on x86. On Zen 5 (IFMA Karatsuba in the division
+/// tree) this route took 1.23-2.54x the division tree's time at 4-16 KiB and
+/// 0.95-1.06x around 32 KiB. AVX-512 CPUs without IFMA are not measured.
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2")
+))]
+const MIN_BYTES: usize = if cfg!(target_arch = "x86_64") {
+    48 << 10
+} else {
+    4096
+};
 
 fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
     // This conservative byte limit also makes every sizing expression below fit
@@ -614,10 +635,12 @@ mod tests {
         for bytes in [4096, 6144, 12_288, 49_152, 98_304, 786_432] {
             assert_eq!(try_encode(0, &vec![255; bytes], &mut []), None);
         }
-        for bytes in [4097, 8192, 262_143, 1_048_575, 1_048_576] {
+        for bytes in [4097, 8192, 32_768, 65_536, 262_143, 1_048_575, 1_048_576] {
+            let selected = supported() && bytes > MIN_BYTES;
             assert_eq!(
                 try_encode(0, &vec![255; bytes], &mut []),
-                supported().then_some(Err(BufferTooSmall))
+                selected.then_some(Err(BufferTooSmall)),
+                "{bytes} bytes"
             );
         }
     }

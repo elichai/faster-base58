@@ -55,7 +55,8 @@ steps; each power and reciprocal is reused within one conversion. Karatsuba,
 Toom-3 and the fallback NTT encoder share this conversion tree. Unbalanced
 products use blocks.
 
-On little-endian AArch64 with NEON, large encoding can instead use a
+On little-endian AArch64 with NEON and on x86-64 with AVX-512F, large encoding can
+instead use a
 [multiplication tree in base `58^3`](src/ntt/radix.rs). It splits at byte
 boundaries and combines `hi * 256^k + lo`, avoiding reciprocals and division at
 each node. Two NTT primes recover the digit products; vectorized reconstruction
@@ -69,9 +70,11 @@ scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
 on the stack; schoolbook sums reserve their usual capacity once and can grow
 for sparse, unbalanced products. All owners are dropped on return.
 This route requires
-more than 4096 significant bytes and at least 7/8 utilization of its full
-transform, with or without `cache`. Heavily padded sizes, significant inputs above
-16 MiB, and other targets keep the division tree. The carry pass runs four
+more than 4096 significant bytes (on x86, 48 KiB) and at least 7/8 utilization
+of its full transform, with or without `cache`. On Zen 5 the division tree with
+IFMA Karatsuba products is faster up to the 32 KiB sizes. Heavily padded sizes,
+significant inputs above 16 MiB, x86 CPUs without AVX-512F (not measured) and
+other targets keep the division tree. The carry pass runs four
 interleaved chains over quarters of the digits, then adds each quarter's carry
 into the next.
 
@@ -135,7 +138,7 @@ shared `OnceLock` stores. `__internals` does not enable them.
 | --- | --- | --- |
 | Little-endian AArch64 + NEON | Matrix parsing/panels and character packing; fixed encoders; NTT butterflies, pointwise products and CRT | `matrix/neon.rs`, `encode/matrix/neon.rs`, `ntt/neon.rs` |
 | x86-64 SSE4.1 / AVX2 | Matrix panels; AVX2 fixed 64-byte encoding; target-feature Rust NTT wrappers | `matrix/x86.rs`, `encode/matrix/x86.rs`, `ntt/x86.rs` |
-| x86-64 AVX-512 | Native NTT; VBMI fixed 64-byte encoding; IFMA radix-`2^52` schoolbook leaves | `ntt/avx512.rs`, `encode/matrix/x86.rs`, `mul_ifma/avx512.rs` |
+| x86-64 AVX-512 | Native NTT and the base-`58^3` encoder's two-prime CRT; VBMI fixed 64-byte encoding; IFMA radix-`2^52` schoolbook leaves | `ntt/avx512.rs`, `encode/matrix/x86.rs`, `mul_ifma/avx512.rs` |
 | Wasm and other targets | Portable kernels; LLVM may vectorize them when the target permits it | Shared portable modules |
 
 On x86, runtime checks guard the required ISA combinations. With `std`, detection
@@ -230,7 +233,7 @@ accepts logs 1–4; filling those would raise its NTT bound to 9,437,136 bytes.
 Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
 24.75 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
-radix route uses two prime tables instead of three, pools its digit and
+and x86 radix route uses two prime tables instead of three, pools its digit and
 prepared-spectrum scratch, and retains nothing under either cache policy. Measured
 4 MiB peaks are in the [performance guide](docs/performance.md#cache-and-memory).
 
