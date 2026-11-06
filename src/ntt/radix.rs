@@ -33,14 +33,15 @@ const _: () =
         target_arch = "aarch64",
         target_endian = "little",
         target_feature = "neon"
-    )
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2")
 ))]
 pub(super) fn try_encode(
     zeros: usize,
     input: &[u8],
     output: &mut [u8],
 ) -> Option<Result<usize, BufferTooSmall>> {
-    if !preferred(input.len()) {
+    if !(supported() && preferred(input.len())) {
         return None;
     }
     encode_with(zeros, input, output, Kernels::best())
@@ -49,20 +50,43 @@ pub(super) fn try_encode(
 #[cfg(all(
     feature = "check",
     feature = "alloc",
-    target_arch = "aarch64",
-    target_endian = "little",
-    target_feature = "neon"
+    any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "x86_64", target_feature = "sse2")
+    )
 ))]
 pub(super) fn try_encode_staged(
     zeros: usize,
     end: usize,
     output: &mut [u8],
 ) -> Option<Result<usize, BufferTooSmall>> {
-    if !preferred(end - zeros) {
+    if !(supported() && preferred(end - zeros)) {
         return None;
     }
     let digits = encode_value(zeros, &output[zeros..end], output.len(), Kernels::best())?;
     Some(digits.and_then(|digits| write(zeros, &digits, output)))
+}
+
+/// Whether this CPU runs the route. x86 needs the AVX-512 transforms; AVX2-only hosts
+/// keep the division tree because no such host has been measured.
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2")
+))]
+fn supported() -> bool {
+    core::cfg_select! {
+        all(target_arch = "x86_64", target_feature = "sse2") => crate::cpu::avx512f(),
+        _ => true,
+    }
 }
 
 #[cfg(any(
@@ -71,7 +95,8 @@ pub(super) fn try_encode_staged(
         target_arch = "aarch64",
         target_endian = "little",
         target_feature = "neon"
-    )
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2")
 ))]
 fn preferred(bytes: usize) -> bool {
     let Some((_, _, points)) = layout(bytes) else {
@@ -331,28 +356,44 @@ impl Arithmetic<'_, '_> {
     }
 }
 
+/// `r1` to `[0, q1)` and `r2` to `(r2 - r1) / q1 mod q2` in `[0, q2)`, from residues in
+/// `(-q, q)`. The lengths are equal and a multiple of 4.
 fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
-    #[cfg(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    ))]
-    super::neon::garner_two(r1, r2);
-    #[cfg(not(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    )))]
-    {
-        use super::crt::GARNER;
-        let [p1, p2, _] = PRIMES;
-        for (r1, r2) in r1.iter_mut().zip(r2) {
-            *r1 += (*r1 >> 31) & p1.q;
-            // The difference is in (-q1-q2, q2), hence within i32. c12 is
-            // balanced, so mont returns a value of magnitude below 0.75*q2.
-            let v2 = p2.mont(*r2 - *r1, GARNER.c12, GARNER.c12q);
-            *r2 = v2 + ((v2 >> 31) & p2.q);
+    core::cfg_select! {
+        all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
+            super::neon::garner_two(r1, r2)
         }
+        all(target_arch = "x86_64", target_feature = "sse2") => {
+            if crate::cpu::avx512f() {
+                // SAFETY: the CPU has AVX-512F.
+                unsafe { super::avx512::garner_two(r1, r2) }
+            } else {
+                garner_two_portable(r1, r2)
+            }
+        }
+        _ => garner_two_portable(r1, r2),
+    }
+}
+
+/// [`garner_two`] for any length.
+#[cfg(any(
+    test,
+    not(all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
+pub(super) fn garner_two_portable(r1: &mut [i32], r2: &mut [i32]) {
+    use super::crt::GARNER;
+    let [p1, p2, _] = PRIMES;
+    assert_eq!(r1.len(), r2.len());
+    for (r1, r2) in r1.iter_mut().zip(r2) {
+        *r1 += (*r1 >> 31) & p1.q;
+        // The difference is in (-q1-q2, q2), hence within i32. c12 is
+        // balanced, so mont returns a value of magnitude below 0.75*q2.
+        let v2 = p2.mont(*r2 - *r1, GARNER.c12, GARNER.c12q);
+        *r2 = v2 + ((v2 >> 31) & p2.q);
     }
 }
 
@@ -576,7 +617,7 @@ mod tests {
         for bytes in [4097, 8192, 262_143, 1_048_575, 1_048_576] {
             assert_eq!(
                 try_encode(0, &vec![255; bytes], &mut []),
-                Some(Err(BufferTooSmall))
+                supported().then_some(Err(BufferTooSmall))
             );
         }
     }
