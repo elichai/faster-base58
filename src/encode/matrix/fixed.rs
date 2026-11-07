@@ -118,6 +118,9 @@ core::cfg_select! {
     all(target_arch = "aarch64", target_endian = "little", target_feature = "neon") => {
         pub(crate) use super::neon::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
     }
+    all(target_arch = "wasm32", target_feature = "simd128") => {
+        pub(crate) use super::wasm::{encode_fixed_32 as encode_32, encode_fixed_64 as encode_64};
+    }
     _ => {
         pub(crate) use self::portable::{encode_32_portable as encode_32, encode_64_portable as encode_64};
     }
@@ -201,6 +204,7 @@ fn column(t: u64, q: u32) -> u32 {
         target_endian = "little",
         target_feature = "neon"
     ),
+    all(target_arch = "wasm32", target_feature = "simd128"),
     test
 ))]
 #[inline(always)]
@@ -232,6 +236,7 @@ pub(super) fn carry_serial<const C: usize>(t: &[u64; C], r: usize) -> [u32; C] {
         target_endian = "little",
         target_feature = "neon"
     ),
+    all(target_arch = "wasm32", target_feature = "simd128"),
     test
 ))]
 #[inline(always)]

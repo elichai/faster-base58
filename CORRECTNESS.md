@@ -114,6 +114,20 @@ cargo test --locked --no-default-features --features check --test no_alloc --tes
 cargo test --locked --doc --features check
 ```
 
+Wasm SIMD128 kernels build only with `+simd128` and have unit tests against the
+portable kernels: exact NTT kernels and lane arithmetic, Matrix parsing (every byte
+value at every block position) and panels, 64-byte column sums and whole encodes
+(including split-carry fallbacks), and character packing of every column value.
+They run under a WASI engine together with the rest of the library unit tests. CI
+builds Wasm but does not run these tests; they were run locally with wasmtime
+50.0.1, default and `__internals,cache` features. WASI preview 1 cannot spawn threads or
+processes, so those tests are skipped, and `should_panic` tests are ignored there
+because Wasm panics abort.
+
+```sh
+CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime RUSTFLAGS="-C target-feature=+simd128" cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib -- --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
+```
+
 ## Fuzzing and sanitizers
 
 The [two general differential targets](fuzz/README.md) compare all backend

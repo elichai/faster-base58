@@ -73,7 +73,8 @@ python3 -B scripts/public_bench.py --platform m5 --output target/measurements/m5
 
 On Linux add `--strip-tool strip` to `code_size.py` (it expects `llvm-strip`) and
 `--cpu 0` to `public_bench.py` to pin workers. For Wasm, build with `--target
-wasm32-unknown-unknown` and time with `public_bench.py --wasm`; it runs Node with
+wasm32-unknown-unknown` (add `--wasm-simd128` for the SIMD cohort) and time with
+`public_bench.py --wasm`; it runs Node with
 `--no-liftoff --no-wasm-lazy-compilation --no-wasm-async-compilation` and refuses
 allocation-counting modules. Render the README figures and tables from the CSVs and
 each cohort's `sizes.csv`:
@@ -118,6 +119,33 @@ library at another address can move a 1 KiB encode by 12%. On the M5, default
 
 Background load on a laptop can make one process of a cell slow (a bimodal spread);
 rerun with more processes rather than dropping observations.
+
+## Wasm SIMD128
+
+The published Wasm cohort is scalar. Builds with `-C target-feature=+simd128` are a
+separate cohort that needs a SIMD-capable engine. Measured **2026-11-07** on the M5
+Pro (AC power), Node 26.13.0 / V8 14.6.202.34, Rust 1.99.1: `code_size.py
+--wasm-simd128` Auto probes (generic CPU, fat LTO, default and `cache` builds),
+`public_bench.py --wasm`, five processes, three batches, V8 elapsed time. Ratios are
+medians [range] of per-process ratios against the same build without the Wasm
+kernels (portable kernels, autovectorized):
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 64 B | 0.56 [0.55, 0.57] | 0.96 [0.86, 1.04] | 0.58 [0.57, 0.59] | 0.99 [0.91, 1.06] |
+| 128 B | 1.00 [0.99, 1.02] | 1.00 [0.92, 1.02] | 0.50 [0.50, 0.51] | 1.00 [0.93, 1.08] |
+| 1 KiB | 0.99 [0.98, 1.01] | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
+| 4 KiB | 0.99 [0.97, 1.01] | 1.00 [0.96, 1.02] | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
+| 8 KiB | 0.59 [0.58, 0.59] | 0.63 [0.61, 0.64] | 0.27 [0.27, 0.27] | 0.62 [0.62, 0.65] |
+| 64 KiB | 0.50 [0.50, 0.50] | 0.53 [0.52, 0.54] | 0.50 [0.49, 0.50] | 0.52 [0.51, 0.54] |
+| 4 MiB | 0.46 [0.46, 0.46] | 0.47 [0.46, 0.47] | 0.46 [0.45, 0.46] | 0.46 [0.46, 0.47] |
+
+4 MiB Auto takes 627 ms to encode and 313 ms to decode (default; cache 631 / 312 ms).
+Cells that reach no Wasm kernel (batched sizes, fixed 32 bytes) stay within
+0.95–1.05. The stripped Auto probe grows by 414 bytes (default) and 1,447 bytes
+(cache). In the same run, `+simd128` without the explicit kernels took 0.80–0.88 of
+scalar time from 8 KiB (NTT), but 1.24–1.30 times for cached Matrix sizes of
+512 B–8 KiB.
 
 ## basexx comparison
 

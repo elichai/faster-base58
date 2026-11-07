@@ -211,7 +211,9 @@ selection, CPU 0 pinned, three processes.
 
 ### WebAssembly on Apple M5 Pro (Node/V8)
 
-Scalar Wasm, Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34; three processes.
+Scalar Wasm, Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34; three processes. Builds
+with `+simd128` use Wasm SIMD kernels and are a separate cohort; see the
+[performance guide](docs/performance.md#wasm-simd128).
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|

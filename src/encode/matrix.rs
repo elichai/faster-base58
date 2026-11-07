@@ -30,6 +30,8 @@ pub(crate) mod fixed;
 mod neon;
 #[cfg(any(feature = "alloc", test, kani))]
 mod table;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod wasm;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
@@ -361,6 +363,9 @@ fn write(
 
 /// The characters of `cols`, each below 58^4, top column first:
 /// `out[i] = four_digits(cols[cols.len() - 1 - i])`. Requires `out.len() == cols.len()`.
+///
+/// Wasm SIMD128 digits (as for fixed 64 bytes) took 0.97-1.03x this time in cached
+/// 22 B-8 KiB encodes (M5, V8, 2026-11-07), so Wasm keeps this.
 #[cfg(any(
     test,
     feature = "__internals",
