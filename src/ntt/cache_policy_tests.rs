@@ -65,6 +65,73 @@ fn feature_policy_and_owned_override_select_table_source() {
     }
 }
 
+/// The same policy for the two-prime backend (emulated kernels): its own store, never
+/// the three-prime tables, and owned tables above the cacheable logs even when cached.
+#[test]
+fn two_prime_policy_selects_its_own_tables() {
+    let k = super::ifma::tests::emu();
+    let two = |ntt: Ntt| Ntt {
+        k52: Some(k),
+        ..ntt
+    };
+    let oversize = if cfg!(miri) { &[][..] } else { &[19u32][..] };
+    for (name, mut ntt, owned) in [
+        (
+            "feature",
+            two(Ntt::new(Kernels::portable())),
+            !cfg!(feature = "cache"),
+        ),
+        (
+            "cached control",
+            two(Ntt::with_cache(true, Kernels::portable())),
+            !cfg!(feature = "cache"),
+        ),
+        (
+            "owned control",
+            two(Ntt::with_cache(false, Kernels::portable())),
+            true,
+        ),
+    ] {
+        for &log in POLICY_LOGS.iter().chain(oversize) {
+            ntt.prepare(1usize << (log - 1));
+            assert!(
+                ntt.owned52.is_none(),
+                "{name}: prepare must discard owned tables"
+            );
+            ntt.ensure_tables();
+            assert!(ntt.owned.is_none(), "{name}: no three-prime tables");
+            #[cfg(feature = "cache")]
+            assert!(ntt.shared.is_none(), "{name}: no three-prime tables");
+            let owned = owned || log > CACHE_MAX_LOG_ANY;
+            let Ok(two) = ntt.backend() else {
+                panic!("{name}: the two-prime backend")
+            };
+            assert_eq!(ntt.owned52.is_some(), owned, "{name}, log {log}");
+            if let Some(local) = ntt.owned52.as_ref() {
+                assert!(
+                    core::ptr::eq(two.t, local),
+                    "{name}: this multiplier's table"
+                );
+                assert_eq!(two.t.log, log);
+            }
+            #[cfg(feature = "cache")]
+            {
+                assert_eq!(ntt.shared52.is_some(), !owned, "{name}, log {log}");
+                if let Some(shared) = ntt.shared52 {
+                    assert!(core::ptr::eq(two.t, shared), "{name}: the cached table");
+                    assert!(two.t.log >= log);
+                }
+            }
+        }
+    }
+}
+
+/// The largest cacheable log; without `cache` every table is owned.
+#[cfg(feature = "cache")]
+const CACHE_MAX_LOG_ANY: u32 = CACHE_MAX_LOG;
+#[cfg(not(feature = "cache"))]
+const CACHE_MAX_LOG_ANY: u32 = 0;
+
 #[test]
 fn unprepared_power_fallback_keeps_tables_lazy() {
     let (a, b) = ([u64::MAX, 1], [17, 23]);

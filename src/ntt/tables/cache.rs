@@ -29,22 +29,26 @@ impl Tables {
 }
 
 /// Static header bytes and (log, initialized, payload bytes, owned payload bytes),
-/// without initializing a table. Boxed storage has no spare capacity.
+/// without initializing a table, for the three-prime and the two-prime (IFMA) stores
+/// together. Boxed storage has no spare capacity.
 #[cfg(feature = "__internals")]
 #[must_use]
 pub fn cache_memory() -> (
     usize,
     [(u32, bool, usize, usize); super::MAX_LOG as usize + 1],
 ) {
-    let rows = core::array::from_fn(|log| match CACHE.get(log).and_then(OnceLock::get) {
-        Some(t) => {
-            let bytes =
-                t.tw.iter()
-                    .map(|tw| tw.roots.len() * size_of::<i32>())
-                    .sum();
-            (log as u32, true, bytes, bytes)
-        }
-        None => (log as u32, false, 0, 0),
+    let rows = core::array::from_fn(|log| {
+        let three = CACHE.get(log).and_then(OnceLock::get).map(|t| {
+            t.tw.iter()
+                .map(|tw| tw.roots.len() * size_of::<i32>())
+                .sum::<usize>()
+        });
+        let two = crate::ntt::ifma::cache::memory(log).1;
+        let bytes = three.unwrap_or(0) + two.unwrap_or(0);
+        (log as u32, three.is_some() || two.is_some(), bytes, bytes)
     });
-    (size_of_val(&CACHE), rows)
+    (
+        size_of_val(&CACHE) + crate::ntt::ifma::cache::memory(0).0,
+        rows,
+    )
 }
