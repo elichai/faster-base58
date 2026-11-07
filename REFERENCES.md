@@ -28,6 +28,15 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
   [MIT license](https://github.com/kevinheavey/five8/blob/311279fb81461df36e730458a0463a6a322042d7/LICENSE).
   This release's encoder and AVX helpers were consulted before the local encoder
   and fixed paths were written.
+- **SIMD character parsing:** the x86 AVX2 Matrix parser classifies bytes with two
+  nibble-indexed `pshufb` tables, after Wojciech Muła and Daniel Lemire,
+  "Base64 encoding and decoding at almost the speed of a memory copy",
+  _Software: Practice and Experience_ 50(2), 2020
+  ([arXiv:1910.05109](https://arxiv.org/abs/1910.05109)). It combines digits with
+  `pmaddubsw` and `pmaddwd`, as in Geoff Langdale and Daniel Lemire, "Parsing
+  gigabytes of JSON per second", _The VLDB Journal_ 28, 2019, and Wojciech Muła's
+  notes on SIMD integer parsing. The tables and weights are local; no code was
+  copied.
 - **Bitcoin Core (MIT):** reviewed after implementation at revision `2b5b6fe2…`:
   [conversion source](https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/base58.cpp),
   [known-answer vectors](https://github.com/bitcoin/bitcoin/blob/2b5b6fe231ff45a09d9e24411e4420d51ed45cab/src/test/data/base58_encode_decode.json),

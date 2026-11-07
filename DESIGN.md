@@ -84,7 +84,14 @@ into the next.
 [Matrix encoding](src/encode/matrix.rs) maps 32-bit words to base `58^4`;
 [decoding](src/matrix/mod.rs) maps four-character groups to base `2^32`.
 Eight-row, four-column panels share SIMD multiply-add kernels. Scheduled carry
-passes and compile-time bounds keep accumulations within `u64`.
+passes and compile-time bounds keep accumulations within `u64`. NEON, Wasm SIMD128
+and x86 AVX2 also parse in SIMD: they map and validate 16 or 32 characters, then
+form `58 a + b` pairs and `58^2 p + q` groups with multiply-adds. The
+largest pair, 3363, fits a signed 16-bit lane. AVX2 maps each byte through two
+nibble-indexed class tables and one offset table, without a range compare per
+alphabet segment. Validation only sets a flag; the scalar scan still reports the
+first invalid byte. Batched decoding and Horner leaves keep their scalar
+ten-character chunk parse on every target.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
 local sums. Their table type keeps rows first and 16-byte aligned for NEON
@@ -144,7 +151,7 @@ shared `OnceLock` stores. `__internals` does not enable them.
 | Target | Selected operations | Source layout |
 | --- | --- | --- |
 | Little-endian AArch64 + NEON | Matrix parsing/panels and character packing; fixed encoders; NTT butterflies, pointwise products and CRT | `matrix/neon.rs`, `encode/matrix/neon.rs`, `ntt/neon.rs` |
-| x86-64 SSE4.1 / AVX2 | Matrix panels; AVX2 fixed 64-byte encoding; target-feature Rust NTT wrappers | `matrix/x86.rs`, `encode/matrix/x86.rs`, `ntt/x86.rs` |
+| x86-64 SSE4.1 / AVX2 | Matrix panels; AVX2 Matrix parsing; AVX2 fixed 64-byte encoding; target-feature Rust NTT wrappers | `matrix/x86.rs`, `encode/matrix/x86.rs`, `ntt/x86.rs` |
 | x86-64 AVX-512 | Native NTT and the base-`58^3` encoder's two-prime CRT; VBMI fixed 64-byte encoding; IFMA radix-`2^52` schoolbook leaves | `ntt/avx512.rs`, `encode/matrix/x86.rs`, `mul_ifma/avx512.rs` |
 | Wasm with `simd128` | Matrix parsing/panels; fixed 64-byte column sums and characters; NTT butterflies, pointwise products and CRT | `matrix/wasm.rs`, `encode/matrix/wasm.rs`, `ntt/wasm.rs` |
 | Scalar Wasm and other targets | Portable kernels; LLVM may vectorize them when the target permits it | Shared portable modules |
