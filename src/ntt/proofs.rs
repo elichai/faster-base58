@@ -5,8 +5,43 @@ use super::{
     tables::{MAX_LOG, PRIMES},
 };
 
+/// `x ± mont(y, w)` for any twiddle `|w| <= q / 2`, after reducing `x` when `rx`.
+fn butterfly(index: usize, x: i32, y: i32, rx: bool) -> [i64; 2] {
+    let p = PRIMES[index];
+    let w: i32 = kani::any();
+    kani::assume(-(p.q / 2) <= w && w <= p.q / 2);
+    let x = if rx { p.reduce(x) } else { x } as i64;
+    let t = p.mont(y, w, p.wq(w)) as i64;
+    [x + t, x - t]
+}
+
 macro_rules! prime_proofs {
-    ($reduce:ident, $normalize:ident, $load:ident, $scale:ident, $index:expr) => {
+    ($reduce:ident, $normalize:ident, $load:ident, $scale:ident, $rx:ident, $lazy:ident, $index:expr) => {
+        /// A stage of `inverse` that reduces `x` (`portable::reduces_x`) takes values
+        /// below `2 q` and stores values below `1.25 q`.
+        #[kani::proof]
+        fn $rx() {
+            let q = PRIMES[$index].q;
+            let (x, y): (i32, i32) = (kani::any(), kani::any());
+            kani::assume(-2 * q < x && x < 2 * q && -2 * q < y && y < 2 * q);
+            let bound = q as i64 + q as i64 / 4;
+            let [s, d] = butterfly($index, x, y, true);
+            assert!(-bound < s && s < bound && -bound < d && d < bound);
+        }
+
+        /// A stage of `inverse` that does not reduce takes values below `1.25 q` and
+        /// stores values below `1.9 q`, which is below `2 q` and `2^31`.
+        #[kani::proof]
+        fn $lazy() {
+            let q = PRIMES[$index].q;
+            let bound = q + q / 4;
+            let (x, y): (i32, i32) = (kani::any(), kani::any());
+            kani::assume(-bound < x && x < bound && -bound < y && y < bound);
+            let out = 19 * q as i64 / 10;
+            let [s, d] = butterfly($index, x, y, false);
+            assert!(-out < s && s < out && -out < d && d < out);
+        }
+
         #[kani::proof]
         fn $reduce() {
             let p = PRIMES[$index];
@@ -59,9 +94,33 @@ macro_rules! prime_proofs {
     };
 }
 
-prime_proofs!(reduce_q1, normalize_q1, load_q1, scale_q1, 0);
-prime_proofs!(reduce_q2, normalize_q2, load_q2, scale_q2, 1);
-prime_proofs!(reduce_q3, normalize_q3, load_q3, scale_q3, 2);
+prime_proofs!(
+    reduce_q1,
+    normalize_q1,
+    load_q1,
+    scale_q1,
+    inverse_reduce_x_q1,
+    inverse_lazy_q1,
+    0
+);
+prime_proofs!(
+    reduce_q2,
+    normalize_q2,
+    load_q2,
+    scale_q2,
+    inverse_reduce_x_q2,
+    inverse_lazy_q2,
+    1
+);
+prime_proofs!(
+    reduce_q3,
+    normalize_q3,
+    load_q3,
+    scale_q3,
+    inverse_reduce_x_q3,
+    inverse_lazy_q3,
+    2
+);
 
 /// Every product shape served by MAX_LOG=23 has enough coefficients and valid pieces.
 #[kani::proof]

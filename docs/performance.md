@@ -59,7 +59,10 @@ Default Auto encoding around the fixed 32/64-byte routes:
 | 128 B | 154 ns | 321 ns | 527 ns |
 
 Not measured: cold calls, owned-output helpers, checked conversion, native CPU
-flags and other compilers.
+flags and other compilers. Cells that reach the NTT (from about 8 KiB, the 4 MiB
+ranges above, the README figures and the NTT rows of the
+[Wasm SIMD128](#wasm-simd128) table) predate the current inverse-transform
+reduction schedule and Garner step; remeasure them before quoting them.
 
 ## Measure and update
 
@@ -276,7 +279,9 @@ Unmeasured candidates, largest expected effect first:
   11% of the 4 MiB peak).
 - NTT: clip the scratch envelope at the prepared length (−3.5 MiB at a 4 MiB
   decode) and reserve the cyclic sums only when used (−2 MiB); quantize cached
-  twiddle classes (−49% worst-case retention, larger first builds).
+  twiddle classes (−49% worst-case retention, larger first builds); a forward
+  transform with Cooley–Tukey butterflies and one twiddle per block, which could
+  use the inverse's reduction schedule (bit-reversed twiddles for the small stages).
 - Division encoder: 5 allocations per call down to 1–2; reuse the dead quotient
   buffer during the remainder product (−10–14% node scratch); non-power-of-two
   wrapped remainders; a scaled remainder tree; Karp–Markstein at the top node.
