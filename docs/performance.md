@@ -314,4 +314,5 @@ Unmeasured candidates, largest expected effect first:
   wrapped remainders; a scaled remainder tree; Karp–Markstein at the top node.
 - Matrix: build table panels as a wavefront (faster first cached calls); vector
   digit conversion in the general x86 encoder; retune the 8192-byte cached encode
-  cap on AVX2-only x86.
+  cap on AVX2-only x86; retune the 1024-digit cached x86 decode start for
+  AVX2 Matrix parsing.
