@@ -8,54 +8,82 @@ avoids internal allocation, and its general large conversions remain quadratic.
 
 ## Results
 
-Measured **2026-11-05** on this revision with ordinary public consumers:
+Measured **2026-11-07** on this revision with ordinary public consumers:
 `code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
 `Decoder::bitcoin().decode(..).onto(..)`, with no `__internals`. Release opt-level
 3, fat LTO, 16 codegen units, generic target flags (`RUSTFLAGS=""`). Default and
 `cache` are separate builds; no-allocation uses `default-features = false`; bs58
 0.5.1 and five8 1.0.0 use their defaults.
 
-| Platform | Compiler / runtime | Clock, processes |
+| Platform | Compiler / runtime | Clock, sampling |
 | --- | --- | --- |
-| Apple M5 Pro, macOS 26.7.2, AC power | Rust 1.99.1 / LLVM 23.1.1 | process CPU, 5 |
-| GCP AMD EPYC 9B45 (Zen 5, 4 vCPU), Linux, CPU 0 pinned | Rust 1.99.0 / LLVM 23.1.1 | process CPU, 3 |
-| Scalar Wasm on the M5 | Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34 | V8 elapsed, 3 |
+| Apple M5 Pro, macOS 26.7.2, AC power | Rust 1.99.1 / LLVM 23.1.1 | process CPU; 5 processes, one file per library |
+| GCP AMD EPYC 9B45 (Zen 5, 4 vCPU), Linux, CPU 0 pinned | Rust 1.99.0 / LLVM 23.1.1 | process CPU; 3 processes, 4 fresh copies of each library file |
+| Scalar Wasm on the M5 | Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34 | V8 elapsed; 3 processes |
 
 Each fresh process times every library, interleaved, in three batches of at least
 10 ms after calibration. A cell is the median of the process medians; figure bars
-span the process medians. Fixtures are random bytes without leading zeros. Outputs
-and round trips are checked outside timing, decode input is prevalidated UTF-8,
-and caller buffers are reused (decode output is exact). Workspace allocation is
-inside the timing. No-allocation and bs58 stop at 64 KiB; five8 covers 32/64 B.
+span the process medians. On Zen 5 every process times the four copies of each
+library as separate libraries; a cell is the median over copies of each copy's
+process median, and figure bars span the process medians of all copies ([Timing
+limits](#timing-limits) explains why). Zen 5 timing was two runs back to back, each
+with its own copies: up to 64 KiB with all libraries, then 128 KiB–4 MiB with Auto
+only. Fixtures are random bytes without leading zeros. Outputs and round trips are
+checked outside timing, decode input is prevalidated UTF-8, and caller buffers are
+reused (decode output is exact). Workspace allocation is inside the timing.
+No-allocation and bs58 stop at 64 KiB; five8 covers 32/64 B. The M5 runs had a
+security agent using about one core in the background.
 
-Ranges for 4 MiB Auto (median [min, max] of process medians):
+Zen 5 cells whose four copies differ by more than 5% (median [fastest, slowest copy
+median]). All are default Auto, and in each the median lies within 1.9% of the
+fastest copy, so one slow copy makes the spread. Which copy was slow was not
+recorded. Every other Zen 5 cell's copies agree within 4.6%:
+
+| Payload | Encode | Decode |
+| --- | ---: | ---: |
+| 1 KiB | 7.72 µs [7.58, 7.97] | — |
+| 2 KiB | 18.8 µs [18.5, 19.7] | — |
+| 4 KiB | 49.8 µs [49.6, 56.0] | 22.6 µs [22.4, 29.6] |
+| 8 KiB | 146 µs [144, 156] | 56.9 µs [56.4, 77.2] |
+| 16 KiB | 437 µs [433, 466] | 156 µs [155, 206] |
+| 32 KiB | 1.29 ms [1.27, 1.35] | 449 µs [447, 572] |
+| 64 KiB | — | 1.20 ms [1.20, 1.47] |
+| 128 KiB | 7.21 ms [7.20, 9.08] | — |
+| 256 KiB | 15.3 ms [15.2, 18.8] | — |
+| 512 KiB | 32.5 ms [32.5, 39.2] | — |
+| 1 MiB | 71.3 ms [71.1, 84.2] | — |
+| 2 MiB | 155 ms [154, 180] | — |
+| 4 MiB | 333 ms [333, 383] | — |
+
+Ranges for 4 MiB Auto (median [min, max] of process medians; on Zen 5 over all
+copies):
 
 | Platform / policy | Encode | Decode |
 | --- | ---: | ---: |
-| M5 / default | 219.7 ms [216.8, 226.3] | 141.8 ms [140.5, 142.5] |
-| M5 / cache | 221.5 ms [220.1, 223.4] | 135.9 ms [135.2, 138.4] |
-| x86-64 / default | 336.4 ms [335.0, 340.2] | 153.8 ms [153.0, 154.6] |
-| x86-64 / cache | 312.7 ms [310.2, 317.1] | 148.3 ms [147.5, 150.7] |
-| Wasm / default | 1.74 s [1.73, 1.82] | 856.0 ms [851.3, 860.3] |
-| Wasm / cache | 1.73 s [1.73, 1.79] | 849.5 ms [844.3, 856.5] |
+| M5 / default | 219.9 ms [218.5, 222.7] | 136.6 ms [135.6, 138.7] |
+| M5 / cache | 218.5 ms [217.3, 218.9] | 134.7 ms [133.8, 136.1] |
+| x86-64 / default | 333.1 ms [332.0, 384.0] | 144.1 ms [143.4, 144.7] |
+| x86-64 / cache | 309.8 ms [309.1, 311.1] | 143.7 ms [143.3, 144.7] |
+| Wasm / default | 1.720 s [1.711, 1.729] | 842.3 ms [841.5, 845.2] |
+| Wasm / cache | 1.720 s [1.715, 1.723] | 838.2 ms [837.9, 847.3] |
 
 Default Auto encoding around the fixed 32/64-byte routes:
 
 | Payload | M5 | x86-64 | Wasm |
 | --- | ---: | ---: | ---: |
-| 16 B | 14.3 ns | 25.8 ns | 22 ns |
-| 21 B | 15.1 ns | 27.8 ns | 27 ns |
-| 22 B | 17.1 ns | 31.8 ns | 31.4 ns |
-| 31 B | 24.9 ns | 43.4 ns | 50.2 ns |
+| 16 B | 13.8 ns | 25.9 ns | 22.1 ns |
+| 21 B | 14.9 ns | 27.9 ns | 27.2 ns |
+| 22 B | 16.9 ns | 31.1 ns | 30.7 ns |
+| 31 B | 24.9 ns | 43.4 ns | 49.3 ns |
 | 32 B | 11.9 ns | 30 ns | 25.6 ns |
-| 33 B | 24.9 ns | 43.2 ns | 49.5 ns |
-| 63 B | 57.7 ns | 108 ns | 146 ns |
-| 64 B | 23.8 ns | 31.3 ns | 102 ns |
-| 65 B | 59.5 ns | 108 ns | 161 ns |
-| 128 B | 154 ns | 321 ns | 527 ns |
+| 33 B | 24.7 ns | 43.3 ns | 49.8 ns |
+| 63 B | 57.2 ns | 103 ns | 143 ns |
+| 64 B | 23.9 ns | 31.4 ns | 108 ns |
+| 65 B | 58.8 ns | 108 ns | 158 ns |
+| 128 B | 152 ns | 323 ns | 523 ns |
 
 Not measured: cold calls, owned-output helpers, checked conversion, native CPU
-flags and other compilers.
+flags, other compilers and `.text` layout shifts ([Timing limits](#timing-limits)).
 
 ## Measure and update
 
@@ -72,7 +100,14 @@ python3 -B scripts/public_bench.py --platform m5 --output target/measurements/m5
 ```
 
 On Linux add `--strip-tool strip` to `code_size.py` (it expects `llvm-strip`) and
-`--cpu 0` to `public_bench.py` to pin workers. For Wasm, build with `--target
+`--cpu 0` to `public_bench.py` to pin workers. On Zen 5 also add `--copies 4`:
+`public_bench.py` then copies each library file four times into its temporary
+directory and times the copies, interleaved like separate libraries, instead of the
+file itself. A copy's value is its median over processes; a cell is the median over
+copies, the CSV adds `copy_min_ns` and `copy_max_ns`, and the run prints each cell
+whose copies differ by more than 5%. Before a host times one file per library,
+check with `--copies 3` that copies of the Auto probes agree ([Timing
+limits](#timing-limits)). For Wasm, build with `--target
 wasm32-unknown-unknown` and time with `public_bench.py --wasm`; it runs Node with
 `--no-liftoff --no-wasm-lazy-compilation --no-wasm-async-compilation` and refuses
 allocation-counting modules. Render the README figures and tables from the CSVs and
@@ -89,7 +124,8 @@ only; it does not reproduce numbers.
 Paired comparisons: build both variants' Auto probes, then pass both to
 `public_bench.py` with `--baseline LABEL` (more `--processes` and `--batches` help
 for small effects). It prints each cell's median and range of per-process
-ratios against the baseline with the same cache policy. To see what a change
+ratios against the baseline with the same cache policy; with `--copies`, each
+process's time for a library is its median over copies. To see what a change
 inlined or moved out of line, compare the two unstripped probes:
 `python3 -B scripts/check_simd_inlining.py --compare OLD NEW` (sizes run to the
 next symbol, so they include alignment padding).
@@ -108,21 +144,31 @@ or withdraw them.
 ## Timing limits
 
 Code placement can move a cell more than many source changes do. On Zen 5 (GCP EPYC
-9B45, 2026-11-07, Auto probes):
+9B45, Auto probes):
 
-- a loop whose closing branch straddles a 64-byte line ran 1.2–1.3× slower, so a
-  16-byte shift of unrelated code moved such cells by that much;
-- the placement of a library file's pages matters as well: in one run the original
-  probe file took 1.87× as long as each of three byte-identical copies on a 32 KiB
-  decode, and 1.2× on an 8 KiB encode, so the same binary can change speed between
-  files and VM sessions;
+- byte-identical copies of one library file can run at different speeds: one file
+  took 1.87× as long as each of three copies on a 32 KiB decode, and 1.2× on an
+  8 KiB encode. Which file is slow changes between files and VM sessions (page
+  placement; the cause is not known). The Zen 5 results are therefore medians over
+  four fresh copies of each file; the file that `code_size.py` wrote is not timed.
+  In them, one copy of default Auto took up to 1.37× as long as the fastest
+  ([Results](#results));
+- a loop whose closing branch straddles a 64-byte line ran 1.2–1.3× slower. The
+  paired multiply-add loops take four limbs per iteration for this reason; across
+  16-byte shifts of all code (0–112 bytes in front of `.text`), their decode cells
+  still moved by up to 5% (4–8 KiB). The published builds have one layout: layout
+  shifts were not sampled, because `code_size.py` has no option to pad `.text`, so
+  that residual remains in the Zen 5 cells;
 - loading the same library at another address can move a 1 KiB encode by 12%.
 
-On the M5, LLVM function and loop alignment options moved cells by up to 7%.
+On the M5, three fresh copies of each Auto probe agreed within 1.5% from 512 B to
+64 KiB (2026-11-07, five processes), so the M5 results time one file per library.
+LLVM function and loop alignment options moved M5 cells by up to 7%. Wasm modules
+run code that V8 compiles at load time, so file copies do not apply to them.
 Therefore:
 
 - compare variants only within one paired run (`--baseline`); on Zen 5 also pass
-  several fresh copies of each library file (one label each) and compare medians;
+  `--copies` and compare medians over copies;
 - judge a change by the cells its code reaches, and treat movement in untouched
   cells as the noise floor;
 - for effects below about 5%, add an aligned build
@@ -135,16 +181,17 @@ rerun with more processes rather than dropping observations.
 ## basexx comparison
 
 `basexx` 0.2.0 is a benchmark comparator: its `Base58` is much faster than bs58.
-Criterion medians (wall time) on the M5, 2026-11-05, generic flags, fat LTO,
-`__internals`, cache off. basexx returns an owned result that the adapter copies
-and drops inside the loop; bs58 and Auto reuse caller output.
+Criterion medians (wall time, one run, default Criterion settings) on the M5,
+2026-11-07, generic flags, fat LTO, `__internals`, cache off. basexx returns an
+owned result that the adapter copies and drops inside the loop; bs58 and Auto reuse
+caller output.
 
 | Operation / payload | Auto | bs58 0.5.1 | basexx Base58 | basexx Base58B |
 | --- | ---: | ---: | ---: | ---: |
-| Encode / 1 KiB | 7.3 µs | 1.02 ms | 22.8 µs | 869 µs |
-| Encode / 4 KiB | 111 µs | 16.8 ms | 182 µs | 13.5 ms |
-| Decode / 1 KiB | 2.87 µs | 341 µs | 5.8 µs | 323 µs |
-| Decode / 4 KiB | 42.2 µs | 5.48 ms | 71 µs | 5.29 ms |
+| Encode / 1 KiB | 7.12 µs | 1.00 ms | 22.4 µs | 788 µs |
+| Encode / 4 KiB | 109 µs | 15.3 ms | 185 µs | 12.7 ms |
+| Decode / 1 KiB | 1.86 µs | 317 µs | 5.22 µs | 301 µs |
+| Decode / 4 KiB | 35.3 µs | 5.13 ms | 68.0 µs | 4.87 ms |
 
 Reproduce with `cargo bench --features __internals --bench encode` (or `decode`),
 filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`.
@@ -160,8 +207,8 @@ an active-heap bound. Wasm linear-memory pages need not return to the host. Firs
 cached calls build the tables they need; whether reuse repays that depends on the
 workload.
 
-Warm peaks on the M5 (2026-11-05, counted `__internals` Auto workers, caller buffers
-and previously retained tables excluded):
+Warm peaks on the M5 (2026-11-07, counted `__internals` Auto workers, caller buffers
+and previously retained tables excluded; three repeats agree exactly):
 
 | Payload | Policy | Operation | Warm requests | Warm peak | First call retains |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -202,6 +249,9 @@ Double SHA-256 adds a fixed cost to every checked call.
 Unmeasured candidates, largest expected effect first:
 
 - M5: start the radix route below 4 KiB, where batched encoding still runs.
+- M5: default Auto decoding at 4 KiB takes 1.32× as long as the no-allocation
+  (batched) decoder in the [results](../README.md#apple-m5-pro); at 8 KiB Auto is
+  faster. Retune the divide-and-conquer decoding cutoff there.
 - Radix tree: fuse the first forward stage, whose upper half is always zero
   (about 2–3% of encode); build sparse schoolbook products column by column
   (sparse inputs need more heap); share the digit scratch with the output (about

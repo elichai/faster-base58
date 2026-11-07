@@ -7,6 +7,12 @@ LABEL is BACKEND or BACKEND+cache; no-alloc and bs58 stop at 64 KiB, five8 cover
 Each fresh worker process times every library, interleaved, in batches of at
 least --min-ms. A cell reports the median of the process medians and their range.
 Native workers use process CPU time; Wasm workers use V8 elapsed time.
+
+--copies N times N fresh copies of each native library file instead of the file
+itself, all interleaved: the same bytes can run at different speeds from different
+files (page placement). A copy's value is its median over processes; a cell reports
+the median over copies, their range (copy_min_ns, copy_max_ns), and the range of all
+process medians. Cells whose copies differ by more than 5% are printed.
 """
 import argparse
 import csv
@@ -16,6 +22,7 @@ import json
 import os
 from pathlib import Path
 import random
+import shutil
 import statistics
 import subprocess
 import sys
@@ -29,7 +36,8 @@ WASM_FLAGS = ['--no-liftoff', '--no-wasm-lazy-compilation', '--no-wasm-async-com
 
 
 def supported(label, size):
-    backend = label.split('+')[0]
+    # Copies are labelled LABEL#INDEX.
+    backend = label.partition('#')[0].split('+')[0]
     if backend == 'five8':
         return size in (32, 64)
     return size <= 65536 if backend in ('no-alloc', 'bs58') else True
@@ -52,6 +60,9 @@ def native_worker(job):
             function = getattr(library, export)
             function.argtypes, function.restype = signature, ctypes.c_size_t
             functions[label, operation] = function
+    # A loader that reused one mapping for two files would time the same placement twice.
+    assert len({ctypes.cast(f, ctypes.c_void_p).value for f in functions.values()}) == len(functions), \
+        'two labels share one loaded library'
 
     def call(label, operation, source, length, output, count):
         start = time.process_time_ns()
@@ -98,6 +109,48 @@ def time_cells(job, labels, operation, size, batch):
                  iterations=counts[label]) for label, times in samples.items()]
 
 
+def summarize(processes):
+    """Per (label, operation, size), in first-process order: (median over copies of each
+    copy's process median, sorted copy medians, sorted process medians of every copy,
+    first-process iterations). A label without copies is one copy."""
+    cells = {}
+    for process in processes:
+        for cell in process:
+            label, _, copy = cell['label'].partition('#')
+            entry = cells.setdefault((label, cell['operation'], cell['size']), ({}, cell['iterations']))
+            entry[0].setdefault(copy, []).append(cell['ns'])
+    result = []
+    for key, (copies, iterations) in cells.items():
+        medians = sorted(statistics.median(times) for times in copies.values())
+        result.append((key, statistics.median(medians), medians,
+                       sorted(ns for times in copies.values() for ns in times), iterations))
+    return result
+
+
+def per_process(processes):
+    """Each process's times keyed by (label, operation, size), copies merged by median."""
+    result = []
+    for process in processes:
+        grouped = {}
+        for cell in process:
+            grouped.setdefault((cell['label'].partition('#')[0], cell['operation'], cell['size']), []).append(cell['ns'])
+        result.append({key: statistics.median(times) for key, times in grouped.items()})
+    return result
+
+
+def self_test():
+    assert supported('bs58#3', 65536) and not supported('bs58#3', 131072)
+    assert supported('five8#0', 32) and not supported('five8#0', 33) and supported('auto+cache#2', 1 << 22)
+    cell = lambda label, ns: dict(label=label, operation='decode', size=64, ns=ns, iterations=8)
+    processes = [[cell('auto#0', 10), cell('auto#1', 20), cell('auto#2', 30), cell('bs58', 5)],
+                 [cell('auto#0', 12), cell('auto#1', 22), cell('auto#2', 31), cell('bs58', 7)],
+                 [cell('auto#0', 11), cell('auto#1', 26), cell('auto#2', 40), cell('bs58', 6)]]
+    assert summarize(processes) == [(('auto', 'decode', 64), 22, [11, 22, 31], [10, 11, 12, 20, 22, 26, 30, 31, 40], 8),
+                                    (('bs58', 'decode', 64), 6, [6], [5, 6, 7], 8)], summarize(processes)
+    assert per_process(processes)[2] == {('auto', 'decode', 64): 26, ('bs58', 'decode', 64): 6}
+    print('public_bench self-test passed')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('libraries', nargs='*', metavar='LABEL=PATH')
@@ -111,17 +164,23 @@ def main():
     parser.add_argument('--sizes', type=lambda text: [int(n) for n in text.split(',')], default=SIZES)
     parser.add_argument('--cpu', type=int, help='pin workers to this CPU (Linux)')
     parser.add_argument('--baseline', help='print each cell relative to this label')
+    parser.add_argument('--copies', type=int, default=1, help='time N fresh copies of each native library')
+    parser.add_argument('--self-test', action='store_true')
     parser.add_argument('--worker', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.self_test:
+        return self_test()
     if args.worker:
         print(json.dumps(native_worker(json.loads(args.worker))))
         return
     if not (args.libraries and args.output and args.platform):
         parser.error('LABEL=PATH, --output and --platform are required')
+    if args.copies < 1 or (args.copies > 1 and args.wasm):
+        parser.error('--copies takes a positive count and applies to native libraries')
     libraries = [spec.split('=', 1) for spec in args.libraries]
     for label, path in libraries:
         backend, _, policy = label.partition('+')
-        if not backend or policy not in ('', 'cache') or not Path(path).is_file():
+        if not backend or '#' in label or policy not in ('', 'cache') or not Path(path).is_file():
             parser.error(f'bad library: {label}={path}')
     if args.baseline and args.baseline not in dict(libraries):
         parser.error(f'unknown baseline: {args.baseline}')
@@ -139,9 +198,16 @@ def main():
     with tempfile.TemporaryDirectory(prefix='base58-public-') as fixtures:
         for size in args.sizes:
             Path(fixtures, f'{size}.bin').write_bytes(fixture(size))
+        timed = libraries
+        if args.copies > 1:
+            timed = []
+            for label, path in libraries:
+                for copy in range(args.copies):
+                    name = f'{label}#{copy}'
+                    timed.append((name, str(shutil.copyfile(path, Path(fixtures, name + Path(path).suffix)))))
         for index in range(args.processes):
             # Rotate the load order so no library always loads first.
-            order = libraries[index % len(libraries):] + libraries[:index % len(libraries)]
+            order = timed[index % len(timed):] + timed[:index % len(timed)]
             job = json.dumps(dict(libraries=order, fixtures=fixtures, sizes=args.sizes,
                                   batches=args.batches, min_ns=int(args.min_ms * 1e6)))
             command = (['node', *WASM_FLAGS, str(ROOT / 'scripts/public_bench_wasm.mjs'), job] if args.wasm
@@ -149,17 +215,17 @@ def main():
             processes.append(json.loads(subprocess.run(command, check=True, stdout=subprocess.PIPE, text=True).stdout))
             print(f'process {index + 1}/{args.processes} done', file=sys.stderr, flush=True)
     rows = []
-    for cell in processes[0]:
-        key = (cell['label'], cell['operation'], cell['size'])
-        medians = sorted(next(c['ns'] for c in process if (c['label'], c['operation'], c['size']) == key)
-                         for process in processes)
-        backend, _, policy = cell['label'].partition('+')
+    for (label, operation, size), warm, copies, medians, iterations in summarize(processes):
+        backend, _, policy = label.partition('+')
         rows.append(dict(platform=args.platform, cache=policy or 'default', backend=backend,
-                         operation=cell['operation'], decoded_bytes=cell['size'],
-                         warm_ns=f'{statistics.median(medians):.4g}', process_min_ns=f'{medians[0]:.4g}',
-                         process_max_ns=f'{medians[-1]:.4g}', iterations=cell['iterations'],
+                         operation=operation, decoded_bytes=size,
+                         warm_ns=f'{warm:.4g}', process_min_ns=f'{medians[0]:.4g}',
+                         process_max_ns=f'{medians[-1]:.4g}', iterations=iterations,
                          clock='elapsed' if args.wasm else 'process CPU', processes=args.processes,
-                         batches=args.batches, measurement_date=date.today().isoformat(), source_commit=commit))
+                         batches=args.batches, measurement_date=date.today().isoformat(), source_commit=commit,
+                         copies=len(copies), copy_min_ns=f'{copies[0]:.4g}', copy_max_ns=f'{copies[-1]:.4g}'))
+        if copies[-1] > 1.05 * copies[0]:
+            print(f'copy spread {copies[-1] / copies[0]:.3f}: {label} {operation} {size}')
     with args.output.open('x', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
         writer.writeheader()
@@ -167,7 +233,7 @@ def main():
     if args.baseline:
         # Each label against the baseline with the same cache policy, paired within
         # processes: the median and range of the per-process ratios.
-        times = [{(c['label'], c['operation'], c['size']): c['ns'] for c in process} for process in processes]
+        times = per_process(processes)
         for label, operation, size in times[0]:
             policy = label.partition('+')[2]
             base = args.baseline.partition('+')[0] + ('+' + policy if policy else '')

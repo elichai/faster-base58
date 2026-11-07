@@ -11,12 +11,14 @@ their local commands.
 ## Recorded check scope
 
 [CI](.github/workflows/verification.yml) is the record for each commit; a passing
-job establishes only the checks and platforms it executes. This revision passes, on the M5, the debug and
-release `__internals` suites with and without `cache` (512 cases per property), the
-`check` and no-allocation lanes, documentation tests, the 16 MiB radix boundaries
-(both policies) and the `2^23`-point transform test. On a Zen 5 host with AVX-512
-IFMA and VBMI it passes the `__internals` suites with and without `cache` with
-`BASE58_REQUIRE_IFMA=1`, so the native AVX-512 kernel tests run instead of skipping.
+job establishes only the checks and platforms it executes. On 2026-11-07 this
+revision passed, on the M5, the debug and release `__internals` suites with and
+without `cache` (512 cases per property), the `check` and no-allocation lanes,
+documentation tests, the 16 MiB radix boundaries (both policies) and the
+`2^23`-point transform test. On a Zen 5 host with AVX-512 IFMA and VBMI it passed
+the debug `__internals` suites with and without `cache` with
+`BASE58_REQUIRE_IFMA=1`, so the native AVX-512 kernel tests ran instead of skipping.
+The Kani proofs did not run on this revision.
 
 ## Public contract
 
@@ -222,7 +224,7 @@ loops have explicit bounds. Required harnesses use 60/180/360-second budgets.
 | NTT scalar operations | Reduction for every `i32`, normalization in `(-q,q)`, loading for every `u32`, all three primes; plan bounds and scale at every power-of-two length 1 through `2^23` |
 | Matrix / IFMA models | Two-column carries; eight-column radix-52 carry; 13 limbs ↔ 16 radix-52 digits through a scalar vector model |
 | Capacity | Actual encoded-bound safety, coverage of input count, endpoint saturation and full adjacent monotonicity; owned decoded-bound arithmetic and safe prefix addition for every 64-bit `usize` |
-| Paired update safety | Full-width stored limb and nonzero top, two spare limb slots, both digits below `58^10`: interleaved and sequential updates succeed; numeric equality remains open |
+| Paired update safety | Full-width stored limb and nonzero top, two spare limb slots, both digits below `58^10`: interleaved and sequential updates succeed; numeric equality remains open. These harnesses use one or two limbs and never enter the four-limb loop of the paired updates; only the unit tests (lengths 0–9) and the fuzz and differential tests reach it |
 
 The parser composition checks the unchanged production parser. Its digit-range
 and split/Horner contracts are separately proved. Adjacent capacity monotonicity
