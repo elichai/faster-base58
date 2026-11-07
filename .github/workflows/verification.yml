@@ -34,6 +34,7 @@ env:
   CARGO_LLVM_COV_VERSION: '0.9.1'
   CARGO_FUZZ_VERSION: '0.13.2'
   KANI_VERSION: '0.68.0'
+  WASMTIME_VERSION: '50.0.1'
   CROSS_REVISION: 74e99b2223de06166f8cdcc1af7f1308ec52baf4
   RUSTUP_TOOLCHAIN_INSTALL_MASTER_VERSION: '1.12.2'
 
@@ -218,6 +219,26 @@ jobs:
             fi
             grep -F 'timing requires uninstrumented modules' "$log"
           done
+
+  wasm_simd128:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUSTFLAGS: -C target-feature=+simd128
+      CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/cache-cargo-sources
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: wasmtime@${{ env.WASMTIME_VERSION }}
+      - run: rustup target add --toolchain stable wasm32-wasip1
+      - run: rustup component add clippy --toolchain stable
+      - run: cargo +stable clippy --locked --lib --target wasm32-wasip1 --features cache -- -D warnings
+      # WASI preview 1 cannot spawn the threads or processes these skipped tests need.
+      - run: >-
+          cargo +stable test --locked --target wasm32-wasip1 --features __internals,cache --lib --
+          --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
 
   maximum_transform:
     runs-on: ubuntu-latest

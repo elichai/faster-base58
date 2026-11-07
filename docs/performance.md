@@ -8,7 +8,7 @@ avoids internal allocation, and its general large conversions remain quadratic.
 
 ## Results
 
-Measured **2026-11-05** on this revision with ordinary public consumers:
+Measured **2026-11-05** with ordinary public consumers:
 `code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
 `Decoder::bitcoin().decode(..).onto(..)`, with no `__internals`. Release opt-level
 3, fat LTO, 16 codegen units, generic target flags (`RUSTFLAGS=""`). Default and
@@ -34,10 +34,14 @@ Ranges for 4 MiB Auto (median [min, max] of process medians):
 | --- | ---: | ---: |
 | M5 / default | 219.7 ms [216.8, 226.3] | 141.8 ms [140.5, 142.5] |
 | M5 / cache | 221.5 ms [220.1, 223.4] | 135.9 ms [135.2, 138.4] |
-| x86-64 / default | 336.4 ms [335.0, 340.2] | 153.8 ms [153.0, 154.6] |
-| x86-64 / cache | 312.7 ms [310.2, 317.1] | 148.3 ms [147.5, 150.7] |
+| x86-64 / default | withdrawn | 153.8 ms [153.0, 154.6] |
+| x86-64 / cache | withdrawn | 148.3 ms [147.5, 150.7] |
 | Wasm / default | 1.74 s [1.73, 1.82] | 856.0 ms [851.3, 860.3] |
 | Wasm / cache | 1.73 s [1.73, 1.79] | 849.5 ms [844.3, 856.5] |
+
+The x86-64 encode ranges, and the README's x86-64 Auto encode cells and bars from
+64 KiB, are withdrawn until remeasured: on AVX-512 CPUs those encodes now take the
+radix route.
 
 Default Auto encoding around the fixed 32/64-byte routes:
 

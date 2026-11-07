@@ -168,7 +168,7 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Performance
 
-Measured **2026-11-05** on this revision with ordinary public consumers (no
+Measured **2026-11-05** with ordinary public consumers (no
 `__internals`), release opt-level 3, fat LTO and generic target flags. Each cell is
 **encode / decode**: the median over fresh processes, each timing all libraries
 interleaved in batches of at least 10 ms. Native cells use process CPU time, Wasm V8
@@ -203,9 +203,13 @@ selection, CPU 0 pinned, three processes.
 | 64 B | **31.3 ns** / **46.2 ns** | **31.3 ns** / 46.9 ns | 31.4 ns / 46.3 ns | 3.87 µs / 1.25 µs | 116 ns / 122 ns |
 | 512 B | 4.04 µs / 1.02 µs | **1.11 µs** / 1.24 µs | 4.35 µs / **1.01 µs** | 284 µs / 92.1 µs | — / — |
 | 4 KiB | 49.6 µs / 33.1 µs | **40.9 µs** / **27.4 µs** | 267 µs / 54.7 µs | 18.1 ms / 5.84 ms | — / — |
-| 64 KiB | 3.47 ms / 1.35 ms | **2.83 ms** / **1.21 ms** | 66.7 ms / 13.4 ms | 4.63 s / 1.48 s | — / — |
-| 1 MiB | 72.1 ms / 31.9 ms | **66.6 ms** / **29.8 ms** | — / — | — / — | — / — |
-| 4 MiB | 336 ms / 154 ms | **313 ms** / **148 ms** | — / — | — / — | — / — |
+| 64 KiB | † / 1.35 ms | † / **1.21 ms** | 66.7 ms / 13.4 ms | 4.63 s / 1.48 s | — / — |
+| 1 MiB | † / 31.9 ms | † / **29.8 ms** | — / — | — / — | — / — |
+| 4 MiB | † / 154 ms | † / **148 ms** | — / — | — / — | — / — |
+
+† Withdrawn until remeasured: on AVX-512 CPUs, Auto encodes above 48 KiB now take
+the division-free radix route. The figure's Auto encode bars from 64 KiB are
+withdrawn for the same reason.
 
 ![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
 
