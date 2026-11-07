@@ -101,6 +101,11 @@ harness = false
 required-features = ["__internals"]
 
 [[bench]]
+name = "radix_tune"
+harness = false
+required-features = ["__internals"]
+
+[[bench]]
 name = "dispatch"
 harness = false
 required-features = ["__internals"]
