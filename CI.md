@@ -78,6 +78,7 @@ refuse optimized mode.
 | Miri | Interprets the `--target` that it receives, so the host can differ from the target. |
 | Clang 23 action | Accepts only the Ubuntu releases `noble` and `resolute`. |
 | Kani and custom Miri drivers | Refuse to start with less than 2 GiB of free disk. `kani_guard.py` also needs `z3` on `PATH`. |
+| SIMD inlining gate | Needs an unstripped library and an `nm` whose `-C` demangles Rust symbols. It reads symbols only: slow code inside an inlined body passes. |
 
 ## Verification workflow
 
@@ -107,6 +108,7 @@ Jobs that upload records keep them as artifacts for 14 days.
 | `pointer_width_32` | Tests on i686 | x86-64 Linux | All |
 | `lint` | Script tests, public test lists, rustfmt, Clippy, rustdoc warnings, package contents | x86-64 Linux | All |
 | `clippy_arm` | Feature-powerset Clippy | arm64 Linux | All |
+| `simd_inlining` | Lists the out-of-line functions of the Auto consumer library and fails on SIMD code left out of line | x86-64 Linux (default, `cache`, `compact`); arm64 Linux (default, `cache`) | All |
 | `measurement_tools` | `resource-profile` tests and self-checks; script self-tests; documentation check | x86-64 Linux; cache off and on | All |
 | `miri_supported` | Stock Miri on portable paths and AVX2 kernels | x86-64 Linux | All |
 | `miri_arm_panel` | Stock Miri on a NEON panel and forced encoder leaves | x86-64 Linux, AArch64 target | All |
@@ -236,6 +238,21 @@ python3 scripts/check_package.py target/package
 
 `cargo package` refuses uncommitted changes unless you add `--allow-dirty`.
 
+`simd_inlining` builds the Auto consumer library with generic CPU flags, logs its
+out-of-line crate functions and runs the gate on it:
+
+```sh
+python3 scripts/code_size.py --source . --output target/measurements/simd --target "$(uname -m)-unknown-linux-gnu" --cpu generic --backends auto --directions both --kinds cdylib --strip-tool strip
+python3 scripts/check_simd_inlining.py --list target/measurements/simd/auto-both-cdylib.so
+python3 scripts/check_simd_inlining.py target/measurements/simd/auto-both-cdylib.so
+```
+
+CI repeats the build with `--cache` on both architectures and with `--compact` on
+x86-64. The gate fails on a `core::arch` intrinsic that survives as a function and
+on an out-of-line function of a SIMD module that its `EXPECTED` list does not name.
+`check_simd_inlining.py --compare OLD NEW` lists what a change inlined, outlined or
+resized. On macOS, pass the unstripped `.dylib` and `--nm` with an `llvm-nm`.
+
 `measurement_tools` tests the [resource-profile](tools/resource-profile/Cargo.toml)
 worker and runs its `self-check` command:
 
@@ -247,8 +264,9 @@ cargo run --locked --release --manifest-path tools/resource-profile/Cargo.toml -
 CI repeats both with `--features count-allocations`, `compact` and
 `compact,count-allocations`. A second matrix row adds `--features cache` to each
 command. The cache-off row also runs the self-tests of `resource_report.py`,
-`code_size.py`, `run_native_sanitizer.py`, `check_ci_tests.py` and
-`check_public_api.py`, the graph tests, the documentation check and the syntax
+`code_size.py`, `check_simd_inlining.py`, `run_native_sanitizer.py`,
+`check_ci_tests.py` and `check_public_api.py`, the graph tests, the documentation
+check and the syntax
 checks. [Checks without a Rust build](#checks-without-a-rust-build) lists them
 together with the other checks that need no Rust build.
 
@@ -468,7 +486,8 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/check_ci_tests.py`](scripts/check_ci_tests.py) | Fails when a public integration test is missing from one of the seven explicit test lists in `verification.yml` | `--self-test` | `lint`, `measurement_tools` |
 | [`scripts/check_package.py`](scripts/check_package.py) | Checks the packaged `.crate`: allowed paths, required files, 2 MiB budget, license and feature metadata | `--self-test`; package directory (default `target/package`) | `lint` |
 | [`scripts/check_public_api.py`](scripts/check_public_api.py) | Compiles downstream fixtures against seven feature profiles: normal API, `internals` namespace, removed paths, owned and checked methods | `--self-test` (needs `--output`, compiles nothing) | `tests`, `measurement_tools` (self-test) |
-| [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools` |
+| [`scripts/check_simd_inlining.py`](scripts/check_simd_inlining.py) | Fails on SIMD code that a library keeps out of line (surviving intrinsics, unexpected functions of SIMD modules); reads symbols only | Libraries (gate); `--list LIBRARY`; `--compare OLD NEW`; `--self-test`; `--nm` | `simd_inlining`, `measurement_tools` (self-test) |
+| [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools`, `simd_inlining` |
 | [`scripts/code_size_wasm.mjs`](scripts/code_size_wasm.mjs) | Checks the Wasm probe ABI: allocator, pointers, UTF-8 and outputs | Wasm module paths | `portability` |
 | [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted `empty`, `auto` and `no-alloc` Wasm modules: allocator counts and ABI | `--self-test DIR` only | `portability` |
 | [`scripts/public_bench.py`](scripts/public_bench.py) | Times `code_size.py` probes and writes the README timing CSV; `--baseline` prints paired ratios | `--wasm` | `portability` (refusal check), `measurement_tools` (compile) |
@@ -514,6 +533,7 @@ python3 -B scripts/check_ci_tests.py
 python3 -B scripts/check_ci_tests.py --self-test
 python3 -B scripts/check_package.py --self-test
 python3 -B scripts/check_public_api.py --self-test --output NEW_DIR
+python3 -B scripts/check_simd_inlining.py --self-test
 python3 -B scripts/code_size.py --self-test
 python3 -B scripts/resource_report.py self-test
 python3 -B scripts/run_native_sanitizer.py --self-test
