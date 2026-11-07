@@ -1,7 +1,7 @@
 //! Plain-Rust fixed-size kernels and the reference kernels for tests.
 
 use super::super::four_digits;
-use super::{TABLE_32, TABLE_64, Table, chars, column, encode, words};
+use super::{TABLE_32, Table, chars, column, encode, words};
 use crate::BufferTooSmall;
 
 /// Fixed 32-byte encoding with plain-Rust kernels.
@@ -16,8 +16,15 @@ pub fn encode_32_portable(x: &[u8; 32], out: &mut [u8]) -> Result<usize, BufferT
 ///
 /// # Errors
 /// Returns [`BufferTooSmall`] if `out` cannot hold the encoded string.
+#[cfg(any(
+    test,
+    feature = "__internals",
+    not(all(target_arch = "wasm32", target_feature = "simd128"))
+))]
 pub fn encode_64_portable(x: &[u8; 64], out: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    encode(x, out, |x, o| chars(x, o, |x| cols(x, &TABLE_64), digits))
+    encode(x, out, |x, o| {
+        chars(x, o, |x| cols(x, &super::TABLE_64), digits)
+    })
 }
 
 /// The column sums `Σ w[k] rows[k][j]` of `x`'s words.

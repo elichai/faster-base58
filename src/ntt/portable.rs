@@ -13,10 +13,13 @@ use super::tables::{PRIMES, Twiddles};
     test,
     feature = "__internals",
     kani,
-    not(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
+    not(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
     ))
 ))]
 mod kernels;
@@ -24,10 +27,13 @@ mod kernels;
     test,
     feature = "__internals",
     kani,
-    not(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
+    not(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
     ))
 ))]
 pub(crate) use kernels::{

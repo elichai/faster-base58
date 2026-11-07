@@ -38,12 +38,19 @@ cpufeatures = "0.3.1"
 [dev-dependencies]
 basexx = "0.2.0"
 bs58 = { version = "0.5.1", features = ["check"] }
-criterion = "0.8.2"
 five8 = "1.0.0"
 malachite-base = "0.14.0"
 malachite-nz = "0.14.0"
-proptest = "1.9.0"
 rand_xoshiro = "0.8.1"
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+criterion = "0.8.2"
+proptest = "1.9.0"
+
+# Lets the unit tests run under a WASI engine: proptest's default `fork` does not build
+# there, and the benches are native only.
+[target.'cfg(target_family = "wasm")'.dev-dependencies]
+proptest = { version = "1.9.0", default-features = false, features = ["std"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

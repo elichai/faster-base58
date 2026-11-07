@@ -64,7 +64,7 @@ rejects the removed free functions and `no_alloc` module.
 | [Allocation contract](tests/no_alloc.rs) and [preflight](tests/resource_preflight.rs) | Allocation, zeroed-allocation, reallocation and deallocation counters; cold/success/error paths, checked array storage, no extra check-frame allocations versus ordinary codec workspace, and impossible-buffer rejection before table construction |
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
 | Concurrency tests | Cold Matrix initialization, shared tables and eight-thread NTT cache/history reuse |
-| [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards; normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |
+| [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards on AArch64 NEON and x86-64 (the radix route needs AVX-512F there); normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |
 | [Public API](tests/api.rs) and [tiny inputs](tests/tiny_inputs.rs) | Borrowed/owned agreement, exact arrays, zero prefixes and capacities at dispatch boundaries, standard error traits; every byte and short text against bs58 with byte offsets |
 | [Cold Matrix tables](tests/matrix_cold.rs) and [Miri entry points](tests/miri.rs) | First decodes from several threads in a fresh process; buffer cases split for the custom Miri runner |
 
@@ -112,6 +112,20 @@ cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored 
 cargo test --locked --features check --test builders --test no_alloc
 cargo test --locked --no-default-features --features check --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core
 cargo test --locked --doc --features check
+```
+
+Wasm SIMD128 kernels build only with `+simd128` and have unit tests against the
+portable kernels: exact NTT kernels and lane arithmetic, Matrix parsing (every byte
+value at every block position) and panels, 64-byte column sums and whole encodes
+(including split-carry fallbacks), and character packing of every column value.
+They run under a WASI engine together with the rest of the library unit tests. The
+`wasm_simd128` CI job runs them with wasmtime 50.0.1 and `__internals,cache`
+features; default features were also run locally. WASI preview 1 cannot spawn threads or
+processes, so those tests are skipped, and `should_panic` tests are ignored there
+because Wasm panics abort.
+
+```sh
+CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime RUSTFLAGS="-C target-feature=+simd128" cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib -- --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
 ```
 
 ## Fuzzing and sanitizers

@@ -8,7 +8,7 @@ avoids internal allocation, and its general large conversions remain quadratic.
 
 ## Results
 
-Measured **2026-11-05** on this revision with ordinary public consumers:
+Measured **2026-11-05** with ordinary public consumers:
 `code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
 `Decoder::bitcoin().decode(..).onto(..)`, with no `__internals`. Release opt-level
 3, fat LTO, 16 codegen units, generic target flags (`RUSTFLAGS=""`). Default and
@@ -34,10 +34,14 @@ Ranges for 4 MiB Auto (median [min, max] of process medians):
 | --- | ---: | ---: |
 | M5 / default | 219.7 ms [216.8, 226.3] | 141.8 ms [140.5, 142.5] |
 | M5 / cache | 221.5 ms [220.1, 223.4] | 135.9 ms [135.2, 138.4] |
-| x86-64 / default | 336.4 ms [335.0, 340.2] | 153.8 ms [153.0, 154.6] |
-| x86-64 / cache | 312.7 ms [310.2, 317.1] | 148.3 ms [147.5, 150.7] |
+| x86-64 / default | withdrawn | 153.8 ms [153.0, 154.6] |
+| x86-64 / cache | withdrawn | 148.3 ms [147.5, 150.7] |
 | Wasm / default | 1.74 s [1.73, 1.82] | 856.0 ms [851.3, 860.3] |
 | Wasm / cache | 1.73 s [1.73, 1.79] | 849.5 ms [844.3, 856.5] |
+
+The x86-64 encode ranges, and the README's x86-64 Auto encode cells and bars from
+64 KiB, are withdrawn until remeasured: on AVX-512 CPUs those encodes now take the
+radix route.
 
 Default Auto encoding around the fixed 32/64-byte routes:
 
@@ -73,7 +77,8 @@ python3 -B scripts/public_bench.py --platform m5 --output target/measurements/m5
 
 On Linux add `--strip-tool strip` to `code_size.py` (it expects `llvm-strip`) and
 `--cpu 0` to `public_bench.py` to pin workers. For Wasm, build with `--target
-wasm32-unknown-unknown` and time with `public_bench.py --wasm`; it runs Node with
+wasm32-unknown-unknown` (add `--wasm-simd128` for the SIMD cohort) and time with
+`public_bench.py --wasm`; it runs Node with
 `--no-liftoff --no-wasm-lazy-compilation --no-wasm-async-compilation` and refuses
 allocation-counting modules. Render the README figures and tables from the CSVs and
 each cohort's `sizes.csv`:
@@ -118,6 +123,33 @@ library at another address can move a 1 KiB encode by 12%. On the M5, default
 
 Background load on a laptop can make one process of a cell slow (a bimodal spread);
 rerun with more processes rather than dropping observations.
+
+## Wasm SIMD128
+
+The published Wasm cohort is scalar. Builds with `-C target-feature=+simd128` are a
+separate cohort that needs a SIMD-capable engine. Measured **2026-11-07** on the M5
+Pro (AC power), Node 26.13.0 / V8 14.6.202.34, Rust 1.99.1: `code_size.py
+--wasm-simd128` Auto probes (generic CPU, fat LTO, default and `cache` builds),
+`public_bench.py --wasm`, five processes, three batches, V8 elapsed time. Ratios are
+medians [range] of per-process ratios against the same build without the Wasm
+kernels (portable kernels, autovectorized):
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 64 B | 0.56 [0.55, 0.57] | 0.96 [0.86, 1.04] | 0.58 [0.57, 0.59] | 0.99 [0.91, 1.06] |
+| 128 B | 1.00 [0.99, 1.02] | 1.00 [0.92, 1.02] | 0.50 [0.50, 0.51] | 1.00 [0.93, 1.08] |
+| 1 KiB | 0.99 [0.98, 1.01] | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
+| 4 KiB | 0.99 [0.97, 1.01] | 1.00 [0.96, 1.02] | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
+| 8 KiB | 0.59 [0.58, 0.59] | 0.63 [0.61, 0.64] | 0.27 [0.27, 0.27] | 0.62 [0.62, 0.65] |
+| 64 KiB | 0.50 [0.50, 0.50] | 0.53 [0.52, 0.54] | 0.50 [0.49, 0.50] | 0.52 [0.51, 0.54] |
+| 4 MiB | 0.46 [0.46, 0.46] | 0.47 [0.46, 0.47] | 0.46 [0.45, 0.46] | 0.46 [0.46, 0.47] |
+
+4 MiB Auto takes 627 ms to encode and 313 ms to decode (default; cache 631 / 312 ms).
+Cells that reach no Wasm kernel (batched sizes, fixed 32 bytes) stay within
+0.95–1.05. The stripped Auto probe grows by 414 bytes (default) and 1,447 bytes
+(cache). In the same run, `+simd128` without the explicit kernels took 0.80–0.88 of
+scalar time from 8 KiB (NTT), but 1.24–1.30 times for cached Matrix sizes of
+512 B–8 KiB.
 
 ## basexx comparison
 
