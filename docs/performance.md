@@ -107,12 +107,22 @@ or withdraw them.
 
 ## Timing limits
 
-Code placement can move a cell more than many source changes do. On Zen 5, paths a
-change does not touch can move by up to ±20% between builds, and loading the same
-library at another address can move a 1 KiB encode by 12%. On the M5, default
-512 B decoding depends on loop alignment by 10–20%. Therefore:
+Code placement can move a cell more than many source changes do. On Zen 5 (GCP EPYC
+9B45, 2026-11-07, Auto probes):
 
-- compare variants only within one paired run (`--baseline`);
+- a loop whose closing branch straddles a 64-byte line ran 1.2–1.3× slower, so a
+  16-byte shift of unrelated code moved such cells by that much;
+- the placement of a library file's pages matters as well: in one run the original
+  probe file took 1.87× as long as each of three byte-identical copies on a 32 KiB
+  decode, and 1.2× on an 8 KiB encode, so the same binary can change speed between
+  files and VM sessions;
+- loading the same library at another address can move a 1 KiB encode by 12%.
+
+On the M5, LLVM function and loop alignment options moved cells by up to 7%.
+Therefore:
+
+- compare variants only within one paired run (`--baseline`); on Zen 5 also pass
+  several fresh copies of each library file (one label each) and compare medians;
 - judge a change by the cells its code reaches, and treat movement in untouched
   cells as the noise floor;
 - for effects below about 5%, add an aligned build
