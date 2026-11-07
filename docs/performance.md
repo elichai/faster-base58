@@ -34,8 +34,8 @@ Ranges for 4 MiB Auto (median [min, max] of process medians):
 | --- | ---: | ---: |
 | M5 / default | 219.7 ms [216.8, 226.3] | 141.8 ms [140.5, 142.5] |
 | M5 / cache | 221.5 ms [220.1, 223.4] | 135.9 ms [135.2, 138.4] |
-| x86-64 / default | withdrawn | 153.8 ms [153.0, 154.6] |
-| x86-64 / cache | withdrawn | 148.3 ms [147.5, 150.7] |
+| x86-64 / default | withdrawn | withdrawn |
+| x86-64 / cache | withdrawn | withdrawn |
 | Wasm / default | 1.74 s [1.73, 1.82] | 856.0 ms [851.3, 860.3] |
 | Wasm / cache | 1.73 s [1.73, 1.79] | 849.5 ms [844.3, 856.5] |
 
@@ -178,7 +178,8 @@ filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`.
 Enabling `cache` changes dispatch and leaf policy as well as retention. Maximum
 retained payloads are in [DESIGN.md](../DESIGN.md#heap-stack-and-cache-costs):
 Matrix tables 18,617,760 B and NTT twiddles 9,436,416 B (26.8 MiB combined,
-depending on call history), plus 2,176 B of static headers. Per-call scratch,
+depending on call history; 42.8 MiB on x86-64 with IFMA, whose two-prime tables
+take 32 bytes per point), plus 3,392 B of static headers. Per-call scratch,
 larger owned tables, allocator overhead and concurrent calls add to that; it is not
 an active-heap bound. Wasm linear-memory pages need not return to the host. First
 cached calls build the tables they need; whether reuse repays that depends on the
@@ -279,6 +280,10 @@ Unmeasured candidates, largest expected effect first:
   twiddle classes (−49% worst-case retention, larger first builds); a forward
   transform with Cooley–Tukey butterflies and one twiddle per block, which could
   use the inverse's reduction schedule (bit-reversed twiddles for the small stages).
+- Two-prime IFMA NTT: Montgomery-form twiddles store one value per root (half of
+  its 32 bytes per point); retune `IFMA_THRESHOLD` / `IFMA_PREPARED_THRESHOLD`
+  for its faster products; base-`58^5` or `58^6` digits in the radix encoder with
+  the two 50-bit primes (fewer points, `u128` carries).
 - Division encoder: 5 allocations per call down to 1–2; reuse the dead quotient
   buffer during the remainder product (−10–14% node scratch); non-power-of-two
   wrapped remainders; a scaled remainder tree; Karp–Markstein at the top node.

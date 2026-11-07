@@ -158,12 +158,12 @@ are initialized; retained heap depends on input sizes, CPU and call history.
 | Cache family | Maximum retained heap payload across production classes |
 | --- | ---: |
 | Encoding and decoding Matrix tables | 18,617,760 B (17.8 MiB) |
-| NTT twiddles | 9,436,416 B (9.0 MiB) |
-| **Combined** | **28,054,176 B (26.8 MiB)** |
+| NTT twiddles | 9,436,416 B (9.0 MiB); 26,223,360 B (25.0 MiB) on x86-64 with IFMA |
+| **Combined** | **28,054,176 B (26.8 MiB)**; **44,841,120 B (42.8 MiB)** with IFMA |
 
 This is retained table capacity, **not a limit on total active heap**: per-call
 scratch, larger owned tables, allocator overhead and concurrent calls add to it.
-The static headers of the cache families take 2,176 bytes when present. None of
+The static headers of the cache families take 3,392 bytes when present. None of
 these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-costs).
 
 ## Performance
@@ -203,13 +203,14 @@ selection, CPU 0 pinned, three processes.
 | 64 B | **31.3 ns** / **46.2 ns** | **31.3 ns** / 46.9 ns | 31.4 ns / 46.3 ns | 3.87 µs / 1.25 µs | 116 ns / 122 ns |
 | 512 B | 4.04 µs / 1.02 µs | **1.11 µs** / 1.24 µs | 4.35 µs / **1.01 µs** | 284 µs / 92.1 µs | — / — |
 | 4 KiB | 49.6 µs / 33.1 µs | **40.9 µs** / **27.4 µs** | 267 µs / 54.7 µs | 18.1 ms / 5.84 ms | — / — |
-| 64 KiB | † / 1.35 ms | † / **1.21 ms** | 66.7 ms / 13.4 ms | 4.63 s / 1.48 s | — / — |
-| 1 MiB | † / 31.9 ms | † / **29.8 ms** | — / — | — / — | — / — |
-| 4 MiB | † / 154 ms | † / **148 ms** | — / — | — / — | — / — |
+| 64 KiB | † / † | † / † | 66.7 ms / 13.4 ms | 4.63 s / 1.48 s | — / — |
+| 1 MiB | † / † | † / † | — / — | — / — | — / — |
+| 4 MiB | † / † | † / † | — / — | — / — | — / — |
 
 † Withdrawn until remeasured: on AVX-512 CPUs, Auto encodes above 48 KiB now take
-the division-free radix route. The figure's Auto encode bars from 64 KiB are
-withdrawn for the same reason.
+the division-free radix route, and on CPUs with AVX-512 IFMA, Auto decodes from
+64 KiB multiply with two 50-bit primes. The figure's Auto bars from 64 KiB and the
+x86-64 linked sizes are withdrawn for the same reasons.
 
 ![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
 
@@ -243,8 +244,8 @@ headers, retained heap and Wasm memory pages are separate costs.
 
 | Consumer | M5 code / readonly | x86-64 code / readonly | Wasm code / data section |
 |---|---:|---:|---:|
-| Auto | 70.9 KiB / 24.4 KiB | 280.0 KiB / 34.9 KiB | 72.3 KiB / 14.1 KiB |
-| Auto + cache | 73.6 KiB / 26.5 KiB | 272.2 KiB / 35.3 KiB | 74.0 KiB / 14.8 KiB |
+| Auto | 70.9 KiB / 24.4 KiB | — | 72.3 KiB / 14.1 KiB |
+| Auto + cache | 73.6 KiB / 26.5 KiB | — | 74.0 KiB / 14.8 KiB |
 | No allocation | 9.8 KiB / 10.6 KiB | 20.4 KiB / 14.4 KiB | 14.0 KiB / 9.5 KiB |
 | bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.7 KiB |
 

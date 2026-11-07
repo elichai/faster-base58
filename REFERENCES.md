@@ -56,6 +56,14 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
 - **Donald Knuth, _The Art of Computer Programming_, volume 2:** Algorithm D
   is the named method in `encode/dc.rs::div_schoolbook`. The exact edition and
   source consulted are unknown.
+- **David Harvey, _Faster arithmetic for number-theoretic transforms_
+  ([arXiv:1205.2926](https://arxiv.org/abs/1205.2926)):** the lazy butterflies
+  (Algorithms 3 and 4, inputs in `[0, 2p)` / `[0, 4p)` for `p < β/4`) and Shoup
+  products of `ntt/ifma.rs`.
+- **Fabian Boemer et al., _Intel HEXL_ ([arXiv:2103.16400](https://arxiv.org/abs/2103.16400)):**
+  the IFMA form of that butterfly (`vpmadd52*` with `2^52 - p`, masking to 52 bits)
+  and the register permutations for the last three stages. Paper only; no HEXL code
+  was consulted or copied.
 - **GNU MP manual:** background for
   [binary-to-radix conversion](https://gmplib.org/manual/Binary-to-Radix),
   [Karatsuba](https://gmplib.org/manual/Karatsuba-Multiplication) and

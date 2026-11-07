@@ -8,6 +8,7 @@
 //! polynomials instead, negacyclic and cyclic, and put together by polynomial Chinese
 //! remaindering ([`Plan`], [`crt()`]).
 
+use alloc::vec;
 use alloc::vec::Vec;
 
 #[cfg(any(test, feature = "__internals"))]
@@ -18,6 +19,14 @@ mod avx512;
 #[cfg(test)]
 mod cache_policy_tests;
 mod crt;
+#[cfg_attr(
+    not(all(target_arch = "x86_64", target_feature = "sse2")),
+    allow(
+        dead_code,
+        reason = "The kernels run only on x86-64 with IFMA, and in tests"
+    )
+)]
+mod ifma;
 #[cfg(all(test, miri))]
 mod miri_tests;
 #[cfg(all(
@@ -55,6 +64,7 @@ use crate::dc::Leaf;
 use crate::dc::Multiplier;
 use crate::encode::Leaves;
 use crate::mul;
+use ifma::{Kernels52, Tables52};
 #[cfg(feature = "cache")]
 use tables::cache::CACHE_MAX_LOG;
 use tables::{MAX_LOG, PRIMES, Prime, Tables};
@@ -101,13 +111,7 @@ pub(crate) fn decode(
     zeros: usize,
     output: &mut [u8],
 ) -> Result<usize, crate::common::DecodeError> {
-    dc::decode_parts(
-        input,
-        zeros,
-        output,
-        &mut Ntt::new(Kernels::best()),
-        Leaf::BEST,
-    )
+    dc::decode_parts(input, zeros, output, &mut Ntt::best(), Leaf::BEST)
 }
 
 /// [`crate::dc::decode_value`] with the NTT multiplier of [`decode`].
@@ -117,13 +121,7 @@ pub(crate) fn decode_value(
     zeros: usize,
     capacity: usize,
 ) -> Result<alloc::vec::Vec<u64>, crate::common::DecodeError> {
-    dc::decode_value(
-        input,
-        zeros,
-        capacity,
-        &mut Ntt::new(Kernels::best()),
-        Leaf::BEST,
-    )
+    dc::decode_value(input, zeros, capacity, &mut Ntt::best(), Leaf::BEST)
 }
 
 /// Large encoding with NTT multiplication. NEON and x86 AVX-512 use a multiplication
@@ -148,7 +146,7 @@ pub(crate) fn encode(
     if let Some(result) = radix::try_encode(zeros, input, output) {
         return result;
     }
-    let m = &mut Ntt::new(Kernels::best());
+    let m = &mut Ntt::best();
     crate::encode::dc::encode_parts(zeros, input, output, m, CACHED_LEAF, Leaves::BEST)
 }
 
@@ -174,7 +172,7 @@ pub(crate) fn encode_staged(
         zeros,
         end,
         output,
-        &mut Ntt::new(Kernels::best()),
+        &mut Ntt::best(),
         CACHED_LEAF,
         Leaves::BEST,
     )
@@ -186,6 +184,8 @@ pub(crate) struct Ntt {
     #[cfg(all(feature = "cache", any(test, feature = "__internals")))]
     force_owned: bool,
     kernels: Kernels,
+    /// The two-prime IFMA kernels, used instead of `kernels` when set.
+    k52: Option<Kernels52>,
     /// Largest tables to use: longer products are split. [`MAX_LOG`] except in tests.
     max_log: u32,
     /// [`THRESHOLD`] and [`PREPARED_THRESHOLD`], or their IFMA values.
@@ -194,14 +194,18 @@ pub(crate) struct Ntt {
     /// Table size selected by `prepare`, without building a table yet.
     log: Option<u32>,
     owned: Option<Tables>,
+    owned52: Option<Tables52>,
     #[cfg(feature = "cache")]
     shared: Option<&'static Tables>,
+    #[cfg(feature = "cache")]
+    shared52: Option<&'static Tables52>,
     /// Forward transforms of the prepared powers, by index.
     powers: Vec<Option<Prepared>>,
 }
 
 impl Ntt {
-    /// With the thresholds for this CPU and the table policy selected by `cache`.
+    /// With the thresholds for this CPU and the table policy selected by `cache`, and the
+    /// three-prime `kernels`.
     pub(crate) fn new(kernels: Kernels) -> Self {
         let (threshold, prepared_threshold) = match mul::ifma_threshold() {
             0 => (THRESHOLD, PREPARED_THRESHOLD),
@@ -211,31 +215,67 @@ impl Ntt {
             #[cfg(all(feature = "cache", any(test, feature = "__internals")))]
             force_owned: false,
             kernels,
+            k52: None,
             max_log: MAX_LOG,
             threshold,
             prepared_threshold,
             log: None,
             owned: None,
+            owned52: None,
             #[cfg(feature = "cache")]
             shared: None,
+            #[cfg(feature = "cache")]
+            shared52: None,
             powers: Vec::new(),
+        }
+    }
+
+    /// The fastest backend for this CPU: two primes with AVX-512 IFMA, else three.
+    ///
+    /// Two IFMA transforms replace three 32-bit Montgomery ones, at the cost of 16-byte
+    /// twiddles and 8-byte residues. On Zen 5 (generic flags, fat LTO, public cdylibs,
+    /// loops aligned to 64 in both builds, 2026-11-07), Auto decodes took 0.87-0.92x the
+    /// three-prime-only time from 128 KiB to 4 MiB (0.87-0.95x with `cache`, from
+    /// 64 KiB); radix-route encodes do not use this backend.
+    pub(crate) fn best() -> Self {
+        Ntt::new(Kernels::best()).with_ifma()
+    }
+
+    /// The two-prime IFMA kernels when this CPU has them.
+    pub(crate) fn with_ifma(self) -> Self {
+        Ntt {
+            k52: Kernels52::best(),
+            ..self
         }
     }
 
     /// Initialize tables only when a product will use transforms.
     fn ensure_tables(&mut self) {
         let log = self.log.expect("prepare runs first");
-        #[cfg(all(feature = "cache", any(test, feature = "__internals")))]
-        if self.force_owned {
-            self.owned.get_or_insert_with(|| Tables::new(log));
+        if let Some(k) = self.k52 {
+            #[cfg(feature = "cache")]
+            if log <= CACHE_MAX_LOG && !self.owned_only() {
+                self.shared52
+                    .get_or_insert_with(|| Tables52::cached(log, &k));
+                return;
+            }
+            self.owned52.get_or_insert_with(|| Tables52::new(log, &k));
             return;
         }
         #[cfg(feature = "cache")]
-        if log <= CACHE_MAX_LOG {
+        if log <= CACHE_MAX_LOG && !self.owned_only() {
             self.shared.get_or_insert_with(|| Tables::cached(log));
             return;
         }
         self.owned.get_or_insert_with(|| Tables::new(log));
+    }
+
+    #[cfg(feature = "cache")]
+    fn owned_only(&self) -> bool {
+        #[cfg(any(test, feature = "__internals"))]
+        return self.force_owned;
+        #[cfg(not(any(test, feature = "__internals")))]
+        false
     }
 
     /// Borrow the selected table with kernels and prepared powers after initialization.
@@ -245,6 +285,24 @@ impl Ntt {
             return table;
         }
         self.owned.as_ref().expect("ensure_tables runs first")
+    }
+
+    /// The three-prime backend after [`Ntt::ensure_tables`], or the two-prime one.
+    fn backend(&self) -> Result<Two<'_>, Three<'_>> {
+        match &self.k52 {
+            Some(k) => {
+                #[cfg(feature = "cache")]
+                if let Some(t) = self.shared52 {
+                    return Ok(Two { t, k });
+                }
+                let t = self.owned52.as_ref().expect("ensure_tables runs first");
+                Ok(Two { t, k })
+            }
+            None => Err(Three {
+                t: self.initialized_tables(),
+                k: &self.kernels,
+            }),
+        }
     }
 
     /// `b`'s forward transforms for products of up to `len >= b.len()` limbs. `None` if
@@ -258,13 +316,10 @@ impl Ntt {
             return None;
         }
         self.ensure_tables();
-        let t = self.initialized_tables();
-        let n = 1 << log;
-        let mut data = vec![0; 3 * n];
-        for ((f, p), tw) in data.chunks_exact_mut(n).zip(PRIMES).zip(&t.tw) {
-            (self.kernels.load)(f, b, p);
-            (self.kernels.forward)(f, p, tw.fw());
-        }
+        let data = match self.backend() {
+            Ok(two) => Spectra::Two(spectra(two, b, log)),
+            Err(three) => Spectra::Three(spectra(three, b, log)),
+        };
         Some(Prepared {
             log,
             addr: b.as_ptr().addr(),
@@ -274,6 +329,17 @@ impl Ntt {
     }
 }
 
+/// The forward transforms of `b`, `2^log` points per prime, one prime after the other.
+fn spectra<B: Backend>(k: B, b: &[u64], log: u32) -> Vec<B::E> {
+    let n = 1 << log;
+    let mut data = vec![B::E::default(); B::PRIMES << log];
+    for (j, f) in data.chunks_exact_mut(n).enumerate() {
+        k.load(j, f, b);
+        k.forward(j, f);
+    }
+    data
+}
+
 /// Cyclic forward transforms of a prepared power `b`, `2^log` points per prime, one prime
 /// after the other.
 ///
@@ -281,25 +347,24 @@ impl Ntt {
 /// takes. In bit-reversed order, the first `d` values are the `d`-point transform of
 /// `b mod (x^d - 1)`, and values `d..2 d` the twisted one of `b mod (x^d + 1)`, for every
 /// power of two `d < 2^log`: they are the frequencies `j 2^log / d` and
-/// `(2 j + 1) 2^log / (2 d)`. The values are in `(-q, q)`.
+/// `(2 j + 1) 2^log / (2 d)`. The values are in `(-q, q)`, or `[0, 2p)` for two primes.
 struct Prepared {
     log: u32,
     /// Address and length of the power, to check that `mul_power` got it.
     addr: usize,
     len: usize,
-    data: Vec<i32>,
+    data: Spectra,
+}
+
+/// The residues of a [`Prepared`] power, for the backend that made them.
+enum Spectra {
+    Three(Vec<i32>),
+    Two(Vec<u64>),
 }
 
 impl Prepared {
     fn is(&self, b: &[u64]) -> bool {
         (self.addr, self.len) == (b.as_ptr().addr(), b.len())
-    }
-
-    /// The transforms for prime `j`.
-    fn prime(&self, j: usize) -> &[i32] {
-        debug_assert!(j < PRIMES.len());
-        debug_assert_eq!(self.data.len(), PRIMES.len() << self.log);
-        &self.data[j << self.log..(j + 1) << self.log]
     }
 }
 
@@ -308,13 +373,25 @@ impl Multiplier for Ntt {
         // Products longer than the tables serve would be split.
         self.log = Some(log_len(len).clamp(5, self.max_log));
         self.owned.take();
+        self.owned52.take();
         #[cfg(feature = "cache")]
-        self.shared.take();
+        {
+            self.shared.take();
+            self.shared52.take();
+        }
         self.powers.clear();
     }
 
+    /// With two primes, operands below both thresholds take Karatsuba alone, so they ask
+    /// only its scratch rather than the transform bound, which is half again larger.
+    /// `n / 2 + len(n / 2) <= len(n)` still holds across the step, as
+    /// `mul::scratch_len <= scratch_len`.
     fn scratch_len(&self, n: usize) -> usize {
-        scratch_len(n)
+        match self.k52 {
+            Some(_) if n < self.threshold.min(self.prepared_threshold) => mul::scratch_len(n),
+            Some(_) => scratch_len_two(n),
+            None => scratch_len(n),
+        }
     }
 
     fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
@@ -322,15 +399,11 @@ impl Multiplier for Ntt {
             return mul::mul(out, a, b, scratch);
         }
         self.ensure_tables();
-        mul_with(
-            out,
-            a,
-            b,
-            scratch,
-            self.initialized_tables(),
-            &self.kernels,
-            self.threshold,
-        );
+        let t = self.threshold;
+        match self.backend() {
+            Ok(k) => mul_with(out, a, b, scratch, k, t),
+            Err(k) => mul_with(out, a, b, scratch, k, t),
+        }
     }
 
     fn prepare_power(&mut self, i: usize, b: &[u64], len: usize) {
@@ -354,15 +427,10 @@ impl Multiplier for Ntt {
                     && log_len(a.len() + b.len()) <= f.log =>
             {
                 // Preparing `f` initialized the tables, and `prepare` clears both.
-                transform(
-                    out,
-                    a,
-                    b,
-                    s,
-                    self.initialized_tables(),
-                    &self.kernels,
-                    Some(f),
-                )
+                match self.backend() {
+                    Ok(k) => transform(out, a, b, s, k, Some(f)),
+                    Err(k) => transform(out, a, b, s, k, Some(f)),
+                }
             }
             _ => self.mul(out, a, b, s),
         }
@@ -381,14 +449,20 @@ impl Multiplier for Ntt {
     }
 
     fn wrapped_scratch_len(&self, l: usize, _n: usize) -> usize {
-        // Folded operands, then four arrays of `2 L` `i32`s after at most 7 limbs that
-        // align them ([`as_i32`]).
-        2 * l + 4 * l + 7
+        // Folded operands, then four arrays of `2 L` `i32`s (three of `2 L` `u64`s with two
+        // primes) after at most 7 limbs that align them ([`as_i32`]).
+        match self.k52 {
+            Some(_) => 2 * l + 6 * l + 7,
+            None => 2 * l + 4 * l + 7,
+        }
     }
 
     fn mul_wrapped(&mut self, out: &mut [u64], a: &[u64], b: &[u64], s: &mut [u64]) {
         self.ensure_tables();
-        wrapped(out, a, b, s, self.initialized_tables(), &self.kernels, None);
+        match self.backend() {
+            Ok(k) => wrapped(out, a, b, s, k, None),
+            Err(k) => wrapped(out, a, b, s, k, None),
+        }
     }
 
     fn mul_power_wrapped(
@@ -404,7 +478,10 @@ impl Multiplier for Ntt {
             Some(Some(f)) if f.is(b) && log_len(out.len()) <= f.log => Some(f),
             _ => None,
         };
-        wrapped(out, a, b, s, self.initialized_tables(), &self.kernels, f);
+        match self.backend() {
+            Ok(k) => wrapped(out, a, b, s, k, f),
+            Err(k) => wrapped(out, a, b, s, k, f),
+        }
     }
 }
 
@@ -414,19 +491,19 @@ impl Multiplier for Ntt {
 /// first `2 L` values are those of `b mod (x^(2 L) - 1)` (see [`Prepared`]).
 ///
 /// Each coefficient of the cyclic product sums at most `2 L <= 2^23` products of 32-bit
-/// coefficients, so it is below `2^87 < q1 q2 q3`, and Garner's CRT recovers it.
-fn wrapped(
+/// coefficients, so it is below `2^87`, less than the primes' product, and Garner's CRT
+/// recovers it.
+fn wrapped<B: Backend>(
     out: &mut [u64],
     a: &[u64],
     b: &[u64],
     scratch: &mut [u64],
-    t: &Tables,
-    k: &Kernels,
+    k: B,
     fb: Option<&Prepared>,
 ) {
     let l = out.len();
     let n = 2 * l;
-    debug_assert!(l.is_power_of_two() && n >= 8 && n.trailing_zeros() <= t.log);
+    debug_assert!(l.is_power_of_two() && n >= 8 && n.trailing_zeros() <= k.log());
     let (fa, scratch) = scratch.split_at_mut(l);
     let (fold_b, scratch) = scratch.split_at_mut(l);
     let a = if a.len() > l {
@@ -441,25 +518,226 @@ fn wrapped(
     } else {
         b
     };
-    let (r1, rest) = as_i32(scratch).split_at_mut(n);
-    let (r2, rest) = rest.split_at_mut(n);
-    let (r3, rest) = rest.split_at_mut(n);
+    let (r, rest) = B::elems(scratch).split_at_mut(B::PRIMES * n);
     let tmp = &mut rest[..n];
-    let rs = [&mut *r1, &mut *r2, &mut *r3];
-    for (j, ((r, p), tw)) in rs.into_iter().zip(PRIMES).zip(&t.tw).enumerate() {
-        (k.load)(r, a, p);
-        (k.forward)(r, p, tw.fw());
+    for (j, r) in r.chunks_exact_mut(n).enumerate() {
+        k.load(j, r, a);
+        k.forward(j, r);
         if let Some(f) = fb {
-            (k.pointwise)(r, &f.prime(j)[..n], p);
+            k.pointwise(j, r, &B::spectrum(f, j)[..n]);
         } else {
-            (k.load)(tmp, b, p);
-            (k.forward)(tmp, p, tw.fw());
-            (k.pointwise)(r, tmp, p);
+            k.load(j, tmp, b);
+            k.forward(j, tmp);
+            k.pointwise(j, r, tmp);
         }
-        (k.inverse)(r, p, tw.inverse(tmp));
+        k.inverse(j, r, tmp);
     }
-    (k.garner)([&mut *r1, &mut *r2, &mut *r3]);
-    crt::carry_wrapped(out, [r1, r2, r3]);
+    k.finish(out, r, n, n, true);
+}
+
+/// The residue arithmetic of a transform backend: three primes below `2^30` in `i32`
+/// lanes ([`Three`]), or two below `2^50` in `u64` lanes with AVX-512 IFMA ([`Two`]).
+/// Prime `j`'s residues are passed with its index.
+trait Backend: Copy {
+    type E: Copy + Default;
+    const PRIMES: usize;
+    /// `log2` of the points the tables serve.
+    fn log(self) -> u32;
+    /// The scratch limbs from the first 64-byte boundary, at most 7 limbs in, as residues.
+    fn elems(s: &mut [u64]) -> &mut [Self::E];
+    /// Prime `j`'s transforms in `f`, which this backend prepared.
+    fn spectrum(f: &Prepared, j: usize) -> &[Self::E];
+    fn load(self, j: usize, dst: &mut [Self::E], limbs: &[u64]);
+    /// [`Backend::load`], coefficient `i` times `w^i` for `w` a primitive `2 m`-th root,
+    /// `m = dst.len()`.
+    fn load_twist(self, j: usize, dst: &mut [Self::E], limbs: &[u64]);
+    fn load_add(self, j: usize, dst: &mut [Self::E], limbs: &[u64], sub: bool);
+    /// `a[i] w^i` for `w` a primitive `2 a.len()`-th root.
+    fn twist(self, j: usize, a: &mut [Self::E]);
+    /// `a[i] w^-i`, undoing [`Backend::twist`] after an inverse transform.
+    fn untwist(self, j: usize, a: &mut [Self::E], tmp: &mut [Self::E]);
+    /// `dst[i] = s[i] mod q` for `s[i] < 2^63`.
+    fn narrow(self, j: usize, dst: &mut [Self::E], s: &[u64]);
+    fn forward(self, j: usize, a: &mut [Self::E]);
+    fn inverse(self, j: usize, a: &mut [Self::E], tmp: &mut [Self::E]);
+    fn pointwise(self, j: usize, a: &mut [Self::E], b: &[Self::E]);
+    fn square(self, j: usize, a: &mut [Self::E]);
+    /// [`Kernels::pair`], with the roots of `x^m + 1` from the tables.
+    fn pair(self, j: usize, r: &mut [Self::E], m: usize, tmp: &mut [Self::E]);
+    fn fold_sub(self, j: usize, dst: &mut [Self::E], src: &[Self::E], start: usize, neg: bool);
+    fn halves(self, j: usize, lo: &mut [Self::E], hi: &mut [Self::E]);
+    /// Garner on the first `len` coefficients of each prime's `width`, then the carry
+    /// into `out` ([`crt::carry`], or [`crt::carry_wrapped`] with `wrapped`).
+    fn finish(self, out: &mut [u64], r: &mut [Self::E], width: usize, len: usize, wrapped: bool);
+}
+
+/// Three primes below `2^30`, [`Kernels`] on `i32` residues.
+#[derive(Clone, Copy)]
+struct Three<'a> {
+    t: &'a Tables,
+    k: &'a Kernels,
+}
+
+impl Backend for Three<'_> {
+    type E = i32;
+    const PRIMES: usize = 3;
+    fn log(self) -> u32 {
+        self.t.log
+    }
+    fn elems(s: &mut [u64]) -> &mut [i32] {
+        as_i32(s)
+    }
+    fn spectrum(f: &Prepared, j: usize) -> &[i32] {
+        let Spectra::Three(d) = &f.data else {
+            unreachable!("prepared by the other backend")
+        };
+        &d[j << f.log..(j + 1) << f.log]
+    }
+    fn load(self, j: usize, dst: &mut [i32], limbs: &[u64]) {
+        (self.k.load)(dst, limbs, PRIMES[j]);
+    }
+    fn load_twist(self, j: usize, dst: &mut [i32], limbs: &[u64]) {
+        let m = dst.len();
+        (self.k.load_twist)(dst, limbs, PRIMES[j], &self.t.tw[j].fw()[m..2 * m]);
+    }
+    fn load_add(self, j: usize, dst: &mut [i32], limbs: &[u64], sub: bool) {
+        (self.k.load_add)(dst, limbs, PRIMES[j], sub);
+    }
+    fn twist(self, j: usize, a: &mut [i32]) {
+        let m = a.len();
+        (self.k.twist)(a, &self.t.tw[j].fw()[m..2 * m], PRIMES[j]);
+    }
+    fn untwist(self, j: usize, a: &mut [i32], tmp: &mut [i32]) {
+        let m = a.len();
+        let iw = &mut tmp[..m];
+        tables::invert_roots(iw, &self.t.tw[j].fw()[m..2 * m]);
+        (self.k.twist)(a, iw, PRIMES[j]);
+    }
+    fn narrow(self, j: usize, dst: &mut [i32], s: &[u64]) {
+        narrow(dst, s, PRIMES[j]);
+    }
+    fn forward(self, j: usize, a: &mut [i32]) {
+        (self.k.forward)(a, PRIMES[j], self.t.tw[j].fw());
+    }
+    fn inverse(self, j: usize, a: &mut [i32], tmp: &mut [i32]) {
+        let iw = self.t.tw[j].inverse(&mut tmp[..a.len()]);
+        (self.k.inverse)(a, PRIMES[j], iw);
+    }
+    fn pointwise(self, j: usize, a: &mut [i32], b: &[i32]) {
+        (self.k.pointwise)(a, b, PRIMES[j]);
+    }
+    fn square(self, j: usize, a: &mut [i32]) {
+        (self.k.square)(a, PRIMES[j]);
+    }
+    fn pair(self, j: usize, r: &mut [i32], m: usize, tmp: &mut [i32]) {
+        let iw = &mut tmp[..m];
+        tables::invert_roots(iw, &self.t.tw[j].fw()[m..2 * m]);
+        (self.k.pair)(r, m, iw, PRIMES[j]);
+    }
+    fn fold_sub(self, j: usize, dst: &mut [i32], src: &[i32], start: usize, neg: bool) {
+        (self.k.fold_sub)(dst, src, start, neg, PRIMES[j]);
+    }
+    fn halves(self, j: usize, lo: &mut [i32], hi: &mut [i32]) {
+        (self.k.halves)(lo, hi, PRIMES[j]);
+    }
+    fn finish(self, out: &mut [u64], r: &mut [i32], width: usize, len: usize, wrapped: bool) {
+        let (r1, rest) = r.split_at_mut(width);
+        let (r2, r3) = rest.split_at_mut(width);
+        let r3 = &mut r3[..width];
+        (self.k.garner)([&mut r1[..len], &mut r2[..len], &mut r3[..len]]);
+        if wrapped {
+            crt::carry_wrapped(out, [r1, r2, r3]);
+        } else {
+            crt::carry(out, [r1, r2, r3]);
+        }
+    }
+}
+
+/// Two primes below `2^50`, [`Kernels52`] on `u64` residues.
+#[derive(Clone, Copy)]
+struct Two<'a> {
+    t: &'a Tables52,
+    k: &'a Kernels52,
+}
+
+impl Backend for Two<'_> {
+    type E = u64;
+    const PRIMES: usize = 2;
+    fn log(self) -> u32 {
+        self.t.log
+    }
+    fn elems(s: &mut [u64]) -> &mut [u64] {
+        let skip = s.as_ptr().addr().wrapping_neg() % 64 / 8;
+        &mut s[skip..]
+    }
+    fn spectrum(f: &Prepared, j: usize) -> &[u64] {
+        let Spectra::Two(d) = &f.data else {
+            unreachable!("prepared by the other backend")
+        };
+        &d[j << f.log..(j + 1) << f.log]
+    }
+    fn load(self, _: usize, dst: &mut [u64], limbs: &[u64]) {
+        (self.k.load)(dst, limbs);
+    }
+    fn load_twist(self, j: usize, dst: &mut [u64], limbs: &[u64]) {
+        (self.k.load_twist)(dst, limbs, &self.t.tw[j]);
+    }
+    fn load_add(self, j: usize, dst: &mut [u64], limbs: &[u64], sub: bool) {
+        (self.k.load_add)(dst, limbs, self.t.tw[j].prime(), sub);
+    }
+    fn twist(self, j: usize, a: &mut [u64]) {
+        (self.k.twist)(a, &self.t.tw[j]);
+    }
+    fn untwist(self, j: usize, a: &mut [u64], _: &mut [u64]) {
+        (self.k.untwist)(a, a.len(), 0, &self.t.tw[j]);
+    }
+    fn narrow(self, j: usize, dst: &mut [u64], s: &[u64]) {
+        (self.k.narrow)(dst, s, self.t.tw[j].prime());
+    }
+    fn forward(self, j: usize, a: &mut [u64]) {
+        (self.k.forward)(a, &self.t.tw[j]);
+    }
+    fn inverse(self, j: usize, a: &mut [u64], _: &mut [u64]) {
+        (self.k.inverse)(a, &self.t.tw[j]);
+    }
+    fn pointwise(self, j: usize, a: &mut [u64], b: &[u64]) {
+        (self.k.pointwise)(a, b, self.t.tw[j].prime());
+    }
+    fn square(self, j: usize, a: &mut [u64]) {
+        (self.k.square)(a, self.t.tw[j].prime());
+    }
+    /// As `portable::pair`, in passes: blocks `1..m/n` of the first residue are untwisted
+    /// and subtracted from the second, then block 0 is untwisted and halved with it.
+    fn pair(self, j: usize, r: &mut [u64], m: usize, _: &mut [u64]) {
+        let (tw, k) = (&self.t.tw[j], self.k);
+        let n = r.len() - m;
+        assert!(n < m && m.is_multiple_of(n));
+        let (e, s) = r.split_at_mut(m);
+        let (e0, mid) = e.split_at_mut(n);
+        for (i, blk) in mid.chunks_exact_mut(n).enumerate() {
+            (k.untwist)(blk, m, (i + 1) * n, tw);
+            (k.fold_sub)(s, blk, 0, false, tw.prime());
+        }
+        (k.untwist)(e0, m, 0, tw);
+        (k.halves)(e0, s, tw.prime());
+    }
+    fn fold_sub(self, j: usize, dst: &mut [u64], src: &[u64], start: usize, neg: bool) {
+        (self.k.fold_sub)(dst, src, start, neg, self.t.tw[j].prime());
+    }
+    fn halves(self, j: usize, lo: &mut [u64], hi: &mut [u64]) {
+        (self.k.halves)(lo, hi, self.t.tw[j].prime());
+    }
+    fn finish(self, out: &mut [u64], r: &mut [u64], width: usize, len: usize, wrapped: bool) {
+        let (r1, r2) = r.split_at_mut(width);
+        let r2 = &mut r2[..width];
+        (self.k.garner)(&mut r1[..len], &mut r2[..len]);
+        let c = ifma::carry_out(out, r1, r2);
+        if wrapped {
+            crt::wrap_carry(out, c);
+        } else {
+            debug_assert_eq!(c, 0, "product does not fit");
+        }
+    }
 }
 
 /// The type of [`Kernels::load_twist`].
@@ -565,52 +843,60 @@ pub(crate) fn scratch_len(n: usize) -> usize {
     mul::scratch_len(n).max(bound)
 }
 
+/// [`scratch_len`] for the two-prime backend: its residues take `8` bytes for the `4` of
+/// the three-prime residues, so a transform with `width` points and a temporary of at
+/// most `t <= width` takes `2 width + t` limbs for `(3 width + t) / 2`, at most 1.5 times
+/// as many. The other terms and the at most 7 alignment limbs are the same, so 1.5 times
+/// the bound covers every case, and keeps `n / 2 + len(n / 2) <= len(n)`.
+pub(crate) fn scratch_len_two(n: usize) -> usize {
+    (3 * scratch_len(n)).div_ceil(2)
+}
+
 /// `log2` of the transform length for a product of `len` limbs: at least `2 len` points
 /// (two 32-bit coefficients per limb), and at least 8.
 fn log_len(len: usize) -> u32 {
     (2 * len).max(8).next_power_of_two().trailing_zeros()
 }
 
-/// `out = a * b`. Requires `out.len() == a.len() + b.len()`, `t.log >= 5`, and
-/// `scratch.len() >= scratch_len(max(a.len(), b.len()))`; `scratch` may hold anything.
+/// `out = a * b`. Requires `out.len() == a.len() + b.len()`, tables of `log >= 5`, and
+/// `scratch.len() >= scratch_len(max(a.len(), b.len()))` ([`scratch_len_two`] for
+/// [`Two`]); `scratch` may hold anything.
 ///
 /// Uses Karatsuba when the shorter operand is below `threshold` limbs, and splits
-/// products too long for `t`.
-pub(crate) fn mul_with(
+/// products too long for the tables.
+fn mul_with<B: Backend>(
     out: &mut [u64],
     a: &[u64],
     b: &[u64],
     scratch: &mut [u64],
-    t: &Tables,
-    k: &Kernels,
+    k: B,
     threshold: usize,
 ) {
     debug_assert_eq!(out.len(), a.len() + b.len());
-    debug_assert!(t.log >= 5);
+    debug_assert!(k.log() >= 5);
     let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
     if a.len() < threshold.max(1) {
         mul::mul(out, a, b, scratch);
     } else if 2 * a.len() <= b.len() {
         mul::mul_blocks(out, a, b, scratch, |o, x, y, s| {
-            mul_with(o, x, y, s, t, k, threshold)
+            mul_with(o, x, y, s, k, threshold)
         });
-    } else if log_len(a.len() + b.len()) > t.log {
-        split(out, a, b, scratch, t, k, threshold);
+    } else if log_len(a.len() + b.len()) > k.log() {
+        split(out, a, b, scratch, k, threshold);
     } else {
-        transform(out, a, b, scratch, t, k, None);
+        transform(out, a, b, scratch, k, None);
     }
 }
 
 /// `out = a * b` from the four products of the halves of `a` and of `b`, each a quarter
 /// of the work. Requires `b.len() / 2 < a.len() <= b.len()`. When `a` and `b` are the
 /// same slice, so are the operands of the two diagonal products, so those square too.
-fn split(
+fn split<B: Backend>(
     out: &mut [u64],
     a: &[u64],
     b: &[u64],
     scratch: &mut [u64],
-    t: &Tables,
-    k: &Kernels,
+    k: B,
     threshold: usize,
 ) {
     let (ha, hb) = (a.len() / 2, b.len() / 2);
@@ -619,7 +905,7 @@ fn split(
     for (i, x) in [(0, &a[..ha]), (ha, &a[ha..])] {
         for (j, y) in [(0, &b[..hb]), (hb, &b[hb..])] {
             let tmp = &mut tmp[..x.len() + y.len()];
-            mul_with(tmp, x, y, scratch, t, k, threshold);
+            mul_with(tmp, x, y, scratch, k, threshold);
             // The partial sums never exceed `a * b`, so nothing carries out.
             let carry = mul::add_assign(&mut out[i + j..], tmp);
             debug_assert!(!carry);
@@ -628,53 +914,48 @@ fn split(
 }
 
 /// `out = a * b` by transforms of up to `L = 2^log_len(a.len() + b.len())` points, which
-/// `t` must serve: one cyclic transform of `L` points per prime, or the shorter pieces of
-/// a [`Plan`]. When `a` and `b` are the same slice, squares: one forward transform per
-/// prime instead of two. So does a prepared `b`, whose transforms `fb` holds; it needs
-/// `log_len(a.len() + b.len()) <= fb.log`. Squaring a prepared `b` takes no forward
-/// transform.
-fn transform(
+/// the tables must serve: one cyclic transform of `L` points per prime, or the shorter
+/// pieces of a [`Plan`]. When `a` and `b` are the same slice, squares: one forward
+/// transform per prime instead of two. So does a prepared `b`, whose transforms `fb`
+/// holds; it needs `log_len(a.len() + b.len()) <= fb.log`. Squaring a prepared `b` takes
+/// no forward transform.
+fn transform<B: Backend>(
     out: &mut [u64],
     a: &[u64],
     b: &[u64],
     scratch: &mut [u64],
-    t: &Tables,
-    k: &Kernels,
+    k: B,
     fb: Option<&Prepared>,
 ) {
     let plan = Plan::new(a.len() + b.len());
     if !plan.nega().is_empty() {
-        return pieces(out, a, b, scratch, t, k, &plan, fb);
+        return pieces(out, a, b, scratch, k, &plan, fb);
     }
     let n = plan.cyc;
-    let (r1, rest) = as_i32(scratch).split_at_mut(n);
-    let (r2, rest) = rest.split_at_mut(n);
-    let (r3, rest) = rest.split_at_mut(n);
+    let (r, rest) = B::elems(scratch).split_at_mut(B::PRIMES * n);
     let tmp = &mut rest[..n];
-    let rs = [&mut *r1, &mut *r2, &mut *r3];
-    for (j, ((r, p), tw)) in rs.into_iter().zip(PRIMES).zip(&t.tw).enumerate() {
+    for (j, r) in r.chunks_exact_mut(n).enumerate() {
         match fb {
-            Some(f) if ptr::eq(a, b) => r.copy_from_slice(&f.prime(j)[..n]),
+            Some(f) if ptr::eq(a, b) => r.copy_from_slice(&B::spectrum(f, j)[..n]),
             _ => {
-                (k.load)(r, a, p);
-                (k.forward)(r, p, tw.fw());
+                k.load(j, r, a);
+                k.forward(j, r);
             }
         }
         if ptr::eq(a, b) {
-            (k.square)(r, p);
+            k.square(j, r);
         } else if let Some(f) = fb {
-            (k.pointwise)(r, &f.prime(j)[..n], p);
+            k.pointwise(j, r, &B::spectrum(f, j)[..n]);
         } else {
-            (k.load)(tmp, b, p);
-            (k.forward)(tmp, p, tw.fw());
-            (k.pointwise)(r, tmp, p);
+            k.load(j, tmp, b);
+            k.forward(j, tmp);
+            k.pointwise(j, r, tmp);
         }
-        (k.inverse)(r, p, tw.inverse(tmp));
+        k.inverse(j, r, tmp);
     }
     // Only the first `2 * out.len() <= n` coefficients can be non-zero.
     let m = (2 * out.len()).next_multiple_of(4);
-    (k.garner)([&mut r1[..m], &mut r2[..m], &mut r3[..m]]);
-    crt::carry(out, [r1, r2, r3]);
+    k.finish(out, r, n, m, false);
 }
 
 /// The transforms for a product of `len` limbs: modulo `x^m + 1` for each `m` in
@@ -739,22 +1020,17 @@ impl Plan {
 ///
 /// Modulo `x^m + 1` is a cyclic transform of `m` points after multiplying coefficient
 /// `i` by `w^i`, for `w` a primitive `2 m`-th root of unity: the twiddles of the top
-/// stage of a `2 m`-point transform, so `t` must serve `2 m <= L` points.
+/// stage of a `2 m`-point transform, so the tables must serve `2 m <= L` points.
 ///
 /// An operand has fewer than `2 m` coefficients for the first `m` in `nega`, so [`fold`]
 /// adds at most three blocks to a negacyclic piece. It can span thousands of blocks of
 /// the cyclic rest, which [`sums`] folds once for all primes.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "Pass the product slices, transform plan, and optional prepared operand directly"
-)]
-fn pieces(
+fn pieces<B: Backend>(
     out: &mut [u64],
     a: &[u64],
     b: &[u64],
     scratch: &mut [u64],
-    t: &Tables,
-    k: &Kernels,
+    k: B,
     plan: &Plan,
     fb: Option<&Prepared>,
 ) {
@@ -768,87 +1044,75 @@ fn pieces(
     } else {
         sums(sb, b)
     };
-    let (r, tmp) = as_i32(scratch).split_at_mut(3 * width);
-    for (j, ((r, p), tw)) in r.chunks_exact_mut(width).zip(PRIMES).zip(&t.tw).enumerate() {
-        let f = fb.map(|f| f.prime(j));
-        // `x = a b` modulo `x^d + 1` (twisted by `w`) or `x^d - 1`, for `d = x.len()`:
+    let (r, tmp) = B::elems(scratch).split_at_mut(B::PRIMES * width);
+    for (j, r) in r.chunks_exact_mut(width).enumerate() {
+        let f = fb.map(|f| B::spectrum(f, j));
+        // `x = a b` modulo `x^d + 1` (twisted, `nega`) or `x^d - 1`, for `d = x.len()`:
         // `b`'s transform is at `d..2 d` or `..d` in `f` (see [`Prepared`]).
-        let mut product = |x: &mut [i32], w: Option<&[i32]>| {
+        let mut product = |x: &mut [B::E], nega: bool| {
             // An operand's coefficients for `x`, from its sums for the cyclic rest.
-            let load = |x: &mut [i32], v: &[u64], s: Option<&[u64]>| match s {
-                Some(s) if w.is_none() => narrow(x, s, p),
-                _ => fold(x, v, p, w, k),
+            let load = |x: &mut [B::E], v: &[u64], s: Option<&[u64]>| match s {
+                Some(s) if !nega => k.narrow(j, x, s),
+                _ => fold(k, j, x, v, nega),
             };
             let d = x.len();
-            let at = if w.is_some() { d..2 * d } else { 0..d };
+            let at = if nega { d..2 * d } else { 0..d };
             match f {
                 Some(f) if ptr::eq(a, b) => x.copy_from_slice(&f[at.clone()]),
                 _ => {
                     load(x, a, sa);
-                    (k.forward)(x, p, tw.fw());
+                    k.forward(j, x);
                 }
             }
             if ptr::eq(a, b) {
-                (k.square)(x, p);
+                k.square(j, x);
             } else if let Some(f) = f {
-                (k.pointwise)(x, &f[at], p);
+                k.pointwise(j, x, &f[at]);
             } else {
                 let y = &mut tmp[..x.len()];
                 load(y, b, sb);
-                (k.forward)(y, p, tw.fw());
-                (k.pointwise)(x, y, p);
+                k.forward(j, y);
+                k.pointwise(j, x, y);
             }
-            let iw = tw.inverse(&mut tmp[..d]);
-            (k.inverse)(x, p, iw);
+            k.inverse(j, x, tmp);
             // With one piece, `pair` undoes the twist after the cyclic rest is ready.
-            if plan.k > 1
-                && let Some(w) = w
-            {
-                let iw = &mut tmp[..d];
-                tables::invert_roots(iw, w);
-                (k.twist)(x, iw, p);
+            if plan.k > 1 && nega {
+                k.untwist(j, x, tmp);
             }
         };
         let mut rest = &mut *r;
         for &m in plan.nega() {
             let x;
             (x, rest) = rest.split_at_mut(m);
-            product(x, Some(&tw.fw()[m..2 * m]));
+            product(x, true);
         }
-        product(rest, None);
+        product(rest, false);
         match *plan.nega() {
-            [m] => {
-                let iw = &mut tmp[..m];
-                tables::invert_roots(iw, &tw.fw()[m..2 * m]);
-                (k.pair)(r, m, iw, p);
-            }
-            ref nega => crt(r, nega, p, k),
+            [m] => k.pair(j, r, m, tmp),
+            ref nega => crt(k, j, r, nega),
         }
     }
-    let (r1, rest) = r.split_at_mut(width);
-    let (r2, r3) = rest.split_at_mut(width);
     // `2 out.len() <= width`, a multiple of 8.
     let len = (2 * out.len()).next_multiple_of(4);
-    (k.garner)([&mut r1[..len], &mut r2[..len], &mut r3[..len]]);
-    crt::carry(out, [r1, r2, r3]);
+    k.finish(out, r, width, len, false);
 }
 
-/// Writes the coefficients of `limbs` to `dst`, in `(-q, q)`: modulo `x^d + 1` and
-/// times `w^i` at `i`, with `w` (as in [`Kernels::load_twist`]), or modulo `x^d - 1`,
-/// for `d = dst.len()`, which is even.
-fn fold(dst: &mut [i32], limbs: &[u64], p: Prime, w: Option<&[i32]>, k: &Kernels) {
+/// Writes the coefficients of `limbs` to `dst`: modulo `x^d + 1` and times `w^i` at `i`,
+/// with `w` a primitive `2 d`-th root (`nega`), or modulo `x^d - 1`, for `d = dst.len()`,
+/// which is even.
+fn fold<B: Backend>(k: B, j: usize, dst: &mut [B::E], limbs: &[u64], nega: bool) {
     let half = dst.len() / 2;
     let (head, tail) = limbs.split_at(limbs.len().min(half));
-    match w {
-        Some(w) if tail.is_empty() => return (k.load_twist)(dst, head, p, w),
-        _ => (k.load)(dst, head, p),
+    if nega && tail.is_empty() {
+        return k.load_twist(j, dst, head);
     }
+    k.load(j, dst, head);
     // Block `i + 1` is multiplied by `x^(d (i + 1))`: `(-1)^(i + 1)` modulo `x^d + 1`.
     for (i, blk) in tail.chunks(half).enumerate() {
-        (k.load_add)(dst, blk, p, w.is_some() && i % 2 == 0);
+        k.load_add(j, dst, blk, nega && i % 2 == 0);
     }
-    if let Some(w) = w {
-        (k.twist)(dst, w, p);
+    if nega {
+        k.twist(j, dst);
     }
 }
 
@@ -890,9 +1154,9 @@ fn narrow(dst: &mut [i32], s: &[u64], p: Prime) {
 }
 
 /// Polynomial CRT, in place: `r` holds `c mod (x^m + 1)` for each `m` in `nega`, in that
-/// order, then `c mod (x^n - 1)` for the rest, all in `(-q, q)`, where `nega` is
-/// descending and `n` is below its last entry. `c` has degree below `r.len()`; on
-/// return `r` holds it.
+/// order, then `c mod (x^n - 1)` for the rest, as inverse transforms leave them, where
+/// `nega` is descending and `n` is below its last entry. `c` has degree below `r.len()`;
+/// on return `r` holds it.
 ///
 /// With `m` the first length and `d = r.len() - m < m`, write `c = lo + x^d mid +
 /// x^m hi`, with `d` coefficients in `lo` and in `hi`. Modulo `x^m + 1` it is `lo - hi`,
@@ -900,7 +1164,7 @@ fn narrow(dst: &mut [i32], s: &[u64], p: Prime) {
 /// Subtracting `x^d mid` from the later residues leaves those of `lo + hi`, which the
 /// recursion rebuilds in `r[m..]`. Then `lo` and `hi` are half its sum with and
 /// difference from `lo - hi`.
-fn crt(r: &mut [i32], nega: &[usize], p: Prime, k: &Kernels) {
+fn crt<B: Backend>(k: B, j: usize, r: &mut [B::E], nega: &[usize]) {
     let Some((&m, later)) = nega.split_first() else {
         return;
     };
@@ -911,11 +1175,11 @@ fn crt(r: &mut [i32], nega: &[usize], p: Prime, k: &Kernels) {
     for &n in later {
         let x;
         (x, tail) = tail.split_at_mut(n);
-        (k.fold_sub)(x, mid, d, true, p);
+        k.fold_sub(j, x, mid, d, true);
     }
-    (k.fold_sub)(tail, mid, d, false, p);
-    crt(rest, later, p, k);
-    (k.halves)(lo, rest, p);
+    k.fold_sub(j, tail, mid, d, false);
+    crt(k, j, rest, later);
+    k.halves(j, lo, rest);
 }
 
 /// The scratch limbs from the first 64-byte boundary, at most 7 limbs in, as twice as
@@ -963,7 +1227,7 @@ mod tests {
         );
         let mut got = vec![0xA5A5_A5A5_A5A5_A5A5; a.len() + b.len()];
         let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len(a.len().max(b.len()))];
-        mul_with(&mut got, a, b, &mut scratch, t, k, threshold);
+        mul_with(&mut got, a, b, &mut scratch, Three { t, k }, threshold);
         assert!(
             got == want,
             "{} x {} limbs, tables 2^{}",
@@ -971,6 +1235,57 @@ mod tests {
             b.len(),
             t.log
         );
+    }
+
+    /// [`check`] for the two-prime backend, with exactly `scratch_len_two` scratch.
+    fn check_two(a: &[u64], b: &[u64], t: &Tables52, k: &Kernels52, threshold: usize) {
+        let mut want = vec![0; a.len() + b.len()];
+        let n = a.len().max(b.len());
+        mul::mul(&mut want, a, b, &mut vec![0; mul::scratch_len(n)]);
+        let mut got = vec![0xA5A5_A5A5_A5A5_A5A5; a.len() + b.len()];
+        let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len_two(n)];
+        mul_with(&mut got, a, b, &mut scratch, Two { t, k }, threshold);
+        let (na, nb) = (a.len(), b.len());
+        assert!(
+            got == want,
+            "{na} x {nb} limbs, two primes, tables 2^{}",
+            t.log
+        );
+    }
+
+    /// The native two-prime kernels, or `None` with a skip line for `what`. Set
+    /// `BASE58_REQUIRE_IFMA` to fail instead of skipping on CPUs without IFMA.
+    fn native_kernels52(what: &str) -> Option<Kernels52> {
+        let k = Kernels52::best();
+        if k.is_none() {
+            assert!(
+                std::env::var_os("BASE58_REQUIRE_IFMA").is_none(),
+                "no AVX-512 IFMA: {what}"
+            );
+            std::eprintln!("skipped: no AVX-512 IFMA ({what})");
+        }
+        k
+    }
+
+    /// The two-prime kernels: emulated, and native on CPUs with IFMA.
+    fn kernels52() -> Vec<Kernels52> {
+        let native = native_kernels52("native two-prime kernels");
+        [Some(ifma::tests::emu()), native]
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+
+    /// [`scalar_ntt`] with each three-prime kernel set and each of [`kernels52`].
+    fn multipliers() -> Vec<Ntt> {
+        let mut v = vec![scalar_ntt(Kernels::portable()), scalar_ntt(Kernels::best())];
+        for k in kernels52() {
+            v.push(Ntt {
+                k52: Some(k),
+                ..scalar_ntt(Kernels::portable())
+            });
+        }
+        v
     }
 
     /// Random, all-ones (the largest coefficients) and zero operands.
@@ -984,15 +1299,14 @@ mod tests {
     }
 
     /// Every small shape, all through transforms. Squares pass one slice twice.
-    fn small_shapes(k: &Kernels) {
+    fn small_shapes(check: impl Fn(&[u64], &[u64], usize)) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(30);
-        let t = Tables::new(8);
         for na in 1..=64 {
             for nb in 1..=64 {
                 for (a, b) in operands(&mut rng, na, nb) {
-                    check(&a, &b, &t, k, 1);
+                    check(&a, &b, 1);
                     if na == nb {
-                        check(&a, &a, &t, k, 1);
+                        check(&a, &a, 1);
                     }
                 }
             }
@@ -1001,9 +1315,8 @@ mod tests {
 
     /// Shapes around the threshold, powers of two and unbalanced products, and the
     /// squares of each operand (one slice twice).
-    fn large_shapes(k: &Kernels) {
+    fn large_shapes(check: impl Fn(&[u64], &[u64], usize)) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(31);
-        let t = Tables::new(14);
         let square = [127, 128, 129, 255, 256, 257, 1000, 1023, 1024, 1025];
         let shapes = square.map(|n| (n, n)).into_iter().chain([
             (1, 1000),
@@ -1021,32 +1334,61 @@ mod tests {
         ]);
         for (na, nb) in shapes {
             for (a, b) in operands(&mut rng, na, nb) {
-                check(&a, &b, &t, k, THRESHOLD);
-                check(&b, &a, &t, k, 1);
-                check(&a, &a, &t, k, 1);
-                check(&b, &b, &t, k, 1);
+                check(&a, &b, THRESHOLD);
+                check(&b, &a, 1);
+                check(&a, &a, 1);
+                check(&b, &b, 1);
             }
+        }
+    }
+
+    /// A product check: operands and threshold.
+    type Check<'a> = &'a dyn Fn(&[u64], &[u64], usize);
+    /// A multiplication with scratch.
+    type MulFn<'a> = Box<dyn Fn(&mut [u64], &[u64], &[u64], &mut [u64]) + 'a>;
+    /// A backend's scratch bound.
+    type ScratchLen = fn(usize) -> usize;
+
+    fn shapes(log: u32, k: Kernels, f: fn(Check)) {
+        let t = Tables::new(log);
+        f(&|a, b, threshold| check(a, b, &t, &k, threshold));
+    }
+
+    fn shapes_two(log: u32, f: fn(Check)) {
+        for k in kernels52() {
+            let t = Tables52::new(log, &k);
+            f(&|a, b, threshold| check_two(a, b, &t, &k, threshold));
         }
     }
 
     #[test]
     fn small_shapes_portable() {
-        small_shapes(&Kernels::portable());
+        shapes(8, Kernels::portable(), |c| small_shapes(c));
     }
 
     #[test]
     fn large_shapes_portable() {
-        large_shapes(&Kernels::portable());
+        shapes(14, Kernels::portable(), |c| large_shapes(c));
     }
 
     #[test]
     fn small_shapes_best() {
-        small_shapes(&Kernels::best());
+        shapes(8, Kernels::best(), |c| small_shapes(c));
     }
 
     #[test]
     fn large_shapes_best() {
-        large_shapes(&Kernels::best());
+        shapes(14, Kernels::best(), |c| large_shapes(c));
+    }
+
+    #[test]
+    fn small_shapes_two_primes() {
+        shapes_two(8, |c| small_shapes(c));
+    }
+
+    #[test]
+    fn large_shapes_two_primes() {
+        shapes_two(14, |c| large_shapes(c));
     }
 
     /// Tables smaller than the products force the split path, recursively, for products
@@ -1171,7 +1513,7 @@ mod tests {
                 let s = &mut scratch[skip..][..scratch_len(n)];
                 assert_eq!(as_i32(s).as_ptr().addr() % 64, 0);
                 let mut got = vec![0; 2 * n];
-                mul_with(&mut got, &a, &b, s, &t, &k, 1);
+                mul_with(&mut got, &a, &b, s, Three { t: &t, k: &k }, 1);
                 assert!(got == want, "{n} limbs, scratch {skip} limbs in");
             }
         }
@@ -1185,7 +1527,7 @@ mod tests {
         use crate::ntt::tables::tests::modq;
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(39);
         let (t, k) = (Tables::new(12), Kernels::portable());
-        for (p, tw) in PRIMES.into_iter().zip(&t.tw) {
+        for (j, (p, tw)) in PRIMES.into_iter().zip(&t.tw).enumerate() {
             let reduced = |x: &[i32]| x.iter().map(|&v| modq(v as i128, p.q)).collect::<Vec<_>>();
             for n in (4..=12).map(|log| 1 << log) {
                 for len in [n / 8, n / 3, n / 2] {
@@ -1195,9 +1537,8 @@ mod tests {
                     (k.forward)(&mut full, p, tw.fw());
                     let pieces = (3..n.ilog2()).map(|log| 1 << log);
                     for (d, nega) in pieces.flat_map(|d| [(d, true), (d, false)]) {
-                        let w = nega.then(|| &tw.fw()[d..2 * d]);
                         let mut x = vec![0; d];
-                        fold(&mut x, &b, p, w, &k);
+                        fold(Three { t: &t, k: &k }, j, &mut x, &b, nega);
                         (k.forward)(&mut x, p, tw.fw());
                         let at = if nega { d } else { 0 };
                         let msg = format!("n {n}, {len} limbs, d {d}, negacyclic {nega}");
@@ -1226,10 +1567,19 @@ mod tests {
                 for a in [random, vec![u64::MAX; len]] {
                     let mut s = vec![0; d];
                     let s = sums(&mut s, &a).unwrap();
-                    for p in PRIMES {
+                    for (j, p) in PRIMES.into_iter().enumerate() {
                         let (mut got, mut want) = (vec![0; d], vec![0; d]);
                         narrow(&mut got, s, p);
-                        fold(&mut want, &a, p, None, &k);
+                        fold(
+                            Three {
+                                t: &Tables::new(5),
+                                k: &k,
+                            },
+                            j,
+                            &mut want,
+                            &a,
+                            false,
+                        );
                         assert_eq!(
                             reduced(&got, p.q),
                             reduced(&want, p.q),
@@ -1276,7 +1626,7 @@ mod tests {
         );
         ntt.prepare_power(i, b, len);
         let mut got = vec![0xA5A5_A5A5_A5A5_A5A5; a.len() + b.len()];
-        let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len(a.len().max(b.len()))];
+        let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; ntt.scratch_len(a.len().max(b.len()))];
         ntt.mul_power(&mut got, a, i, b, &mut scratch);
         assert!(got == want, "{} x {} limbs, len {len}", a.len(), b.len());
     }
@@ -1388,8 +1738,7 @@ mod tests {
             (130, 109, 239),
             (1500, 858, 1716),
         ];
-        for kernels in [Kernels::portable(), Kernels::best()] {
-            let mut ntt = scalar_ntt(kernels);
+        for mut ntt in multipliers() {
             ntt.prepare(4000);
             let mut i = 0;
             for (na, nb, len) in shapes {
@@ -1402,7 +1751,7 @@ mod tests {
             let (a, b, c) = (vec![u64::MAX; 1031], vec![u64::MAX; 858], vec![1; 858]);
             ntt.prepare_power(i, &b, 1889);
             let mut got = vec![0; a.len() + c.len()];
-            ntt.mul_power(&mut got, &a, i, &c, &mut vec![0; scratch_len(a.len())]);
+            ntt.mul_power(&mut got, &a, i, &c, &mut vec![0; ntt.scratch_len(a.len())]);
             let mut want = vec![0; a.len() + c.len()];
             mul::mul(&mut want, &a, &c, &mut vec![0; mul::scratch_len(a.len())]);
             assert!(got == want, "operand other than the prepared power");
@@ -1433,8 +1782,7 @@ mod tests {
             }
             v
         };
-        for kernels in [Kernels::portable(), Kernels::best()] {
-            let mut ntt = scalar_ntt(kernels);
+        for mut ntt in multipliers() {
             ntt.prepare(8192);
             let mut i = 0;
             for (l, na, nb) in shapes {
@@ -1667,7 +2015,27 @@ mod tests {
             // One cyclic transform of 2^23 points, a tenth of it padding.
             (9 * m / 5, 9 * m / 5),
         ];
+        // Two primes only with native IFMA: emulated, these would take minutes.
+        let k52 = native_kernels52("largest_transforms, two primes");
+        let t52 = k52.as_ref().map(|k| Tables52::new(MAX_LOG, k));
+        // Each backend with exactly its own scratch bound.
+        let mut backends: Vec<(&str, MulFn, ScratchLen)> = vec![];
         for k in [Kernels::portable(), Kernels::best()] {
+            let t = &t;
+            backends.push((
+                "three primes",
+                Box::new(move |o, a, b, s| mul_with(o, a, b, s, Three { t, k: &k }, THRESHOLD)),
+                scratch_len,
+            ));
+        }
+        if let (Some(k), Some(t)) = (&k52, &t52) {
+            backends.push((
+                "two primes",
+                Box::new(move |o, a, b, s| mul_with(o, a, b, s, Two { t, k }, THRESHOLD)),
+                scratch_len_two,
+            ));
+        }
+        for (name, mul_with, scratch_len) in &backends {
             for (na, nb) in shapes {
                 assert_eq!(log_len(na + nb), MAX_LOG);
                 let (a, b) = (vec![u64::MAX; na], vec![u64::MAX; nb]);
@@ -1676,13 +2044,13 @@ mod tests {
                 assert!(!borrow);
                 let mut got = vec![0; na + nb];
                 let mut scratch = vec![0; scratch_len(nb)];
-                mul_with(&mut got, &a, &b, &mut scratch, &t, &k, THRESHOLD);
-                assert!(got == want, "{na} x {nb} limbs");
+                mul_with(&mut got, &a, &b, &mut scratch);
+                assert!(got == want, "{name}: {na} x {nb} limbs");
                 if na == nb {
                     // One slice twice: the square path.
                     got.fill(0);
-                    mul_with(&mut got, &a, &a, &mut scratch, &t, &k, THRESHOLD);
-                    assert!(got == want, "{na} limbs squared");
+                    mul_with(&mut got, &a, &a, &mut scratch);
+                    assert!(got == want, "{name}: {na} limbs squared");
                 }
             }
         }
@@ -1784,7 +2152,16 @@ mod tests {
                 }
                 let r: Vec<i32> = r.iter().map(|&x| (x % p.q as i64) as i32).collect();
                 let mut got = r.clone();
-                crt(&mut got, nega, p, &k);
+                let j = PRIMES.iter().position(|x| x.q == p.q).unwrap();
+                crt(
+                    Three {
+                        t: &Tables::new(5),
+                        k: &k,
+                    },
+                    j,
+                    &mut got,
+                    nega,
+                );
                 let mut all = vec![got];
                 if let &[m] = nega {
                     // `pair` takes the negacyclic residue times `w^i` at `i`.
@@ -1819,5 +2196,131 @@ mod tests {
     /// `1 / x mod q`.
     fn inverse(x: i64, q: i64) -> i64 {
         crate::ntt::tables::tests::pow(x.rem_euclid(q) as u64, q as u64 - 2, q as u64) as i64
+    }
+
+    /// [`split_matches_karatsuba`] with two primes.
+    #[test]
+    fn two_primes_split_matches_karatsuba() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(32);
+        for k in kernels52() {
+            let t = Tables52::new(5, &k);
+            for (na, nb) in [(5, 12), (9, 9), (16, 17), (40, 60), (100, 101), (33, 300)] {
+                for (a, b) in operands(&mut rng, na, nb) {
+                    check_two(&a, &b, &t, &k, 1);
+                    check_two(&a, &a, &t, &k, 1);
+                    check_two(&b, &b, &t, &k, 1);
+                }
+            }
+        }
+    }
+
+    /// [`scratch_at_any_alignment`] with two primes: exactly `scratch_len_two` limbs.
+    #[test]
+    fn two_primes_scratch_at_any_alignment() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+        for k in kernels52() {
+            let t = Tables52::new(12, &k);
+            for n in [1, 34, 128, 129, 200, 321] {
+                let (a, b) = operands(&mut rng, n, n)[0].clone();
+                let mut want = vec![0; 2 * n];
+                mul::mul(&mut want, &a, &b, &mut vec![0; mul::scratch_len(n)]);
+                let len = scratch_len_two(n);
+                let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; len + 7];
+                for skip in 0..8 {
+                    let s = &mut scratch[skip..][..len];
+                    assert_eq!(Two::elems(s).as_ptr().addr() % 64, 0);
+                    let mut got = vec![0; 2 * n];
+                    mul_with(&mut got, &a, &b, s, Two { t: &t, k: &k }, 1);
+                    assert!(got == want, "{n} limbs, scratch {skip} limbs in");
+                }
+            }
+        }
+    }
+
+    /// [`squares_take_square_path`] with two primes.
+    #[test]
+    fn two_primes_squares_take_square_path() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(37);
+        for k in kernels52() {
+            let t = Tables52::new(14, &k);
+            let no_pointwise = Kernels52 {
+                pointwise: |_, _, _| panic!("pointwise"),
+                ..k
+            };
+            let no_square = Kernels52 {
+                square: |_, _| panic!("square"),
+                ..k
+            };
+            for (n, nega) in [(128, 0), (129, 1), (200, 2)] {
+                assert_eq!(Plan::new(2 * n).nega().len(), nega);
+                let a: Vec<u64> = (0..n).map(|_| rng.next_u64()).collect();
+                check_two(&a, &a, &t, &no_pointwise, 1);
+                check_two(&a, &a.clone(), &t, &no_square, 1);
+            }
+        }
+    }
+
+    /// Decoding and division-tree encoding end to end through the two-prime backend, with
+    /// the thresholds of [`scalar_ntt`] so moderate lengths take transforms, prepared
+    /// powers and wrapped products. Lengths in characters (decode) and bytes (encode).
+    #[test]
+    fn two_primes_convert_end_to_end() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(44);
+        for k in kernels52() {
+            for len in [DC_THRESHOLD * CHUNK + 1, 10_000, 40_960] {
+                let max = "z".repeat(len);
+                for s in [random_string(&mut rng, len), max] {
+                    let want = decode_vec(crate::dc::decode, &s).unwrap();
+                    let mut ntt = Ntt {
+                        k52: Some(k),
+                        ..scalar_ntt(Kernels::portable())
+                    };
+                    let mut out = vec![0; s.len()];
+                    let n = dc::decode_with(&s, &mut out, &mut ntt).unwrap();
+                    assert!(out[..n] == want[..], "decode, len {len}");
+                    assert!(ntt.owned.is_none() && ntt.owned52.is_some());
+
+                    let mut ntt = Ntt {
+                        k52: Some(k),
+                        ..scalar_ntt(Kernels::portable())
+                    };
+                    let mut text = vec![0; crate::encode::max_encoded_len(want.len())];
+                    let n = encode::encode_tuned(&want, &mut text, &mut ntt, 0, 32, Leaves::Horner)
+                        .unwrap();
+                    assert!(text[..n] == *s.as_bytes(), "encode, len {len}");
+                    assert!(ntt.owned.is_none() && ntt.owned52.is_some());
+                }
+            }
+        }
+    }
+
+    /// [`cached_tables_across_threads`] for the two-prime store, from emulated kernels:
+    /// one table, equal to an owned one.
+    #[cfg(feature = "cache")]
+    #[test]
+    fn two_primes_cached_tables_across_threads() {
+        const LOG: u32 = CACHE_MAX_LOG;
+        let k = ifma::tests::emu();
+        let start = std::sync::Barrier::new(8);
+        let got: Vec<&Tables52> = std::thread::scope(|scope| {
+            let threads: Vec<_> = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        start.wait();
+                        Tables52::cached(LOG, &k)
+                    })
+                })
+                .collect();
+            threads.into_iter().map(|t| t.join().unwrap()).collect()
+        });
+        assert!(
+            got.iter().all(|&t| core::ptr::eq(t, got[0])),
+            "two tables built"
+        );
+        assert_eq!(got[0].log, LOG);
+        let owned = Tables52::new(LOG, &k);
+        for (g, w) in got[0].tw.iter().zip(&owned.tw) {
+            assert!(g.roots_eq(w));
+        }
     }
 }
