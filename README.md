@@ -249,10 +249,11 @@ operand size. Other production targets do not use these IFMA kernels.
 
 ## Development and license
 
-[CORRECTNESS.md](CORRECTNESS.md) lists the test commands (most suites need
-`--features __internals`; checksum suites need `check`) and describes the
-differential/property tests, sanitizer fuzzing, Miri, scoped proofs and remaining
-gaps. [DESIGN.md](DESIGN.md) explains algorithms, dispatch and resource costs. The
+[CI.md](CI.md) lists the CI jobs and their local commands (most suites need
+`--features __internals`; checksum suites need `check`).
+[CORRECTNESS.md](CORRECTNESS.md) describes the differential/property tests,
+sanitizer fuzzing, Miri, scoped proofs and remaining gaps.
+[DESIGN.md](DESIGN.md) explains algorithms, dispatch and resource costs. The
 `__internals` feature exposes unstable backend controls for tests and benchmarks;
 applications need neither. Benchmarks compare bs58, basexx, fixed-length five8 and
 a development-only Malachite adapter.

@@ -370,6 +370,8 @@ jobs:
       - if: matrix.cache_args == ''
         run: python3 scripts/check_ci_tests.py --self-test
       - if: matrix.cache_args == ''
+        run: python3 scripts/check_public_api.py --self-test --output "$RUNNER_TEMP/public-api-self-test"
+      - if: matrix.cache_args == ''
         run: python3 -m unittest discover -s assets/graphs -p test_render.py
       - if: matrix.cache_args == ''
         run: python3 assets/graphs/render.py --check

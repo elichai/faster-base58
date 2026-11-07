@@ -28,11 +28,12 @@ wrapper. It installs nothing and does not edit the supplied checkout or any
 global toolchain. `--prepare-only` validates the source and patch without a build.
 `--offline` keeps Cargo offline when its dependencies are already cached.
 
-The matching compiler can be obtained in an isolated CI Rustup directory with
-`rustup-toolchain-install-master` at the version in `pins.json`, requesting
-`cargo`, `rust-src` and `rustc-dev` for the pinned compiler commit. Use Cargo from
-the pinned ordinary nightly if that compiler artifact does not include Cargo.
-The builder fails when either compiler or Cargo reports a different commit.
+CI installs the matching compiler into an isolated Rustup home with
+`rustup-toolchain-install-master` at the version in `pins.json`. It requests the
+`rust-src`, `rustc-dev` and `llvm-tools` components for the pinned compiler
+commit. Cargo comes from the pinned ordinary nightly (`cargo_toolchain` in
+`pins.json`). The builder fails when either compiler or Cargo reports a
+different commit.
 
 The interpreter build enables `stack-cache`, disables optional `native-lib`,
 retains Miri's validation, and uses opt-level 1 with no debug info or incremental
