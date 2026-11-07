@@ -1,7 +1,7 @@
 //! Quadratic decoding with one 64-bit limb update per ten characters.
 
 use crate::BufferTooSmall;
-use crate::common::{BASE, DIGITS, DecodeError, chunks, invalid, store_low_le};
+use crate::common::{BASE, DIGITS, DecodeError, UNROLL_PAIRED, chunks, invalid, store_low_le};
 
 /// Decodes `input` into `output` and returns the number of bytes written.
 ///
@@ -160,14 +160,29 @@ impl Value<'_> {
             return self.mul_add(c2);
         };
         // `p` is the previous limb after the first pass only.
-        let (mut p, mut k1) = u64::from_le_bytes(*first).carrying_mul(BASE, c1);
-        let mut k2 = c2;
-        for i in 1..l.len() {
+        let (p, k1) = u64::from_le_bytes(*first).carrying_mul(BASE, c1);
+        // The first pass reads limb `i`; the second writes limb `i - 1`.
+        let step = |l: &mut [[u8; 8]], i: usize, (p, k1, k2): (u64, u64, u64)| {
             let (a, h1) = u64::from_le_bytes(l[i]).carrying_mul(BASE, k1);
             let (b, h2) = p.carrying_mul(BASE, k2);
             l[i - 1] = b.to_le_bytes();
-            (p, k1, k2) = (a, h1, h2);
+            (a, h1, h2)
+        };
+        let mut s = (p, k1, c2);
+        let mut i = 1;
+        if UNROLL_PAIRED {
+            while let Some(w) = l[i - 1..].first_chunk_mut::<5>() {
+                s = step(w, 1, s);
+                s = step(w, 2, s);
+                s = step(w, 3, s);
+                s = step(w, 4, s);
+                i += 4;
+            }
         }
+        for i in i..l.len() {
+            s = step(l, i, s);
+        }
+        let (p, k1, mut k2) = s;
         let (b, h2) = p.carrying_mul(BASE, k2);
         l[l.len() - 1] = b.to_le_bytes();
         k2 = h2;
@@ -208,16 +223,17 @@ mod tests {
     use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
     /// The interleaved passes must propagate the same carries and limb growth as two
-    /// independent passes, including either pass creating a new top limb.
+    /// independent passes, including either pass creating a new top limb, for lengths
+    /// that exercise the four-limb loop and every remainder.
     #[test]
     fn paired_update_matches_sequential() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(71);
-        for len in 0..=4 {
+        for len in 0..=9 {
             for top in [1, BASE - 1, u64::MAX / BASE, u64::MAX] {
                 for c1 in [0, 1, BASE - 1, rng.next_u64() % BASE] {
                     for c2 in [0, 1, BASE - 1, rng.next_u64() % BASE] {
                         let mut paired =
-                            core::array::from_fn::<_, 6, _>(|_| rng.next_u64().to_le_bytes());
+                            core::array::from_fn::<_, 11, _>(|_| rng.next_u64().to_le_bytes());
                         let mut sequential = paired;
                         let mut p = Value {
                             limbs: &mut paired,

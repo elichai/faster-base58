@@ -47,6 +47,16 @@ pub(crate) const DIGITS: [u8; 256] = {
 pub(crate) const CHUNK: usize = 10;
 pub(crate) const BASE: u64 = 58u64.pow(CHUNK as u32);
 
+/// Whether the paired multiply-add loops in [`crate::batched`] and [`crate::dc`] take four
+/// limbs per iteration.
+///
+/// With one limb, the x86-64 loop was 49 bytes and its closing branch straddled a 64-byte
+/// line whenever the loop started at 16 mod 64; there Zen 5 decoded 512 B-2 KiB 1.2-1.3x
+/// slower. Four limbs varied by at most 5% across 16-byte code shifts and took 6-22% less
+/// time on Zen 5 (best placements compared) and 4-31% on the M5. V8 ran unrolled Wasm
+/// loops 4-30% slower.
+pub(crate) const UNROLL_PAIRED: bool = !cfg!(target_family = "wasm");
+
 /// Splits off the leading '1's, each of which decodes to a zero byte.
 pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
     let zeros = input.iter().take_while(|&&c| c == b'1').count();
