@@ -5,7 +5,7 @@
 use crate::Error;
 #[cfg(any(test, feature = "__internals", kani))]
 use crate::common::split_zeros;
-use crate::common::{BASE, CHUNK, DecodeError, all_valid, invalid, values};
+use crate::common::{BASE, CHUNK, DecodeError, UNROLL_PAIRED, all_valid, invalid, values};
 use crate::{BufferTooSmall, matrix, mul};
 use alloc::vec::Vec;
 
@@ -253,14 +253,29 @@ fn mul_add_base2(limbs: &mut [u64], len: usize, c1: u64, c2: u64) -> usize {
         return mul_add_base(limbs, len, c2);
     };
     // `p` is the previous limb after the first pass only.
-    let (mut p, mut k1) = first.carrying_mul(BASE, c1);
-    let mut k2 = c2;
-    for i in 1..l.len() {
+    let (p, k1) = first.carrying_mul(BASE, c1);
+    // The first pass reads limb `i`; the second writes limb `i - 1`.
+    let step = |l: &mut [u64], i: usize, (p, k1, k2): (u64, u64, u64)| {
         let (a, h1) = l[i].carrying_mul(BASE, k1);
         let (b, h2) = p.carrying_mul(BASE, k2);
         l[i - 1] = b;
-        (p, k1, k2) = (a, h1, h2);
+        (a, h1, h2)
+    };
+    let mut s = (p, k1, c2);
+    let mut i = 1;
+    if UNROLL_PAIRED {
+        while let Some(w) = l[i - 1..].first_chunk_mut::<5>() {
+            s = step(w, 1, s);
+            s = step(w, 2, s);
+            s = step(w, 3, s);
+            s = step(w, 4, s);
+            i += 4;
+        }
     }
+    for i in i..len {
+        s = step(l, i, s);
+    }
+    let (p, k1, mut k2) = s;
     (l[len - 1], k2) = p.carrying_mul(BASE, k2);
     // The first pass's carry, if non-zero, is its new top limb.
     let mut len = len;
@@ -511,6 +526,30 @@ mod tests {
     #[should_panic(expected = "value is too short for divide and conquer")]
     fn normalized_decoder_rejects_short_values() {
         decode_parts(b"2", 0, &mut [0; 1], &mut Karatsuba, Leaf::Horner).unwrap();
+    }
+
+    /// The interleaved passes must match two sequential passes, including new top limbs,
+    /// for lengths that exercise the four-limb loop and every remainder.
+    #[test]
+    fn paired_limb_update_matches_sequential() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(72);
+        for len in 0..=9 {
+            for top in [1, BASE - 1, u64::MAX] {
+                for c1 in [0, 1, BASE - 1, rng.next_u64() % BASE] {
+                    for c2 in [0, 1, BASE - 1, rng.next_u64() % BASE] {
+                        let mut paired: [u64; 11] = core::array::from_fn(|_| rng.next_u64());
+                        if len > 0 {
+                            paired[len - 1] = top;
+                        }
+                        let mut sequential = paired;
+                        let pn = mul_add_base2(&mut paired, len, c1, c2);
+                        let sn = mul_add_base(&mut sequential, len, c1);
+                        let sn = mul_add_base(&mut sequential, sn, c2);
+                        assert_eq!((pn, paired), (sn, sequential), "len {len}");
+                    }
+                }
+            }
+        }
     }
 
     /// [`decode`] with each leaf.
