@@ -70,8 +70,11 @@ scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
 on the stack; schoolbook sums reserve their usual capacity once and can grow
 for sparse, unbalanced products. All owners are dropped on return.
 This route requires
-more than 4096 significant bytes (on x86, 48 KiB) and at least 7/8 utilization
-of its full transform, with or without `cache`. On Zen 5 the division tree with
+more than 4096 significant bytes (on x86, 48 KiB) and at least 5/8 utilization
+of its root transform, or 3/4 with `cache`. Utilization grows linearly with the
+input from 0.48 just above each transform-length step (`17 * 2^k + 1` bytes) to 0.97.
+With `cache`, cached Matrix leaves speed up only the division tree, so its crossover
+is higher. On Zen 5 the division tree with
 IFMA Karatsuba products is faster up to the 32 KiB sizes. Heavily padded sizes,
 significant inputs above 16 MiB, x86 CPUs without AVX-512F (not measured) and
 other targets keep the division tree. The carry pass runs four

@@ -24,9 +24,7 @@ const ARMS: [(&str, Encode); 3] = [
     ("radix", encode_radix),
     ("division-aa", encode_ntt_cached),
 ];
-const SIZES: [usize; 8] = [
-    8192, 12288, 16384, 65536, 98304, 131072, 786_432, 1_048_576,
-];
+const SIZES: [usize; 8] = [8192, 12288, 16384, 65536, 98304, 131072, 786_432, 1_048_576];
 
 fn var(name: &str) -> Option<String> {
     std::env::var(name).ok()

@@ -106,9 +106,10 @@ fn preferred(bytes: usize) -> bool {
     // roughly this padding ratio at each level. The used fraction of the root transform
     // must reach 5/8, or 3/4 with `cache`, whose cached Matrix leaves speed up only the
     // division tree. Same-binary sweeps (`benches/radix_tune.rs`, generic flags) put
-    // the crossover near 0.55 (M5) and 0.6 (Zen 5) without `cache`, and near 0.7 on
-    // both with it. Not adopted: 7/8 forgoes 8-20% at 0.62-0.81 used; 9/16 loses
-    // 4-5% at 5 KiB (M5) and on Zen 5; one 5/8 rule loses up to 13% with `cache`.
+    // the crossover near 0.55 (M5) and 0.62 (Zen 5) without `cache`, and near 0.7 on
+    // both with it. Not adopted: 7/8 forgoes 6-22% at 0.68-0.81 used; 9/16 loses 4-6%
+    // at 5 KiB (M5) and 4-25% on Zen 5; 5/8 with `cache` loses up to 13% (M5, 12 KiB).
+    // With `cache`, 3/4 still costs up to 3% at 13-14 KiB on M5.
     let eighths = if cfg!(feature = "cache") { 6 } else { 5 };
     bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * eighths
 }
@@ -638,10 +639,12 @@ mod tests {
             assert_eq!(try_encode(0, &vec![255; bytes], &mut []), None);
         }
         // From 5/8 to below 3/4 used: only without `cache`; then also with it.
-        let default_only = [6144, 12_288, 89_977, 98_304, 107_972, 786_432]
-            .map(|b| (b, !cfg!(feature = "cache")));
-        let always = [4097, 8192, 32_768, 65_536, 107_973, 262_143, 1_048_575, 1_048_576]
-            .map(|b| (b, true));
+        let default_only =
+            [6144, 12_288, 89_977, 98_304, 107_972, 786_432].map(|b| (b, !cfg!(feature = "cache")));
+        let always = [
+            4097, 8192, 32_768, 65_536, 107_973, 262_143, 1_048_575, 1_048_576,
+        ]
+        .map(|b| (b, true));
         for (bytes, used) in default_only.into_iter().chain(always) {
             let selected = supported() && bytes > MIN_BYTES && used;
             assert_eq!(
