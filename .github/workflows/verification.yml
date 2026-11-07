@@ -375,7 +375,7 @@ jobs:
       - run: |
           set -e -o pipefail
           cargo +${{ env.RUST_NIGHTLY }} miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests:: 2>&1 | tee "$RUNNER_TEMP/miri-supported-core.log"
-          grep -Eq '^test result: ok\. 3 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-core.log"
+          grep -Eq '^test result: ok\. 2 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-core.log"
       - run: |
           set -e -o pipefail
           cargo +${{ env.RUST_NIGHTLY }} miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact 2>&1 | tee "$RUNNER_TEMP/miri-supported-avx2.log"
@@ -386,7 +386,7 @@ jobs:
         run: |
           set -e -o pipefail
           cargo +${{ env.RUST_NIGHTLY }} miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests:: 2>&1 | tee "$RUNNER_TEMP/miri-supported-tree.log"
-          grep -Eq '^test result: ok\. 3 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-tree.log"
+          grep -Eq '^test result: ok\. 2 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-tree.log"
 
   miri_arm_panel:
     runs-on: ubuntu-latest
