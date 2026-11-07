@@ -48,9 +48,8 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
   is the named method in `encode/dc.rs::div_schoolbook`. The exact edition and
   source consulted are unknown.
 - **GNU MP manual:** background for
-  [binary-to-radix conversion](https://gmplib.org/manual/Binary-to-Radix),
-  [Karatsuba](https://gmplib.org/manual/Karatsuba-Multiplication) and
-  [Toom-3](https://gmplib.org/manual/Toom-3_002dWay-Multiplication).
+  [binary-to-radix conversion](https://gmplib.org/manual/Binary-to-Radix) and
+  [Karatsuba](https://gmplib.org/manual/Karatsuba-Multiplication).
   GMP is not a runtime dependency. Its library has
   [LGPLv3-or-later / GPLv2-or-later terms](https://gmplib.org/manual/Copying);
   a manual link does not establish copied GMP code.

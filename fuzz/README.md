@@ -54,7 +54,7 @@ The generator includes all-`z` inputs at 89,499..89,502 characters. Such an inpu
 89,502-character seed can decode to 65,538 bytes, so the decode budget does not
 impose the encode target's binary-length limit.
 
-These budgets reach divide-and-conquer, Toom-3, matrix and NTT paths, including
+These budgets reach divide-and-conquer, matrix and NTT paths, including
 the larger IFMA multiplication thresholds on supported CPUs. They do not cover
 all supported NTT sizes or force unsupported instructions. For nonzero valid
 inputs near either decode cap, the current split/power bounds prepare log14

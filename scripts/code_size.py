@@ -18,7 +18,7 @@ import zlib
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKENDS = "empty,auto,no-alloc,batched,karatsuba,toom3,ntt,ntt-cached,ntt-portable,malachite,matrix,matrix-portable,bs58,five8,matrix-forced,ntt-same-owned,ntt-same-cached"
+BACKENDS = "empty,auto,no-alloc,batched,karatsuba,ntt,ntt-cached,ntt-portable,malachite,matrix,matrix-portable,bs58,five8,matrix-forced,ntt-same-owned,ntt-same-cached"
 CONTROLS = ("matrix-forced", "ntt-same-owned", "ntt-same-cached")
 
 

@@ -25,7 +25,6 @@ pub const ENCODERS: &[(&str, Encode)] = &[
     ("no-alloc", faster_base58::internals::encode_no_alloc),
     ("batched", faster_base58::internals::encode_batched),
     ("dc", faster_base58::internals::encode_karatsuba),
-    ("toom3", faster_base58::internals::encode_toom3),
     ("ntt", faster_base58::internals::encode_ntt),
     ("ntt-cached", faster_base58::internals::encode_ntt_cached),
     ("radix", faster_base58::internals::encode_radix),
@@ -58,7 +57,6 @@ pub const DECODERS: &[(&str, Decode)] = &[
     ("no-alloc", faster_base58::internals::decode_no_alloc),
     ("batched", faster_base58::internals::decode_batched),
     ("dc", faster_base58::internals::decode_karatsuba),
-    ("toom3", faster_base58::internals::decode_toom3),
     ("ntt", faster_base58::internals::decode_ntt),
     ("ntt-cached", faster_base58::internals::decode_ntt_cached),
     (

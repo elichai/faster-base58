@@ -7,7 +7,7 @@ use crate::common::{ALPHABET, CHUNK, DIGITS, all_valid};
 use crate::dc::DC_THRESHOLD;
 use crate::internals::{
     decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable, decode_ntt,
-    decode_ntt_cached, decode_ntt_portable, decode_toom3,
+    decode_ntt_cached, decode_ntt_portable,
 };
 use crate::{Error, decode, decode_malachite};
 
@@ -18,7 +18,6 @@ const DECODERS: &[(&str, Decode)] = &[
     ("batched", decode_batched),
     ("auto", decode),
     ("dc", decode_karatsuba),
-    ("dc-toom3", decode_toom3),
     ("ntt", decode_ntt),
     ("ntt-cached", decode_ntt_cached),
     ("ntt-portable", decode_ntt_portable),

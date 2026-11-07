@@ -35,7 +35,6 @@ verifies the checksum after conversion, before the version.
 | Karatsuba | Balanced radix conversion with Karatsuba multiplication and batched leaves | Per-call powers, reciprocals and scratch |
 | Matrix | Independent multiply-adds against a power table, followed by bounded carry passes | Quadratic table size and work; setup can dominate small calls |
 | NTT | Balanced radix conversion with transform multiplication and prepared powers | Subquadratic large-input work, substantial scratch and twiddle storage |
-| Toom-3 | Experimental multiplier using five third-size products | Test/benchmark/proof builds only; Auto never selects it |
 | Malachite | Development-only multiplier adapter and separate radix oracle | Not a normal dependency; its multiplier shares our conversion tree |
 
 Integers use little-endian `u64` limbs. A radix chunk is `58^10`. Powers omit low
@@ -51,9 +50,9 @@ The public paths handle empty and tiny inputs before the general loops.
 [Divide-and-conquer decoding](src/dc.rs) combines `high * (58^10)^e + low`.
 [Encoding](src/encode/dc.rs) divides by the same powers, then emits quotient and
 padded remainder recursively. Barrett estimates use reciprocals refined by Newton
-steps; each power and reciprocal is reused within one conversion. Karatsuba,
-Toom-3 and the fallback NTT encoder share this conversion tree. Unbalanced
-products use blocks.
+steps; each power and reciprocal is reused within one conversion. Karatsuba
+and the fallback NTT encoder share this conversion tree. Unbalanced products
+use blocks.
 
 On little-endian AArch64 with NEON, large encoding can instead use a
 [multiplication tree in base `58^3`](src/ntt/radix.rs). It splits at byte

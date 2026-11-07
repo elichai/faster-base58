@@ -11,7 +11,7 @@ use super::{max_encoded_len, min_digits};
 use crate::common::ALPHABET;
 use crate::internals::{
     encode_batched, encode_karatsuba, encode_matrix, encode_matrix_portable, encode_ntt,
-    encode_ntt_cached, encode_ntt_portable, encode_radix, encode_radix_portable, encode_toom3,
+    encode_ntt_cached, encode_ntt_portable, encode_radix, encode_radix_portable,
 };
 use crate::{BufferTooSmall, decode, encode, encode_malachite};
 
@@ -22,7 +22,6 @@ const ENCODERS: &[(&str, Encode)] = &[
     ("batched", encode_batched),
     ("auto", encode),
     ("dc", encode_karatsuba),
-    ("dc-toom3", encode_toom3),
     ("ntt", encode_ntt),
     ("ntt-cached", encode_ntt_cached),
     ("ntt-portable", encode_ntt_portable),

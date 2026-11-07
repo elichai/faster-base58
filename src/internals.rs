@@ -29,7 +29,6 @@ pub use crate::ntt::internals::{
     encode_radix_portable,
     owned::{decode_ntt, encode_ntt},
 };
-pub use crate::toom3::{decode_toom3, decode_toom3_with, encode_toom3};
 #[cfg(feature = "__internals")]
 pub use crate::{
     encode::matrix::internals::feature_only::{

@@ -29,7 +29,7 @@ pub(super) const MATRIX_LEAF: usize = 1024;
 #[cfg(any(not(feature = "cache"), test, feature = "__internals", kani))]
 pub(crate) mod karatsuba {
     /// Inputs of more than this many bytes use divide and conquer, with leaves of at most
-    /// [`DC_LEAF`] chunks, when multiplying with Karatsuba or Toom-3. Tuned on an M5 Pro
+    /// [`DC_LEAF`] chunks, when multiplying with Karatsuba. Tuned on an M5 Pro
     /// against [`crate::encode::encode_batched`], in one binary; the NTT and malachite have their own.
     pub(crate) const DC_THRESHOLD: usize = 5120;
     pub(crate) const DC_LEAF: usize = 96;
