@@ -19,9 +19,19 @@ pub(super) fn panel(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
     }
 }
 
+/// `super::convert` with [`avx2`] panels.
+#[target_feature(enable = "avx2")]
+pub(super) fn convert_avx2<'a>(
+    parse: fn(&[u8], &mut [u32]) -> bool,
+    digits: &[u8],
+    scratch: &'a mut super::Scratch,
+) -> Option<&'a [u64]> {
+    super::convert_with(parse, |a, w, d| avx2(a, w, d), digits, scratch)
+}
+
 /// [`panel`] with AVX2, without its length check.
 #[target_feature(enable = "avx2")]
-fn avx2(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
+pub(crate) fn avx2(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
     for (a, t) in acc
         .as_chunks_mut::<4>()
         .0

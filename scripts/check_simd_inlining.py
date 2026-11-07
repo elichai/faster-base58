@@ -54,6 +54,9 @@ EXPECTED = (
     "faster_base58::matrix::x86::panel",
     "faster_base58::matrix::x86::avx2",
     "faster_base58::matrix::x86::sse41",
+    # AVX2 Matrix conversions; the panel kernel is inlined into them.
+    "faster_base58::matrix::x86::convert_avx2",
+    "faster_base58::encode::matrix::x86::convert_avx2",
 )
 
 

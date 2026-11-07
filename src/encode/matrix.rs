@@ -263,6 +263,23 @@ pub(super) fn column_digits(cols: &[u64], out: &mut [[u8; 4]]) {
 #[cfg(any(feature = "alloc", test, kani))]
 #[inline(never)]
 fn convert<'a>(k: &Kernels, x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
+    // As in the decoder's `convert`.
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    if core::ptr::fn_addr_eq(k.panel, PANEL) && crate::cpu::avx2() {
+        // SAFETY: the CPU has AVX2.
+        return unsafe { x86::convert_avx2(x, scratch) };
+    }
+    convert_with(|a, w, d| (k.panel)(a, w, d), x, scratch)
+}
+
+/// [`convert`] with `panel`, which inlines into each caller.
+#[cfg(any(feature = "alloc", test, kani))]
+#[inline(always)]
+fn convert_with<'a>(
+    panel: impl Fn(&mut [u64], &[u32], &[u32; 8]),
+    x: &[u8],
+    scratch: &'a mut Scratch,
+) -> &'a [u64] {
     if x.is_empty() {
         return &[];
     }
@@ -279,7 +296,7 @@ fn convert<'a>(k: &Kernels, x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
     let cols = zeroed(&mut scratch.cols, table.cols(panels));
     for (p, d) in words.as_chunks::<ROWS>().0.iter().enumerate() {
         let end = 4 * table.panels[p].nb;
-        (k.panel)(&mut cols[..end], table.words(p), d);
+        panel(&mut cols[..end], table.words(p), d);
         if (p + 1).is_multiple_of(CARRY_EVERY) {
             // `cols[end]` is the carry column: panel ends increase, so neither a panel
             // nor an earlier pass has written it.

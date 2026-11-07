@@ -143,7 +143,9 @@ caches five atomic-byte detection results without heap allocation. Cargo still
 resolves that x86 dependency with `std`, but those detector expansions are excluded.
 Native x86 kernels also require baseline SSE2 in the target. Soft-float targets
 without it use portable kernels; runtime CPUID cannot opt them into SIMD.
-Selectors use `core::cfg_select!`; the MSRV is Rust 1.95.
+Selectors use `core::cfg_select!`; the MSRV is Rust 1.95. A Matrix conversion checks
+for AVX2 once and runs its whole panel loop in one AVX2 function; without AVX2, each
+panel selects the SSE4.1 or portable kernel.
 
 SIMD applies beyond fixed lengths. Fixed 32-byte x86 encoding deliberately uses
 plain Rust; fixed 64-byte encoding has explicit vector kernels. AVX2 NTT wrappers

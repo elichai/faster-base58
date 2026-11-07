@@ -69,6 +69,8 @@ const BEST: Kernels = core::cfg_select! {
 
 /// The panel kernels, for the matrix encoder (`encode/matrix.rs`).
 pub(crate) const PANEL: Panel = BEST.panel;
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+pub(crate) use x86::avx2 as panel_avx2;
 
 /// Matrix conversion after automatic length selection.
 #[cfg(any(feature = "cache", test, feature = "__internals"))]
@@ -256,13 +258,40 @@ pub(crate) fn zeroed<T: Copy + Default>(buf: &mut [MaybeUninit<T>], len: usize) 
 /// byte is not a base58 digit. Requires `digits.len() <= MAX_CHARS`.
 #[inline(never)]
 fn convert<'a>(k: &Kernels, digits: &[u8], scratch: &'a mut Scratch) -> Option<&'a [u64]> {
+    // With AVX2, `BEST` checks the CPU once and runs the panel loop in an AVX2 function,
+    // where the kernel inlines; otherwise each panel dispatches. Zen 5, builds with
+    // aligned functions and loops: about 2% less time from 1 to 2 KiB here and from 33 B
+    // to 2 KiB in the encoder.
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    if core::ptr::fn_addr_eq(k.panel, BEST.panel) && crate::cpu::avx2() {
+        // SAFETY: the CPU has AVX2.
+        return unsafe { x86::convert_avx2(k.parse, digits, scratch) };
+    }
+    // Closures that load the kernels through `k`: passing the pointers themselves left
+    // NEON's kernels out of line.
+    convert_with(
+        |d, g| (k.parse)(d, g),
+        |a, w, d| (k.panel)(a, w, d),
+        digits,
+        scratch,
+    )
+}
+
+/// [`convert`] with `parse` and `panel`, which inline into each caller.
+#[inline(always)]
+fn convert_with<'a>(
+    parse: impl Fn(&[u8], &mut [u32]) -> bool,
+    panel: impl Fn(&mut [u64], &[u32], &[u32; 8]),
+    digits: &[u8],
+    scratch: &'a mut Scratch,
+) -> Option<&'a [u64]> {
     if digits.is_empty() {
         return Some(&[]);
     }
     let panels = digits.len().div_ceil(PANEL_CHARS);
     // 8 groups per panel is at least the 4 per 16 characters that `parse` writes.
     let groups = zeroed(&mut scratch.groups, ROWS * panels);
-    if !(k.parse)(digits, groups) {
+    if !parse(digits, groups) {
         return None;
     }
     // After `parse`, so invalid input builds no table.
@@ -272,7 +301,7 @@ fn convert<'a>(k: &Kernels, digits: &[u8], scratch: &'a mut Scratch) -> Option<&
     let mut from = 0;
     for (p, d) in groups.as_chunks::<ROWS>().0.iter().enumerate() {
         let end = p + 4 * table.panels[p].nb;
-        (k.panel)(&mut cols[p..end], table.words(p), d);
+        panel(&mut cols[p..end], table.words(p), d);
         if (p + 1).is_multiple_of(CARRY_EVERY) {
             carry32(&mut cols[from..=end]);
             from = p + 1;
