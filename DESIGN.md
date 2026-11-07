@@ -143,7 +143,9 @@ caches five atomic-byte detection results without heap allocation. Cargo still
 resolves that x86 dependency with `std`, but those detector expansions are excluded.
 Native x86 kernels also require baseline SSE2 in the target. Soft-float targets
 without it use portable kernels; runtime CPUID cannot opt them into SIMD.
-Selectors use `core::cfg_select!`; the MSRV is Rust 1.95.
+Selectors use `core::cfg_select!`; the MSRV is Rust 1.95. A Matrix conversion checks
+for AVX2 once and runs its whole panel loop in one AVX2 function; without AVX2, each
+panel selects the SSE4.1 or portable kernel.
 
 SIMD applies beyond fixed lengths. Fixed 32-byte x86 encoding deliberately uses
 plain Rust; fixed 64-byte encoding has explicit vector kernels. AVX2 NTT wrappers
@@ -152,6 +154,16 @@ hooks replace a kernel family, not every downstream fallback, and do not promise
 scalar assembly. Wasm `+simd128` requires a SIMD-capable engine and has no scalar
 runtime fallback within that module. Measurements show mixed tradeoffs; see
 [performance](docs/performance.md).
+
+Dispatch calls one `#[target_feature]` function per kernel. The vector code it runs
+is inlined into it, or kept in functions that have those features themselves (cold
+paths and kernels selected by pointer). Code on vectors therefore uses
+`#[inline(always)]` functions and explicit arrays, not `core` array and iterator
+adapters, nor closures outside `#[target_feature]` functions: those compile without
+the caller's target features, so a copy that LLVM keeps out of line turns each
+intrinsic into a call. CI checks that the SIMD modules keep only the functions
+listed in `scripts/check_simd_inlining.py` out of line
+([CORRECTNESS.md](CORRECTNESS.md#tests-and-independent-references)).
 
 The IFMA leaf threshold is a constant. Generic x86 builds still read cached CPU
 feature flags in the NTT short-product fallback; passing threshold state through

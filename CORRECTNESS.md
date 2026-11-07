@@ -103,6 +103,15 @@ do not execute kernels. The maximum `2^23`-point transform test runs separately;
 two expensive Matrix sweeps execute with `cache` rather than rebuilding the
 same owned tables for every size.
 
+The SIMD inlining job builds the Auto consumer library with generic CPU flags on
+x86-64 Linux (default, `cache`, `compact`) and arm64 Linux (default, `cache`).
+[check_simd_inlining.py](scripts/check_simd_inlining.py) logs every out-of-line
+crate function, then fails if a `core::arch` intrinsic survives as a function or a
+SIMD module keeps a function out of line that its `EXPECTED` list does not name
+(dispatch-table entries and functions kept apart on purpose: target-feature entry
+points, kernels selected by pointer and cold paths).
+It reads symbols only: it does not see slow code inside an inlined body.
+
 ```sh
 PROPTEST_CASES=512 cargo nextest run --locked --features __internals --lib --tests
 PROPTEST_CASES=512 cargo nextest run --locked --features __internals,cache --lib --tests

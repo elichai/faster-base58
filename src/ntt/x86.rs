@@ -58,6 +58,9 @@ pub(super) fn kernels() -> Option<super::Kernels> {
             fn tf_pair(r: &mut [i32], m: usize, iw: &[i32], p: Prime) {
                 pair(r, m, iw, p)
             }
+            // The closures adapt these functions to the table's safe pointers. A table of
+            // `unsafe fn` pointers without them measured neutral (Zen 5, aligned builds,
+            // within 2%): a kernel call does thousands of coefficients.
             super::Kernels {
                 // SAFETY: built only after detecting $feature.
                 load: |d, l, p| unsafe { tf_load(d, l, p) },
