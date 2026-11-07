@@ -3,7 +3,7 @@
 use super::super::crt::GARNER;
 use super::super::tables::{PRIMES, Prime};
 use super::super::{Kernels, portable};
-use super::{half, lazy, load_one};
+use super::{half, load_one, reduces_x};
 
 #[inline(always)]
 pub(crate) fn load(dst: &mut [i32], limbs: &[u64], p: Prime) {
@@ -15,6 +15,14 @@ pub(crate) fn load(dst: &mut [i32], limbs: &[u64], p: Prime) {
 }
 
 /// Decimation in frequency: natural order in, bit-reversed order out.
+///
+/// Each sum is reduced. Both inputs of a sum grow if it is not, so `inverse`'s
+/// schedule does not apply. Measured on M5 NEON, forward kernel only (`2^10` to
+/// `2^18` points): unreduced `h = 1` outputs (below `1.5 q`, which `pointwise` would
+/// have to accept) took 0.94–0.96 of the time; also skipping the third of the other
+/// sum reductions whose inputs were reduced added nothing measurable; stored Montgomery
+/// companions took 0.93–0.99 and Barrett twiddle products (Becker et al.) 0.93–0.98,
+/// both with twice the twiddle memory. None was measured end to end.
 #[inline(always)]
 pub(crate) fn forward(a: &mut [i32], p: Prime, fw: &[i32]) {
     let n = a.len();
@@ -36,35 +44,48 @@ pub(crate) fn forward(a: &mut [i32], p: Prime, fw: &[i32]) {
 }
 
 /// Decimation in time: bit-reversed order in, natural order out, times `a.len()`.
+/// Reductions follow [`reduces_x`].
 #[inline(always)]
 pub(crate) fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
     let n = a.len();
     debug_assert!(n.is_power_of_two() && n >= 2 && n <= iw.len());
-    last_stage(a, p);
+    if n == 2 {
+        return last_stage(a, p);
+    }
+    // h = 1, twiddle 1: `reduces_x(1)` is false.
+    for [x, y] in a.as_chunks_mut::<2>().0 {
+        (*x, *y) = (*x + *y, *x - *y);
+    }
     let mut h = 2;
     while h < n {
-        if lazy(h, n) {
-            inverse_stage::<true>(a, h, p, iw);
-        } else {
-            inverse_stage::<false>(a, h, p, iw);
+        match (reduces_x(h), 2 * h == n) {
+            (false, false) => inverse_stage::<false, false>(a, h, p, iw),
+            (true, false) => inverse_stage::<true, false>(a, h, p, iw),
+            (false, true) => inverse_stage::<false, true>(a, h, p, iw),
+            (true, true) => inverse_stage::<true, true>(a, h, p, iw),
         }
         h *= 2;
     }
 }
 
-/// One stage of [`inverse`], on blocks of `2 h`; `LAZY` skips the reductions.
+/// One stage of [`inverse`], on blocks of `2 h`: `RX` reduces `x` first, `LAST` the
+/// outputs.
 #[inline(always)]
-fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
+fn inverse_stage<const RX: bool, const LAST: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
     let w = &iw[h..2 * h];
+    // The input bounds of `reduces_x` (`ntt::proofs` checks each butterfly).
+    let bound = if RX { 2 * p.q } else { p.q + p.q / 4 };
     for blk in a.chunks_exact_mut(2 * h) {
         let (x, y) = blk.split_at_mut(h);
         for ((x, y), &w) in x.iter_mut().zip(y).zip(w) {
+            debug_assert!((1 - bound..bound).contains(x) && (1 - bound..bound).contains(y));
             let t = p.mont(*y, w, p.wq(w));
-            let (s, d) = (*x + t, *x - t);
-            (*x, *y) = if LAZY {
-                (s, d)
-            } else {
+            let x0 = if RX { p.reduce(*x) } else { *x };
+            let (s, d) = (x0 + t, x0 - t);
+            (*x, *y) = if LAST {
                 (p.reduce(s), p.reduce(d))
+            } else {
+                (s, d)
             };
         }
     }
@@ -168,8 +189,9 @@ pub(crate) fn garner([r1, r2, r3]: [&mut [i32]; 3]) {
     let ([p1, p2, p3], g) = (PRIMES, GARNER);
     debug_assert!(r1.len() == r2.len() && r2.len() == r3.len());
     for ((x1, x2), x3) in r1.iter_mut().zip(r2.iter_mut()).zip(r3.iter_mut()) {
-        let (a, b, c) = (p1.normalize(*x1), p2.normalize(*x2), p3.normalize(*x3));
-        // `b - a` and `c - a` are below 2^30 in magnitude; `t - v2` below 1.75 * 2^30.
+        // Only `a` must be in `[0, q1)`. `b - a` and `c - a` are above `-(q1 + q2)` and
+        // below `q2`, `t - v2` is below `1.75 q2` in magnitude: all below 2^31.
+        let (a, b, c) = (p1.normalize(*x1), *x2, *x3);
         let v2 = p2.normalize(p2.mont(b - a, g.c12, g.c12q));
         let t = p3.mont(c - a, g.c13, g.c13q);
         let v3 = p3.normalize(p3.mont(t - v2, g.c23, g.c23q));

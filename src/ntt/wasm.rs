@@ -186,22 +186,19 @@ pub(crate) fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
         // SAFETY: `i + 8 <= n`.
         unsafe {
             let (v0, v1) = (ld(ptr.add(i)), ld(ptr.add(i + 4)));
-            // h = 1, twiddle 1.
+            // h = 1, twiddle 1, unreduced (`portable::reduces_x`).
             let (x, y) = (
                 i32x4_shuffle::<0, 2, 4, 6>(v0, v1),
                 i32x4_shuffle::<1, 3, 5, 7>(v0, v1),
             );
-            let (x, y) = (
-                reduce(i32x4_add(x, y), qv, vv),
-                reduce(i32x4_sub(x, y), qv, vv),
-            );
+            let (x, y) = (i32x4_add(x, y), i32x4_sub(x, y));
             let (v0, v1) = (
                 i32x4_shuffle::<0, 4, 1, 5>(x, y),
                 i32x4_shuffle::<2, 6, 3, 7>(x, y),
             );
-            // h = 2, lazy (`portable::lazy`): `n >= 8`, so this is not the last stage.
+            // h = 2 reduces x: `n >= 8`, so this is not the last stage.
             let (x, y) = (i64x2_shuffle::<0, 2>(v0, v1), i64x2_shuffle::<1, 3>(v0, v1));
-            let y = mont(y, w2, w2q, qv);
+            let (x, y) = (reduce(x, qv, vv), mont(y, w2, w2q, qv));
             let (x, y) = (i32x4_add(x, y), i32x4_sub(x, y));
             st(ptr.add(i), i64x2_shuffle::<0, 2>(x, y));
             st(ptr.add(i + 4), i64x2_shuffle::<1, 3>(x, y));
@@ -209,19 +206,20 @@ pub(crate) fn inverse(a: &mut [i32], p: Prime, iw: &[i32]) {
     }
     let mut h = 4;
     while h < n {
-        if portable::lazy(h, n) {
-            inverse_stage::<true>(a, h, p, iw);
-        } else {
-            inverse_stage::<false>(a, h, p, iw);
+        match (portable::reduces_x(h), 2 * h == n) {
+            (false, false) => inverse_stage::<false, false>(a, h, p, iw),
+            (true, false) => inverse_stage::<true, false>(a, h, p, iw),
+            (false, true) => inverse_stage::<false, true>(a, h, p, iw),
+            (true, true) => inverse_stage::<true, true>(a, h, p, iw),
         }
         h *= 2;
     }
 }
 
 /// One stage of [`inverse`]: `h` is a multiple of 4, `a.len()` a multiple of `2 h` that
-/// the twiddles serve. `LAZY` skips the reductions, as `portable::inverse_stage` does.
+/// the twiddles serve. `RX` and `LAST` are as in `portable::inverse_stage`.
 #[inline(always)]
-fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
+fn inverse_stage<const RX: bool, const LAST: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
     let n = a.len();
     assert!(h >= 4 && h.is_multiple_of(4) && n.is_multiple_of(2 * h) && n <= iw.len());
     let (qv, vv, qinv) = consts(p);
@@ -238,14 +236,15 @@ fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]
                 let w = ld(w.add(j));
                 let wq = i32x4_mul(w, qinv);
                 let x = ld(px);
+                let x = if RX { reduce(x, qv, vv) } else { x };
                 let y = mont(ld(py), w, wq, qv);
                 let (sum, dif) = (i32x4_add(x, y), i32x4_sub(x, y));
-                if LAZY {
-                    st(px, sum);
-                    st(py, dif);
-                } else {
+                if LAST {
                     st(px, reduce(sum, qv, vv));
                     st(py, reduce(dif, qv, vv));
+                } else {
+                    st(px, sum);
+                    st(py, dif);
                 }
             }
         }
@@ -303,9 +302,9 @@ pub(crate) fn garner([r1, r2, r3]: [&mut [i32]; 3]) {
         let [q2, q3, c12, c13, c23] = fresh(&k);
         // SAFETY: `i + 4 <= n` for all three slices.
         unsafe {
+            // Only `a` is normalized, as in `portable::garner`.
             let a = normalize(ld(r1.as_ptr().add(i)), q1);
-            let b = normalize(ld(r2.as_ptr().add(i)), q2);
-            let c = normalize(ld(r3.as_ptr().add(i)), q3);
+            let (b, c) = (ld(r2.as_ptr().add(i)), ld(r3.as_ptr().add(i)));
             let v2 = normalize(mont(i32x4_sub(b, a), c12, c12q, q2), q2);
             let t = mont(i32x4_sub(c, a), c13, c13q, q3);
             let v3 = normalize(mont(i32x4_sub(t, v2), c23, c23q, q3), q3);

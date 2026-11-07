@@ -3,7 +3,7 @@
 //!
 //! Values passed between kernels stay in `(-q, q)`: a sum or difference of two such
 //! values is below `2^31`, which [`Prime::reduce`] and [`Prime::mont`] accept. Inside
-//! `inverse`, values between stages can reach `1.25 q + 32` (see [`lazy`]).
+//! `inverse`, values between stages can reach `2 q` (see [`reduces_x`]).
 
 use super::tables::Prime;
 #[cfg(test)]
@@ -72,17 +72,22 @@ pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]) {
     rest.fill(0);
 }
 
-/// Whether stage `h` of an `n`-point `inverse` skips its reductions: `log2(h)` odd, and
-/// not the last stage.
+/// Whether stage `h` of `inverse` reduces `x` before its butterflies `x ± mont(y, w)`:
+/// `log2(h)` odd. Only the last stage also reduces its outputs.
 ///
-/// A reducing stage stores magnitudes of at most `q / 2 + 32`. A lazy stage follows one
-/// and adds or subtracts `mont(y, w)`, below `0.75 q`, so it stores less than
-/// `1.25 q + 32`. The next stage reduces: `mont` takes its `y` (below `2^31`), and its
-/// sums stay below `2 q + 32 < 2^31`. The `h = 1` stage and the last stage reduce, so
-/// the input may be anywhere in `(-q, q)` and the output is in it again.
+/// With `|w| <= q / 2`, `|mont(y, w)| <= |y| q / 2^33 + q / 2`, and every prime has
+/// `q / 2^32 < 0.2325`. The input is in `(-q, q)`, so the `h = 1` stage, whose twiddle
+/// is 1, stores less than `2 q`. A stage that reduces `x` to `q / 2 + 32` from below
+/// `2 q` stores less than `q + 0.2325 q + 32 < 1.25 q`; the next one adds or subtracts
+/// below `0.5 q + 0.1454 q`, so it stores less than `1.9 q < 2^31`, below `2 q` again.
+/// The last stage's sums are below `1.9 q` either way, and their reductions return
+/// the output to `(-q, q)`. `ntt::proofs` checks both kinds of butterfly for every
+/// prime. Reducing both outputs of every other stage instead needs twice the
+/// reductions; the NEON inverse then took 1.14–1.19 times as long (M5, `2^10` to
+/// `2^18` points).
 #[inline(always)]
-pub(crate) fn lazy(h: usize, n: usize) -> bool {
-    h.trailing_zeros() % 2 == 1 && 2 * h < n
+pub(crate) fn reduces_x(h: usize) -> bool {
+    h.trailing_zeros() % 2 == 1
 }
 
 /// Adds (or, with `sub`, subtracts) the 32-bit halves of `limbs` to `dst`, element by

@@ -218,16 +218,13 @@ fn inverse_neon(a: &mut [i32], p: Prime, iw: &[i32]) {
         // SAFETY: `i + 8 <= n`.
         unsafe {
             let (v0, v1) = (vld1q_s32(ptr.add(i)), vld1q_s32(ptr.add(i + 4)));
-            // h = 1, twiddle 1.
+            // h = 1, twiddle 1, unreduced (`portable::reduces_x`).
             let (x, y) = (vuzp1q_s32(v0, v1), vuzp2q_s32(v0, v1));
-            let (x, y) = (
-                reduce(vaddq_s32(x, y), qv, vv),
-                reduce(vsubq_s32(x, y), qv, vv),
-            );
+            let (x, y) = (vaddq_s32(x, y), vsubq_s32(x, y));
             let (v0, v1) = (vzip1q_s32(x, y), vzip2q_s32(x, y));
-            // h = 2, lazy (`portable::lazy`): `n >= 8`, so this is not the last stage.
+            // h = 2 reduces x: `n >= 8`, so this is not the last stage.
             let (x, y) = (zip1_64(v0, v1), zip2_64(v0, v1));
-            let y = mont(y, w2, w2q, qv);
+            let (x, y) = (reduce(x, qv, vv), mont(y, w2, w2q, qv));
             let (x, y) = (vaddq_s32(x, y), vsubq_s32(x, y));
             vst1q_s32(ptr.add(i), zip1_64(x, y));
             vst1q_s32(ptr.add(i + 4), zip2_64(x, y));
@@ -235,21 +232,21 @@ fn inverse_neon(a: &mut [i32], p: Prime, iw: &[i32]) {
     }
     let mut h = 4;
     while h < n {
-        if portable::lazy(h, n) {
-            inverse_stage::<true>(a, h, p, iw);
-        } else {
-            inverse_stage::<false>(a, h, p, iw);
+        match (portable::reduces_x(h), 2 * h == n) {
+            (false, false) => inverse_stage::<false, false>(a, h, p, iw),
+            (true, false) => inverse_stage::<true, false>(a, h, p, iw),
+            (false, true) => inverse_stage::<false, true>(a, h, p, iw),
+            (true, true) => inverse_stage::<true, true>(a, h, p, iw),
         }
         h *= 2;
     }
 }
 
 /// One stage of [`inverse_neon`]: `h` is a multiple of 4, `a.len()` a multiple of `2 h`
-/// that the twiddles serve. `LAZY` skips the reductions, as `portable::inverse_stage`
-/// does.
+/// that the twiddles serve. `RX` and `LAST` are as in `portable::inverse_stage`.
 #[inline]
 #[target_feature(enable = "neon")]
-fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
+fn inverse_stage<const RX: bool, const LAST: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]) {
     let n = a.len();
     assert!(h >= 4 && h.is_multiple_of(4) && n.is_multiple_of(2 * h) && n <= iw.len());
     let (qv, vv, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.qinv));
@@ -264,14 +261,15 @@ fn inverse_stage<const LAZY: bool>(a: &mut [i32], h: usize, p: Prime, iw: &[i32]
                 let w = vld1q_s32(w.add(j));
                 let wq = vmulq_s32(w, qinv);
                 let x = vld1q_s32(px);
+                let x = if RX { reduce(x, qv, vv) } else { x };
                 let y = mont(vld1q_s32(py), w, wq, qv);
                 let (sum, dif) = (vaddq_s32(x, y), vsubq_s32(x, y));
-                if LAZY {
-                    vst1q_s32(px, sum);
-                    vst1q_s32(py, dif);
-                } else {
+                if LAST {
                     vst1q_s32(px, reduce(sum, qv, vv));
                     vst1q_s32(py, reduce(dif, qv, vv));
+                } else {
+                    vst1q_s32(px, sum);
+                    vst1q_s32(py, dif);
                 }
             }
         }
@@ -326,9 +324,10 @@ fn garner_neon([r1, r2, r3]: [&mut [i32]; 3]) {
     for i in (0..n).step_by(4) {
         // SAFETY: `i + 4 <= n` for all three slices.
         unsafe {
+            // Only `a` is normalized, as in `portable::garner`.
             let a = normalize(vld1q_s32(r1.as_ptr().add(i)), q1);
-            let b = normalize(vld1q_s32(r2.as_ptr().add(i)), q2);
-            let c = normalize(vld1q_s32(r3.as_ptr().add(i)), q3);
+            let b = vld1q_s32(r2.as_ptr().add(i));
+            let c = vld1q_s32(r3.as_ptr().add(i));
             let v2 = normalize(mont(vsubq_s32(b, a), c12, c12q, q2), q2);
             let t = mont(vsubq_s32(c, a), c13, c13q, q3);
             let v3 = normalize(mont(vsubq_s32(t, v2), c23, c23q, q3), q3);
@@ -545,7 +544,7 @@ mod tests {
     #[should_panic(expected = "n <= iw.len()")]
     fn inverse_stage_checks_its_contract() {
         // SAFETY: NEON is enabled for this build.
-        unsafe { inverse_stage::<false>(&mut [0; 16], 4, PRIMES[0], &[0; 8]) }
+        unsafe { inverse_stage::<false, false>(&mut [0; 16], 4, PRIMES[0], &[0; 8]) }
     }
 
     #[test]

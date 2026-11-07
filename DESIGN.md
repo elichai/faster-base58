@@ -99,7 +99,11 @@ general decoder is faster on M5.
 
 [NTT multiplication](src/ntt/mod.rs) uses two 32-bit coefficients per limb,
 three primes below `2^30`, Montgomery products and exact CRT reconstruction.
-Forward/inverse orderings avoid a separate bit-reversal pass. Squares and
+Forward/inverse orderings avoid a separate bit-reversal pass. Kernels pass values
+in `(-q, q)`. The forward transform reduces every butterfly sum. Inside the inverse,
+values stay below `2 q`: every other stage reduces only its `x` input, and only the
+last stage reduces its outputs ([`reduces_x`](src/ntt/portable.rs)). Garner's CRT
+step normalizes only the first residue. Squares and
 prepared radix powers save transforms; cyclic/negacyclic pieces reduce padding.
 Wrapped products shorten some reciprocal work. The `2^23`-point transform cap
 supports the coefficient bounds; larger products split. It is not an input limit.
