@@ -74,6 +74,7 @@ pub(crate) mod entry {
     }
 
     #[cfg(all(feature = "cache", feature = "check"))]
+    // Not inlined, for the stack reason of `encode_parts`.
     #[inline(never)]
     pub(crate) fn encode_staged(
         zeros: usize,
@@ -189,13 +190,14 @@ pub(crate) mod internals {
 ///
 /// # Errors
 /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded string.
-#[inline(never)]
 #[cfg(any(test, feature = "__internals", kani))]
 pub fn encode_whole(input: &[u8], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
     let (zeros, x) = super::split_zeros(input);
     encode_parts(&BEST, zeros, x, output)
 }
 
+// Not inlined: the dispatcher would hold the 30 KiB scratch, which made cached 0-1 byte
+// encodes 1.4-2.3x slower (M5, Zen 5).
 #[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 #[inline(never)]
 fn encode_parts(
@@ -261,7 +263,6 @@ pub(super) fn column_digits(cols: &[u64], out: &mut [[u8; 4]]) {
 /// The value of the big-endian `x` in base 58^4, least significant column first and
 /// trimmed, in `scratch`. Requires `x.len() <= MAX_BYTES`.
 #[cfg(any(feature = "alloc", test, kani))]
-#[inline(never)]
 fn convert<'a>(k: &Kernels, x: &[u8], scratch: &'a mut Scratch) -> &'a [u64] {
     // As in the decoder's `convert`.
     #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]

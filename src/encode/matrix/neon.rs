@@ -30,7 +30,6 @@ pub(crate) fn encode_fixed_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, 
 
 /// Serial carry fallback, kept cold and out of line.
 #[cold]
-#[inline(never)]
 fn carry_cold(t: &[u64; 24], r: usize) -> [u32; 24] {
     fixed::carry_serial(t, r)
 }
