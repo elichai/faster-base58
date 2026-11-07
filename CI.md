@@ -265,8 +265,8 @@ CI repeats both with `--features count-allocations`, `compact` and
 `compact,count-allocations`. A second matrix row adds `--features cache` to each
 command. The cache-off row also runs the self-tests of `resource_report.py`,
 `code_size.py`, `check_simd_inlining.py`, `run_native_sanitizer.py`,
-`check_ci_tests.py` and `check_public_api.py`, the graph tests, the documentation
-check and the syntax
+`check_ci_tests.py`, `check_public_api.py` and `public_bench.py`, the graph tests,
+the documentation check and the syntax
 checks. [Checks without a Rust build](#checks-without-a-rust-build) lists them
 together with the other checks that need no Rust build.
 
@@ -490,7 +490,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools`, `simd_inlining` |
 | [`scripts/code_size_wasm.mjs`](scripts/code_size_wasm.mjs) | Checks the Wasm probe ABI: allocator, pointers, UTF-8 and outputs | Wasm module paths | `portability` |
 | [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted `empty`, `auto` and `no-alloc` Wasm modules: allocator counts and ABI | `--self-test DIR` only | `portability` |
-| [`scripts/public_bench.py`](scripts/public_bench.py) | Times `code_size.py` probes and writes the README timing CSV; `--baseline` prints paired ratios | `--wasm` | `portability` (refusal check), `measurement_tools` (compile) |
+| [`scripts/public_bench.py`](scripts/public_bench.py) | Times `code_size.py` probes and writes the README timing CSV; `--baseline` prints paired ratios; `--copies N` times fresh copies of each native library | `--wasm`, `--self-test` | `portability` (refusal check), `measurement_tools` (self-test) |
 | [`scripts/public_bench_wasm.mjs`](scripts/public_bench_wasm.mjs) | Wasm worker of `public_bench.py`; refuses counted modules | Started by `public_bench.py --wasm` | `measurement_tools` (syntax) |
 | [`scripts/resource_report.py`](scripts/resource_report.py) | Builds and runs the internal heap and CPU workers of `tools/resource-profile` | `build`, `run`, `fingerprint`, `self-test` | `measurement_tools` |
 | [`scripts/run_native_sanitizer.py`](scripts/run_native_sanitizer.py) | MemorySanitizer and ThreadSanitizer driver | `--self-test` | `native_sanitizers` |
@@ -544,7 +544,7 @@ python3 -B -m unittest discover -s assets/graphs -p test_render.py
 python3 -B assets/graphs/render.py --check
 python3 -B -m unittest discover -s fuzz -p 'test_*.py'
 python3 -B fuzz/check_mutations.py --self-test
-python3 -B -m py_compile scripts/public_bench.py
+python3 -B scripts/public_bench.py --self-test
 node --check scripts/public_bench_wasm.mjs
 node --check scripts/code_size_wasm.mjs
 node --check scripts/wasm_allocations.mjs

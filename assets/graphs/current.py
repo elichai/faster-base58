@@ -39,6 +39,8 @@ def timing_cells(rows):
         try:
             key = (row['platform'], row['cache'], row['backend'], row['operation'], int(row['decoded_bytes']))
             values = [float(row[name]) for name in ['process_min_ns', 'warm_ns', 'process_max_ns']]
+            # Rows timed with file copies (public_bench.py --copies) add the copy range.
+            copies = [float(row.get(name) or row['warm_ns']) for name in ['copy_min_ns', 'copy_max_ns']]
             source = (row['measurement_date'], row['source_commit'], row['clock'])
         except (KeyError, ValueError) as error:
             raise ValueError(f'Malformed timing row: {error}') from error
@@ -46,6 +48,7 @@ def timing_cells(rows):
         require(key not in cells, f'Duplicate timing cell: {key}')
         require(all(math.isfinite(value) and value > 0 for value in values) and values == sorted(values),
                 f'Invalid timing range: {key}')
+        require(values[0] <= copies[0] <= values[1] <= copies[1] <= values[2], f'Invalid copy range: {key}')
         require(source[2] == ('elapsed' if key[0] == 'wasm' else 'process CPU'), f'Wrong timing clock: {key}')
         require(sources.setdefault(key[0], source) == source, f'Mixed timing sources: {key[0]}')
         cells[key] = row
