@@ -206,7 +206,8 @@ fn load(x: &[u8], zeros: usize, capacity: usize) -> Result<(Vec<u64>, usize), Bu
     Ok((limbs, n))
 }
 
-// Keep the conversion tree shared by borrowed and staged input.
+// Shared by borrowed and staged input. Not inlined: IFMA Karatsuba encoding inlined this
+// into the dispatcher, whose 4.5 KiB frame made 1-byte encodes 1.24x slower (Zen 5).
 #[inline(never)]
 fn encode_limbs(
     zeros: usize,
@@ -528,9 +529,9 @@ fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8]) -> &'a [u8] {
     split_zeros(bytes).1
 }
 
-/// [`node`] for `n <= MATRIX_LEAF` by `encode_matrix`'s conversion. Not inlined: its
-/// frame holds the matrix's scratch and the bytes, about 38 KiB.
-#[inline(never)]
+/// [`node`] for `n <= MATRIX_LEAF` by `encode_matrix`'s conversion. Its frame holds the
+/// matrix's scratch and the bytes, about 38 KiB, which every level of [`node`]'s recursion
+/// would carry if this were inlined.
 fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
     let mut bytes = [0u8; 8 * MATRIX_LEAF];
     let mut scratch = matrix::Scratch::new();
