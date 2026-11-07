@@ -107,6 +107,16 @@ prepared radix powers save transforms; cyclic/negacyclic pieces reduce padding.
 Wrapped products shorten some reciprocal work. The `2^23`-point transform cap
 supports the coefficient bounds; larger products split. It is not an input limit.
 
+On x86-64 CPUs with AVX-512 IFMA, the same products, pieces, prepared powers and
+wrapped products [use two primes below `2^50`](src/ntt/ifma.rs) in `u64` lanes:
+Harvey's lazy butterflies with Shoup twiddles (`vpmadd52*`), then a two-prime
+Garner step. A product coefficient sums at most `2^22` products of 32-bit
+coefficients, below `2^86` (`2^87` for wrapped products), and the primes' product
+exceeds `2^99.99`. Values stay below `4p < 2^52`, the width IFMA multiplies. Only
+forward roots are stored; inverse stages read them backwards, since
+`w^-j = -w^(h-j)`. Both backends share the plan, folding and polynomial CRT code.
+The base-`58^3` radix encoder keeps its two 30-bit primes.
+
 ## Automatic selection
 
 These are tuned crossovers, not format limits or guarantees of optimality for
@@ -144,7 +154,7 @@ shared `OnceLock` stores. `__internals` does not enable them.
 | --- | --- | --- |
 | Little-endian AArch64 + NEON | Matrix parsing/panels and character packing; fixed encoders; NTT butterflies, pointwise products and CRT | `matrix/neon.rs`, `encode/matrix/neon.rs`, `ntt/neon.rs` |
 | x86-64 SSE4.1 / AVX2 | Matrix panels; AVX2 fixed 64-byte encoding; target-feature Rust NTT wrappers | `matrix/x86.rs`, `encode/matrix/x86.rs`, `ntt/x86.rs` |
-| x86-64 AVX-512 | Native NTT and the base-`58^3` encoder's two-prime CRT; VBMI fixed 64-byte encoding; IFMA radix-`2^52` schoolbook leaves | `ntt/avx512.rs`, `encode/matrix/x86.rs`, `mul_ifma/avx512.rs` |
+| x86-64 AVX-512 | Native NTT and the base-`58^3` encoder's two-prime CRT; VBMI fixed 64-byte encoding; IFMA radix-`2^52` schoolbook leaves and two-prime NTT products | `ntt/avx512.rs`, `encode/matrix/x86.rs`, `mul_ifma/avx512.rs`, `ntt/ifma.rs` |
 | Wasm with `simd128` | Matrix parsing/panels; fixed 64-byte column sums and characters; NTT butterflies, pointwise products and CRT | `matrix/wasm.rs`, `encode/matrix/wasm.rs`, `ntt/wasm.rs` |
 | Scalar Wasm and other targets | Portable kernels; LLVM may vectorize them when the target permits it | Shared portable modules |
 
@@ -215,7 +225,8 @@ The divide-and-conquer decoder packs result, powers and scratch into one arena.
 Encoder divisors borrow one pre-sized payload for normalized powers and
 reciprocals; original powers and their construction scratch share one buffer, dropped before
 prepared transforms and conversion scratch. Each prepared NTT operand owns one
-vector containing all three prime transforms; decoding squares each prepared
+vector containing all three prime transforms (12 bytes per point; the two-prime
+IFMA backend stores 16); decoding squares each prepared
 power from those transforms, without a forward transform. Prepared powers do not
 share one arena, which would save little peak memory.
 Skipped prepared powers do not grow metadata, but still clear an existing slot.
@@ -225,6 +236,8 @@ uses the nondecreasing workspace envelope of every plan through a product of
 `8*n + 128` and `12*n + 128`; larger inputs keep the linear bound. The envelope
 retains the previous one-piece maximum when a two-piece plan needs less space.
 It is never below Karatsuba and preserves the DC, block and split inequalities.
+The two-prime backend's residues take 8 bytes instead of 4, so it asks 1.5 times
+that bound, or Karatsuba's alone for operands below both transform thresholds.
 These are operand bounds in `u64` limbs, not total conversion memory.
 
 The two-prime radix encoder batches spectra and child workspace in one `i32`
@@ -241,7 +254,9 @@ This never increases the arena payload, including small inputs with no spectra.
 | --- | ---: | ---: |
 | All five encoder + four decoder Matrix classes | 18,617,760 bytes | 504 bytes |
 | Production NTT logs 5–18 | 9,436,416 bytes | 1672 bytes |
-| Combined maximum after using every production class | **28,054,176 bytes (26.8 MiB)** | **2176 bytes** |
+| Two-prime IFMA NTT logs 5–18 (x86-64 with IFMA) | 16,786,944 bytes | 1216 bytes |
+| Combined maximum after using every production class, without IFMA | **28,054,176 bytes (26.8 MiB)** | **3392 bytes** |
+| Combined maximum with IFMA | **44,841,120 bytes (42.8 MiB)** | **3392 bytes** |
 
 These stores are absent by default. Initialized classes remain for the process
 lifetime, and history affects reuse. The largest Matrix tables retain 11,510,016
@@ -253,10 +268,16 @@ untwisting reuses that same temporary. Their Montgomery companions are derived
 with a wrapping 32-bit multiply when loaded, including SIMD loads.
 Logs above 18 remain owned even with `cache`. The internal cache helper also
 accepts logs 1–4; filling those would raise its NTT bound to 9,437,136 bytes.
+With IFMA, decoders and the division tree fill the two-prime store instead:
+log `l` needs `32 * 2^l + 768` bytes in one allocation per prime (forward roots,
+their Shoup companions, eight padding entries each, and the short inverse
+stages); the radix encoder still fills the three-prime store, so both can be
+retained.
 
 Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
-24.75 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64
+24.75 MiB of owned twiddles for a 4 MiB significant encode, 64 MiB with the
+two-prime IFMA tables (log 21). The selected AArch64
 and x86 radix route uses two prime tables instead of three, pools its digit and
 prepared-spectrum scratch, and retains nothing under either cache policy. Measured
 4 MiB peaks are in the [performance guide](docs/performance.md#cache-and-memory).

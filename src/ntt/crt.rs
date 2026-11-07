@@ -63,6 +63,12 @@ pub(crate) fn carry(out: &mut [u64], r: [&[i32]; 3]) {
 /// the top limb wraps to the bottom. Writes some value in `[0, β^L - 1]`.
 pub(crate) fn carry_wrapped(out: &mut [u64], r: [&[i32]; 3]) {
     let c = carry_out(out, r);
+    wrap_carry(out, c);
+}
+
+/// Adds the carry `c` out of the top limb of `out` back at the bottom, modulo
+/// `β^L - 1` for `L = out.len()`. Writes some value in `[0, β^L - 1]`.
+pub(crate) fn wrap_carry(out: &mut [u64], c: u128) {
     // `c β^L ≡ c`. A carry out of that addition wraps once more, onto a value that is now
     // at most `β^L - 2`, so it stops there.
     let c = u64::try_from(c).expect("the carry is below 2^57");

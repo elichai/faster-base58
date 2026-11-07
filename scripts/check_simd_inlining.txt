@@ -41,17 +41,25 @@ faster_base58::encode::dc::recip_scratch_len::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::reciprocal::<faster_base58::ntt::Ntt>
 faster_base58::encode::matrix::convert
 faster_base58::mul::mul_with
-faster_base58::ntt::crt
 faster_base58::ntt::crt::carry_out
 faster_base58::ntt::decode
 faster_base58::ntt::encode
-faster_base58::ntt::mul_with
-faster_base58::ntt::pieces::{closure#1}
-faster_base58::ntt::pieces::{closure#1}::{closure#0}
 faster_base58::ntt::radix::convert
 faster_base58::ntt::radix::encode_value
 faster_base58::ntt::radix::leaf_into
-faster_base58::ntt::transform
+<faster_base58::ntt::Three as faster_base58::ntt::Backend>::finish
+<faster_base58::ntt::ifma::Tw52>::new
+core::ptr::drop_glue::<core::option::Option<faster_base58::ntt::Prepared>>
+faster_base58::ntt::crt::<faster_base58::ntt::Three>
+faster_base58::ntt::crt::<faster_base58::ntt::Two>
+faster_base58::ntt::mul_with::<faster_base58::ntt::Three>
+faster_base58::ntt::mul_with::<faster_base58::ntt::Two>
+faster_base58::ntt::pieces::<faster_base58::ntt::Three>::{closure#1}
+faster_base58::ntt::pieces::<faster_base58::ntt::Three>::{closure#1}::{closure#0}
+faster_base58::ntt::pieces::<faster_base58::ntt::Two>::{closure#1}
+faster_base58::ntt::pieces::<faster_base58::ntt::Two>::{closure#1}::{closure#0}
+faster_base58::ntt::transform::<faster_base58::ntt::Three>
+faster_base58::ntt::transform::<faster_base58::ntt::Two>
 
 [!cache]
 <alloc::raw_vec::RawVec<faster_base58::encode::matrix::table::Panel>>::grow_one
@@ -62,6 +70,7 @@ faster_base58::dc::decode_value::<faster_base58::dc::Karatsuba>
 faster_base58::dc::mul_add_chunks
 faster_base58::mul::fold_wrapped
 faster_base58::mul::sum
+faster_base58::ntt::ifma::carry_out
 
 [cache]
 <<std::sync::once::Once>::call_once_force<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::get_or_init<faster_base58::encode::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0} as core::ops::function::FnOnce<(&std::sync::once::OnceState,)>>::call_once::{shim:vtable#0}
@@ -79,9 +88,12 @@ faster_base58::mul::sum
 faster_base58::encode::matrix::encode_parts
 faster_base58::matrix::convert
 faster_base58::matrix::entry::decode_parts
+<<std::sync::once::Once>::call_once_force<<std::sync::once_lock::OnceLock<faster_base58::ntt::ifma::Tables52>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::ntt::ifma::Tables52>>::get_or_init<<faster_base58::ntt::ifma::Tables52>::cached::{closure#0}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0} as core::ops::function::FnOnce<(&std::sync::once::OnceState,)>>::call_once::{shim:vtable#0}
+<faster_base58::ntt::Ntt>::ensure_tables
+<std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<faster_base58::ntt::ifma::Tables52>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::ntt::ifma::Tables52>>::get_or_init<<faster_base58::ntt::ifma::Tables52>::cached::{closure#0}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}
+<std::sync::once_lock::OnceLock<faster_base58::ntt::ifma::Tables52>>::initialize::<<std::sync::once_lock::OnceLock<faster_base58::ntt::ifma::Tables52>>::get_or_init<<faster_base58::ntt::ifma::Tables52>::cached::{closure#0}::{closure#0}>::{closure#0}, !>
 
 [x86_64]
-<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::scratch_len
 # CPU detection reads XCR0 once, outside any `xsave` function.
 core::core_arch::x86::xsave::_xgetbv
 # NTT kernel tables: entries are called through pointers. The closures adapt the
@@ -166,6 +178,37 @@ faster_base58::encode::matrix::x86::carry_cold
 faster_base58::encode::matrix::x86::convert_avx2
 faster_base58::matrix::x86::avx2
 faster_base58::matrix::x86::sse41
+<[u64; 8]>::try_map::<core::ops::try_trait::NeverShortCircuit<u64>, <core::ops::try_trait::NeverShortCircuit<u64>>::wrap_mut_1<u64, <faster_base58::ntt::ifma::Tw52>::new::{closure#2}>::{closure#0}>
+<faster_base58::ntt::Ntt>::best
+<faster_base58::ntt::ifma::z::kernels::{closure#0} as core::ops::function::FnOnce<(&mut [u64], &mut [u64], faster_base58::ntt::ifma::Prime52, u64)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#10} as core::ops::function::FnOnce<(&mut [u64], faster_base58::ntt::ifma::Prime52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#11} as core::ops::function::FnOnce<(&mut [u64], &[u64], usize, bool, faster_base58::ntt::ifma::Prime52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#12} as core::ops::function::FnOnce<(&mut [u64], &mut [u64], faster_base58::ntt::ifma::Prime52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#13} as core::ops::function::FnOnce<(&mut [u64], &mut [u64])>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#1} as core::ops::function::FnOnce<(&mut [u64], &[u64])>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#2} as core::ops::function::FnOnce<(&mut [u64], &[u64], &faster_base58::ntt::ifma::Tw52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#3} as core::ops::function::FnOnce<(&mut [u64], &[u64], faster_base58::ntt::ifma::Prime52, bool)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#4} as core::ops::function::FnOnce<(&mut [u64], &faster_base58::ntt::ifma::Tw52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#5} as core::ops::function::FnOnce<(&mut [u64], usize, usize, &faster_base58::ntt::ifma::Tw52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#6} as core::ops::function::FnOnce<(&mut [u64], &[u64], faster_base58::ntt::ifma::Prime52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#7} as core::ops::function::FnOnce<(&mut [u64], &faster_base58::ntt::ifma::Tw52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#8} as core::ops::function::FnOnce<(&mut [u64], &faster_base58::ntt::ifma::Tw52)>>::call_once
+<faster_base58::ntt::ifma::z::kernels::{closure#9} as core::ops::function::FnOnce<(&mut [u64], &[u64], faster_base58::ntt::ifma::Prime52)>>::call_once
+faster_base58::ntt::ifma::z::fold_sub_v
+faster_base58::ntt::ifma::z::forward_v
+faster_base58::ntt::ifma::z::garner_v
+faster_base58::ntt::ifma::z::halves_v
+faster_base58::ntt::ifma::z::inverse_v
+faster_base58::ntt::ifma::z::load_add_v
+faster_base58::ntt::ifma::z::load_twist_v
+faster_base58::ntt::ifma::z::load_v
+faster_base58::ntt::ifma::z::narrow_v
+faster_base58::ntt::ifma::z::pointwise_v
+faster_base58::ntt::ifma::z::roots_v
+faster_base58::ntt::ifma::z::square_v
+faster_base58::ntt::ifma::z::twist_v
+faster_base58::ntt::ifma::z::untwist_v
+faster_base58::ntt::scratch_len
 
 [x86_64 !cache]
 <alloc::vec::Vec<u64> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<u64, core::iter::adapters::map::Map<core::slice::iter::RChunks<u8>, faster_base58::encode::dc::load::{closure#0}>>>::from_iter
@@ -193,8 +236,6 @@ faster_base58::mul_ifma::avx512::kernel_tf::<12>
 faster_base58::batched::decode_parts
 faster_base58::dc::mul_add_chunks
 faster_base58::matrix::portable::parse
-faster_base58::mul::fold_wrapped
-faster_base58::mul::sum
 # The AVX2 Matrix decoder conversion and panel.
 faster_base58::matrix::x86::convert_avx2
 faster_base58::matrix::x86::panel
@@ -215,6 +256,12 @@ faster_base58::ntt::neon::pointwise
 faster_base58::ntt::neon::square
 faster_base58::ntt::neon::twist
 faster_base58::encode::matrix::neon::carry_cold
+<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::scratch_len
 
 [aarch64 cache]
 faster_base58::matrix::leaf
+<[u64; 8]>::try_map::<core::ops::try_trait::NeverShortCircuit<u64>, <core::ops::try_trait::NeverShortCircuit<u64>>::wrap_mut_1<u64, <faster_base58::ntt::ifma::Tw52>::new::{closure#2}>::{closure#0}>
+faster_base58::ntt::ifma::carry_out
+
+[aarch64 !cache]
+faster_base58::ntt::crt::wrap_carry

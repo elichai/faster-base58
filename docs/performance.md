@@ -180,7 +180,8 @@ filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`.
 Enabling `cache` changes dispatch and leaf policy as well as retention. Maximum
 retained payloads are in [DESIGN.md](../DESIGN.md#heap-stack-and-cache-costs):
 Matrix tables 18,617,760 B and NTT twiddles 9,436,416 B (26.8 MiB combined,
-depending on call history), plus 2,176 B of static headers. Per-call scratch,
+depending on call history; 42.8 MiB on x86-64 with IFMA, whose two-prime tables
+take 32 bytes per point), plus 3,392 B of static headers. Per-call scratch,
 larger owned tables, allocator overhead and concurrent calls add to that; it is not
 an active-heap bound. Wasm linear-memory pages need not return to the host. First
 cached calls build the tables they need; whether reuse repays that depends on the
@@ -281,6 +282,10 @@ Unmeasured candidates, largest expected effect first:
   twiddle classes (−49% worst-case retention, larger first builds); a forward
   transform with Cooley–Tukey butterflies and one twiddle per block, which could
   use the inverse's reduction schedule (bit-reversed twiddles for the small stages).
+- Two-prime IFMA NTT: Montgomery-form twiddles store one value per root (half of
+  its 32 bytes per point); retune `IFMA_THRESHOLD` / `IFMA_PREPARED_THRESHOLD`
+  for its faster products; base-`58^5` or `58^6` digits in the radix encoder with
+  the two 50-bit primes (fewer points, `u128` carries).
 - Division encoder: 5 allocations per call down to 1–2; reuse the dead quotient
   buffer during the remainder product (−10–14% node scratch); non-power-of-two
   wrapped remainders; a scaled remainder tree; Karp–Markstein at the top node.
