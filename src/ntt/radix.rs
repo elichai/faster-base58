@@ -103,13 +103,15 @@ fn preferred(bytes: usize) -> bool {
         return false;
     };
     // Full transforms waste work when heavily padded, and the balanced tree repeats
-    // roughly this padding ratio at each level. With at least 7/8 of the transform
-    // used, this route beats division wherever Auto's NTT encoder runs (above 4096
-    // bytes), with or without cached tables (M5). On Zen 5 (generic flags, public
-    // probes) such sizes took 0.76-0.78x the division tree's time from 64 KiB
-    // (0.83-0.86x with `cache`). Sizes with 0.68 of the transform used took 0.91x
-    // (0.98-1.01x with `cache`), and those with 0.5 used 1.13-1.19x.
-    bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * 7
+    // roughly this padding ratio at each level. The used fraction of the root transform
+    // must reach 5/8, or 3/4 with `cache`, whose cached Matrix leaves speed up only the
+    // division tree. Same-binary sweeps (`benches/radix_tune.rs`, generic flags) put
+    // the crossover near 0.55 (M5) and 0.62 (Zen 5) without `cache`, and near 0.7 on
+    // both with it. Not adopted: 7/8 forgoes 6-22% at 0.68-0.81 used; 9/16 loses 4-6%
+    // at 5 KiB (M5) and 4-25% on Zen 5; 5/8 with `cache` loses up to 13% (M5, 12 KiB).
+    // With `cache`, 3/4 still costs up to 3% at 13-14 KiB on M5.
+    let eighths = if cfg!(feature = "cache") { 6 } else { 5 };
+    bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * eighths
 }
 
 /// The smallest input is larger on x86. On Zen 5 (IFMA Karatsuba in the division
@@ -632,11 +634,19 @@ mod tests {
 
     #[test]
     fn selection_preserves_fallback_and_short_buffers() {
-        for bytes in [4096, 6144, 12_288, 49_152, 98_304, 786_432] {
+        // Below 5/8 of the root transform used, and below 4097 bytes.
+        for bytes in [4096, 4353, 8705, 17_409, 69_633, 89_976, 557_057] {
             assert_eq!(try_encode(0, &vec![255; bytes], &mut []), None);
         }
-        for bytes in [4097, 8192, 32_768, 65_536, 262_143, 1_048_575, 1_048_576] {
-            let selected = supported() && bytes > MIN_BYTES;
+        // From 5/8 to below 3/4 used: only without `cache`; then also with it.
+        let default_only =
+            [6144, 12_288, 89_977, 98_304, 107_972, 786_432].map(|b| (b, !cfg!(feature = "cache")));
+        let always = [
+            4097, 8192, 32_768, 65_536, 107_973, 262_143, 1_048_575, 1_048_576,
+        ]
+        .map(|b| (b, true));
+        for (bytes, used) in default_only.into_iter().chain(always) {
+            let selected = supported() && bytes > MIN_BYTES && used;
             assert_eq!(
                 try_encode(0, &vec![255; bytes], &mut []),
                 selected.then_some(Err(BufferTooSmall)),

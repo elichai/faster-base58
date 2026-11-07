@@ -102,7 +102,9 @@ allocations with `--count-allocations` in separate, untimed builds;
 `scripts/wasm_allocations.mjs` counts Wasm allocations. The Criterion benches
 (`benches/encode.rs`, `decode.rs`, `check.rs`, `dispatch.rs`) compare backends and
 comparators in one process with wall time. `benches/encode_tune.rs` and
-`encode_matrix_tune.rs` tune the encoder leaves, `MATRIX_MIN` and `IFMA_CAP`.
+`encode_matrix_tune.rs` tune the encoder leaves, `MATRIX_MIN` and `IFMA_CAP`;
+`benches/radix_tune.rs` times the forced radix and division trees in one binary
+(with a division A/A arm) for the [radix utilization rule](#radix-route-utilization).
 
 When the code changes, remeasure the affected tables, figures and scope together,
 or withdraw them.
@@ -216,11 +218,55 @@ plain conversion of the same complete frame, with and without separate hashing a
 validation; repeat with `check,cache` or `--no-default-features --features check`.
 Double SHA-256 adds a fixed cost to every checked call.
 
+## Radix route utilization
+
+The radix route needs a used fraction of its root transform (base-`58^3` digit
+bound over transform points) of 5/8, or 3/4 with `cache`. The fraction rises
+linearly with the input from 0.48 just above each transform-length step
+(`17 * 2^k + 1` bytes) to 0.97 below the next one.
+
+Measured **2026-11-07** with `benches/radix_tune.rs`: one `__internals` binary per
+feature set times the forced radix tree, the forced division tree and a division
+A/A arm, in 15 rounds of interleaved blocks of at least 10 ms. A cell is the median
+of the per-round radix/division ratios. Generic flags (`RUSTFLAGS=""`), fat LTO,
+default and `cache` builds. M5 Pro: AC power, Rust 1.99.1, two runs, which agree
+within 0.02. Zen 5 (EPYC 9B45, 4 vCPU): Rust 1.99.0, pinned to CPU 1, one run.
+Process samplers showed no other load. A/A medians stay within 0.97–1.02 (M5) and
+0.99–1.01 (Zen 5). Ranges cover the size medians, 34 KiB–4 MiB on M5 and
+40 KiB–4 MiB on Zen 5:
+
+| Used | M5 default | M5 cache | Zen 5 default | Zen 5 cache |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.48 | 1.02–1.12 | 1.17–1.22 | 1.07–1.16 | 1.13–1.24 |
+| 0.56 | 0.93–0.95 | 1.05–1.13 | 1.04–1.25 | 1.10–1.24 |
+| 0.62 | 0.91–0.94 | 0.96–1.03 | 0.95–1.07 | 0.97–1.05 |
+| 0.68 | 0.84–0.87 | 0.99–1.06 | 0.90–0.94 | 0.97–1.04 |
+| 0.75 | 0.80–0.81 | 0.89–0.95 | 0.83–0.86 | 0.84–0.90 |
+| 0.81 | 0.77–0.78 | 0.83–0.91 | 0.84–0.89 | 0.82–0.89 |
+| 0.88 | 0.77 | 0.81–0.89 | 0.83–0.85 | 0.84–0.88 |
+| 0.94 | 0.67–0.69 | 0.73–0.81 | 0.74–0.77 | 0.76–0.79 |
+
+The Zen 5 cells above 1 at 0.62 are 44 KiB (below the x86 minimum) and 349 KiB
+(1.02). On M5 at 8.5–34 KiB, default reaches 0.95–0.99 at 0.56 used and `cache`
+0.98–1.03 at 0.75. At 4.25–8.5 KiB, default takes 1.01–1.02 at 0.62 and 0.88–0.89
+at 0.68. With `cache`, cached Matrix leaves speed up only the division tree, which
+moves its crossover from about 0.55–0.62 to about 0.7.
+
+End to end (`public_bench.py --baseline`, Auto probes of d317ee4 and this rule,
+same flags, five processes; Zen 5 `--cpu 0`): cells that change route take
+0.78–0.87 (M5 default), 0.86–0.94 (M5 cache, except 1.03 at 13,495 B),
+0.84–0.93 (Zen 5 default) and 0.87 (Zen 5 cache) of the earlier time. Cells that
+keep their route, and all decode cells, stay within 0.978–1.014. Power-of-two sizes,
+which the README tables use, keep their route.
+
 ## Open levers
 
 Unmeasured candidates, largest expected effect first:
 
-- M5: start the radix route below 4 KiB, where batched encoding still runs.
+- M5: start the radix route below 4 KiB, where batched encoding still runs. In the
+  utilization sweep (default) the forced route took 0.83 of batched time at 3.5 KiB
+  and 0.68–0.71 at 4 KiB, but 1.03 at 3 KiB and 1.14–1.15 at 2 KiB; the public
+  dispatch boundary was not measured.
 - Radix tree: fuse the first forward stage, whose upper half is always zero
   (about 2–3% of encode); build sparse schoolbook products column by column
   (sparse inputs need more heap); share the digit scratch with the output (about
