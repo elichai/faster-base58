@@ -55,6 +55,10 @@ pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
 
 /// Base-`BASE` digits of `digits`, most significant first.
 /// `None` marks a chunk with an invalid character.
+// An x86 AVX2 block parser for these chunks (nibble-table map, `vpmaddubsw`/`vpmaddwd`,
+// two `vpmuludq` per chunk, 32 chunks per block) was not adopted. On Zen 5 (generic
+// flags, alignment pinned) decoding took 1.15-1.21x as long at 32 B, 0.91-0.93x at 256 B and
+// 0.97-0.99x at 1-64 KiB; the kernel was slower than this loop below 60 characters.
 pub(crate) fn chunks(digits: &[u8]) -> impl Iterator<Item = Option<u64>> {
     let (head, tail) = digits.as_rchunks::<CHUNK>();
     let head = iter::once(head).filter(|h| !h.is_empty()).map(|s| {
