@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm]
+        os: [ubuntu-26.04, ubuntu-26.04-arm]
         profile:
           - { name: debug, args: '' }
           - { name: release, args: '--release' }
@@ -66,10 +66,10 @@ jobs:
       - run: rustup update stable --no-self-update
       - run: rustc +stable -vV
       - name: Shared-process unit, API, and property tests
-        if: matrix.os == 'ubuntu-latest' && matrix.profile.name == 'debug'
+        if: runner.arch == 'X64' && matrix.profile.name == 'debug'
         run: cargo +stable test --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
       - name: Unit, API, and property tests
-        if: matrix.os != 'ubuntu-latest' || matrix.profile.name != 'debug'
+        if: runner.arch != 'X64' || matrix.profile.name != 'debug'
         run: cargo +stable nextest run --locked --features ${{ matrix.caches.features }} --lib --tests ${{ matrix.profile.args }}
       - name: Public API without internal exports
         run: cargo +stable nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries ${{ matrix.caches.public_args }} ${{ matrix.profile.args }}
@@ -126,7 +126,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]  # compact changes only x86 IFMA kernels
+        os: [ubuntu-26.04]  # compact changes only x86 IFMA kernels
         caches:
           - { name: 'off', features: '__internals,compact', public_args: '--features compact' }
           - { name: 'on', features: '__internals,cache,compact', public_args: '--features cache,compact' }
@@ -152,7 +152,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm]
+        os: [ubuntu-26.04, ubuntu-26.04-arm]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -166,7 +166,7 @@ jobs:
       - run: cargo +stable nextest run --locked --release --lib --tests --features __internals,malachite-nz/32_bit_limbs
 
   portability:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -220,7 +220,7 @@ jobs:
           done
 
   maximum_transform:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -231,7 +231,7 @@ jobs:
           grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/maximum-transform.log"
 
   msrv:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
@@ -257,7 +257,7 @@ jobs:
           PROPTEST_CASES: '512'
 
   pointer_width_32:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       PROPTEST_CASES: '512'
     steps:
@@ -273,7 +273,7 @@ jobs:
       - run: cargo +stable nextest run --locked --target i686-unknown-linux-gnu --features __internals,cache --lib --tests
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
@@ -301,7 +301,7 @@ jobs:
       - run: python3 scripts/check_package.py target/package
 
   clippy_arm:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
@@ -312,7 +312,7 @@ jobs:
       - run: cargo +stable hack clippy --locked --all-targets --feature-powerset -- -D warnings
 
   measurement_tools:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -354,7 +354,7 @@ jobs:
         run: node --check scripts/wasm_allocations.mjs
 
   miri_supported:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
       RUSTFLAGS: -C target-cpu=x86-64 -C target-feature=+avx2
@@ -389,7 +389,7 @@ jobs:
           grep -Eq '^test result: ok\. 2 passed; 0 failed; 0 ignored;' "$RUNNER_TEMP/miri-supported-tree.log"
 
   miri_arm_panel:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
       RUSTFLAGS: -C target-cpu=generic
@@ -511,7 +511,7 @@ jobs:
 
   miri_unsupported_simd:
     if: github.event_name == 'workflow_dispatch' && inputs.extended_miri
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -647,10 +647,10 @@ jobs:
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
-          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
-          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
-          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
-          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
+          - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
+          - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
+          - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
+          - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Corpus inputs come from a mutable branch; do not expose an Actions cache token.
@@ -722,10 +722,10 @@ jobs:
           - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: cache-generic, features: '__internals,cache' }
           - { runner: ubuntu-26.04, arch: x86, cpu: native, name: default-native, features: '__internals' }
           - { runner: ubuntu-26.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache' }
-          - { runner: ubuntu-24.04-arm, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
-          - { runner: ubuntu-24.04-arm, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
-          - { runner: ubuntu-24.04-arm, arch: arm, cpu: native, name: default-native, features: '__internals' }
-          - { runner: ubuntu-24.04-arm, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
+          - { runner: ubuntu-26.04-arm, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
+          - { runner: ubuntu-26.04-arm, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
+          - { runner: ubuntu-26.04-arm, arch: arm, cpu: native, name: default-native, features: '__internals' }
+          - { runner: ubuntu-26.04-arm, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
@@ -784,7 +784,7 @@ jobs:
           retention-days: 14
 
   proofs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -856,7 +856,7 @@ jobs:
 
   proofs_open:
     if: github.event_name == 'workflow_dispatch' && inputs.experimental_proofs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
