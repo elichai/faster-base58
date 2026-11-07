@@ -160,7 +160,6 @@ pub(super) fn encode_with(
 }
 
 // The digit workspace owns the result before the destination is written.
-#[inline(never)]
 fn encode_value(
     zeros: usize,
     x: &[u8],

@@ -108,7 +108,8 @@ pub(crate) mod entry {
         decode_parts(&BEST, input, zeros, output)
     }
 
-    /// Not inlined: small inputs must not enter this 14 KiB stack frame.
+    /// Not inlined: small inputs must not enter this 14 KiB stack frame. In the dispatcher it
+    /// made cached 0-1 byte decodes 1.4-1.6x slower (Zen 5).
     #[inline(never)]
     pub(super) fn decode_parts(
         k: &Kernels,
@@ -227,9 +228,8 @@ pub(crate) mod internals {
 /// length, or `None` on an invalid character. Requires `digits.len() <= 5632` and
 /// `out.len() >= digits.len().div_ceil(10)`. `out` may hold anything on entry.
 ///
-/// `dc`'s leaf in the cached NTT decoders on aarch64. Not inlined: its stack frame holds
-/// [`Scratch`], which every level of `dc`'s recursion would otherwise carry.
-#[inline(never)]
+/// `dc`'s leaf in the cached NTT decoders on aarch64. Its stack frame holds [`Scratch`],
+/// which every level of `dc`'s recursion would carry if this were inlined.
 pub(crate) fn leaf(out: &mut [u64], digits: &[u8]) -> Option<usize> {
     let mut scratch = Scratch::new();
     let limbs = convert(&BEST, digits, &mut scratch)?;
@@ -265,7 +265,6 @@ pub(crate) fn zeroed<T: Copy + Default>(buf: &mut [MaybeUninit<T>], len: usize) 
 
 /// The value of `digits` as trimmed little-endian limbs, in `scratch`, or `None` if a
 /// byte is not a base58 digit. Requires `digits.len() <= MAX_CHARS`.
-#[inline(never)]
 fn convert<'a>(k: &Kernels, digits: &[u8], scratch: &'a mut Scratch) -> Option<&'a [u64]> {
     // With AVX2, `BEST` checks the CPU once and runs the panel loop in an AVX2 function,
     // where the kernel inlines; otherwise each panel dispatches. Zen 5, builds with
