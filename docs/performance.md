@@ -116,10 +116,15 @@ or withdraw them.
 
 Code placement can move a cell more than many source changes do. On Zen 5, paths a
 change does not touch can move by up to ±20% between builds, and loading the same
-library at another address can move a 1 KiB encode by 12%. On the M5, default
-512 B decoding depends on loop alignment by 10–20%. Therefore:
+library at another address can move a 1 KiB encode by 12%. The placement of a
+library file's pages matters as well: in one Zen 5 run the original probe file took
+1.87× as long as each of three byte-identical copies on a 32 KiB decode, and 1.2×
+on an 8 KiB encode. On the M5, default 512 B decoding depends on loop alignment by
+10–20%. Therefore:
 
-- compare variants only within one paired run (`--baseline`);
+- compare variants only within one paired run (`--baseline`); on Zen 5 also pass
+  `--copies 4`, which times fresh copies of each library file and compares
+  medians over copies;
 - judge a change by the cells its code reaches, and treat movement in untouched
   cells as the noise floor;
 - for effects below about 5%, add an aligned build

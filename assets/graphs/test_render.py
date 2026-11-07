@@ -106,6 +106,16 @@ class ExternalInputTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     timing_cells(rows)
 
+    def test_copy_ranges_are_checked(self):
+        rows = self.rows()
+        rows[0].update(copies='4', copy_min_ns='95', copy_max_ns='105')
+        timing_cells(rows)
+        for changes in [dict(copy_min_ns='101'), dict(copy_max_ns='111'), dict(copy_min_ns='x')]:
+            with self.subTest(changes=changes):
+                rows[0].update(dict(copies='4', copy_min_ns='95', copy_max_ns='105') | changes)
+                with self.assertRaises(ValueError):
+                    timing_cells(rows)
+
     def test_duplicate_measurements_are_rejected(self):
         rows = self.rows()
         with self.assertRaisesRegex(ValueError, 'Duplicate timing'):

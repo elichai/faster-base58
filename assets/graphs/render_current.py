@@ -70,8 +70,10 @@ def main():
             handles, labels = axes[0].get_legend_handles_labels()
             figure.legend(handles, labels, loc='lower center', bbox_to_anchor=(.5, .075), ncol=5, frameon=False)
             identity = measured[0]
+            copies = int(identity.get('copies') or 1)
             figure.text(.5, .022, f"Public API · {identity['measurement_date']} · source {identity['source_commit'][:12]}"
-                + ' · warm medians; bars: process range\n'
+                + (f' · medians over {copies} file copies; bars: process range of all copies\n' if copies > 1
+                   else ' · warm medians; bars: process range\n')
                 + ('V8 elapsed time' if platform == 'wasm' else 'Native process CPU time')
                 + ' · missing points were not measured', fontsize=9, ha='center', va='bottom')
             figure.savefig(destination / f'{platform}-public.svg', metadata={'Title': 'Base58 conversion time: ' + title, 'Date': None})
