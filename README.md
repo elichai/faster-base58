@@ -221,13 +221,16 @@ with `+simd128` use Wasm SIMD kernels and are a separate cohort; see the
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | **25.6 ns** / 53.2 ns | 25.6 ns / 53 ns | 25.7 ns / 49.1 ns | 623 ns / 218 ns | 45.6 ns / **41.5 ns** |
-| 64 B | 102 ns / 143 ns | 102 ns / 132 ns | 101 ns / **126 ns** | 2.88 µs / 834 ns | **93.6 ns** / 127 ns |
-| 512 B | 7.6 µs / 5.13 µs | **2.83 µs** / **2.63 µs** | 7.68 µs / 5.16 µs | 235 µs / 76.3 µs | — / — |
+| 32 B | **25.6 ns** / ‡ | 25.6 ns / 53 ns | 25.7 ns / 49.1 ns | 623 ns / 218 ns | 45.6 ns / **41.5 ns** |
+| 64 B | 102 ns / ‡ | 102 ns / 132 ns | 101 ns / **126 ns** | 2.88 µs / 834 ns | **93.6 ns** / 127 ns |
+| 512 B | 7.6 µs / ‡ | **2.83 µs** / **2.63 µs** | 7.68 µs / 5.16 µs | 235 µs / 76.3 µs | — / — |
 | 4 KiB | 460 µs / 220 µs | **149 µs** / **126 µs** | 450 µs / 301 µs | 15.7 ms / 5.28 ms | — / — |
 | 64 KiB | 14.9 ms / 6.77 ms | **14.9 ms** / **6.64 ms** | 123 ms / 80.2 ms | 4.05 s / 1.38 s | — / — |
 | 1 MiB | **361 ms** / 174 ms | 365 ms / **173 ms** | — / — | — / — | — / — |
 | 4 MiB | 1.74 s / 856 ms | **1.73 s** / **850 ms** | — / — | — / — | — / — |
+
+‡ Withdrawn until remeasured: the code on this path changed after the measurement.
+The figure's matching bars are withdrawn for the same reason.
 
 ![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
 
