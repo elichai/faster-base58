@@ -62,7 +62,10 @@ pub(crate) fn encode_parts(
     limbs.feed(x);
     let Limbs { len, top, .. } = limbs;
     let n = write(rest, anchor, len, top)?;
-    ones.fill(b'1');
+    // Most inputs have no leading zeros, and an empty fill is still a `memset` call.
+    if zeros != 0 {
+        ones.fill(b'1');
+    }
     Ok(zeros + n)
 }
 
