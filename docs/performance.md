@@ -203,11 +203,12 @@ and drops inside the loop; bs58 and Auto reuse caller output.
 | --- | ---: | ---: | ---: | ---: |
 | Encode / 1 KiB | 7.3 µs | 1.02 ms | 22.8 µs | 869 µs |
 | Encode / 4 KiB | 111 µs | 16.8 ms | 182 µs | 13.5 ms |
-| Decode / 1 KiB | 2.87 µs | 341 µs | 5.8 µs | 323 µs |
-| Decode / 4 KiB | 42.2 µs | 5.48 ms | 71 µs | 5.29 ms |
+| Decode / 1 KiB | withdrawn | 341 µs | 5.8 µs | 323 µs |
+| Decode / 4 KiB | withdrawn | 5.48 ms | 71 µs | 5.29 ms |
 
 Reproduce with `cargo bench --features __internals --bench encode` (or `decode`),
-filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`.
+filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`. The Auto decode cells are
+withdrawn until remeasured: the decoders' paired multiply-add loop changed.
 
 ## Cache and memory
 
