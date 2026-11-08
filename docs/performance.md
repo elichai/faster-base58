@@ -94,7 +94,10 @@ only; it does not reproduce numbers.
 Paired comparisons: build both variants' Auto probes, then pass both to
 `public_bench.py` with `--baseline LABEL` (more `--processes` and `--batches` help
 for small effects). It prints each cell's median and range of per-process
-ratios against the baseline with the same cache policy.
+ratios against the baseline with the same cache policy. To see what a change
+inlined or moved out of line, compare the two unstripped probes:
+`python3 -B scripts/check_simd_inlining.py --compare OLD NEW` (sizes run to the
+next symbol, so they include alignment padding).
 
 Internal backends and allocations: `scripts/resource_report.py build` / `run`
 times internal workers (`__internals`, not ordinary public consumers) and counts

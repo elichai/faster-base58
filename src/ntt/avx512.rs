@@ -69,95 +69,97 @@ trait V16: Copy {
     fn min_u32(self, b: Self) -> Self;
 }
 
-/// `L` vectors as one, each operation applied to each in turn, so that code on them lists
-/// the steps of `L` independent computations together. On Zen 5 a forward transform that
+/// Two vectors as one, each operation applied to each in turn, so that code on them lists
+/// the steps of two independent computations together. On Zen 5 a forward transform that
 /// did one butterfly after the other took 1.33-1.55x as long with default flags as with
 /// `-C target-cpu=native`: the same instructions, in another order. On pairs
 /// ([`forward_v`]) the two builds are within 3% of each other, and both faster.
-impl<V: V16, const L: usize> V16 for [V; L] {
+///
+/// Code on vectors here uses no closures and no `core` array or iterator adapters: those
+/// are separate functions without the kernels' target features, so a copy that LLVM keeps
+/// out of line calls each intrinsic in it.
+impl<V: V16> V16 for [V; 2] {
     #[inline(always)]
     unsafe fn splat(x: i32) -> Self {
-        // SAFETY: the caller permits V creation; every array element uses that same V.
-        [unsafe { V::splat(x) }; L]
+        // SAFETY: the caller permits V creation; both elements use that same V.
+        [unsafe { V::splat(x) }; 2]
     }
     #[inline(always)]
     unsafe fn splat64(x: i64) -> Self {
-        // SAFETY: the caller permits V creation; every array element uses that same V.
-        [unsafe { V::splat64(x) }; L]
+        // SAFETY: the caller permits V creation; both elements use that same V.
+        [unsafe { V::splat64(x) }; 2]
     }
     /// The same lanes in each vector.
     #[inline(always)]
     unsafe fn from_array(x: [i32; 16]) -> Self {
-        // SAFETY: the caller permits V creation; every array element uses that same V.
-        [unsafe { V::from_array(x) }; L]
+        // SAFETY: the caller permits V creation; both elements use that same V.
+        [unsafe { V::from_array(x) }; 2]
     }
-    /// `L` vectors one after the other.
+    /// Two vectors one after the other.
     #[inline(always)]
     unsafe fn load(p: *const i32) -> Self {
-        // SAFETY: the caller provides 16 * L readable lanes and permits V creation.
-        core::array::from_fn(|i| unsafe { V::load(p.add(16 * i)) })
+        // SAFETY: the caller provides 32 readable lanes and permits V creation.
+        unsafe { [V::load(p), V::load(p.add(16))] }
     }
     #[inline(always)]
     unsafe fn store(self, p: *mut i32) {
-        for (i, v) in self.into_iter().enumerate() {
-            // SAFETY: i < L, so this vector lies within the caller's 16 * L writable lanes.
-            unsafe { v.store(p.add(16 * i)) }
+        // SAFETY: the caller provides 32 writable lanes.
+        unsafe {
+            self[0].store(p);
+            self[1].store(p.add(16));
         }
     }
     #[inline(always)]
     fn add(self, b: Self) -> Self {
-        each(self, b, V::add)
+        [self[0].add(b[0]), self[1].add(b[1])]
     }
     #[inline(always)]
     fn sub(self, b: Self) -> Self {
-        each(self, b, V::sub)
+        [self[0].sub(b[0]), self[1].sub(b[1])]
     }
     #[inline(always)]
     fn mullo(self, b: Self) -> Self {
-        each(self, b, V::mullo)
+        [self[0].mullo(b[0]), self[1].mullo(b[1])]
     }
     #[inline(always)]
     fn mul_even(self, b: Self) -> Self {
-        each(self, b, V::mul_even)
+        [self[0].mul_even(b[0]), self[1].mul_even(b[1])]
     }
     #[inline(always)]
     fn add64(self, b: Self) -> Self {
-        each(self, b, V::add64)
+        [self[0].add64(b[0]), self[1].add64(b[1])]
     }
     #[inline(always)]
     fn sub64(self, b: Self) -> Self {
-        each(self, b, V::sub64)
+        [self[0].sub64(b[0]), self[1].sub64(b[1])]
     }
     #[inline(always)]
     fn sra64<const N: u32>(self) -> Self {
-        self.map(V::sra64::<N>)
+        [self[0].sra64::<N>(), self[1].sra64::<N>()]
     }
     #[inline(always)]
     fn odd(self) -> Self {
-        self.map(V::odd)
+        [self[0].odd(), self[1].odd()]
     }
     #[inline(always)]
     fn blend(self, odd: Self) -> Self {
-        each(self, odd, V::blend)
+        [self[0].blend(odd[0]), self[1].blend(odd[1])]
     }
     #[inline(always)]
     fn highs(self, odd: Self) -> Self {
-        each(self, odd, V::highs)
+        [self[0].highs(odd[0]), self[1].highs(odd[1])]
     }
     #[inline(always)]
     fn permute2(self, idx: Self, b: Self) -> Self {
-        core::array::from_fn(|i| self[i].permute2(idx[i], b[i]))
+        [
+            self[0].permute2(idx[0], b[0]),
+            self[1].permute2(idx[1], b[1]),
+        ]
     }
     #[inline(always)]
     fn min_u32(self, b: Self) -> Self {
-        each(self, b, V::min_u32)
+        [self[0].min_u32(b[0]), self[1].min_u32(b[1])]
     }
-}
-
-/// `f` on the elements of `a` and `b` in turn.
-#[inline(always)]
-fn each<V: Copy, const L: usize>(a: [V; L], b: [V; L], f: impl Fn(V, V) -> V) -> [V; L] {
-    core::array::from_fn(|i| f(a[i], b[i]))
 }
 
 /// The constants of one prime.
@@ -293,21 +295,57 @@ impl<V: V16> Block<V> {
     /// points. Safety: `V` values may be created.
     #[inline(always)]
     unsafe fn new(w: &[i32], qinv: V, idx: &[[[i32; 16]; 2]; 5]) -> Self {
-        // In layout `h` the second register's lane `i` holds a position that is `i` modulo
-        // `h`.
-        let at = |t: &[i32], h: usize| core::array::from_fn(|i| t[h + (i & (h - 1))]);
-        let tw = |h| {
-            // SAFETY: the caller permits V creation; at uses bounds-checked indexing.
-            let w = unsafe { V::from_array(at(w, h)) };
-            (w, w.mullo(qinv))
-        };
-        // SAFETY: the caller permits creation of V index vectors.
-        let idx = idx.map(|[a, b]| unsafe { (V::from_array(a), V::from_array(b)) });
-        Block {
-            w: [16, 8, 4, 2].map(tw),
-            idx,
+        // SAFETY: the caller permits V creation.
+        unsafe {
+            Block {
+                w: [
+                    layout_twiddles(w, 16, qinv),
+                    layout_twiddles(w, 8, qinv),
+                    layout_twiddles(w, 4, qinv),
+                    layout_twiddles(w, 2, qinv),
+                ],
+                idx: [
+                    vectors(&idx[0]),
+                    vectors(&idx[1]),
+                    vectors(&idx[2]),
+                    vectors(&idx[3]),
+                    vectors(&idx[4]),
+                ],
+            }
         }
     }
+}
+
+/// The twiddles of stage `h` in layout `h`, whose second register's lane `i` holds a
+/// position that is `i` modulo `h`, and their [`mont`] companions.
+///
+/// Safety: `V` values may be created.
+#[inline(always)]
+unsafe fn layout_twiddles<V: V16>(w: &[i32], h: usize, qinv: V) -> (V, V) {
+    let mut lanes = [0; 16];
+    for (i, lane) in lanes.iter_mut().enumerate() {
+        *lane = w[h + (i & (h - 1))];
+    }
+    // SAFETY: the caller permits V creation.
+    let w = unsafe { V::from_array(lanes) };
+    (w, w.mullo(qinv))
+}
+
+/// The 16 twiddles at `w` and their [`mont`] companions.
+///
+/// Safety: `V` values may be created; 16 values at `w` are readable.
+#[inline(always)]
+unsafe fn twiddles<V: V16>(w: *const i32, qinv: V) -> (V, V) {
+    // SAFETY: as the caller promises.
+    let w = unsafe { V::load(w) };
+    (w, w.mullo(qinv))
+}
+
+/// Both index vectors of a regrouping. Safety: `V` values may be created.
+#[inline(always)]
+unsafe fn vectors<V: V16>([a, b]: &[[i32; 16]; 2]) -> (V, V) {
+    // SAFETY: the caller permits V creation.
+    unsafe { (V::from_array(*a), V::from_array(*b)) }
 }
 
 /// [`V16::permute2`] of `x` and `y` by both index vectors.
@@ -370,12 +408,7 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, fw: &[i32]) {
     }
     // SAFETY: the caller permits V creation, including pairs of V constants.
     let c = unsafe { Consts::<[V; 2]>::new(p) };
-    let (pa, w) = (a.as_mut_ptr(), fw.as_ptr());
-    let tw = |i: usize| {
-        // SAFETY: callers use i + 16 <= 2 * h <= n, within the asserted twiddle length.
-        let w = unsafe { V::load(w.add(i)) };
-        (w, w.mullo(c.qinv[0]))
-    };
+    let (pa, w, qinv) = (a.as_mut_ptr(), fw.as_ptr(), c.qinv[0]);
     let mut h = n / 2;
     while h >= 32 {
         if h >= 64 {
@@ -384,17 +417,28 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, fw: &[i32]) {
             let g = h / 2;
             for s in (0..n).step_by(2 * h) {
                 for j in (0..g).step_by(16) {
-                    // SAFETY: s + 2*h <= n and j + 16 <= g; all four vectors fit in a.
+                    // SAFETY: s + 2*h <= n and j + 16 <= g, so all four vectors fit in a;
+                    // the twiddles end by 2 * h <= n, within the asserted length.
                     unsafe {
-                        let ps = [0, g, h, h + g].map(|o| pa.add(s + j + o));
-                        let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
-                        let tw1 = both(tw(h + j), tw(h + g + j));
-                        let ([x0, x1], [x2, x3]) = dif(([x0, x1], [x2, x3]), tw1, &c);
-                        let tw2 = tw(g + j);
+                        let p = pa.add(s + j);
+                        let ps = [p, p.add(g), p.add(h), p.add(h + g)];
+                        let x = [
+                            V::load(ps[0]),
+                            V::load(ps[1]),
+                            V::load(ps[2]),
+                            V::load(ps[3]),
+                        ];
+                        let tw1 = both(
+                            twiddles(w.add(h + j), qinv),
+                            twiddles(w.add(h + g + j), qinv),
+                        );
+                        let ([x0, x1], [x2, x3]) = dif(([x[0], x[1]], [x[2], x[3]]), tw1, &c);
+                        let tw2 = twiddles(w.add(g + j), qinv);
                         let ([x0, x2], [x1, x3]) = dif(([x0, x2], [x1, x3]), both(tw2, tw2), &c);
-                        for (p, x) in ps.into_iter().zip([x0, x1, x2, x3]) {
-                            x.store(p);
-                        }
+                        x0.store(ps[0]);
+                        x1.store(ps[1]);
+                        x2.store(ps[2]);
+                        x3.store(ps[3]);
                     }
                 }
             }
@@ -402,15 +446,18 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, fw: &[i32]) {
         } else {
             for s in (0..n).step_by(2 * h) {
                 for j in (0..h).step_by(32) {
-                    // SAFETY: s + 2*h <= n and j + 32 <= h; both vector pairs fit in a.
+                    // SAFETY: s + 2*h <= n and j + 32 <= h, so both vector pairs fit in a;
+                    // the twiddles end by 2 * h <= n, within the asserted length.
                     unsafe {
-                        let px = [pa.add(s + j), pa.add(s + j + 16)];
-                        let (x, y) = (px.map(|p| V::load(p)), px.map(|p| V::load(p.add(h))));
-                        let (x, y) = dif((x, y), both(tw(h + j), tw(h + j + 16)), &c);
-                        for (p, (x, y)) in px.into_iter().zip(x.into_iter().zip(y)) {
-                            x.store(p);
-                            y.store(p.add(h));
-                        }
+                        let p = pa.add(s + j);
+                        let (x, y) = (<[V; 2]>::load(p), <[V; 2]>::load(p.add(h)));
+                        let tw = both(
+                            twiddles(w.add(h + j), qinv),
+                            twiddles(w.add(h + j + 16), qinv),
+                        );
+                        let (x, y) = dif((x, y), tw, &c);
+                        x.store(p);
+                        y.store(p.add(h));
                     }
                 }
             }
@@ -422,13 +469,14 @@ unsafe fn forward_v<V: V16>(a: &mut [i32], p: Prime, fw: &[i32]) {
     for i in (0..n).step_by(64) {
         // SAFETY: `i + 64 <= n`: two blocks of 32.
         unsafe {
-            let ps = [pa.add(i), pa.add(i + 32)];
-            let xy = (ps.map(|p| V::load(p)), ps.map(|p| V::load(p.add(16))));
-            let (x, y) = forward32(xy, &b, &c);
-            for (p, (x, y)) in ps.into_iter().zip(x.into_iter().zip(y)) {
-                x.store(p);
-                y.store(p.add(16));
-            }
+            let p = pa.add(i);
+            let x = [V::load(p), V::load(p.add(32))];
+            let y = [V::load(p.add(16)), V::load(p.add(48))];
+            let (x, y) = forward32((x, y), &b, &c);
+            x[0].store(p);
+            x[1].store(p.add(32));
+            y[0].store(p.add(16));
+            y[1].store(p.add(48));
         }
     }
 }
@@ -495,24 +543,28 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     c: &Consts<V>,
 ) {
     let w = iw.as_ptr();
-    let tw = |i: usize| {
-        // SAFETY: callers use i + 16 <= 4 * h, within the promised twiddle length.
-        let w = unsafe { V::load(w.add(i)) };
-        (w, w.mullo(c.qinv))
-    };
     for s in (0..n).step_by(4 * h) {
         for j in (0..h).step_by(16) {
-            // SAFETY: s + 4*h <= n and j + 16 <= h; all four vectors fit in p.
+            // SAFETY: s + 4*h <= n and j + 16 <= h, so all four vectors fit in p; the
+            // twiddles end by 4 * h, within the promised length.
             unsafe {
-                let ps = [0, h, 2 * h, 3 * h].map(|o| p.add(s + j + o));
-                let [x0, x1, x2, x3] = ps.map(|p| V::load(p));
-                let (x0, x1) = dit::<V, L1>((x0, x1), tw(h + j), c);
-                let (x2, x3) = dit::<V, L1>((x2, x3), tw(h + j), c);
-                let (x0, x2) = dit::<V, L2>((x0, x2), tw(2 * h + j), c);
-                let (x1, x3) = dit::<V, L2>((x1, x3), tw(3 * h + j), c);
-                for (p, x) in ps.into_iter().zip([x0, x1, x2, x3]) {
-                    x.store(p);
-                }
+                let q = p.add(s + j);
+                let ps = [q, q.add(h), q.add(2 * h), q.add(3 * h)];
+                let x = [
+                    V::load(ps[0]),
+                    V::load(ps[1]),
+                    V::load(ps[2]),
+                    V::load(ps[3]),
+                ];
+                let tw1 = twiddles(w.add(h + j), c.qinv);
+                let (x0, x1) = dit::<V, L1>((x[0], x[1]), tw1, c);
+                let (x2, x3) = dit::<V, L1>((x[2], x[3]), tw1, c);
+                let (x0, x2) = dit::<V, L2>((x0, x2), twiddles(w.add(2 * h + j), c.qinv), c);
+                let (x1, x3) = dit::<V, L2>((x1, x3), twiddles(w.add(3 * h + j), c.qinv), c);
+                x0.store(ps[0]);
+                x1.store(ps[1]);
+                x2.store(ps[2]);
+                x3.store(ps[3]);
             }
         }
     }
@@ -535,8 +587,7 @@ unsafe fn inverse2<V: V16, const LAZY: bool>(
             // SAFETY: `s + 2 h <= n`, `j + 16 <= h`, twiddle `h + j + 16 <= 2 h`.
             unsafe {
                 let (px, py) = (p.add(s + j), p.add(s + j + h));
-                let w = V::load(w.add(h + j));
-                let tw = (w, w.mullo(c.qinv));
+                let tw = twiddles(w.add(h + j), c.qinv);
                 let (x, y) = dit::<V, LAZY>((V::load(px), V::load(py)), tw, c);
                 x.store(px);
                 y.store(py);
@@ -607,9 +658,6 @@ unsafe fn garner_two_v<V: V16>(r1: &mut [i32], r2: &mut [i32]) {
             V::splat(GARNER.c12q),
         )
     };
-    // `x + q` is below 2^31, so the unsigned minimum is `x` for `x >= 0` and `x + q`
-    // for `x < 0`: `x` in `[0, q)` for any `x` in `(-q, q)`.
-    let normalize = |x: V, q: V| x.min_u32(x.add(q));
     let full = n / 16 * 16;
     for i in (0..full).step_by(16) {
         // SAFETY: `i + 16 <= n` for both slices.
@@ -624,6 +672,13 @@ unsafe fn garner_two_v<V: V16>(r1: &mut [i32], r2: &mut [i32]) {
         }
     }
     super::radix::garner_two_portable(&mut r1[full..], &mut r2[full..]);
+}
+
+/// `x` in `[0, q)` for `x` in `(-q, q)`: `x + q` is below 2^31, so the unsigned minimum
+/// is `x` for `x >= 0` and `x + q` for `x < 0`.
+#[inline(always)]
+fn normalize<V: V16>(x: V, q: V) -> V {
+    x.min_u32(x.add(q))
 }
 
 /// [`garner_two_v`] on AVX-512F.

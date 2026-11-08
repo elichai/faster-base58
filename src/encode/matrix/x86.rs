@@ -1,7 +1,8 @@
-//! AVX2 and AVX-512 VBMI kernels for the fixed size of 64 bytes, which `fixed.rs` picks at
-//! run time: column sums, the carry in four segments (`fixed::carry_split`), and digits that
-//! stay in registers until three stores write the result. With VBMI the sums take eight
-//! columns per vector and `vpermb` maps and shifts the characters.
+//! The general encoder's AVX2 entry point, and AVX2 and AVX-512 VBMI kernels for the fixed
+//! size of 64 bytes, which `fixed.rs` picks at run time: column sums, the carry in four
+//! segments (`fixed::carry_split`), and digits that stay in registers until three stores
+//! write the result. With VBMI the sums take eight columns per vector and `vpermb` maps and
+//! shifts the characters.
 
 use core::arch::x86_64::*;
 
@@ -36,6 +37,13 @@ pub(super) fn has_vbmi() -> bool {
     crate::cpu::vbmi()
 }
 
+/// `super::convert` with the AVX2 panel kernel.
+#[cfg(any(feature = "alloc", test, kani))]
+#[target_feature(enable = "avx2")]
+pub(super) fn convert_avx2<'a>(x: &[u8], scratch: &'a mut super::Scratch) -> &'a [u64] {
+    super::convert_with(|a, w, d| crate::matrix::panel_avx2(a, w, d), x, scratch)
+}
+
 /// Fixed matrix encoding for 64 bytes with AVX2.
 #[target_feature(enable = "avx2")]
 pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
@@ -55,7 +63,8 @@ pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, Buffer
     // `64 <= n <= 88` (`fixed::Table::check`), so the stores below are in `out` and the
     // last ends at `n`. The second overwrites the first one's excess.
     let skip = 96 - n;
-    let [c0, c1, c2] = d.map(|d| alphabet(d));
+    // Not `d.map`: its `core` code lacks this function's target features (see `ntt::avx512`).
+    let [c0, c1, c2] = [alphabet(d[0]), alphabet(d[1]), alphabet(d[2])];
     store(out.first_chunk_mut().unwrap(), shift(c0, skip));
     store(out[32 - skip..].first_chunk_mut().unwrap(), c1);
     store(out[64 - skip..].first_chunk_mut().unwrap(), c2);
@@ -88,7 +97,11 @@ pub(super) fn encode_64_vbmi(x: &[u8; 64], output: &mut [u8]) -> Result<usize, B
     let out = output.get_mut(..n).ok_or(BufferTooSmall)?;
     // `64 <= n <= 88`: the stores are in `out`, as in `encode_64`.
     let skip = 96 - n;
-    let [c0, c1, c2] = d.map(|d| alphabet_vbmi(d));
+    let [c0, c1, c2] = [
+        alphabet_vbmi(d[0]),
+        alphabet_vbmi(d[1]),
+        alphabet_vbmi(d[2]),
+    ];
     store(out.first_chunk_mut().unwrap(), shift_vbmi(c0, skip));
     store(out[32 - skip..].first_chunk_mut().unwrap(), c1);
     store(out[64 - skip..].first_chunk_mut().unwrap(), c2);

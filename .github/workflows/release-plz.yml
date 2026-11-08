@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - run: rustup update stable --no-self-update
+      - run: rustc -vV
       - uses: release-plz/action@7ef5e4d4b0420630cfcaeb182c01e13651d4c577 # v0.5.145
         with:
           command: release-pr

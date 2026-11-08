@@ -95,13 +95,35 @@ PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
 Native unit and integration rows use Nextest except for x86-64 Linux debug,
 cache-off/on shared-process rows; documentation examples remain Cargo tests.
-The cross revision and container image digest are pinned. Other
+The cross revision and container image digest are pinned, and so are the toolchains:
+stable in [rust-toolchain.toml](rust-toolchain.toml), which also applies to local
+builds in the repository, and the nightly in
+[ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml). Dependabot
+proposes toolchain updates. Other
 jobs cover 32-bit Linux, Malachite's 32-bit limb
 mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
 boundaries, Clippy, formatting and package contents. Build checks alone
 do not execute kernels. The maximum `2^23`-point transform test runs separately;
 two expensive Matrix sweeps execute with `cache` rather than rebuilding the
 same owned tables for every size.
+
+The SIMD inlining job builds the Auto consumer library with generic CPU flags for
+x86-64 and arm64 Linux, each default, `cache` and `compact`, on one x86-64 runner
+(arm64 is cross-compiled). [check_simd_inlining.py](scripts/check_simd_inlining.py)
+compares every out-of-line function whose name mentions the crate or a `core::arch`
+intrinsic with [check_simd_inlining.txt](scripts/check_simd_inlining.txt), per
+configuration. It fails on an unlisted function and on a listed function that is no
+longer out of line, so the list records LLVM's inlining decisions for the pinned
+toolchain; a code or toolchain change that moves a function updates the list. The
+list comments the SIMD functions kept apart on purpose: dispatch-table entries,
+target-feature entry points, kernels selected by pointer and cold paths. The check
+reads symbols only: it does not see slow code inside an inlined body. `--build`
+needs x86-64 or arm64 Linux. On an Apple silicon Mac, run it in an arm64 container,
+which cross-compiles x86-64:
+
+```sh
+docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
+```
 
 ```sh
 PROPTEST_CASES=512 cargo nextest run --locked --features __internals --lib --tests

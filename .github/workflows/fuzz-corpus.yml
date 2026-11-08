@@ -29,7 +29,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  RUST_NIGHTLY: nightly-2026-10-26
   CARGO_FUZZ_VERSION: '0.13.2'
 
 defaults:
@@ -86,7 +85,9 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
-      - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
+      - uses: ./.github/actions/nightly-toolchain
+        with:
+          components: rust-src
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
@@ -134,7 +135,9 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
-      - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
+      - uses: ./.github/actions/nightly-toolchain
+        with:
+          components: rust-src
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
@@ -207,7 +210,9 @@ jobs:
         run: sudo apt-get update
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
-      - run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src --profile minimal
+      - uses: ./.github/actions/nightly-toolchain
+        with:
+          components: rust-src
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}

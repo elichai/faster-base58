@@ -33,6 +33,6 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/src
           key: cargo-sources-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'fuzz/Cargo.lock', 'tools/resource-profile/Cargo.lock') }}
-      - run: cargo +stable fetch --locked
-      - run: cargo +stable fetch --locked --manifest-path fuzz/Cargo.toml
-      - run: cargo +stable fetch --locked --manifest-path tools/resource-profile/Cargo.toml
+      - run: cargo fetch --locked
+      - run: cargo fetch --locked --manifest-path fuzz/Cargo.toml
+      - run: cargo fetch --locked --manifest-path tools/resource-profile/Cargo.toml

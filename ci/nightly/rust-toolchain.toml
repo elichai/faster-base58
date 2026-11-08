@@ -1,0 +1,5 @@
+# Nightly for Miri, fuzzing, sanitizers and coverage. CI installs it through
+# .github/actions/nightly-toolchain; Dependabot proposes updates. The custom Miri
+# build pins its own Cargo toolchain in ci/miri/pins.json.
+[toolchain]
+channel = "nightly-2026-10-26"

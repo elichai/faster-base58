@@ -1,7 +1,8 @@
 #!/bin/sh
 # Run every declared SIMD probe separately and retain nonzero/zero-test failures.
 set -eu
-BASE58_MIRI_TOOLCHAIN=${BASE58_MIRI_TOOLCHAIN:-nightly-2026-10-26}
+nightly=$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$(dirname "$0")/../ci/nightly/rust-toolchain.toml")
+BASE58_MIRI_TOOLCHAIN=${BASE58_MIRI_TOOLCHAIN:-$nightly}
 case "${1-}" in
     arm)
         target=aarch64-unknown-linux-gnu
