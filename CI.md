@@ -33,6 +33,7 @@ the nightly, cargo-fuzz and Nextest pins.
 | cargo-fuzz | 0.13.2 | Fuzz jobs |
 | Kani (`kani-verifier`) | 0.68.0, with `z3` on `PATH` | `proofs`, `proofs_open` |
 | cross | Git revision `74e99b2223de06166f8cdcc1af7f1308ec52baf4` | `big_endian` |
+| wasmtime | 50.0.1 | `wasm_simd128` |
 | rustup-toolchain-install-master | 1.12.2 | `miri_custom` |
 | Clang/LLVM | 23 (`clang-23`, `libclang-rt-23-dev`) | Fuzzing and native sanitizers on Linux |
 | Python | 3.11 or later (the scripts use `tomllib`) | Scripts |
@@ -44,7 +45,7 @@ Install the Rust toolchains, components and Cargo tools:
 ```sh
 rustup update stable
 rustup component add clippy rustfmt llvm-tools --toolchain stable
-rustup target add --toolchain stable wasm32-unknown-unknown aarch64-unknown-linux-gnu thumbv7em-none-eabi x86_64-unknown-none i686-unknown-linux-gnu
+rustup target add --toolchain stable wasm32-unknown-unknown wasm32-wasip1 aarch64-unknown-linux-gnu thumbv7em-none-eabi x86_64-unknown-none i686-unknown-linux-gnu
 rustup toolchain install 1.95 --profile minimal
 rustup toolchain install nightly-2026-10-26 --profile minimal --component miri --component rust-src --component llvm-tools-preview
 cargo install --locked cargo-nextest --version 0.9.150
@@ -103,6 +104,7 @@ Jobs that upload records keep them as artifacts for 14 days.
 | `compact` | Tests with `compact` | x86-64 Linux; cache off and on | All |
 | `alternate_limb_width` | Tests with Malachite's 32-bit limbs | x86-64 and arm64 Linux | All |
 | `portability` | Feature-powerset builds and Clippy for Wasm, AArch64 Linux, Cortex-M and bare x86-64; Wasm ABI and counted-allocation contracts | x86-64 Linux | All |
+| `wasm_simd128` | Clippy and the library unit tests with `+simd128`, run under wasmtime | x86-64 Linux, `wasm32-wasip1` target | All |
 | `maximum_transform` | The ignored `2^23`-point transform test | x86-64 Linux | All |
 | `msrv` | Feature-powerset build and public tests on Rust 1.95 | x86-64 Linux | All |
 | `pointer_width_32` | Tests on i686 | x86-64 Linux | All |
@@ -177,6 +179,18 @@ cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored 
 - `msrv` repeats the public list with `cache`, `std,compact` and `cache,compact`.
 - `pointer_width_32` also runs with `cache`. It needs the i686 target and `gcc-multilib`.
 - `maximum_transform` requires the summary `1 passed; 0 failed; 0 ignored`.
+
+`wasm_simd128` builds the Wasm SIMD128 kernels, which exist only with `+simd128`,
+and runs the library unit tests under wasmtime. WASI preview 1 cannot spawn threads
+or processes, so the job skips the tests that need them; `should_panic` tests are
+ignored there because Wasm panics abort. Install wasmtime 50.0.1, then:
+
+```sh
+rustup target add --toolchain stable wasm32-wasip1
+export RUSTFLAGS="-C target-feature=+simd128" CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime
+cargo clippy --locked --lib --target wasm32-wasip1 --features cache -- -D warnings
+cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib -- --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
+```
 
 `big_endian` installs the pinned cross revision and runs the suite in a QEMU
 container. On Ubuntu, first install `qemu-user-binfmt` and register `qemu-ppc64`

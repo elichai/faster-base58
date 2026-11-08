@@ -138,11 +138,7 @@ They run under a WASI engine together with the rest of the library unit tests. T
 `wasm_simd128` CI job runs them with wasmtime 50.0.1 and `__internals,cache`
 features; default features were also run locally. WASI preview 1 cannot spawn threads or
 processes, so those tests are skipped, and `should_panic` tests are ignored there
-because Wasm panics abort.
-
-```sh
-CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime RUSTFLAGS="-C target-feature=+simd128" cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib -- --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
-```
+because Wasm panics abort. [CI.md](CI.md#test-jobs) gives the local commands.
 
 ## Fuzzing and sanitizers
 
