@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # The stable toolchain (rust-toolchain.toml) and the nightly (ci/nightly).
+  - package-ecosystem: rust-toolchain
+    directories: ["/", "/ci/nightly"]
+    schedule:
+      interval: weekly

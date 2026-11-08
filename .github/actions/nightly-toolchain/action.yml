@@ -1,0 +1,22 @@
+name: Pinned nightly toolchain
+description: Install the nightly named in ci/nightly/rust-toolchain.toml and export it as RUST_NIGHTLY.
+
+inputs:
+  components:
+    description: Space-separated rustup components to install with it.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        COMPONENTS: ${{ inputs.components }}
+      run: |
+        nightly=$(sed -n 's/^channel = "\(nightly-[0-9-]*\)"$/\1/p' "$GITHUB_WORKSPACE/ci/nightly/rust-toolchain.toml")
+        test -n "$nightly"
+        echo "RUST_NIGHTLY=$nightly" >> "$GITHUB_ENV"
+        components=()
+        for component in $COMPONENTS; do components+=(--component "$component"); done
+        rustup toolchain install "$nightly" --profile minimal "${components[@]}"

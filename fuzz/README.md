@@ -62,16 +62,19 @@ tables; moving the cap does not cross that boundary. The next prepared-table
 transition is at 96,641 characters. Actual transform use also depends on operand
 lengths and the selected multiplication thresholds.
 
-Install `cargo-fuzz` 0.13.2 and nightly-2026-10-26 with `rust-src`. Use a C++
-compiler compatible with that toolchain's LLVM 23 runtime. Run from the repository:
+Install `cargo-fuzz` 0.13.2 and the nightly in
+[ci/nightly/rust-toolchain.toml](../ci/nightly/rust-toolchain.toml) with `rust-src`.
+Use a C++ compiler compatible with that toolchain's LLVM runtime. Run from the
+repository:
 
 ```sh
+nightly=$(sed -n 's/^channel = "\(.*\)"$/\1/p' ci/nightly/rust-toolchain.toml)
 python3 fuzz/test_seed_corpus.py
 python3 fuzz/seed_corpus.py
-cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address encode_all fuzz/corpus/encode_small -- -max_len=2048 -max_total_time=60 -timeout=120 -rss_limit_mb=4096
-cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address decode_all fuzz/corpus/decode_small -- -max_len=2048 -max_total_time=60 -timeout=120 -rss_limit_mb=4096
-cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-cargo +nightly-2026-10-26 fuzz run --careful --sanitizer address decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --careful --sanitizer address encode_all fuzz/corpus/encode_small -- -max_len=2048 -max_total_time=60 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --careful --sanitizer address decode_all fuzz/corpus/decode_small -- -max_len=2048 -max_total_time=60 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --careful --sanitizer address encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --careful --sanitizer address decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
 ```
 
 Linux CI installs `clang-23` and `libclang-rt-23-dev` from the signed
@@ -108,7 +111,7 @@ statistics and corpora are uploaded with the existing fuzz artifacts.
 The generator preserves existing seeds and fails if a named seed was edited,
 including under `python3 -O`. New
 coverage seeds and crash artifacts are ignored by Git. Replay any crash with
-`cargo +nightly-2026-10-26 fuzz run --careful TARGET PATH_TO_ARTIFACT`.
+`cargo +"$nightly" fuzz run --careful TARGET PATH_TO_ARTIFACT`.
 
 `base58.dict` is versioned on `main` and is passed to the mutating decode lane.
 It supplies invalid ASCII and UTF-8 boundaries; structured 64-byte

@@ -1,0 +1,6 @@
+# Stable toolchain for CI and for local builds in this repository. Dependabot proposes
+# updates (.github/dependabot.yml). The MSRV job installs Rust 1.95 separately.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["clippy", "rustfmt"]

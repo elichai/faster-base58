@@ -95,7 +95,11 @@ PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
 Native unit and integration rows use Nextest except for x86-64 Linux debug,
 cache-off/on shared-process rows; documentation examples remain Cargo tests.
-The cross revision and container image digest are pinned. Other
+The cross revision and container image digest are pinned, and so are the toolchains:
+stable in [rust-toolchain.toml](rust-toolchain.toml), which also applies to local
+builds in the repository, and the nightly in
+[ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml). Dependabot
+proposes toolchain updates. Other
 jobs cover 32-bit Linux, Malachite's 32-bit limb
 mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
 boundaries, Clippy, formatting and package contents. Build checks alone

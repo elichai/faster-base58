@@ -8,10 +8,12 @@ from pathlib import Path
 import re
 import subprocess
 import time
+import tomllib
 
 from process_supervisor import install_signal_handlers, owned_process
 
-TOOLCHAIN = 'nightly-2026-10-26'
+NIGHTLY = Path(__file__).resolve().parents[1] / 'ci/nightly/rust-toolchain.toml'
+TOOLCHAIN = tomllib.loads(NIGHTLY.read_text())['toolchain']['channel']
 TARGET = 'x86_64-unknown-linux-gnu'
 MEMORY_TESTS = [
     'matrix::tests::best_matches_portable',
