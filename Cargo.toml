@@ -7,8 +7,8 @@ description = "Fast Bitcoin Base58 encoding and decoding with automatic CPU disp
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/elichai/faster-base58"
 readme = "README.md"
-keywords = ["base58", "encoding", "no-std", "serialization"]
-categories = ["encoding", "no-std"]
+keywords = ["base58", "encoding", "no-std", "bitcoin"]
+categories = ["encoding", "no-std", "no-std::no-alloc", "cryptography::cryptocurrencies"]
 include = [
     "/src/**", "/tests/**/*.rs", "/benches/*.rs",
     "/README.md", "/DESIGN.md", "/CORRECTNESS.md", "/REFERENCES.md", "/LICENSE-*",
@@ -71,6 +71,11 @@ undocumented_unsafe_blocks = "warn"
 
 [package.metadata.kani.flags]
 default-unwind = "1"
+
+# `__internals` would publish unstable docs; `cache` adds no public items.
+[package.metadata.docs.rs]
+features = ["check"]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [[test]]
 name = "properties"
