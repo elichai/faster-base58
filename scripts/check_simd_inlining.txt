@@ -165,7 +165,6 @@ faster_base58::matrix::x86::avx2
 faster_base58::matrix::x86::sse41
 
 [x86_64 !cache]
-<alloc::vec::Vec<u64> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<u64, core::iter::adapters::map::Map<core::slice::iter::RChunks<u8>, faster_base58::encode::dc::load::{closure#0}>>>::from_iter
 faster_base58::cpu::detect_avx2::init_get::init_inner
 faster_base58::cpu::detect_avx512f::init_get::init_inner
 faster_base58::cpu::detect_ifma::init_get::init_inner
@@ -177,6 +176,7 @@ faster_base58::encode::dc::node::<faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::recip_scratch_len::<faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::reciprocal::<faster_base58::dc::Karatsuba>
 faster_base58::encode::matrix::table::get
+faster_base58::encode::dc::load
 
 [x86_64 !compact]
 # IFMA kernel widths above 8, which `compact` does not build.

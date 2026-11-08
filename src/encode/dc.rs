@@ -199,10 +199,14 @@ fn load(x: &[u8], zeros: usize, capacity: usize) -> Result<(Vec<u64>, usize), Bu
     }
     // `x < 58^(min + 2) <= BASE^n`.
     let n = (min + 2).div_ceil(CHUNK);
-    let limbs = x
-        .rchunks(8)
-        .map(|c| c.iter().fold(0, |v, &b| (v << 8) | b as u64))
-        .collect();
+    // Whole limbs by 8-byte loads. Not adopted: a byte fold over each `rchunks(8)` slice,
+    // a byte loop that made encodes 3% slower at 1 KiB (Zen 5) and 1% at 5 KiB (M5).
+    let (head, body) = x.as_rchunks::<8>();
+    let mut limbs = Vec::with_capacity(x.len().div_ceil(8));
+    limbs.extend(body.iter().rev().map(|c| u64::from_be_bytes(*c)));
+    if !head.is_empty() {
+        limbs.push(head.iter().fold(0, |v, &b| (v << 8) | b as u64));
+    }
     Ok((limbs, n))
 }
 
@@ -848,6 +852,28 @@ mod tests {
     #[should_panic(expected = "value is too short for divide and conquer")]
     fn normalized_encoder_rejects_single_leaf_values() {
         encode_parts(0, &[1], &mut [0; 2], &mut Karatsuba, 1, Leaves::Horner).unwrap();
+    }
+
+    /// `load` matches a byte fold over `rchunks(8)` for every short head length.
+    #[test]
+    fn load_matches_byte_fold() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(31);
+        for limbs in [0, 1, 2, 3, 7, 16, 129] {
+            for head in 0..8 {
+                let mut x = vec![0; 8 * limbs + head];
+                if x.is_empty() {
+                    continue;
+                }
+                rng.fill_bytes(&mut x);
+                x[0] |= 1;
+                let fold: Vec<u64> = x
+                    .rchunks(8)
+                    .map(|c| c.iter().fold(0, |v, &b| (v << 8) | b as u64))
+                    .collect();
+                let (got, _) = load(&x, 0, usize::MAX).unwrap();
+                assert_eq!(got, fold, "{limbs} limbs, {head} head bytes");
+            }
+        }
     }
 
     fn product(a: &[u64], b: &[u64]) -> Vec<u64> {
