@@ -10,23 +10,31 @@ states what the checks establish and which gaps remain. A passing job establishe
 only the checks and platforms that it executes.
 
 The workflow files are the record. If a command here differs from a workflow step,
-the workflow is correct. Run commands from the repository root. Stable commands
-assume that stable is the default toolchain; CI writes `cargo +stable`. An
+the workflow is correct. Run commands from the repository root, where rustup
+selects the stable toolchain in [rust-toolchain.toml](rust-toolchain.toml). An
 `export` line changes the later commands in the same shell. Placeholders in
 capitals, such as `NEW_DIR`, are paths that you supply.
 
 ## Toolchains and tools
 
-The `env:` block of [verification.yml](.github/workflows/verification.yml) pins
-these versions. [fuzz-corpus.yml](.github/workflows/fuzz-corpus.yml) and
+[rust-toolchain.toml](rust-toolchain.toml) pins stable Rust for CI and for local
+builds in the repository. [ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml)
+pins the nightly; jobs install it with the
+[nightly-toolchain](.github/actions/nightly-toolchain/action.yml) action, which
+exports its name as `RUST_NIGHTLY`. [Dependabot](.github/dependabot.yml) proposes
+weekly updates to both files. The custom Miri job takes its Cargo toolchain from
+[ci/miri/pins.json](ci/miri/pins.json) instead. The `env:` block of
+[verification.yml](.github/workflows/verification.yml) pins the other versions.
+[fuzz-corpus.yml](.github/workflows/fuzz-corpus.yml) and
 [miri-nextest-benchmark.yml](.github/workflows/miri-nextest-benchmark.yml) repeat
-the nightly, cargo-fuzz and Nextest pins.
+the cargo-fuzz and Nextest pins.
 
 | Tool | Version | Used by |
 | --- | --- | --- |
-| Rust stable | Current stable (`rustup update stable`) | Tests, builds, lint, property coverage |
+| Rust stable | 1.99.1 ([rust-toolchain.toml](rust-toolchain.toml)) | Tests, builds, lint, property coverage, SIMD inlining |
 | Rust MSRV | 1.95 | `msrv` |
-| Rust nightly | `nightly-2026-10-26` | Miri, fuzzing, fuzz coverage, sanitizers, custom Miri |
+| Rust nightly | `nightly-2026-10-26` ([ci/nightly](ci/nightly/rust-toolchain.toml)) | Miri, fuzzing, fuzz coverage, sanitizers |
+| Custom Miri Cargo | `cargo_toolchain` in [pins.json](ci/miri/pins.json) | `miri_custom` |
 | cargo-nextest | 0.9.150 | Test jobs, Nextest Miri comparison |
 | cargo-hack | 0.6.45 | Feature-powerset builds and Clippy |
 | cargo-llvm-cov | 0.9.1 | `proptest_coverage` |
@@ -40,14 +48,16 @@ the nightly, cargo-fuzz and Nextest pins.
 | Node | Not pinned | Wasm checks |
 | Matplotlib | [requirements.txt](assets/graphs/requirements.txt) | Figure rendering only |
 
-Install the Rust toolchains, components and Cargo tools:
+Install the Rust toolchains, components and Cargo tools. The first `rustc` call
+installs the pinned stable with clippy and rustfmt; later commands use `$nightly`:
 
 ```sh
-rustup update stable
-rustup component add clippy rustfmt llvm-tools --toolchain stable
-rustup target add --toolchain stable wasm32-unknown-unknown wasm32-wasip1 aarch64-unknown-linux-gnu thumbv7em-none-eabi x86_64-unknown-none i686-unknown-linux-gnu
+rustc -vV
+rustup component add llvm-tools
+rustup target add wasm32-unknown-unknown wasm32-wasip1 aarch64-unknown-linux-gnu thumbv7em-none-eabi x86_64-unknown-none i686-unknown-linux-gnu
 rustup toolchain install 1.95 --profile minimal
-rustup toolchain install nightly-2026-10-26 --profile minimal --component miri --component rust-src --component llvm-tools-preview
+export nightly=$(sed -n 's/^channel = "\(.*\)"$/\1/p' ci/nightly/rust-toolchain.toml)
+rustup toolchain install "$nightly" --profile minimal --component miri --component rust-src --component llvm-tools-preview
 cargo install --locked cargo-nextest --version 0.9.150
 cargo install --locked cargo-hack --version 0.6.45
 cargo install --locked cargo-llvm-cov --version 0.9.1
@@ -110,7 +120,7 @@ Jobs that upload records keep them as artifacts for 14 days.
 | `pointer_width_32` | Tests on i686 | x86-64 Linux | All |
 | `lint` | Script tests, public test lists, rustfmt, Clippy, rustdoc warnings, package contents | x86-64 Linux | All |
 | `clippy_arm` | Feature-powerset Clippy | arm64 Linux | All |
-| `simd_inlining` | Lists the out-of-line functions of the Auto consumer library and fails on SIMD code left out of line | x86-64 Linux (default, `cache`, `compact`); arm64 Linux (default, `cache`) | All |
+| `simd_inlining` | Compares every out-of-line crate function of the Auto consumer library with `scripts/check_simd_inlining.txt` | x86-64 Linux; x86-64 and arm64 targets, each default, `cache` and `compact` | All |
 | `measurement_tools` | `resource-profile` tests and self-checks; script self-tests; documentation check | x86-64 Linux; cache off and on | All |
 | `miri_supported` | Stock Miri on portable paths and AVX2 kernels | x86-64 Linux | All |
 | `miri_arm_panel` | Stock Miri on a NEON panel and forced encoder leaves | x86-64 Linux, AArch64 target | All |
@@ -126,7 +136,7 @@ Jobs that upload records keep them as artifacts for 14 days.
 
 ### Test jobs
 
-These jobs need stable Rust and cargo-nextest. CI sets `PROPTEST_CASES=512`. The
+These jobs need the pinned stable Rust and cargo-nextest. CI sets `PROPTEST_CASES=512`. The
 dev profile uses opt-level 3 and keeps overflow checks and debug assertions.
 
 `tests` runs these commands in its debug, cache-off rows:
@@ -159,8 +169,8 @@ cargo test --locked --release --test radix_boundaries -- --ignored --exact full_
 ```
 
 `check_public_api.py` builds seven feature profiles and compiles downstream
-fixtures against each. It runs only on debug, cache-off rows, with
-`RUSTUP_TOOLCHAIN=stable`. Its `--output` directory must not exist.
+fixtures against each. It runs only on debug, cache-off rows. Its `--output`
+directory must not exist.
 
 The other test jobs differ in features, toolchain or target:
 
@@ -186,7 +196,7 @@ or processes, so the job skips the tests that need them; `should_panic` tests ar
 ignored there because Wasm panics abort. Install wasmtime 50.0.1, then:
 
 ```sh
-rustup target add --toolchain stable wasm32-wasip1
+rustup target add wasm32-wasip1
 export RUSTFLAGS="-C target-feature=+simd128" CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime
 cargo clippy --locked --lib --target wasm32-wasip1 --features cache -- -D warnings
 cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib -- --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
@@ -200,7 +210,7 @@ digest in the workflow. CI also runs the suite with `__internals,cache`.
 
 ```sh
 cargo install --locked --git https://github.com/cross-rs/cross --rev 74e99b2223de06166f8cdcc1af7f1308ec52baf4 cross
-PROPTEST_CASES=512 CROSS_BUILD_ENV_PASSTHROUGH=PROPTEST_CASES cross +stable test --locked --target powerpc64-unknown-linux-gnu --features __internals
+PROPTEST_CASES=512 CROSS_BUILD_ENV_PASSTHROUGH=PROPTEST_CASES cross test --locked --target powerpc64-unknown-linux-gnu --features __internals
 ```
 
 ### Build, lint and tool jobs
@@ -228,8 +238,8 @@ node scripts/wasm_allocations.mjs --self-test target/measurements/wasm-counted
 CI repeats the counted build with `--cache`. It also checks that
 `public_bench.py --wasm` refuses a counted module with
 `timing requires uninstrumented modules`. `--strip-tool` defaults to
-`llvm-strip` on `PATH`; CI passes the `llvm-strip` of the stable `llvm-tools`
-component. Each `--output` directory must not exist.
+`llvm-strip` on `PATH`; CI passes the `llvm-strip` of the pinned stable
+`llvm-tools` component. Each `--output` directory must not exist.
 
 `lint` runs on x86-64 Linux. `clippy_arm` repeats the first Clippy command on
 arm64 Linux.
@@ -252,19 +262,23 @@ python3 scripts/check_package.py target/package
 
 `cargo package` refuses uncommitted changes unless you add `--allow-dirty`.
 
-`simd_inlining` builds the Auto consumer library with generic CPU flags, logs its
-out-of-line crate functions and runs the gate on it:
+`simd_inlining` builds the Auto consumer library with generic CPU flags for x86-64
+and arm64 Linux, each default, `cache` and `compact`, and compares every out-of-line
+function whose name mentions the crate or a `core::arch` intrinsic with
+[check_simd_inlining.txt](scripts/check_simd_inlining.txt). It fails on an unlisted
+function (`+`) and on a listed function that is no longer out of line (`-`); fix the
+code or update the list in the same commit. On x86-64 or arm64 Linux, with
+`gcc-ARCH-linux-gnu` for the other architecture and its Rust target:
 
 ```sh
-python3 scripts/code_size.py --source . --output target/measurements/simd --target "$(uname -m)-unknown-linux-gnu" --cpu generic --backends auto --directions both --kinds cdylib --strip-tool strip
-python3 scripts/check_simd_inlining.py --list target/measurements/simd/auto-both-cdylib.so
-python3 scripts/check_simd_inlining.py target/measurements/simd/auto-both-cdylib.so
+python3 scripts/check_simd_inlining.py --build target/measurements/simd
 ```
 
-CI repeats the build with `--cache` on both architectures and with `--compact` on
-x86-64. The gate fails on a `core::arch` intrinsic that survives as a function and
-on an out-of-line function of a SIMD module that its `EXPECTED` list does not name.
-`check_simd_inlining.py --compare OLD NEW` lists what a change inlined, outlined or
+[CORRECTNESS.md](CORRECTNESS.md#tests-and-independent-references) gives the
+container command for Apple silicon Macs. `check_simd_inlining.py CONFIG=LIBRARY`
+checks libraries built elsewhere (`--nm` selects the `nm`).
+`check_simd_inlining.py --list LIBRARY` prints the out-of-line crate functions with
+their sizes, and `--compare OLD NEW` lists what a change inlined, outlined or
 resized. On macOS, pass the unstripped `.dylib` and `--nm` with an `llvm-nm`.
 
 `measurement_tools` tests the [resource-profile](tools/resource-profile/Cargo.toml)
@@ -295,12 +309,12 @@ give the counts.
 ```sh
 export RUSTFLAGS='-C target-cpu=x86-64 -C target-feature=+avx2'
 export MIRIFLAGS=-Zmiri-strict-provenance
-cargo +nightly-2026-10-26 miri setup --target x86_64-unknown-linux-gnu
-cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --features __internals --test miri
-cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --test tiny_inputs
-cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
-cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact
-MIRIFLAGS='-Zmiri-strict-provenance -Zmiri-tree-borrows -Zmiri-seed=1' cargo +nightly-2026-10-26 miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
+cargo +"$nightly" miri setup --target x86_64-unknown-linux-gnu
+cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --features __internals --test miri
+cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --test tiny_inputs
+cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
+cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact
+MIRIFLAGS='-Zmiri-strict-provenance -Zmiri-tree-borrows -Zmiri-seed=1' cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
 ```
 
 `miri_arm_panel` interprets generic AArch64. CI also installs `gcc-aarch64-linux-gnu`.
@@ -308,9 +322,9 @@ MIRIFLAGS='-Zmiri-strict-provenance -Zmiri-tree-borrows -Zmiri-seed=1' cargo +ni
 ```sh
 export RUSTFLAGS='-C target-cpu=generic'
 export MIRIFLAGS=-Zmiri-strict-provenance
-cargo +nightly-2026-10-26 miri setup --target aarch64-unknown-linux-gnu
-cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --lib matrix::neon::tests::panel_matches_portable -- --exact
-cargo +nightly-2026-10-26 miri test --target aarch64-unknown-linux-gnu --locked --features __internals,malachite-nz/32_bit_limbs --test miri forced_encoder_leaves -- --exact
+cargo +"$nightly" miri setup --target aarch64-unknown-linux-gnu
+cargo +"$nightly" miri test --target aarch64-unknown-linux-gnu --locked --lib matrix::neon::tests::panel_matches_portable -- --exact
+cargo +"$nightly" miri test --target aarch64-unknown-linux-gnu --locked --features __internals,malachite-nz/32_bit_limbs --test miri forced_encoder_leaves -- --exact
 ```
 
 `miri_custom` builds the [development interpreter](ci/miri/README.md) and runs
@@ -323,7 +337,7 @@ pinned compiler (`rustc --print sysroot`).
 directories must not exist.
 
 ```sh
-python3 scripts/build_custom_miri.py --source MIRI_CHECKOUT --compiler COMPILER_SYSROOT --cargo "$(rustup which --toolchain nightly-2026-10-26 cargo)" --output NEW_BUILD_DIR
+python3 scripts/build_custom_miri.py --source MIRI_CHECKOUT --compiler COMPILER_SYSROOT --cargo "$(rustup which --toolchain "$(jq -r .cargo_toolchain ci/miri/pins.json)" cargo)" --output NEW_BUILD_DIR
 python3 scripts/run_custom_miri.py --build-record NEW_BUILD_DIR/build.json --source . --output NEW_RUN_DIR --arch x86 --alias-model tree --seed 1 --suite all
 ```
 
@@ -361,7 +375,7 @@ also compiles and runs the unit tests of the full-width helper:
 
 ```sh
 mkdir -p target
-rustc +nightly-2026-10-26 --edition=2024 --test fuzz/full_width.rs -o target/full-width-tests
+rustc +"$nightly" --edition=2024 --test fuzz/full_width.rs -o target/full-width-tests
 target/full-width-tests
 ```
 
@@ -375,7 +389,7 @@ python3 fuzz/seed_corpus.py
 python3 fuzz/corpus_store.py validate CORPUS_ROOT
 cp -a CORPUS_ROOT/. fuzz/corpus/
 export RUSTFLAGS='-Zextra-const-ub-checks -Zstrict-init-checks --cfg careful -C target-cpu=generic'
-cargo +nightly-2026-10-26 fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features --features full-width --jobs 1 encode_all fuzz/corpus/encode_all -- -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features --features full-width --jobs 1 encode_all fuzz/corpus/encode_all -- -timeout=120 -rss_limit_mb=4096
 ```
 
 The workflow gives the `llvm-cov report` and `llvm-cov export` commands and the
@@ -457,7 +471,7 @@ locally:
 python3 fuzz/seed_corpus.py
 python3 fuzz/corpus_store.py validate CORPUS_ROOT
 cp -a CORPUS_ROOT/. fuzz/corpus/
-cargo +nightly-2026-10-26 fuzz run --sanitizer address encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --sanitizer address encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
 ```
 
 The workflow also replays `decode_all` with `-max_len=89502`, and
@@ -500,7 +514,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/check_ci_tests.py`](scripts/check_ci_tests.py) | Fails when a public integration test is missing from one of the seven explicit test lists in `verification.yml` | `--self-test` | `lint`, `measurement_tools` |
 | [`scripts/check_package.py`](scripts/check_package.py) | Checks the packaged `.crate`: allowed paths, required files, 2 MiB budget, license and feature metadata | `--self-test`; package directory (default `target/package`) | `lint` |
 | [`scripts/check_public_api.py`](scripts/check_public_api.py) | Compiles downstream fixtures against seven feature profiles: normal API, `internals` namespace, removed paths, owned and checked methods | `--self-test` (needs `--output`, compiles nothing) | `tests`, `measurement_tools` (self-test) |
-| [`scripts/check_simd_inlining.py`](scripts/check_simd_inlining.py) | Fails on SIMD code that a library keeps out of line (surviving intrinsics, unexpected functions of SIMD modules); reads symbols only | Libraries (gate); `--list LIBRARY`; `--compare OLD NEW`; `--self-test`; `--nm` | `simd_inlining`, `measurement_tools` (self-test) |
+| [`scripts/check_simd_inlining.py`](scripts/check_simd_inlining.py) | Fails when the out-of-line crate functions of a library differ from [check_simd_inlining.txt](scripts/check_simd_inlining.txt); reads symbols only | `--build DIR`; `CONFIG=LIBRARY`; `--list LIBRARY`; `--compare OLD NEW`; `--self-test`; `--nm` | `simd_inlining`, `measurement_tools` (self-test) |
 | [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools`, `simd_inlining` |
 | [`scripts/code_size_wasm.mjs`](scripts/code_size_wasm.mjs) | Checks the Wasm probe ABI: allocator, pointers, UTF-8 and outputs | Wasm module paths | `portability` |
 | [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted `empty`, `auto` and `no-alloc` Wasm modules: allocator counts and ABI | `--self-test DIR` only | `portability` |
