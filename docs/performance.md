@@ -76,7 +76,27 @@ python3 -B scripts/public_bench.py --platform m5 --output target/measurements/m5
 ```
 
 On Linux add `--strip-tool strip` to `code_size.py` (it expects `llvm-strip`) and
-`--cpu 0` to `public_bench.py` to pin workers. For Wasm, build with `--target
+`--cpu N` to `public_bench.py` to pin workers. Native workers place every input and
+output buffer at a 64-byte boundary.
+
+On the GCP Zen 5 VM (`c4d-highcpu-4`: vCPUs 0/2 and 1/3 are SMT siblings), time on
+vCPU 1 and keep vCPU 3 idle:
+
+- before and after each run, the metadata server's `instance/maintenance-event`
+  must read `NONE`;
+- run a 10-second unmeasured busy loop on vCPU 1 first;
+- start `public_bench.py --cpu 1 --copies 4` under `sudo chrt -f 99`, `setarch -R`
+  (no address randomization) and `prctl(PR_SET_THP_DISABLE)`; the workers inherit
+  all three, and no system setting changes;
+- sample `vmstat -t 1` on vCPU 0 and discard a run with any steal above 0.
+
+The guest has no `cpufreq` driver (the host sets the frequency) and already uses the
+`tsc` clocksource. SCHED_FIFO tasks are still throttled to 950 ms per second. Report
+a cell whose process or copy medians spread by more than 3% with its range instead
+of dropping it: on Zen 5 such spread usually comes from code placement, which is
+real variation between builds.
+
+For Wasm, build with `--target
 wasm32-unknown-unknown` (add `--wasm-simd128` for the SIMD cohort) and time with
 `public_bench.py --wasm`; it runs Node with
 `--no-liftoff --no-wasm-lazy-compilation --no-wasm-async-compilation` and refuses
