@@ -51,6 +51,17 @@ def fixture(size):
     return bytes(data)
 
 
+class Buffer:
+    """`size` bytes starting at a 64-byte boundary, so every process times the same
+    buffer alignment (ctypes only guarantees malloc's)."""
+
+    def __init__(self, size, data=b''):
+        self.raw = ctypes.create_string_buffer(size + 64)
+        base = ctypes.addressof(self.raw)
+        self.address, self.size = base + -base % 64, size
+        ctypes.memmove(self.address, data, len(data))
+
+
 def native_worker(job):
     signature = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t]
     functions = {}
@@ -66,13 +77,13 @@ def native_worker(job):
 
     def call(label, operation, source, length, output, count):
         start = time.process_time_ns()
-        written = functions[label, operation](source, length, output, len(output), count)
+        written = functions[label, operation](source.address, length, output.address, output.size, count)
         return time.process_time_ns() - start, written
 
     def result(label, operation, source, length, output):
         written = call(label, operation, source, length, output, 1)[1]
-        assert written <= len(output), (label, operation, length)
-        return ctypes.string_at(output, written)
+        assert written <= output.size, (label, operation, length)
+        return ctypes.string_at(output.address, written)
 
     results = []
     for size in job['sizes']:
@@ -80,12 +91,12 @@ def native_worker(job):
         labels = [label for label, _ in job['libraries'] if supported(label, size)]
         if not labels:
             continue
-        encoded = ctypes.create_string_buffer(2 * size + 16)
-        text = result(labels[0], 'encode', ctypes.create_string_buffer(data, size), size, encoded)
+        encoded = Buffer(2 * size + 16)
+        text = result(labels[0], 'encode', Buffer(size, data), size, encoded)
         # Decoding uses an exact buffer, which five8's fixed-width API requires.
         for operation, value, expected, output in [('encode', data, text, encoded),
-                                                    ('decode', text, data, ctypes.create_string_buffer(size))]:
-            source = ctypes.create_string_buffer(value, len(value))
+                                                    ('decode', text, data, Buffer(size))]:
+            source = Buffer(len(value), value)
             for label in labels:
                 assert result(label, operation, source, len(value), output) == expected, (label, operation, size)
             results += time_cells(job, labels, operation, size,
@@ -139,6 +150,9 @@ def per_process(processes):
 
 
 def self_test():
+    for size in (0, 1, 63, 4096):
+        buffer = Buffer(size, b'x' * size)
+        assert buffer.address % 64 == 0 and ctypes.string_at(buffer.address, size) == b'x' * size
     assert supported('bs58#3', 65536) and not supported('bs58#3', 131072)
     assert supported('five8#0', 32) and not supported('five8#0', 33) and supported('auto+cache#2', 1 << 22)
     cell = lambda label, ns: dict(label=label, operation='decode', size=64, ns=ns, iterations=8)
