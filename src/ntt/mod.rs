@@ -36,10 +36,13 @@ mod proofs;
         target_arch = "aarch64",
         target_endian = "little",
         target_feature = "neon"
-    )
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2")
 ))]
 mod radix;
 mod tables;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod wasm;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
@@ -128,8 +131,8 @@ pub(crate) fn decode_value(
     )
 }
 
-/// Large encoding with NTT multiplication. NEON uses a multiplication tree in
-/// base 58^3 when transform padding and input size favor it. Other cases retain
+/// Large encoding with NTT multiplication. NEON and x86 AVX-512 use a multiplication
+/// tree in base 58^3 when transform padding and input size favor it. Other cases retain
 /// the division tree and feature-selected leaves. Both routes retain twiddles
 /// through log18 with `cache`; larger twiddles are owned per call. Powers,
 /// prepared transforms and scratch remain local to the conversion.
@@ -139,10 +142,13 @@ pub(crate) fn encode(
     input: &[u8],
     output: &mut [u8],
 ) -> Result<usize, crate::BufferTooSmall> {
-    #[cfg(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
+    #[cfg(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "x86_64", target_feature = "sse2")
     ))]
     if let Some(result) = radix::try_encode(zeros, input, output) {
         return result;
@@ -158,10 +164,13 @@ pub(crate) fn encode_staged(
     end: usize,
     output: &mut [u8],
 ) -> Result<usize, crate::BufferTooSmall> {
-    #[cfg(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
+    #[cfg(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "x86_64", target_feature = "sse2")
     ))]
     if let Some(result) = radix::try_encode_staged(zeros, end, output) {
         return result;
@@ -503,7 +512,8 @@ pub(crate) struct Kernels {
 }
 
 impl Kernels {
-    /// The fastest kernels for this CPU: NEON on aarch64; on `x86_64` those of `avx512.rs`
+    /// The fastest kernels for this CPU: NEON on aarch64; SIMD128 on Wasm built with it;
+    /// on `x86_64` those of `avx512.rs`
     /// with AVX-512F, the rest the portable ones compiled for AVX-512 or AVX2 when
     /// available.
     pub fn best() -> Self {
@@ -514,6 +524,7 @@ impl Kernels {
             all(target_arch = "x86_64", target_feature = "sse2") => {
                 avx512::kernels().or_else(x86::kernels).unwrap_or_else(Kernels::portable)
             }
+            all(target_arch = "wasm32", target_feature = "simd128") => Kernels::wasm(),
             _ => Kernels::portable(),
         }
     }

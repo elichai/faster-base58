@@ -1,7 +1,10 @@
-#![cfg(all(
-    target_arch = "aarch64",
-    target_endian = "little",
-    target_feature = "neon"
+#![cfg(any(
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2")
 ))]
 
 use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
@@ -57,9 +60,11 @@ fn check(data: &[u8], short: bool) {
 #[test]
 fn public_dispatch_boundaries_match_malachite() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(0x580a_46d4_722d_d38d);
+    // Includes the last sizes below 5/8 and 3/4 of the root transform used, and the first
+    // sizes reaching them (radix with and without `cache`).
     for n in [
-        8191, 8192, 8193, 12288, 32767, 32768, 32769, 65535, 65536, 65537, 262143, 262144, 262145,
-        1048575, 1048576, 1048577,
+        8191, 8192, 8193, 11245, 11246, 12288, 13494, 13495, 32767, 32768, 32769, 65535, 65536,
+        65537, 89976, 89977, 107972, 107973, 262143, 262144, 262145, 1048575, 1048576, 1048577,
     ] {
         let mut data = vec![0; n + 37];
         rng.fill_bytes(&mut data[37..]);

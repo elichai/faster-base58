@@ -8,7 +8,7 @@ avoids internal allocation, and its general large conversions remain quadratic.
 
 ## Results
 
-Measured **2026-11-05** on this revision with ordinary public consumers:
+Measured **2026-11-05** with ordinary public consumers:
 `code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
 `Decoder::bitcoin().decode(..).onto(..)`, with no `__internals`. Release opt-level
 3, fat LTO, 16 codegen units, generic target flags (`RUSTFLAGS=""`). Default and
@@ -34,10 +34,14 @@ Ranges for 4 MiB Auto (median [min, max] of process medians):
 | --- | ---: | ---: |
 | M5 / default | 219.7 ms [216.8, 226.3] | 141.8 ms [140.5, 142.5] |
 | M5 / cache | 221.5 ms [220.1, 223.4] | 135.9 ms [135.2, 138.4] |
-| x86-64 / default | 336.4 ms [335.0, 340.2] | 153.8 ms [153.0, 154.6] |
-| x86-64 / cache | 312.7 ms [310.2, 317.1] | 148.3 ms [147.5, 150.7] |
+| x86-64 / default | withdrawn | 153.8 ms [153.0, 154.6] |
+| x86-64 / cache | withdrawn | 148.3 ms [147.5, 150.7] |
 | Wasm / default | 1.74 s [1.73, 1.82] | 856.0 ms [851.3, 860.3] |
 | Wasm / cache | 1.73 s [1.73, 1.79] | 849.5 ms [844.3, 856.5] |
+
+The x86-64 encode ranges, and the README's x86-64 Auto encode cells and bars from
+64 KiB, are withdrawn until remeasured: on AVX-512 CPUs those encodes now take the
+radix route.
 
 Default Auto encoding around the fixed 32/64-byte routes:
 
@@ -73,7 +77,8 @@ python3 -B scripts/public_bench.py --platform m5 --output target/measurements/m5
 
 On Linux add `--strip-tool strip` to `code_size.py` (it expects `llvm-strip`) and
 `--cpu 0` to `public_bench.py` to pin workers. For Wasm, build with `--target
-wasm32-unknown-unknown` and time with `public_bench.py --wasm`; it runs Node with
+wasm32-unknown-unknown` (add `--wasm-simd128` for the SIMD cohort) and time with
+`public_bench.py --wasm`; it runs Node with
 `--no-liftoff --no-wasm-lazy-compilation --no-wasm-async-compilation` and refuses
 allocation-counting modules. Render the README figures and tables from the CSVs and
 each cohort's `sizes.csv`:
@@ -97,7 +102,9 @@ allocations with `--count-allocations` in separate, untimed builds;
 `scripts/wasm_allocations.mjs` counts Wasm allocations. The Criterion benches
 (`benches/encode.rs`, `decode.rs`, `check.rs`, `dispatch.rs`) compare backends and
 comparators in one process with wall time. `benches/encode_tune.rs` and
-`encode_matrix_tune.rs` tune the encoder leaves, `MATRIX_MIN` and `IFMA_CAP`.
+`encode_matrix_tune.rs` tune the encoder leaves, `MATRIX_MIN` and `IFMA_CAP`;
+`benches/radix_tune.rs` times the forced radix and division trees in one binary
+(with a division A/A arm) for the [radix utilization rule](#radix-route-utilization).
 
 When the code changes, remeasure the affected tables, figures and scope together,
 or withdraw them.
@@ -118,6 +125,33 @@ library at another address can move a 1 KiB encode by 12%. On the M5, default
 
 Background load on a laptop can make one process of a cell slow (a bimodal spread);
 rerun with more processes rather than dropping observations.
+
+## Wasm SIMD128
+
+The published Wasm cohort is scalar. Builds with `-C target-feature=+simd128` are a
+separate cohort that needs a SIMD-capable engine. Measured **2026-11-07** on the M5
+Pro (AC power), Node 26.13.0 / V8 14.6.202.34, Rust 1.99.1: `code_size.py
+--wasm-simd128` Auto probes (generic CPU, fat LTO, default and `cache` builds),
+`public_bench.py --wasm`, five processes, three batches, V8 elapsed time. Ratios are
+medians [range] of per-process ratios against the same build without the Wasm
+kernels (portable kernels, autovectorized):
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 64 B | 0.56 [0.55, 0.57] | 0.96 [0.86, 1.04] | 0.58 [0.57, 0.59] | 0.99 [0.91, 1.06] |
+| 128 B | 1.00 [0.99, 1.02] | 1.00 [0.92, 1.02] | 0.50 [0.50, 0.51] | 1.00 [0.93, 1.08] |
+| 1 KiB | 0.99 [0.98, 1.01] | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
+| 4 KiB | 0.99 [0.97, 1.01] | 1.00 [0.96, 1.02] | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
+| 8 KiB | 0.59 [0.58, 0.59] | 0.63 [0.61, 0.64] | 0.27 [0.27, 0.27] | 0.62 [0.62, 0.65] |
+| 64 KiB | 0.50 [0.50, 0.50] | 0.53 [0.52, 0.54] | 0.50 [0.49, 0.50] | 0.52 [0.51, 0.54] |
+| 4 MiB | 0.46 [0.46, 0.46] | 0.47 [0.46, 0.47] | 0.46 [0.45, 0.46] | 0.46 [0.46, 0.47] |
+
+4 MiB Auto takes 627 ms to encode and 313 ms to decode (default; cache 631 / 312 ms).
+Cells that reach no Wasm kernel (batched sizes, fixed 32 bytes) stay within
+0.95–1.05. The stripped Auto probe grows by 414 bytes (default) and 1,447 bytes
+(cache). In the same run, `+simd128` without the explicit kernels took 0.80–0.88 of
+scalar time from 8 KiB (NTT), but 1.24–1.30 times for cached Matrix sizes of
+512 B–8 KiB.
 
 ## basexx comparison
 
@@ -184,11 +218,55 @@ plain conversion of the same complete frame, with and without separate hashing a
 validation; repeat with `check,cache` or `--no-default-features --features check`.
 Double SHA-256 adds a fixed cost to every checked call.
 
+## Radix route utilization
+
+The radix route needs a used fraction of its root transform (base-`58^3` digit
+bound over transform points) of 5/8, or 3/4 with `cache`. The fraction rises
+linearly with the input from 0.48 just above each transform-length step
+(`17 * 2^k + 1` bytes) to 0.97 below the next one.
+
+Measured **2026-11-07** with `benches/radix_tune.rs`: one `__internals` binary per
+feature set times the forced radix tree, the forced division tree and a division
+A/A arm, in 15 rounds of interleaved blocks of at least 10 ms. A cell is the median
+of the per-round radix/division ratios. Generic flags (`RUSTFLAGS=""`), fat LTO,
+default and `cache` builds. M5 Pro: AC power, Rust 1.99.1, two runs, which agree
+within 0.02. Zen 5 (EPYC 9B45, 4 vCPU): Rust 1.99.0, pinned to CPU 1, one run.
+Process samplers showed no other load. A/A medians stay within 0.97–1.02 (M5) and
+0.99–1.01 (Zen 5). Ranges cover the size medians, 34 KiB–4 MiB on M5 and
+40 KiB–4 MiB on Zen 5:
+
+| Used | M5 default | M5 cache | Zen 5 default | Zen 5 cache |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.48 | 1.02–1.12 | 1.17–1.22 | 1.07–1.16 | 1.13–1.24 |
+| 0.56 | 0.93–0.95 | 1.05–1.13 | 1.04–1.25 | 1.10–1.24 |
+| 0.62 | 0.91–0.94 | 0.96–1.03 | 0.95–1.07 | 0.97–1.05 |
+| 0.68 | 0.84–0.87 | 0.99–1.06 | 0.90–0.94 | 0.97–1.04 |
+| 0.75 | 0.80–0.81 | 0.89–0.95 | 0.83–0.86 | 0.84–0.90 |
+| 0.81 | 0.77–0.78 | 0.83–0.91 | 0.84–0.89 | 0.82–0.89 |
+| 0.88 | 0.77 | 0.81–0.89 | 0.83–0.85 | 0.84–0.88 |
+| 0.94 | 0.67–0.69 | 0.73–0.81 | 0.74–0.77 | 0.76–0.79 |
+
+The Zen 5 cells above 1 at 0.62 are 44 KiB (below the x86 minimum) and 349 KiB
+(1.02). On M5 at 8.5–34 KiB, default reaches 0.95–0.99 at 0.56 used and `cache`
+0.98–1.03 at 0.75. At 4.25–8.5 KiB, default takes 1.01–1.02 at 0.62 and 0.88–0.89
+at 0.68. With `cache`, cached Matrix leaves speed up only the division tree, which
+moves its crossover from about 0.55–0.62 to about 0.7.
+
+End to end (`public_bench.py --baseline`, Auto probes of d317ee4 and this rule,
+same flags, five processes; Zen 5 `--cpu 0`): cells that change route take
+0.78–0.87 (M5 default), 0.86–0.94 (M5 cache, except 1.03 at 13,495 B),
+0.84–0.93 (Zen 5 default) and 0.87 (Zen 5 cache) of the earlier time. Cells that
+keep their route, and all decode cells, stay within 0.978–1.014. Power-of-two sizes,
+which the README tables use, keep their route.
+
 ## Open levers
 
 Unmeasured candidates, largest expected effect first:
 
-- M5: start the radix route below 4 KiB, where batched encoding still runs.
+- M5: start the radix route below 4 KiB, where batched encoding still runs. In the
+  utilization sweep (default) the forced route took 0.83 of batched time at 3.5 KiB
+  and 0.68–0.71 at 4 KiB, but 1.03 at 3 KiB and 1.14–1.15 at 2 KiB; the public
+  dispatch boundary was not measured.
 - Radix tree: fuse the first forward stage, whose upper half is always zero
   (about 2–3% of encode); build sparse schoolbook products column by column
   (sparse inputs need more heap); share the digit scratch with the output (about

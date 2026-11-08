@@ -18,16 +18,21 @@ mod neon;
     test,
     feature = "__internals",
     kani,
-    not(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
+    not(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
     ))
 ))]
 mod portable;
 #[cfg(kani)]
 mod proofs;
 mod table;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod wasm;
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod x86;
 
@@ -49,7 +54,8 @@ struct Kernels {
             target_endian = "little",
             target_feature = "neon"
         ),
-        all(target_arch = "x86_64", target_feature = "sse2")
+        all(target_arch = "x86_64", target_feature = "sse2"),
+        all(target_arch = "wasm32", target_feature = "simd128")
     ))
 ))]
 const PORTABLE: Kernels = Kernels {
@@ -63,6 +69,9 @@ const BEST: Kernels = core::cfg_select! {
     }
     all(target_arch = "x86_64", target_feature = "sse2") => {
         Kernels { parse: portable::parse, panel: x86::panel }
+    }
+    all(target_arch = "wasm32", target_feature = "simd128") => {
+        Kernels { parse: wasm::parse, panel: wasm::panel }
     }
     _ => PORTABLE,
 };

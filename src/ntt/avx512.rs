@@ -11,8 +11,9 @@
 //! that checks the arithmetic and the regrouping on any CPU, so tests build this module
 //! on every target.
 
+use super::crt::GARNER;
 use super::portable;
-use super::tables::{Prime, S};
+use super::tables::{PRIMES, Prime, S};
 
 /// [`super::Kernels`] with the transforms and pointwise products written here, the rest
 /// from [`super::x86::kernels`], when this CPU has AVX-512F.
@@ -64,6 +65,8 @@ trait V16: Copy {
     fn highs(self, odd: Self) -> Self;
     /// Lane `i` is lane `idx[i] % 32` of `self` followed by `b`.
     fn permute2(self, idx: Self, b: Self) -> Self;
+    /// The lane minima as unsigned values.
+    fn min_u32(self, b: Self) -> Self;
 }
 
 /// `L` vectors as one, each operation applied to each in turn, so that code on them lists
@@ -144,6 +147,10 @@ impl<V: V16, const L: usize> V16 for [V; L] {
     #[inline(always)]
     fn permute2(self, idx: Self, b: Self) -> Self {
         core::array::from_fn(|i| self[i].permute2(idx[i], b[i]))
+    }
+    #[inline(always)]
+    fn min_u32(self, b: Self) -> Self {
+        each(self, b, V::min_u32)
     }
 }
 
@@ -583,6 +590,53 @@ unsafe fn square_v<V: V16>(a: &mut [i32], p: Prime) {
     }
 }
 
+/// [`super::radix`]'s two-prime Garner step (`radix::garner_two_portable`).
+///
+/// Safety: `V` values may be created.
+#[inline(always)]
+unsafe fn garner_two_v<V: V16>(r1: &mut [i32], r2: &mut [i32]) {
+    let n = r1.len();
+    assert_eq!(n, r2.len());
+    let [p1, p2, _] = PRIMES;
+    // SAFETY: the caller permits V creation.
+    let (q1, q2, c12, c12q) = unsafe {
+        (
+            V::splat(p1.q),
+            V::splat(p2.q),
+            V::splat(GARNER.c12),
+            V::splat(GARNER.c12q),
+        )
+    };
+    // `x + q` is below 2^31, so the unsigned minimum is `x` for `x >= 0` and `x + q`
+    // for `x < 0`: `x` in `[0, q)` for any `x` in `(-q, q)`.
+    let normalize = |x: V, q: V| x.min_u32(x.add(q));
+    let full = n / 16 * 16;
+    for i in (0..full).step_by(16) {
+        // SAFETY: `i + 16 <= n` for both slices.
+        unsafe {
+            let a = normalize(V::load(r1.as_ptr().add(i)), q1);
+            let b = V::load(r2.as_ptr().add(i));
+            // As in the portable step: `b - a` fits i32, and mont's result has
+            // magnitude below 0.75 q2.
+            let v2 = normalize(mont(b.sub(a), c12, c12q, q2), q2);
+            a.store(r1.as_mut_ptr().add(i));
+            v2.store(r2.as_mut_ptr().add(i));
+        }
+    }
+    super::radix::garner_two_portable(&mut r1[full..], &mut r2[full..]);
+}
+
+/// [`garner_two_v`] on AVX-512F.
+///
+/// # Safety
+///
+/// The CPU has AVX-512F.
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+pub(super) unsafe fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
+    // SAFETY: the caller guarantees AVX-512F.
+    unsafe { z::garner_two(r1, r2) }
+}
+
 /// The kernels on `__m512i`.
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 mod z {
@@ -590,6 +644,12 @@ mod z {
     use core::arch::x86_64::*;
 
     // Safety (each): the CPU has AVX-512F.
+
+    #[target_feature(enable = "avx512f")]
+    pub(super) unsafe fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
+        // SAFETY: this function requires AVX-512F, so Z values may be created.
+        unsafe { super::garner_two_v::<Z>(r1, r2) }
+    }
 
     #[target_feature(enable = "avx512f")]
     pub(super) unsafe fn forward(a: &mut [i32], p: Prime, fw: &[i32]) {
@@ -699,6 +759,11 @@ mod z {
             // SAFETY: holding Z proves AVX-512F support.
             Z(unsafe { _mm512_permutex2var_epi32(self.0, idx.0, b.0) })
         }
+        #[inline(always)]
+        fn min_u32(self, b: Self) -> Self {
+            // SAFETY: holding Z proves AVX-512F support.
+            Z(unsafe { _mm512_min_epu32(self.0, b.0) })
+        }
     }
 }
 
@@ -798,6 +863,9 @@ mod tests {
                 j @ 0..16 => self.0[j],
                 j => b.0[j - 16],
             }))
+        }
+        fn min_u32(self, b: Self) -> Self {
+            self.map(b, |x, y| (x as u32).min(y as u32) as i32)
         }
     }
 
@@ -926,6 +994,31 @@ mod tests {
             pointwise_v::<Emu>,
             square_v::<Emu>,
         );
+        garner_two_matches_portable(garner_two_v::<Emu>);
+    }
+
+    /// The two-prime Garner step gives exactly what the portable one gives, on residues in
+    /// `(-q, q)` including both ends, with and without a scalar tail.
+    fn garner_two_matches_portable(garner: unsafe fn(&mut [i32], &mut [i32])) {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(45);
+        let [p1, p2, _] = PRIMES;
+        for n in [0, 4, 12, 16, 20, 64, 100, 1 << 12] {
+            let ends = |q: i32| (0..n).map(|i| [q - 1, 1 - q, 0][i % 3]).collect::<Vec<_>>();
+            let random = |rng: &mut _, q| samples(rng, q, n)[..n].to_vec();
+            let ends2: Vec<i32> = ends(p2.q).into_iter().rev().collect();
+            for (x, y) in [
+                (random(&mut rng, p1.q), random(&mut rng, p2.q)),
+                (ends(p1.q), ends(p2.q)),
+                (ends(p1.q), ends2),
+            ] {
+                let (mut a1, mut a2) = (x.clone(), y.clone());
+                // SAFETY: Emu or a CPU-checked AVX-512F kernel; equal lengths.
+                unsafe { garner(&mut a1, &mut a2) };
+                let (mut b1, mut b2) = (x, y);
+                crate::ntt::radix::garner_two_portable(&mut b1, &mut b2);
+                assert!(a1 == b1 && a2 == b2, "garner_two, n {n}");
+            }
+        }
     }
 
     /// Set `BASE58_REQUIRE_IFMA` to fail instead of skipping on CPUs without AVX-512.
@@ -941,5 +1034,6 @@ mod tests {
             return;
         }
         matches_portable(z::forward, z::inverse, z::pointwise, z::square);
+        garner_two_matches_portable(z::garner_two);
     }
 }
