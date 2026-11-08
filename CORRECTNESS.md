@@ -107,14 +107,23 @@ do not execute kernels. The maximum `2^23`-point transform test runs separately;
 two expensive Matrix sweeps execute with `cache` rather than rebuilding the
 same owned tables for every size.
 
-The SIMD inlining job builds the Auto consumer library with generic CPU flags on
-x86-64 Linux (default, `cache`, `compact`) and arm64 Linux (default, `cache`).
-[check_simd_inlining.py](scripts/check_simd_inlining.py) logs every out-of-line
-crate function, then fails if a `core::arch` intrinsic survives as a function or a
-SIMD module keeps a function out of line that its `EXPECTED` list does not name
-(dispatch-table entries and functions kept apart on purpose: target-feature entry
-points, kernels selected by pointer and cold paths).
-It reads symbols only: it does not see slow code inside an inlined body.
+The SIMD inlining job builds the Auto consumer library with generic CPU flags for
+x86-64 and arm64 Linux, each default, `cache` and `compact`, on one x86-64 runner
+(arm64 is cross-compiled). [check_simd_inlining.py](scripts/check_simd_inlining.py)
+compares every out-of-line function whose name mentions the crate or a `core::arch`
+intrinsic with [check_simd_inlining.txt](scripts/check_simd_inlining.txt), per
+configuration. It fails on an unlisted function and on a listed function that is no
+longer out of line, so the list records LLVM's inlining decisions for the pinned
+toolchain; a code or toolchain change that moves a function updates the list. The
+list comments the SIMD functions kept apart on purpose: dispatch-table entries,
+target-feature entry points, kernels selected by pointer and cold paths. The check
+reads symbols only: it does not see slow code inside an inlined body. `--build`
+needs x86-64 or arm64 Linux. On an Apple silicon Mac, run it in an arm64 container,
+which cross-compiles x86-64:
+
+```sh
+docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
+```
 
 ```sh
 PROPTEST_CASES=512 cargo nextest run --locked --features __internals --lib --tests

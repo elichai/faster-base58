@@ -173,8 +173,8 @@ paths and kernels selected by pointer). Code on vectors therefore uses
 `#[inline(always)]` functions and explicit arrays, not `core` array and iterator
 adapters, nor closures outside `#[target_feature]` functions: those compile without
 the caller's target features, so a copy that LLVM keeps out of line turns each
-intrinsic into a call. CI checks that the SIMD modules keep only the functions
-listed in `scripts/check_simd_inlining.py` out of line
+intrinsic into a call. CI checks every out-of-line crate function against
+`scripts/check_simd_inlining.txt`
 ([CORRECTNESS.md](CORRECTNESS.md#tests-and-independent-references)).
 
 The IFMA leaf threshold is a constant. Generic x86 builds still read cached CPU

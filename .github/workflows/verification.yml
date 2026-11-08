@@ -325,29 +325,17 @@ jobs:
       - run: cargo hack clippy --locked --all-targets --feature-powerset -- -D warnings
 
   simd_inlining:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { runner: ubuntu-26.04, args: '' }
-          - { runner: ubuntu-26.04, args: '--cache' }
-          - { runner: ubuntu-26.04, args: '--compact' }
-          - { runner: ubuntu-26.04-arm, args: '' }
-          - { runner: ubuntu-26.04-arm, args: '--cache' }
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
-      # code_size.py builds offline; this fills the registry when the cache misses.
-      - run: cargo fetch --locked
-      - name: Build the Auto consumer with generic CPU flags
-        run: >-
-          python3 scripts/code_size.py --source . --output "$RUNNER_TEMP/simd"
-          --target "$(uname -m)-unknown-linux-gnu" --cpu generic --backends auto
-          --directions both --kinds cdylib --strip-tool strip ${{ matrix.args }}
-      - run: python3 scripts/check_simd_inlining.py --list "$RUNNER_TEMP/simd/auto-both-cdylib.so"
-      - run: python3 scripts/check_simd_inlining.py "$RUNNER_TEMP/simd/auto-both-cdylib.so"
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y gcc-aarch64-linux-gnu
+      - run: rustc -vV
+      - run: rustup target add aarch64-unknown-linux-gnu
+      - name: Build x86-64 and arm64 Auto consumers and check their out-of-line functions
+        run: python3 scripts/check_simd_inlining.py --build "$RUNNER_TEMP/simd"
 
   measurement_tools:
     runs-on: ubuntu-26.04
