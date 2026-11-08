@@ -93,7 +93,7 @@ CI selects 512 cases per property in debug and release, cache off/on, on x86-64
 and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian
 PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
-Native unit and integration rows use Nextest except for Linux debug,
+Native unit and integration rows use Nextest except for x86-64 Linux debug,
 cache-off/on shared-process rows; documentation examples remain Cargo tests.
 The cross revision and container image digest are pinned. Other
 jobs cover 32-bit Linux, Malachite's 32-bit limb
