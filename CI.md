@@ -469,13 +469,15 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 
 The replay lanes use `--sanitizer address` without `--careful`, and set
 `RUSTFLAGS=-C target-cpu=generic` or `native`. `minimize` uses
-`--sanitizer none`. To replay the pinned corpus locally:
+`--sanitizer none`. Both use `--no-trace-compares`: compare tracing only guides
+mutation, since no job sets `-use_value_profile`, and it takes most of the
+replay time. `nightly` keeps it. To replay the pinned corpus locally:
 
 ```sh
 python3 fuzz/seed_corpus.py
 python3 fuzz/corpus_store.py validate CORPUS_ROOT
 cp -a CORPUS_ROOT/. fuzz/corpus/
-cargo +"$nightly" fuzz run --sanitizer address encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --sanitizer address --no-trace-compares encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
 ```
 
 The workflow also replays `decode_all` with `-max_len=89502`, and
@@ -492,7 +494,7 @@ python3 fuzz/seed_corpus.py
 python3 fuzz/corpus_store.py replace CORPUS_ROOT CAMPAIGN UNION --exclude fuzz/corpus
 mkdir -p MINIMIZED
 cp -a fuzz/corpus/encode_all MINIMIZED/
-cargo +"$nightly" fuzz run --sanitizer none encode_all MINIMIZED/encode_all UNION/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --sanitizer none --no-trace-compares encode_all MINIMIZED/encode_all UNION/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096
 ```
 
 The output must contain `MERGE-OUTER: successful in 1 attempt(s)`; a later

@@ -25,8 +25,10 @@ candidate is the union of the four minimized sets. `candidate_smoke` replays all
 of it with ASan in the `smoke` configurations, which add x86-64 native CPU with
 cache.
 
-Merge builds use `--sanitizer none`: cargo-fuzz enables the coverage counters
-without ASan, and the replay is faster. libFuzzer's merge skips an input that
+Merge builds use `--sanitizer none --no-trace-compares`: cargo-fuzz still
+enables the coverage counters, and the replay is faster. Compare tracing only
+guides mutation, because no job sets `-use_value_profile`, so merge and replay
+builds omit it; nightly campaigns keep it. libFuzzer's merge skips an input that
 crashes, times out or exceeds the memory limit and then retries; a retry fails
 the job instead of dropping that input.
 
