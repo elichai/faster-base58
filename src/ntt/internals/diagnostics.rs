@@ -15,7 +15,7 @@ pub fn decode_ntt_same_leaves(
     dc::decode_with_leaf(
         input,
         output,
-        &mut Ntt::with_cache(cached, Kernels::best()),
+        &mut Ntt::with_cache(cached, Kernels::best()).with_ifma(),
         Leaf::BEST,
     )
 }
@@ -33,7 +33,7 @@ pub fn encode_ntt_same_leaves(
     encode::encode_tuned(
         input,
         output,
-        &mut Ntt::with_cache(cached, Kernels::best()),
+        &mut Ntt::with_cache(cached, Kernels::best()).with_ifma(),
         threshold,
         leaf,
         Leaves::BEST,

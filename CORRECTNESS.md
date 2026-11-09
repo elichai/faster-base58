@@ -15,7 +15,8 @@ release `__internals` suites with and without `cache` (512 cases per property), 
 `check` and no-allocation lanes, documentation tests, the 16 MiB radix boundaries
 (both policies) and the `2^23`-point transform test. On a Zen 5 host with AVX-512
 IFMA and VBMI it passes the `__internals` suites with and without `cache` with
-`BASE58_REQUIRE_IFMA=1`, so the native AVX-512 kernel tests run instead of skipping.
+`BASE58_REQUIRE_IFMA=1`, so the native AVX-512 kernel tests run instead of skipping,
+and the `2^23`-point transform test, which there also runs the two-prime backend.
 
 ## Public contract
 
@@ -63,6 +64,7 @@ rejects the removed free functions and `no_alloc` module.
 | [Large radix oracle](src/encode/tests.rs) | Independent Malachite `Natural` conversion plus bs58 comparisons; the [multiplier adapter](tests/support/malachite.rs) shares our conversion tree and is not an independent end-to-end oracle |
 | [Allocation contract](tests/no_alloc.rs) and [preflight](tests/resource_preflight.rs) | Allocation, zeroed-allocation, reallocation and deallocation counters; cold/success/error paths, checked array storage, no extra check-frame allocations versus ordinary codec workspace, and impossible-buffer rejection before table construction |
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
+| [Two-prime IFMA NTT](src/ntt/ifma.rs) | Primes (Miller–Rabin) and root orders; every root and Shoup companion; forward transforms as DFTs and inverse round trips with output ranges; each helper exact modulo `p` and in range, including the largest sums; Garner and carry against direct reconstruction of coefficients up to `2^87 - 1`; native IFMA kernels bit-identical to the lane emulation; emulated and native products against Karatsuba: small/large shapes, split products, squares (the square path only), prepared and wrapped products, exact scratch at every alignment, `2^23` points (native only); owned/shared/oversize table policy and one shared table across threads; decoding and division-tree encoding end to end |
 | Concurrency tests | Cold Matrix initialization, shared tables and eight-thread NTT cache/history reuse |
 | [Radix boundaries](tests/radix_boundaries.rs) | Malachite public-API oracle, leading zeros, exact/short buffers and guards on AArch64 NEON and x86-64 (the radix route needs AVX-512F there); normally ignored 16 MiB−1 / 16 MiB / 16 MiB+1 cases run explicitly in ARM release CI |
 | [Public API](tests/api.rs) and [tiny inputs](tests/tiny_inputs.rs) | Borrowed/owned agreement, exact arrays, zero prefixes and capacities at dispatch boundaries, standard error traits; every byte and short text against bs58 with byte offsets |
@@ -198,7 +200,9 @@ atomic fences or inline assembly; its results supplement the other checks.
 
 Supported tests use strict provenance; selected paths also run with Tree Borrows
 and a different seed. They cover portable recursive/prepared/wrapped arithmetic,
-fixed encoders, exact scratch and supported SSE4.1/AVX2/NEON panel operations.
+the two-prime NTT through its lane emulation (products at two scratch offsets, a
+negacyclic piece, a prepared power and wrapped products), fixed encoders, exact
+scratch and supported SSE4.1/AVX2/NEON panel operations.
 Miri executes MIR: it does not verify LLVM auto-vectorization or emitted native
 instructions. Native sanitizer and oracle tests remain necessary.
 
@@ -307,7 +311,14 @@ not refresh a prior result. For performance and memory work, use the separate
 4. Run the native AVX-512 kernel tests on IFMA hardware in every CI run:
    `avx512_matches_reference` and `avx512_matches_portable` skip unless
    `BASE58_REQUIRE_IFMA` is set, which only the sanitizer and custom-Miri jobs set,
-   and the IFMA-only dispatch arms run only when a runner has IFMA.
+   and the IFMA-only dispatch arms run only when a runner has IFMA. The native
+   two-prime NTT tests (`ifma_matches_emulation`, the native cases of the two-prime
+   shape, prepared, wrapped and `2^23`-point tests) skip the same way, and no CI job
+   lists them for IFMA hardware: neither the sanitizer test lists nor
+   `ci/miri/coverage.json` contain them. Elsewhere the two-prime backend runs through
+   its lane emulation, in the unit tests and in the stock Miri lane
+   (`two_prime_emulated_paths`). Its scalar arithmetic (Shoup, Montgomery and
+   Barrett-companion bounds) has written proofs in comments, not Kani harnesses.
 5. Repeat deployment-specific performance, peak memory and linked-size checks
    using [the measurement guide](docs/performance.md).
 6. Resolve any confirmed source-adaptation notice obligations described in

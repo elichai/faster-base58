@@ -16,8 +16,10 @@ fn check(kernels: Kernels) {
                     &a,
                     b,
                     &mut storage[skip..skip + scratch_len(n)],
-                    &tables,
-                    &kernels,
+                    Three {
+                        t: &tables,
+                        k: &kernels,
+                    },
                     1,
                 );
                 assert_eq!(out, want, "{na} x {}, offset {skip}", b.len());
@@ -67,4 +69,61 @@ fn selected_simd_transform_paths() {
         "run this with explicit SIMD target features"
     );
     check(Kernels::best());
+}
+
+/// The two-prime backend through its lane emulation: products at both scratch offsets
+/// (cyclic transforms of 8 to 128 points; one 128-point negacyclic piece and a 64-point
+/// cyclic rest), squares, a prepared power and wrapped products, with the guards around
+/// the scratch intact.
+#[test]
+fn two_prime_emulated_paths() {
+    let k = super::ifma::tests::emu();
+    let tables = Tables52::new(8, &k);
+    assert_eq!((Plan::new(80).nega(), Plan::new(80).cyc), (&[128][..], 64));
+    for (na, nb) in [(1, 1), (5, 7), (9, 9), (17, 18), (40, 40)] {
+        let a = vec![u64::MAX; na];
+        let b: Vec<u64> = (0..nb).map(|i| u64::MAX - i as u64).collect();
+        for b in [&b[..], &a[..]] {
+            let want = crate::mul::tests::reference(&a, b);
+            let n = na.max(b.len());
+            let len = scratch_len_two(n);
+            for skip in [0, 1] {
+                let mut storage = vec![0xA5A5_A5A5_A5A5_A5A5; len + 2];
+                let mut out = vec![0; want.len()];
+                let s = &mut storage[skip..skip + len];
+                mul_with(&mut out, &a, b, s, Two { t: &tables, k: &k }, 1);
+                assert_eq!(out, want, "{na} x {}, offset {skip}", b.len());
+                assert!(storage[..skip].iter().all(|&x| x == 0xA5A5_A5A5_A5A5_A5A5));
+                assert!(
+                    storage[skip + len..]
+                        .iter()
+                        .all(|&x| x == 0xA5A5_A5A5_A5A5_A5A5)
+                );
+            }
+        }
+    }
+
+    let mut ntt = Ntt {
+        threshold: 1,
+        prepared_threshold: 1,
+        k52: Some(k),
+        ..Ntt::new_owned(Kernels::portable())
+    };
+    let (a, b) = (vec![u64::MAX; 9], vec![u64::MAX - 1; 7]);
+    ntt.prepare(32);
+    ntt.prepare_power(0, &b, 16);
+    assert!(ntt.powers[0].is_some());
+    let mut out = vec![0; 16];
+    ntt.mul_power(&mut out, &a, 0, &b, &mut vec![0; ntt.scratch_len(9)]);
+    assert_eq!(out, crate::mul::tests::reference(&a, &b));
+
+    let mut want = vec![0; 8];
+    crate::mul::fold_wrapped(&mut want, &out);
+    let mut wrapped = vec![0; 8];
+    let mut scratch = vec![0; ntt.wrapped_scratch_len(8, 9)];
+    ntt.mul_wrapped(&mut wrapped, &a, &b, &mut scratch);
+    assert_eq!(wrapped, want);
+    ntt.mul_power_wrapped(&mut wrapped, &a, 0, &b, &mut scratch);
+    assert_eq!(wrapped, want);
+    assert!(ntt.owned.is_none() && ntt.owned52.is_some());
 }

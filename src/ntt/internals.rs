@@ -51,7 +51,7 @@ pub fn decode_ntt_with(
     threshold: usize,
     prepared: usize,
 ) -> Result<usize, Error> {
-    let ntt = Ntt::with_cache(cached, Kernels::best());
+    let ntt = Ntt::with_cache(cached, Kernels::best()).with_ifma();
     let mut ntt = Ntt {
         threshold,
         prepared_threshold: prepared,
@@ -91,7 +91,7 @@ pub fn encode_ntt_with(
     leaf: usize,
     leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    let m = &mut Ntt::new(Kernels::best());
+    let m = &mut Ntt::best();
     encode::encode_tuned(input, output, m, threshold, leaf, leaves)
 }
 
