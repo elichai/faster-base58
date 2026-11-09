@@ -116,6 +116,11 @@ harness = false
 required-features = ["__internals"]
 
 [[bench]]
+name = "threshold_tune"
+harness = false
+required-features = ["__internals"]
+
+[[bench]]
 name = "check"
 harness = false
 required-features = ["check"]
