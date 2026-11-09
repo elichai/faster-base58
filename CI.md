@@ -33,7 +33,7 @@ the cargo-fuzz and Nextest pins.
 | --- | --- | --- |
 | Rust stable | 1.99.1 ([rust-toolchain.toml](rust-toolchain.toml)) | Tests, builds, lint, property coverage, SIMD inlining |
 | Rust MSRV | 1.95 | `msrv` |
-| Rust nightly | `nightly-2026-10-26` ([ci/nightly](ci/nightly/rust-toolchain.toml)) | Miri, fuzzing, fuzz coverage, sanitizers |
+| Rust nightly | `nightly-2026-11-08` ([ci/nightly](ci/nightly/rust-toolchain.toml)) | Miri, fuzzing, fuzz coverage, sanitizers |
 | Custom Miri Cargo | `cargo_toolchain` in [pins.json](ci/miri/pins.json) | `miri_custom` |
 | cargo-nextest | 0.9.150 | Test jobs, Nextest Miri comparison |
 | cargo-hack | 0.6.45 | Feature-powerset builds and Clippy |
