@@ -112,14 +112,12 @@ Jobs that upload records keep them as artifacts for 14 days.
 | `tests` | Unit, integration, property and documentation tests; public API without `__internals`; Base58Check; no-allocation lane; downstream API namespace; benchmark builds | x86-64 and arm64 Linux; debug and release; cache off and on | All |
 | `big_endian` | Unit, integration, property and documentation tests on PowerPC64 | x86-64 Linux, cross/QEMU; cache off and on | All |
 | `compact` | Tests with `compact` | x86-64 Linux; cache off and on | All |
-| `alternate_limb_width` | Tests with Malachite's 32-bit limbs | x86-64 and arm64 Linux | All |
-| `portability` | Feature-powerset builds and Clippy for Wasm, AArch64 Linux, Cortex-M and bare x86-64; Wasm ABI and counted-allocation contracts | x86-64 Linux | All |
+| `portability` | Feature-powerset builds for Wasm, AArch64 Linux, Cortex-M and bare x86-64; library Clippy for Wasm and all-target Clippy for AArch64 Linux; Wasm ABI and counted-allocation contracts | x86-64 Linux | All |
 | `wasm_simd128` | Clippy and the library unit tests with `+simd128`, run under wasmtime | x86-64 Linux, `wasm32-wasip1` target | All |
 | `maximum_transform` | The ignored `2^23`-point transform test | x86-64 Linux | All |
 | `msrv` | Feature-powerset build and public tests on Rust 1.95 | x86-64 Linux | All |
 | `pointer_width_32` | Tests on i686 | x86-64 Linux | All |
 | `lint` | Script tests, public test lists, rustfmt, Clippy, rustdoc warnings, package contents | x86-64 Linux | All |
-| `clippy_arm` | Feature-powerset Clippy | arm64 Linux | All |
 | `simd_inlining` | Compares every out-of-line crate function of the Auto consumer library with `scripts/check_simd_inlining.txt` | x86-64 Linux; x86-64 and arm64 targets, each default, `cache` and `compact` | All |
 | `measurement_tools` | `resource-profile` tests and self-checks; script self-tests; documentation check | x86-64 Linux; cache off and on | All |
 | `miri_supported` | Stock Miri on portable paths and AVX2 kernels | x86-64 Linux | All |
@@ -176,7 +174,6 @@ The other test jobs differ in features, toolchain or target:
 
 ```sh
 cargo nextest run --locked --features __internals,compact --lib --tests
-cargo nextest run --locked --features __internals,malachite-nz/32_bit_limbs --lib --tests
 cargo +1.95 hack build --locked --lib --feature-powerset
 cargo +1.95 nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std
 cargo nextest run --locked --target i686-unknown-linux-gnu --features __internals --lib --tests
@@ -185,7 +182,6 @@ cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored 
 
 - `compact` also runs release, cache, public-list, documentation and benchmark-build
   variants.
-- `alternate_limb_width` also runs in release.
 - `msrv` repeats the public list with `cache`, `std,compact` and `cache,compact`.
 - `pointer_width_32` also runs with `cache`. It needs the i686 target and `gcc-multilib`.
 - `maximum_transform` requires the summary `1 passed; 0 failed; 0 ignored`.
@@ -216,7 +212,10 @@ PROPTEST_CASES=512 CROSS_BUILD_ENV_PASSTHROUGH=PROPTEST_CASES cross test --locke
 ### Build, lint and tool jobs
 
 `portability` builds every feature combination in debug and release. Clippy runs
-for Wasm and AArch64 Linux. The no-`std` targets exclude `std` and `cache`:
+on the library for Wasm and on all targets for AArch64 Linux, which lints the
+AArch64-only tests that `lint` on x86-64 does not compile. Criterion's `alloca`
+dependency compiles C, so the AArch64 Clippy needs `gcc-aarch64-linux-gnu`. The
+no-`std` targets exclude `std` and `cache`:
 
 ```sh
 cargo hack build --locked --lib --feature-powerset --target wasm32-unknown-unknown
@@ -224,8 +223,9 @@ cargo hack clippy --locked --lib --feature-powerset --target wasm32-unknown-unkn
 cargo hack build --locked --lib --feature-powerset --exclude-features std,cache --target thumbv7em-none-eabi
 ```
 
-Repeat with `--release`, with `aarch64-unknown-linux-gnu` (build and Clippy) and
-with `x86_64-unknown-none` (build without `std,cache`). The job then builds Wasm
+Repeat with `--release`, with `aarch64-unknown-linux-gnu` (build, and Clippy with
+`--all-targets` in place of `--lib`) and with `x86_64-unknown-none` (build without
+`std,cache`). The job then builds Wasm
 probes, checks their ABI and checks counted allocations:
 
 ```sh
@@ -241,8 +241,7 @@ CI repeats the counted build with `--cache`. It also checks that
 `llvm-strip` on `PATH`; CI passes the `llvm-strip` of the pinned stable
 `llvm-tools` component. Each `--output` directory must not exist.
 
-`lint` runs on x86-64 Linux. `clippy_arm` repeats the first Clippy command on
-arm64 Linux.
+`lint` runs on x86-64 Linux:
 
 ```sh
 python3 scripts/check_ci_tests.py

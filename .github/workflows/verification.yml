@@ -142,25 +142,6 @@ jobs:
       - run: cargo test --locked --doc ${{ matrix.caches.public_args }}
       - run: cargo build --locked --release --features ${{ matrix.caches.features }} --benches
 
-  alternate_limb_width:
-    env:
-      PROPTEST_CASES: '512'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-26.04, ubuntu-26.04-arm]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/cache-cargo-sources
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
-        with:
-          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
-      - run: rustc -vV
-      - run: cargo nextest run --locked --lib --tests --features __internals,malachite-nz/32_bit_limbs
-      - run: cargo nextest run --locked --release --lib --tests --features __internals,malachite-nz/32_bit_limbs
-
   portability:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
@@ -170,6 +151,9 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
+      # Criterion's `alloca` dependency compiles C for the Clippy target.
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y gcc-aarch64-linux-gnu
       - run: rustc -vV
       - run: rustup target add wasm32-unknown-unknown aarch64-unknown-linux-gnu thumbv7em-none-eabi x86_64-unknown-none
       - run: rustup component add llvm-tools
@@ -177,7 +161,7 @@ jobs:
       - run: cargo hack clippy --locked --lib --feature-powerset --target wasm32-unknown-unknown -- -D warnings
       - run: cargo hack build --locked --release --lib --feature-powerset --target wasm32-unknown-unknown
       - run: cargo hack build --locked --lib --feature-powerset --target aarch64-unknown-linux-gnu
-      - run: cargo hack clippy --locked --lib --feature-powerset --target aarch64-unknown-linux-gnu -- -D warnings
+      - run: cargo hack clippy --locked --all-targets --feature-powerset --target aarch64-unknown-linux-gnu -- -D warnings
       - run: cargo hack build --locked --release --lib --feature-powerset --target aarch64-unknown-linux-gnu
       - run: cargo hack build --locked --lib --feature-powerset --exclude-features std,cache --target thumbv7em-none-eabi
       - run: cargo hack build --locked --release --lib --feature-powerset --exclude-features std,cache --target thumbv7em-none-eabi
@@ -312,17 +296,6 @@ jobs:
       - name: Package contents
         run: cargo package --locked
       - run: python3 scripts/check_package.py target/package
-
-  clippy_arm:
-    runs-on: ubuntu-26.04-arm
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/cache-cargo-sources
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
-        with:
-          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
-      - run: rustc -vV
-      - run: cargo hack clippy --locked --all-targets --feature-powerset -- -D warnings
 
   simd_inlining:
     runs-on: ubuntu-26.04

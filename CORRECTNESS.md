@@ -96,16 +96,16 @@ PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
 In the `tests` job, the x86-64 Linux debug rows (cache off and on) run the unit,
 API and property suite with `cargo test`, so the tests of one binary share a
-process. All other unit and integration lists in `tests`, `compact`,
-`alternate_limb_width`, `msrv` and `pointer_width_32` use Nextest, including the
+process. All other unit and integration lists in `tests`, `compact`, `msrv` and
+`pointer_width_32` use Nextest, including the
 arm64 Linux debug rows. Documentation examples and the two ignored boundary tests
 (16 MiB radix and `2^23`-point transform) use `cargo test`. The cross revision
 and container image digest are pinned, and so are the toolchains: stable in
 [rust-toolchain.toml](rust-toolchain.toml), which also applies to local builds in
 the repository, and the nightly in
 [ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml). Dependabot
-proposes toolchain updates. Other jobs cover 32-bit Linux, Malachite's 32-bit limb
-mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
+proposes toolchain updates. Other jobs cover 32-bit Linux, bare-metal no_std
+builds, Wasm/AArch64 builds, Rust 1.95, API namespace
 boundaries, Clippy, formatting and package contents. Build checks alone
 do not execute kernels. The maximum `2^23`-point transform test runs separately;
 two expensive Matrix sweeps execute with `cache` rather than rebuilding the
@@ -306,7 +306,7 @@ not refresh a prior result. For performance and memory work, use the separate
    `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F. Without the
    feature, each prints `skipped:` and passes; with `BASE58_REQUIRE_IFMA` set, each
    fails instead. Both compile only for x86-64, so CI can run them only in the
-   x86-64 rows of `tests`, `compact` and `alternate_limb_width`; the
+   x86-64 rows of `tests` and `compact`; the
    `native_sanitizers` memory rows also run `avx512_matches_reference`. No CI job
    sets the variable: `native_sanitizers` does not pass `--require-ifma`, and the
    custom Miri runner sets it but `ci/miri/coverage.json` selects neither test.
