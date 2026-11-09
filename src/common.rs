@@ -58,9 +58,15 @@ pub(crate) const BASE: u64 = 58u64.pow(CHUNK as u32);
 pub(crate) const UNROLL_PAIRED: bool = !cfg!(target_family = "wasm");
 
 /// Splits off the leading '1's, each of which decodes to a zero byte.
+// A slice-pattern loop: no bounds check, and LLVM keeps the digit count within the input
+// length, so a bounded input folds the decoder selection. `take_while().count()` with
+// `&input[zeros..]` kept the check and lost the bound (every backend stayed linked).
 pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
-    let zeros = input.iter().take_while(|&&c| c == b'1').count();
-    (zeros, &input[zeros..])
+    let mut digits = input;
+    while let [b'1', rest @ ..] = digits {
+        digits = rest;
+    }
+    (input.len() - digits.len(), digits)
 }
 
 /// Base-`BASE` digits of `digits`, most significant first.

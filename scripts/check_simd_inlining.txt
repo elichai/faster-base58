@@ -25,7 +25,6 @@
 core::ptr::drop_glue::<[faster_base58::ntt::tables::Twiddles; 2]>
 core::ptr::drop_glue::<core::array::Guard<faster_base58::ntt::tables::Twiddles>>
 core::ptr::drop_glue::<faster_base58::ntt::Ntt>
-faster_base58::api::decode
 faster_base58::dc::dc::<faster_base58::ntt::Ntt>
 faster_base58::dc::decode_value::<faster_base58::ntt::Ntt>
 faster_base58::dc::powers::<faster_base58::ntt::Ntt>

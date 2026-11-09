@@ -15,7 +15,7 @@ pub(crate) const LEAF: usize = 256;
 /// Shorter leaves where products are cheap relative to the quadratic leaves. Against
 /// 256, 128 took 0.89-0.98x the time for 4 KiB to 256 KiB decodes under V8 (scalar Wasm)
 /// but 1.02-1.07x on M5; 384 and 512 took 1.1-1.4x under V8.
-const WASM_LEAF: usize = 128;
+pub(crate) const WASM_LEAF: usize = 128;
 
 /// [`LEAF`] when Karatsuba has the AVX-512 IFMA leaf. On Zen 5, 128 took 0.76-0.97x the
 /// time of 256 for 4 KiB to 1 MiB decodes, and 64 a further 0.87-0.99x of 128; 160 and
@@ -183,7 +183,7 @@ pub(crate) fn decode_with_leaf(
     let input = input.as_bytes();
     let (zeros, digits) = split_zeros(input);
     let result = if digits.len() <= min_digits() {
-        crate::batched::decode_parts(input, zeros, output)
+        crate::batched::decode_parts(input, digits, output)
     } else {
         decode_parts(input, zeros, output, m, leaf)
     };

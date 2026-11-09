@@ -13,17 +13,18 @@ use crate::common::{BASE, DIGITS, DecodeError, UNROLL_PAIRED, chunks, invalid, s
 #[cfg(any(test, feature = "__internals", kani))]
 pub fn decode_batched(input: &str, output: &mut [u8]) -> Result<usize, crate::Error> {
     let input = input.as_bytes();
-    let (zeros, _) = crate::common::split_zeros(input);
-    Ok(decode_parts(input, zeros, output)?)
+    let (_, digits) = crate::common::split_zeros(input);
+    Ok(decode_parts(input, digits, output)?)
 }
 
-/// Batched conversion with the number of leading `'1'` bytes already known.
+/// Batched conversion of `input`, whose significant characters are its suffix `digits`
+/// (from [`crate::common::split_zeros`]).
 pub(crate) fn decode_parts(
     input: &[u8],
-    zeros: usize,
+    digits: &[u8],
     output: &mut [u8],
 ) -> Result<usize, DecodeError> {
-    let digits = &input[zeros..];
+    let zeros = input.len() - digits.len();
     debug_assert_ne!(digits.first(), Some(&b'1'));
     let (zero_bytes, buf) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
     let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input)));
@@ -89,9 +90,10 @@ pub(crate) fn decode_short(input: &[u8], output: &mut [u8]) -> Result<usize, Dec
 #[cfg(feature = "check")]
 pub(crate) fn decode_checked_parts(
     input: &[u8],
-    zeros: usize,
+    digits: &[u8],
     output: &mut [u8],
 ) -> Result<(usize, [u8; 4]), DecodeError> {
+    let zeros = input.len() - digits.len();
     let offset = zeros.min(output.len());
     let buf = &mut output[offset..];
     let mut value = Value {
@@ -106,7 +108,7 @@ pub(crate) fn decode_checked_parts(
         low = product as u32;
         (product >> 32) as u64
     };
-    let mut chunks = chunks(&input[zeros..]).map(|c| c.ok_or_else(|| invalid(input)));
+    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input)));
     while let Some(c1) = chunks.next() {
         let carry1 = next(c1?);
         match chunks.next() {
