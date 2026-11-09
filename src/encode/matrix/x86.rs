@@ -73,7 +73,6 @@ pub(super) fn encode_64(x: &[u8; 64], output: &mut [u8]) -> Result<usize, Buffer
 
 /// The columns where `fixed::carry_split` falls back.
 #[cold]
-#[inline(never)]
 #[target_feature(enable = "avx2")]
 fn carry_cold(t: &[u64; 24]) -> ([__m256i; 6], usize) {
     let r = fixed::carry_serial(t, COLS_64);
@@ -147,7 +146,6 @@ fn shift_vbmi(v: __m256i, n: usize) -> __m256i {
 }
 
 /// [`cols`] with eight columns per AVX-512 vector.
-#[inline(never)]
 #[target_feature(enable = "avx512f")]
 fn cols_512<const N: usize, const W: usize, const C: usize>(
     x: &[u8; N],
@@ -270,8 +268,8 @@ fn alphabet(d: __m256i) -> __m256i {
 }
 
 /// The column sums of `x`'s words, four columns per block, with the contract of
-/// `fixed::portable::cols`. Not inlined, as in the Zen 5 runs that chose [`encode_64`]'s kernels.
-#[inline(never)]
+/// `fixed::portable::cols`.
+// Out of line, `encode_64` took 2.5% longer (Zen 5 with the VBMI kernel disabled).
 #[target_feature(enable = "avx2")]
 fn cols<const N: usize, const W: usize, const C: usize>(x: &[u8; N], t: &Table<W, C>) -> [u64; C] {
     let w = words::<N, W>(x);

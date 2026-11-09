@@ -211,7 +211,6 @@ pub(crate) fn decode_vec(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     decode_vec_nonempty(input)
 }
 
-#[inline(never)]
 #[cfg(feature = "alloc")]
 fn decode_vec_nonempty(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     debug_assert!(!input.is_empty());

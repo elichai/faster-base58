@@ -99,6 +99,8 @@ const CACHED_LEAF: usize = match Leaves::BEST {
 /// With `cache`, twiddles through log18 and selected matrix-leaf tables are retained;
 /// larger twiddles live for this call. Without `cache`, tables are owned and leaves
 /// use Horner. Tables are built only when a product uses transforms.
+// Not inlined: in the dispatcher it made 0-1 byte decodes 1.1-1.6x slower (Zen 5, also
+// with aligned code).
 #[inline(never)]
 #[cfg(feature = "alloc")]
 pub(crate) fn decode(
@@ -136,6 +138,8 @@ pub(crate) fn decode_value(
 /// the division tree and feature-selected leaves. Both routes retain twiddles
 /// through log18 with `cache`; larger twiddles are owned per call. Powers,
 /// prepared transforms and scratch remain local to the conversion.
+// Not inlined: in the dispatcher its frame made 64-byte encodes 4-6% slower (M5, also
+// with aligned code).
 #[inline(never)]
 pub(crate) fn encode(
     zeros: usize,
@@ -158,6 +162,7 @@ pub(crate) fn encode(
 }
 
 #[cfg(all(feature = "check", feature = "alloc"))]
+// Not inlined, as `encode`.
 #[inline(never)]
 pub(crate) fn encode_staged(
     zeros: usize,

@@ -39,7 +39,6 @@ faster_base58::encode::dc::newton::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::node::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::recip_scratch_len::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::reciprocal::<faster_base58::ntt::Ntt>
-faster_base58::encode::matrix::convert
 faster_base58::mul::mul_with
 faster_base58::ntt::crt
 faster_base58::ntt::crt::carry_out
@@ -49,7 +48,6 @@ faster_base58::ntt::mul_with
 faster_base58::ntt::pieces::{closure#1}
 faster_base58::ntt::pieces::{closure#1}::{closure#0}
 faster_base58::ntt::radix::convert
-faster_base58::ntt::radix::encode_value
 faster_base58::ntt::radix::leaf_into
 faster_base58::ntt::transform
 
@@ -70,18 +68,21 @@ faster_base58::mul::sum
 <alloc::raw_vec::RawVec<faster_base58::matrix::table::Panel>>::grow_one
 <faster_base58::encode::matrix::table::Table>::new
 <faster_base58::matrix::table::Table>::new
+<faster_base58::ntt::tables::Tables>::cached
 <std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::get_or_init<faster_base58::encode::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}
 <std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::get_or_init<faster_base58::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}
 <std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::get_or_init<<faster_base58::ntt::tables::Tables>::cached::{closure#0}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}
 <std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::initialize::<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::get_or_init<faster_base58::encode::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>
 <std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::initialize::<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::get_or_init<faster_base58::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>
 <std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::initialize::<<std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::get_or_init<<faster_base58::ntt::tables::Tables>::cached::{closure#0}::{closure#0}>::{closure#0}, !>
+faster_base58::encode::matrix::convert
 faster_base58::encode::matrix::encode_parts
-faster_base58::matrix::convert
 faster_base58::matrix::entry::decode_parts
 
 [x86_64]
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::scratch_len
+<faster_base58::ntt::tables::Tables>::twiddles::<2>
+faster_base58::encode::split_zeros
 # CPU detection reads XCR0 once, outside any `xsave` function.
 core::core_arch::x86::xsave::_xgetbv
 # NTT kernel tables: entries are called through pointers. The closures adapt the
@@ -156,11 +157,9 @@ faster_base58::mul_ifma::avx512::kernel_tf::<5>
 faster_base58::mul_ifma::avx512::kernel_tf::<6>
 faster_base58::mul_ifma::avx512::kernel_tf::<7>
 faster_base58::mul_ifma::avx512::kernel_tf::<8>
-# Fixed 64-byte encoders, their column sums and the cold carry fallback.
+# Fixed 64-byte encoders and the cold carry fallback.
 faster_base58::encode::matrix::x86::encode_64
 faster_base58::encode::matrix::x86::encode_64_vbmi
-faster_base58::encode::matrix::x86::cols::<64, 16, 24>
-faster_base58::encode::matrix::x86::cols_512::<64, 16, 24>
 faster_base58::encode::matrix::x86::carry_cold
 # AVX2 Matrix encoder conversion and the decoder's runtime-selected panels.
 faster_base58::encode::matrix::x86::convert_avx2
@@ -169,7 +168,6 @@ faster_base58::matrix::x86::sse41
 
 [x86_64 !cache]
 <alloc::vec::Vec<u64> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<u64, core::iter::adapters::map::Map<core::slice::iter::RChunks<u8>, faster_base58::encode::dc::load::{closure#0}>>>::from_iter
-core::ptr::drop_glue::<faster_base58::encode::matrix::table::Table>
 faster_base58::cpu::detect_avx2::init_get::init_inner
 faster_base58::cpu::detect_avx512f::init_get::init_inner
 faster_base58::cpu::detect_ifma::init_get::init_inner
@@ -217,4 +215,7 @@ faster_base58::ntt::neon::twist
 faster_base58::encode::matrix::neon::carry_cold
 
 [aarch64 cache]
+<faster_base58::ntt::tables::Tables>::twiddles::<2>
+faster_base58::encode::split_zeros
+faster_base58::matrix::convert
 faster_base58::matrix::leaf

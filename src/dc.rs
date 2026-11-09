@@ -183,7 +183,10 @@ pub(crate) fn decode_parts(
 /// The trimmed little-endian value of `input[zeros..]`, in the conversion arena.
 /// `capacity` bounds the decoded length for the early capacity check. Plain and
 /// checked decoding share this arena and arithmetic.
-#[inline(never)]
+// Not inlined natively: Karatsuba decoding inlined this into the dispatcher, whose 4 KiB
+// frame made 0-1 byte decodes 1.3-1.7x slower (M5, Zen 5). Wasm has no stack probes, and
+// inlining made 8-32 byte decodes 5-12% faster there (V8).
+#[cfg_attr(not(target_family = "wasm"), inline(never))]
 pub(crate) fn decode_value(
     input: &[u8],
     zeros: usize,
