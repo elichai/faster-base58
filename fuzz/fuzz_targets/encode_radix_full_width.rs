@@ -4,8 +4,6 @@
 mod support;
 
 use libfuzzer_sys::fuzz_target;
-use malachite_base::num::conversion::traits::{Digits, PowerOf2Digits};
-use malachite_nz::natural::Natural;
 
 fuzz_target!(|raw: &[u8]| {
     // Both widths select cached NEON radix; the larger also owns log19 twiddles.
@@ -21,12 +19,7 @@ fuzz_target!(|raw: &[u8]| {
         }
     }
     input[0] |= 0x80;
-    let value = Natural::from_power_of_2_digits_desc(8, input.iter().copied()).unwrap();
-    let digits: Vec<u8> = value.to_digits_desc(&58);
-    let want: Vec<u8> = digits
-        .iter()
-        .map(|&d| support::ALPHABET[d as usize])
-        .collect();
+    let want = support::reference::encode(&input);
     let selector = support::scalar::selector(raw);
     let encoders = [
         (

@@ -61,6 +61,8 @@ rejects the removed free functions and `no_alloc` module.
 | [Owned decoding](tests/owned_output.rs) | Maximum digits at capacity and dispatch boundaries, arbitrary digits, long zero prefixes, independent scalar values and byte offsets of late invalid characters |
 | [Backend properties](tests/properties.rs) | Every registered encoder/decoder, portable controls, tuned leaves and thresholds, malformed text, recursive and NTT boundaries |
 | [Scalar oracle](tests/support/scalar.rs) | Simple `u128` conversion for up to 16 significant binary bytes, with arbitrary leading zeros; independent of production limb arithmetic |
+| [Shared oracle](tests/support/mod.rs) | bs58 up to 2,048 bytes, then Malachite's [subquadratic conversion](tests/support/reference.rs), which calls nothing from this crate; a property checks that they agree up to 8,193 bytes, including invalid and non-ASCII bytes. Round trips expect the original bytes back, without a decode oracle |
+| [Residue oracle](tests/support/residue.rs) | Confirms every successful oracle result in linear time: equal zero prefixes, then equal values modulo three 61-bit safe primes unrelated to the NTT moduli. A wrong value passes only if its error is a multiple of their product (above 2^182); one-digit and one-byte changes never pass. A property checks that it accepts the bs58 encoding and rejects one-element insertions, removals and replacements of text or bytes |
 | [Large radix oracle](src/encode/tests.rs) | Independent Malachite `Natural` conversion plus bs58 comparisons; the [multiplier adapter](tests/support/malachite.rs) shares our conversion tree and is not an independent end-to-end oracle |
 | [Allocation contract](tests/no_alloc.rs) and [preflight](tests/resource_preflight.rs) | Allocation, zeroed-allocation, reallocation and deallocation counters; cold/success/error paths, checked array storage, no extra check-frame allocations versus ordinary codec workspace, and impossible-buffer rejection before table construction |
 | Native kernel tests | Scalar/vector agreement, carry bounds, table coefficients, prepared/wrapped products, exact scratch, offsets and canaries, ISA guards |
@@ -84,8 +86,8 @@ not exhaustive coverage of the `58^10` domain.
 
 Property strategies cover arbitrary binary data, valid Base58 strings and valid
 UTF-8 containing malformed Base58. The public decoder also takes raw bytes; the
-builder tests, heap-free tests and `decode_all` fuzzer pass invalid UTF-8 to it. bs58 0.5.1 supplies an additional oracle, including first-invalid
-indices. Canary checks surround the passed output slice; they do not assert
+builder tests, heap-free tests and `decode_all` fuzzer pass invalid UTF-8 to it. bs58 0.5.1 supplies an additional oracle up to 2,048 bytes, including
+first-invalid indices; Malachite replaces it above that length. Canary checks surround the passed output slice; they do not assert
 unspecified error-buffer contents. Unit tests also cover MiB conversions, all-one
 carry patterns, powers, small exhaustive inputs, all legal NTT scale lengths and the
 partial-word store at every length from 0 to 8 bytes, with guard bytes.
@@ -151,9 +153,10 @@ because Wasm panics abort. [CI.md](CI.md#test-jobs) gives the local commands.
 The [two general differential targets](fuzz/README.md) compare all backend
 wrappers and both allocation policies: values, capacities, suffixes, canaries, owned
 helpers and malformed input. Decode also maps bytes to valid digits and inserts
-invalid ASCII or multibyte characters, including late positions. Small mutation
-inputs keep quadratic oracles useful; named boundary replay covers larger
-recursive kernels.
+invalid ASCII or multibyte characters, including late positions. The shared
+oracle switches from bs58 to Malachite above 2,048 bytes, so large inputs do not
+pay for a quadratic oracle; the quadratic `batched` encoder under test still
+dominates their time. Named boundary replay covers larger recursive kernels.
 
 `check_all` (feature `check`) compares Base58Check encoding and decoding with
 bs58's checksum validation plus an independent version rule, with and without a
@@ -176,10 +179,9 @@ The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
 audit places those values above the native NTT thresholds. Its default-policy
-native careful-ASan stage is **unverified**. Its bs58 oracle takes seconds per
-input under ASan, so
-campaigns reach few mutations; a Malachite oracle, as in `encode_radix_full_width`,
-would raise that. This structured domain does not include every value at that width.
+native careful-ASan stage is **unverified**. It uses the Malachite oracle; the
+quadratic `batched` encoder under test still takes most of each input's time.
+This structured domain does not include every value at that width.
 
 Campaign callback counts include initial corpus processing and possible repeats;
 they are not distinct mutations or seed-file counts. Full-width stages require

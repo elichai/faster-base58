@@ -4,6 +4,8 @@
 )]
 
 pub mod malachite;
+pub mod reference;
+pub mod residue;
 pub mod scalar;
 
 use faster_base58::{BufferTooSmall, Error};
@@ -121,11 +123,29 @@ pub fn check_encoder_capacity(
     }
 }
 
-pub fn check_encode(data: &[u8], selector: usize) {
-    let want = bs58::encode(data).into_vec();
+/// Longest input for the bs58 oracle, whose quadratic conversion takes seconds at 64 KiB.
+/// Longer inputs use malachite-nz's subquadratic conversion; `properties` checks that the two
+/// agree across this boundary.
+pub const BS58_MAX_LEN: usize = 2048;
+
+/// The expected encoding of `data`, from bs58 or [`reference`] by length, confirmed by
+/// [`residue`].
+pub fn oracle_encode(data: &[u8]) -> Vec<u8> {
+    let want = if data.len() > BS58_MAX_LEN {
+        reference::encode(data)
+    } else {
+        bs58::encode(data).into_vec()
+    };
     if let Some(scalar) = scalar::encode(data) {
         assert_eq!(want, scalar, "independent u128 encode oracle");
     }
+    assert!(residue::matches(data, &want), "residue encode oracle");
+    want
+}
+
+/// Checks every encoder against [`oracle_encode`] and returns the expected text.
+pub fn check_encode(data: &[u8], selector: usize) -> String {
+    let want = oracle_encode(data);
     assert!(want.len() <= faster_base58::Encoder::bitcoin().max_encoded_len(data.len()));
     assert_eq!(
         faster_base58::Encoder::bitcoin()
@@ -150,10 +170,32 @@ pub fn check_encode(data: &[u8], selector: usize) {
     if let Some(encode) = fixed {
         check_encoder("fixed-portable", encode, data, &want, selector);
     }
+    String::from_utf8(want).unwrap()
+}
+
+/// Checks every encoder on `data`, then every decoder on the expected text. The expected
+/// decoding is `data` itself, so no decode oracle runs.
+pub fn check_round_trip(data: &[u8], selector: usize) {
+    let text = check_encode(data, selector);
+    check_decode_as(&text, &Ok(data.to_vec()), selector);
+}
+
+/// The decoded bytes or the first invalid byte offset, from bs58 or [`reference`] by length.
+/// Decoded bytes are confirmed by [`residue`].
+pub fn oracle_decode_bytes(input: &[u8]) -> Result<Vec<u8>, usize> {
+    let want = if input.len() > BS58_MAX_LEN {
+        reference::decode(input)
+    } else {
+        bs58_decode(input)
+    };
+    if let Ok(data) = &want {
+        assert!(residue::matches(data, input), "residue decode oracle");
+    }
+    want
 }
 
 /// bs58's result for raw bytes: the decoded bytes or the first invalid byte offset.
-pub fn oracle_decode_bytes(input: &[u8]) -> Result<Vec<u8>, usize> {
+pub fn bs58_decode(input: &[u8]) -> Result<Vec<u8>, usize> {
     bs58::decode(input).into_vec().map_err(|error| match error {
         bs58::decode::Error::InvalidCharacter { index, .. }
         | bs58::decode::Error::NonAsciiCharacter { index } => index,
@@ -216,13 +258,17 @@ pub fn check_decoder<T: AsRef<[u8]> + ?Sized>(
 }
 
 pub fn check_decode(input: &str, selector: usize) {
-    let want = oracle_decode(input);
+    check_decode_as(input, &oracle_decode(input), selector);
+}
+
+fn check_decode_as(input: &str, want: &Result<Vec<u8>, usize>, selector: usize) {
     for &(name, decode) in DECODERS {
-        check_decoder(name, decode, input, &want, selector);
+        check_decoder(name, decode, input, want, selector);
     }
     assert_eq!(
         faster_base58::Decoder::bitcoin().decode(input).into_vec(),
-        want.map_err(|index| Error::InvalidCharacter { index })
+        want.clone()
+            .map_err(|index| Error::InvalidCharacter { index })
     );
 }
 
