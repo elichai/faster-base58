@@ -24,8 +24,10 @@ the `full-width` feature. Inputs are architecture-independent bytes, so the
 candidate is the union of the eight minimized sets, and every `candidate_smoke`
 configuration replays all of it with ASan.
 
-Merge builds use `--sanitizer none`: cargo-fuzz enables the coverage counters
-without ASan, and the replay is faster. libFuzzer's merge skips an input that
+Merge builds use `--sanitizer none --no-trace-compares`: cargo-fuzz still
+enables the coverage counters, and the replay is faster. Compare tracing only
+guides mutation, because no job sets `-use_value_profile`, so merge and replay
+builds omit it; nightly campaigns keep it. libFuzzer's merge skips an input that
 crashes, times out or exceeds the memory limit and then retries; a retry fails
 the job instead of dropping that input.
 
