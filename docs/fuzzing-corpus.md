@@ -12,9 +12,30 @@ sanitizer, duration, and source commit that found it. CI replays one pinned
 corpus commit without mutation across the supported architecture/feature/CPU
 matrix. Profile data is never merged across those configurations.
 
-Nightly fuzzing writes artifacts only. A separate, trusted publisher validates
-names, file type, size, and SHA-256; replays additions; and publishes an
-additive union with a rebase retry. Pull requests cannot publish a corpus.
+The branch holds a coverage-minimized corpus, not every input that a campaign
+found. Nightly fuzzing writes artifacts only. Each of the eight `minimize` builds
+validates names, file type, size and SHA-256, forms the union of the pinned
+corpus and all campaign artifacts without the deterministic seeds, and runs
+libFuzzer's `-merge=1` with the seeds as the initial corpus. An input stays when
+it adds a coverage feature, an edge-counter bucket, that the seeds and smaller
+inputs do not reach in that build. The builds are the replay matrix: x86-64 and
+AArch64, generic and native CPU, cache off and on; the two full-width targets use
+the `full-width` feature. Inputs are architecture-independent bytes, so the
+candidate is the union of the eight minimized sets, and every `candidate_smoke`
+configuration replays all of it with ASan.
+
+Merge builds use `--sanitizer none`: cargo-fuzz enables the coverage counters
+without ASan, and the replay is faster. libFuzzer's merge skips an input that
+crashes, times out or exceeds the memory limit and then retries; a retry fails
+the job instead of dropping that input.
+
+The trusted publisher replaces `corpora/` with the candidate union, so inputs
+that no longer add coverage leave the branch; Git history keeps them. It commits
+on the pinned snapshot and rebases onto any later publication, with a retry.
+Publishing requires every `smoke`, `minimize` and `candidate_smoke` row to pass;
+`smoke` replays the pinned corpus with ASan, so an input that fails on current
+code is not removed silently. The deterministic seeds stay on `main` and are not
+stored on the branch. Pull requests cannot publish a corpus.
 
 Coverage reports exclude tests, fuzz harnesses, dependencies, and diagnostic
 helpers. In the [verification workflow](../.github/workflows/verification.yml),

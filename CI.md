@@ -33,7 +33,7 @@ the cargo-fuzz and Nextest pins.
 | --- | --- | --- |
 | Rust stable | 1.99.1 ([rust-toolchain.toml](rust-toolchain.toml)) | Tests, builds, lint, property coverage, SIMD inlining |
 | Rust MSRV | 1.95 | `msrv` |
-| Rust nightly | `nightly-2026-10-26` ([ci/nightly](ci/nightly/rust-toolchain.toml)) | Miri, fuzzing, fuzz coverage, sanitizers |
+| Rust nightly | `nightly-2026-11-08` ([ci/nightly](ci/nightly/rust-toolchain.toml)) | Miri, fuzzing, fuzz coverage, sanitizers |
 | Custom Miri Cargo | `cargo_toolchain` in [pins.json](ci/miri/pins.json) | `miri_custom` |
 | cargo-nextest | 0.9.150 | Test jobs, Nextest Miri comparison |
 | cargo-hack | 0.6.45 | Feature-powerset builds and Clippy |
@@ -460,12 +460,13 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | `corpus_snapshot` | Validates the head of `fuzz-corpus` and pins its revision | x86-64 Linux | All |
 | `smoke` | Replays seeds and the pinned corpus through the four targets with ASan, without mutation | x86-64 and arm64 Linux; generic and native CPU; cache off and on | All |
 | `nightly` | Mutation campaigns seeded by the run ID; writes provenance and uploads the campaign | Same as `smoke` | Schedule; dispatch with `run_nightly` |
-| `candidate_smoke` | Stages every campaign onto the pinned corpus and replays the union | Same as `smoke` | Schedule; dispatch with `run_nightly` |
-| `publish` | Stages, validates and pushes the union and provenance to `fuzz-corpus` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
+| `minimize` | Merges the pinned corpus and every campaign, without the seeds, into the inputs that add coverage beyond the seeds in its build | Same as `smoke` | Schedule; dispatch with `run_nightly` |
+| `candidate_smoke` | Replays the seeds and the union of the eight minimized sets | Same as `smoke` | Schedule; dispatch with `run_nightly` |
+| `publish` | Replaces `corpora/` with that union and adds the provenance to `fuzz-corpus`; needs `smoke`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
 
 The replay lanes use `--sanitizer address` without `--careful`, and set
-`RUSTFLAGS=-C target-cpu=generic` or `native`. To replay the pinned corpus
-locally:
+`RUSTFLAGS=-C target-cpu=generic` or `native`. `minimize` uses
+`--sanitizer none`. To replay the pinned corpus locally:
 
 ```sh
 python3 fuzz/seed_corpus.py
@@ -476,8 +477,26 @@ cargo +"$nightly" fuzz run --sanitizer address encode_all -- -runs=0 -max_len=65
 
 The workflow also replays `decode_all` with `-max_len=89502`, and
 `encode_full_width` and `encode_radix_full_width` with `--features full-width`
-and `-max_len=8193`. `python3 fuzz/corpus_store.py stage INCOMING CORPUS_ROOT`
-adds campaign inputs under their SHA-256 names.
+and `-max_len=8193`.
+
+`python3 fuzz/corpus_store.py replace INCOMING... CORPUS_ROOT --exclude fuzz/corpus`
+writes the union of the input roots as a fresh store under SHA-256 names, without
+the seeds; `stage INCOMING CORPUS_ROOT` only adds. To minimize one target in one
+build, as a `minimize` row does, with `CAMPAIGN` a campaign directory:
+
+```sh
+python3 fuzz/seed_corpus.py
+python3 fuzz/corpus_store.py replace CORPUS_ROOT CAMPAIGN UNION --exclude fuzz/corpus
+mkdir -p MINIMIZED
+cp -a fuzz/corpus/encode_all MINIMIZED/
+cargo +"$nightly" fuzz run --sanitizer none encode_all MINIMIZED/encode_all UNION/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+```
+
+The output must contain `MERGE-OUTER: successful in 1 attempt(s)`; a later
+attempt means that an input failed. `MINIMIZED` then holds the seeds and the
+selected inputs; `replace` with `--exclude fuzz/corpus` removes the seeds again.
+Use `--exclude` only while `fuzz/corpus` holds just the seeds: after a replay
+copy, it would also exclude the copied corpus inputs.
 
 ## Other workflows
 
@@ -538,7 +557,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | — |
 | [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | — | `measurement_tools` |
 | [`fuzz/seed_corpus.py`](fuzz/seed_corpus.py) | Writes the deterministic seeds; fails if an existing seed differs | `--output DIR` (default `fuzz/corpus`) | Fuzz jobs |
-| [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates a content-addressed corpus and stages new inputs into it | `validate CORPUS`, `stage INCOMING CORPUS` | Fuzz corpus jobs |
+| [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates a content-addressed corpus, adds inputs to it, or replaces it with the union of input roots | `validate CORPUS`, `stage INCOMING CORPUS`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
 | [`fuzz/provenance.py`](fuzz/provenance.py) | Writes the JSON provenance of one campaign | `--output`, `--field KEY=VALUE`, `--digest KEY=PATH` | `nightly` |
 | [`fuzz/check_mutations.py`](fuzz/check_mutations.py) | Requires a nonzero mutation-attempt count in a libFuzzer log | `--self-test`; `LOG --seconds N` | `fuzz` |
 | `fuzz/test_*.py` | Tests the seed generator, the corpus store and the provenance writer | — | `fuzz`, `fuzz_coverage` |

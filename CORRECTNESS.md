@@ -186,6 +186,13 @@ they are not distinct mutations or seed-file counts. Full-width stages require
 a positive post-initialization mutation-attempt count from libFuzzer's corpus
 statistics. Keep bounded mutation campaigns separate from large boundary replay.
 
+The shared corpus on the `fuzz-corpus` branch is minimized by libFuzzer merge
+in each of the eight replay builds without ASan, then combined
+([corpus guide](docs/fuzzing-corpus.md)). It preserves each build's
+edge-counter coverage of the inputs it saw, not each input. Value-profile
+features, ASan-only behavior and inputs that reach the same coverage with
+different values are not preserved; removed inputs remain only in Git history.
+
 Passing Rust/std MSan tests does not close the full libFuzzer/MSan campaign gap.
 No sanitizer runtime was patched to obtain the passes. TSan does not fully model
 atomic fences or inline assembly; its results supplement the other checks.
