@@ -10,6 +10,5 @@ use libfuzzer_sys::fuzz_target;
 fuzz_target!(|raw: &[u8]| {
     let input = full_width::expand(raw);
     let selector = support::scalar::selector(raw);
-    support::check_encode(&input, selector);
-    support::check_decode(&bs58::encode(&input).into_string(), selector);
+    support::check_round_trip(&input, selector);
 });

@@ -98,6 +98,5 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     let selector = support::scalar::selector(data);
-    support::check_encode(data, selector);
-    support::check_decode(&bs58::encode(data).into_string(), selector);
+    support::check_round_trip(data, selector);
 });

@@ -2,7 +2,7 @@ mod support;
 
 use faster_base58::internals::{self, Leaves};
 use proptest::prelude::*;
-use support::{ALPHABET, check_decode, check_encode};
+use support::{ALPHABET, check_decode, check_encode, check_round_trip};
 
 type TunedEncode =
     fn(&[u8], &mut [u8], usize, usize, Leaves) -> Result<usize, faster_base58::BufferTooSmall>;
@@ -29,6 +29,18 @@ fn bytes() -> impl Strategy<Value = Vec<u8>> {
     lengths().prop_flat_map(|len| prop::collection::vec(any::<u8>(), len))
 }
 
+/// Inserts, removes or replaces one element; an empty vector gets `value` appended.
+fn edit(v: &mut Vec<u8>, kind: u8, position: usize, value: u8) {
+    if v.is_empty() || kind == 0 {
+        v.insert(position % (v.len() + 1), value);
+    } else if kind == 1 {
+        v.remove(position % v.len());
+    } else {
+        let at = position % v.len();
+        v[at] = value;
+    }
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::default())]
 
@@ -36,8 +48,37 @@ proptest! {
     fn every_encoder_matches_independent_oracle(mut data in bytes(), zeros in 0usize..40, capacity in any::<usize>()) {
         let leading = zeros.min(data.len());
         data[..leading].fill(0);
-        check_encode(&data, capacity);
-        check_decode(&bs58::encode(&data).into_string(), capacity);
+        check_round_trip(&data, capacity);
+    }
+
+    /// The oracles switch from bs58 to malachite-nz above `BS58_MAX_LEN`; these lengths
+    /// reach 8,193 bytes on both sides of it.
+    #[test]
+    fn malachite_reference_matches_bs58(mut data in bytes(), zeros in 0usize..40, position in any::<usize>(), byte in any::<u8>()) {
+        let leading = zeros.min(data.len());
+        data[..leading].fill(0);
+        let mut text = bs58::encode(&data).into_vec();
+        prop_assert_eq!(&support::reference::encode(&data), &text);
+        prop_assert_eq!(support::reference::decode(&text), Ok(data));
+        // The inserted byte may be a digit, invalid ASCII or part of non-ASCII input.
+        text.insert(position % (text.len() + 1), byte);
+        prop_assert_eq!(support::reference::decode(&text), support::bs58_decode(&text));
+    }
+
+    /// The residue oracle accepts the bs58 encoding and rejects any other digit string or
+    /// bytes, including changed zero prefixes. One-digit replacements are always rejected.
+    #[test]
+    fn residue_oracle_accepts_only_the_encoding(mut data in bytes(), zeros in 0usize..40, kind in 0u8..3, position in any::<usize>(), byte in any::<u8>()) {
+        let leading = zeros.min(data.len());
+        data[..leading].fill(0);
+        let text = bs58::encode(&data).into_vec();
+        prop_assert!(support::residue::matches(&data, &text));
+        let mut other = text.clone();
+        edit(&mut other, kind, position, ALPHABET[byte as usize % 58]);
+        prop_assert_eq!(support::residue::matches(&data, &other), other == text);
+        let mut changed = data.clone();
+        edit(&mut changed, kind, position, byte);
+        prop_assert_eq!(support::residue::matches(&changed, &text), changed == data);
     }
 
     #[test]
@@ -64,7 +105,7 @@ proptest! {
 }
 
 #[test]
-fn recursive_and_ntt_boundaries_match_bs58() {
+fn recursive_and_ntt_boundaries_match_reference() {
     // 64 KiB crosses the x86 IFMA NTT thresholds too. Adjacent sizes exercise partial limbs.
     for len in [
         16_383usize,
@@ -83,8 +124,7 @@ fn recursive_and_ntt_boundaries_match_bs58() {
         data[0] = 0xFF;
         data[len / 3..len / 2].fill(0);
         data[2 * len / 3..].fill(0xFF);
-        check_encode(&data, len / 2);
-        check_decode(&bs58::encode(data).into_string(), len / 2);
+        check_round_trip(&data, len / 2);
     }
 }
 
@@ -103,8 +143,7 @@ fn radix_hooks_fall_back_above_the_transform_limit() {
 fn leading_zeros_and_carry_boundaries() {
     for len in [0, 1, 7, 8, 10, 32, 64, 512, 768, 1504, 5121, 8193] {
         for data in [vec![0; len], vec![0xFF; len]] {
-            check_encode(&data, len);
-            check_decode(&bs58::encode(data).into_string(), len);
+            check_round_trip(&data, len);
         }
     }
     for exponent in [1, 9, 10, 11, 19, 20, 21, 5119, 5120, 5121, 8193] {

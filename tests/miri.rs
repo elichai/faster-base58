@@ -3,8 +3,7 @@
 mod support;
 
 fn check_buffer_case(data: &[u8], selector: usize) {
-    support::check_encode(data, selector);
-    support::check_decode(&bs58::encode(data).into_string(), selector);
+    support::check_round_trip(data, selector);
 }
 
 fn check_sized_buffer_case(len: usize) {

@@ -1,11 +1,19 @@
 # Differential fuzzing
 
 `encode_all` and `decode_all` compare configured Auto, the internal heap-free kernels, and the backends exposed by `__internals`
-with `bs58`. They check empty inputs, leading zeros, exact/short/oversized output
+with an independent oracle: `bs58` up to 2,048 bytes, and above that
+[Malachite's subquadratic radix conversion](../tests/support/reference.rs), which
+calls nothing from this crate. `bs58` is quadratic and takes seconds per 64 KiB
+input. A property test checks that the two oracles agree on both sides of the
+switch. A [linear-time residue check](../tests/support/residue.rs) confirms each
+successful oracle result: equal zero prefixes and equal values modulo three
+fixed 61-bit primes. They check empty inputs, leading zeros, exact/short/oversized output
 slices, result suffixes, and canaries around each slice. Decoding checks the first
 invalid byte index. The public decoder takes raw bytes, so decode also passes the
 fuzz input unchanged, including invalid UTF-8. The backend hooks take `&str`, so
-they see malformed UTF-8 only after lossy conversion.
+they see malformed UTF-8 only after lossy conversion. The encode targets then
+decode the expected text with every decoder and expect the original input, so
+they need no decode oracle.
 
 The forced `radix` and `radix-portable` encoders bypass production CPU/size
 selection and participate in the shared differential checks on every target.
@@ -86,14 +94,15 @@ debug assertions and integer overflow checks remain enabled. Repeat with
 `--features cache`; use `--sanitizer leak` for the separate LeakSanitizer campaign.
 The short-input campaigns perform mutations quickly; replaying
 the full boundary corpus exercises larger kernels without spending the entire
-mutation budget on the quadratic oracle. For sustained large-input fuzzing,
+mutation budget on large inputs, where the quadratic `batched` encoder under test
+takes most of the time. For sustained large-input fuzzing,
 replace `-runs=0` with `-max_total_time=3600`.
 
 `encode_full_width` adds structured large-input mutations. Each raw input repeats
 to exactly 65,537 bytes; its first byte has the high bit set. Empty input uses
 `0xA5`. Thus shrinking raw inputs cannot avoid the native IFMA host's NTT paths.
-It reuses the same encoding and generated-text decoding oracles, capacities,
-canaries and owned-helper checks. This periodic structured domain does not cover
+It runs the same round-trip checks as `encode_all`, with the Malachite oracle,
+capacities, canaries and owned-helper checks. This periodic structured domain does not cover
 every 65,537-byte value. Unsupported CPU instructions are never forced.
 Threshold retuning must recheck the size needed to reach actual transforms.
 
