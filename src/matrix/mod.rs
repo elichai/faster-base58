@@ -68,7 +68,7 @@ const BEST: Kernels = core::cfg_select! {
         Kernels { parse: neon::parse, panel: neon::panel }
     }
     all(target_arch = "x86_64", target_feature = "sse2") => {
-        Kernels { parse: portable::parse, panel: x86::panel }
+        Kernels { parse: x86::parse, panel: x86::panel }
     }
     all(target_arch = "wasm32", target_feature = "simd128") => {
         Kernels { parse: wasm::parse, panel: wasm::panel }
@@ -299,7 +299,7 @@ fn convert_with<'a>(
         return Some(&[]);
     }
     let panels = digits.len().div_ceil(PANEL_CHARS);
-    // 8 groups per panel is at least the 4 per 16 characters that `parse` writes.
+    // 8 groups per 32-character panel: what any `parse` writes.
     let groups = zeroed(&mut scratch.groups, ROWS * panels);
     if !parse(digits, groups) {
         return None;

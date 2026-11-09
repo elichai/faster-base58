@@ -187,10 +187,12 @@ faster_base58::mul_ifma::avx512::kernel_tf::<12>
 [x86_64 cache]
 faster_base58::batched::decode_parts
 faster_base58::dc::mul_add_chunks
-faster_base58::matrix::portable::parse
-# The AVX2 Matrix decoder conversion and panel.
+# The AVX2 Matrix decoder conversion, parser and panel; `parse` checks the CPU and
+# selects `parse_avx2`.
 faster_base58::matrix::x86::convert_avx2
 faster_base58::matrix::x86::panel
+faster_base58::matrix::x86::parse
+faster_base58::matrix::x86::parse_avx2
 
 [aarch64]
 # NEON NTT kernels and the Matrix encoder's cold carry fallback. NEON is part of

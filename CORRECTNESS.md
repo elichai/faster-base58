@@ -130,6 +130,12 @@ which cross-compiles x86-64:
 docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
 ```
 
+The x86 AVX2 Matrix parser has unit tests against the portable parser: random,
+all-`'z'` and one-invalid-byte strings at lengths 0–100 and around the 32-byte
+block and head, and every byte value at every position of 31, 32, 33 and 64
+characters (validity flag against the lookup table, groups when valid). They print
+a skip line on CPUs without AVX2.
+
 Wasm SIMD128 kernels build only with `+simd128` and have unit tests against the
 portable kernels: exact NTT kernels and lane arithmetic, Matrix parsing (every byte
 value at every block position) and panels, 64-byte column sums and whole encodes
@@ -188,7 +194,8 @@ atomic fences or inline assembly; its results supplement the other checks.
 
 Supported tests use strict provenance; selected paths also run with Tree Borrows
 and a different seed. They cover portable recursive/prepared/wrapped arithmetic,
-fixed encoders, exact scratch and supported SSE4.1/AVX2/NEON panel operations.
+fixed encoders, exact scratch, supported SSE4.1/AVX2/NEON panel operations and
+AVX2 Matrix parsing.
 Miri executes MIR: it does not verify LLVM auto-vectorization or emitted native
 instructions. Native sanitizer and oracle tests remain necessary.
 
