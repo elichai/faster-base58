@@ -53,13 +53,11 @@ faster_base58::ntt::transform
 
 [!cache]
 <alloc::raw_vec::RawVec<faster_base58::encode::matrix::table::Panel>>::grow_one
-<core::iter::adapters::zip::Zip<core::slice::iter::IterMut<u64>, core::iter::adapters::chain::Chain<core::iter::adapters::map::Map<core::iter::adapters::filter::Filter<core::iter::sources::once::Once<&[u8]>, faster_base58::common::chunks::{closure#0}>, faster_base58::common::chunks::{closure#1}>, core::iter::adapters::map::Map<core::slice::iter::Iter<[u8; 10]>, faster_base58::common::chunks::{closure#2}>>> as core::iter::adapters::zip::ZipImpl<core::slice::iter::IterMut<u64>, core::iter::adapters::chain::Chain<core::iter::adapters::map::Map<core::iter::adapters::filter::Filter<core::iter::sources::once::Once<&[u8]>, faster_base58::common::chunks::{closure#0}>, faster_base58::common::chunks::{closure#1}>, core::iter::adapters::map::Map<core::slice::iter::Iter<[u8; 10]>, faster_base58::common::chunks::{closure#2}>>>>::next
+faster_base58::common::values
 faster_base58::dc::dc::<faster_base58::dc::Karatsuba>
 faster_base58::dc::decode_value::<faster_base58::dc::Karatsuba>
-# These three are also out of line in x86_64 `cache` builds, not in aarch64 ones.
+# Also out of line in x86_64 `cache` builds, not in aarch64 ones.
 faster_base58::dc::mul_add_chunks
-faster_base58::mul::fold_wrapped
-faster_base58::mul::sum
 
 [cache]
 <<std::sync::once::Once>::call_once_force<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::get_or_init<faster_base58::encode::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0} as core::ops::function::FnOnce<(&std::sync::once::OnceState,)>>::call_once::{shim:vtable#0}
@@ -191,8 +189,6 @@ faster_base58::mul_ifma::avx512::kernel_tf::<12>
 faster_base58::batched::decode_parts
 faster_base58::dc::mul_add_chunks
 faster_base58::matrix::portable::parse
-faster_base58::mul::fold_wrapped
-faster_base58::mul::sum
 # The AVX2 Matrix decoder conversion and panel.
 faster_base58::matrix::x86::convert_avx2
 faster_base58::matrix::x86::panel
@@ -213,6 +209,10 @@ faster_base58::ntt::neon::pointwise
 faster_base58::ntt::neon::square
 faster_base58::ntt::neon::twist
 faster_base58::encode::matrix::neon::carry_cold
+
+[aarch64 !cache]
+faster_base58::mul::fold_wrapped
+faster_base58::mul::sum
 
 [aarch64 cache]
 <faster_base58::ntt::tables::Tables>::twiddles::<2>
