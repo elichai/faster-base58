@@ -79,7 +79,27 @@ python3 -B scripts/public_bench.py --platform m5 --output target/measurements/m5
 ```
 
 On Linux add `--strip-tool strip` to `code_size.py` (it expects `llvm-strip`) and
-`--cpu 0` to `public_bench.py` to pin workers. For Wasm, build with `--target
+`--cpu N` to `public_bench.py` to pin workers. Native workers place every input and
+output buffer at a 64-byte boundary.
+
+On the GCP Zen 5 VM (`c4d-highcpu-4`: vCPUs 0/2 and 1/3 are SMT siblings), time on
+vCPU 1 and keep vCPU 3 idle:
+
+- before and after each run, the metadata server's `instance/maintenance-event`
+  must read `NONE`;
+- run a 10-second unmeasured busy loop on vCPU 1 first;
+- start `public_bench.py --cpu 1 --copies 4` under `sudo chrt -f 99`, `setarch -R`
+  (no address randomization) and `prctl(PR_SET_THP_DISABLE)`; the workers inherit
+  all three, and no system setting changes;
+- sample `vmstat -t 1` on vCPU 0 and discard a run with any steal above 0.
+
+The guest has no `cpufreq` driver (the host sets the frequency) and already uses the
+`tsc` clocksource. SCHED_FIFO tasks are still throttled to 950 ms per second. Report
+a cell whose process or copy medians spread by more than 3% with its range instead
+of dropping it: on Zen 5 such spread usually comes from code placement, which is
+real variation between builds.
+
+For Wasm, build with `--target
 wasm32-unknown-unknown` (add `--wasm-simd128` for the SIMD cohort) and time with
 `public_bench.py --wasm`; it runs Node with
 `--no-liftoff --no-wasm-lazy-compilation --no-wasm-async-compilation` and refuses
@@ -119,10 +139,15 @@ or withdraw them.
 
 Code placement can move a cell more than many source changes do. On Zen 5, paths a
 change does not touch can move by up to ±20% between builds, and loading the same
-library at another address can move a 1 KiB encode by 12%. On the M5, default
-512 B decoding depends on loop alignment by 10–20%. Therefore:
+library at another address can move a 1 KiB encode by 12%. The placement of a
+library file's pages matters as well: in one Zen 5 run the original probe file took
+1.87× as long as each of three byte-identical copies on a 32 KiB decode, and 1.2×
+on an 8 KiB encode. On the M5, default 512 B decoding depends on loop alignment by
+10–20%. Therefore:
 
-- compare variants only within one paired run (`--baseline`);
+- compare variants only within one paired run (`--baseline`); on Zen 5 also pass
+  `--copies 4`, which times fresh copies of each library file and compares
+  medians over copies;
 - judge a change by the cells its code reaches, and treat movement in untouched
   cells as the noise floor;
 - for effects below about 5%, add an aligned build

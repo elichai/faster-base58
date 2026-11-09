@@ -375,7 +375,7 @@ jobs:
       - if: matrix.cache_args == ''
         run: python3 assets/graphs/render.py --check
       - if: matrix.cache_args == ''
-        run: python3 -m py_compile scripts/public_bench.py
+        run: python3 scripts/public_bench.py --self-test
       - if: matrix.cache_args == ''
         run: node --check scripts/public_bench_wasm.mjs
       - if: matrix.cache_args == ''
