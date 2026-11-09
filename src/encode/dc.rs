@@ -565,6 +565,10 @@ fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), 
 }
 
 /// [`node`] for `n <= LEAF`, with [`Limbs`] on the stack.
+// Zeroing only the scratch a leaf uses (`matrix::zeroed` prefixes of uninitialized
+// buffers: `8 x.len()` bytes and `n` slots, instead of 4 KiB here and 8 KiB in
+// `leaf_matrix`) was neutral: 0.97-1.02x in paired public encodes that reach the leaves,
+// while untouched cells moved as much or more (M5 and Zen 5, generic flags, 2026-11-08).
 fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
     let mut bytes = [0u8; 8 * LEAF];
     let mut slots = [[0u8; 8]; LEAF];
@@ -1224,6 +1228,63 @@ mod tests {
                     assert!(got == want, "{len} bytes, leaf {leaf}, {kind:?}");
                 }
             }
+        }
+    }
+
+    /// Each leaf kind at `n` up to its largest, against the exact text: `BASE^n - 1`, which
+    /// needs the most limbs, bytes and stored `Limbs` slots of `n` chunks (`10 n` 'z's),
+    /// `BASE^(n - 1)`, one and zero, padded or not. The output starts as 0xAA, so this
+    /// also checks that nothing is written past the text.
+    #[test]
+    fn leaf_bounds() {
+        let ns = [1, 2, 3, 31, 32, 33, 95, 96, 97, 255, LEAF, LEAF + 1, 768];
+        for (kind, max) in [(Leaves::Horner, LEAF), (Leaves::Matrix, MATRIX_LEAF)] {
+            // `power = BASE^n` after step `n`.
+            let mut power = vec![1u64];
+            for n in 1..=max {
+                let below = power.clone();
+                let mut carry = 0;
+                for l in &mut power {
+                    let t = *l as u128 * crate::common::BASE as u128 + carry;
+                    (*l, carry) = (t as u64, t >> 64);
+                }
+                if carry != 0 {
+                    power.push(carry as u64);
+                }
+                if n != max && !ns.contains(&n) {
+                    continue;
+                }
+                let mut full = power.clone();
+                sub_assign(&mut full, &[1]);
+                full.truncate(trimmed_len(&full));
+                let below_text = [b"2".as_slice(), &vec![b'1'; 10 * (n - 1)]].concat();
+                check_leaf(kind, n, &full, &vec![b'z'; 10 * n]);
+                check_leaf(kind, n, &below, &below_text);
+                check_leaf(kind, n, &[1], b"2");
+                check_leaf(kind, n, &[], b"");
+            }
+        }
+    }
+
+    /// One leaf of `x < BASE^n`, padded or not, against its unpadded `text`.
+    fn check_leaf(kind: Leaves, n: usize, x: &[u64], text: &[u8]) {
+        for pad in [false, true] {
+            let ones = if pad { 10 * n - text.len() } else { 0 };
+            let want = [&vec![b'1'; ones], text].concat();
+            let mut buf = vec![0xAA; 10 * n + 1];
+            let mut out = Out {
+                buf: &mut buf,
+                pos: 0,
+            };
+            let r = match kind {
+                Leaves::Horner => leaf(x, n, pad, &mut out),
+                Leaves::Matrix => leaf_matrix(x, n, pad, &mut out),
+            };
+            let what = format!("{kind:?} n {n}, {} limbs, pad {pad}", x.len());
+            assert_eq!(r, Ok(()), "{what}");
+            let pos = out.pos;
+            assert!(buf[pos..].iter().all(|&b| b == 0xAA), "{what}");
+            assert!(buf[..pos] == want, "{what}");
         }
     }
 }
