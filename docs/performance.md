@@ -132,6 +132,12 @@ comparators in one process with wall time. `benches/encode_tune.rs` and
 `encode_matrix_tune.rs` tune the encoder leaves, `MATRIX_MIN` and `IFMA_CAP`;
 `benches/radix_tune.rs` times the forced radix and division trees in one binary
 (with a division A/A arm) for the [radix utilization rule](#radix-route-utilization).
+`benches/threshold_tune.rs` sweeps the dispatch crossovers and the NTT and IFMA
+product thresholds in one binary; its internal arms fall back below their own
+minimums (divide-and-conquer decoding needs two leaves). Constants without a runtime
+parameter, such as leaf sizes and the cutoffs in `src/api.rs`, are compared as rebuilt
+Auto probes with `public_bench.py --baseline`; on Zen 5 the rebuild alone moved
+untouched cells by up to 7%, so judge only the cells the change reaches.
 
 When the code changes, remeasure the affected tables, figures and scope together,
 or withdraw them.
@@ -303,10 +309,6 @@ which the README tables use, keep their route.
 
 Unmeasured candidates, largest expected effect first:
 
-- M5: start the radix route below 4 KiB, where batched encoding still runs. In the
-  utilization sweep (default) the forced route took 0.83 of batched time at 3.5 KiB
-  and 0.68–0.71 at 4 KiB, but 1.03 at 3 KiB and 1.14–1.15 at 2 KiB; the public
-  dispatch boundary was not measured.
 - Radix tree: fuse the first forward stage, whose upper half is always zero
   (about 2–3% of encode); build sparse schoolbook products column by column
   (sparse inputs need more heap); share the digit scratch with the output (about

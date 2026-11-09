@@ -56,8 +56,16 @@ pub(crate) mod entry {
     use super::*;
 
     /// Inputs with fewer bytes than this, after leading zeros, use the batched encoder, which
-    /// is faster there. Tuned by measurement; see `docs/performance.md`.
-    pub(crate) const MATRIX_MIN: usize = 22;
+    /// is faster there (`benches/encode_matrix_tune.rs`). The matrix took 0.99x the batched
+    /// time at 52 bytes on M5 and 0.95x on Zen 5, but 1.14x and 1.12x at 48; M5 still
+    /// loses 5-16% at 56 and 65. Wasm SIMD128 under V8 took 0.90x at 40 bytes and 1.03x at
+    /// 36.
+    pub(crate) const MATRIX_MIN: usize =
+        if cfg!(all(target_arch = "wasm32", target_feature = "simd128")) {
+            40
+        } else {
+            52
+        };
 
     /// Converts a normalized value of `MATRIX_MIN..=MAX_BYTES` bytes.
     /// The caller selects the backend before entering this 30 KiB stack frame.

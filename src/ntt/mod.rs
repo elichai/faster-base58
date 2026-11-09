@@ -69,19 +69,29 @@ const THRESHOLD: usize = 128;
 const PREPARED_THRESHOLD: usize = 96;
 
 /// [`THRESHOLD`] and [`PREPARED_THRESHOLD`] when Karatsuba has the AVX-512 IFMA leaf.
-/// Tuned on whole decodes on Zen 5, where Karatsuba wins on prepared products of 1936
-/// limbs and transforms win from 3430. A prepared threshold of 3072 made decodes up to 15%
-/// slower. One Toom-3 level on products from 1536 limbs up to these thresholds changed
-/// whole decodes and encodes by -3% to +3% depending on size; from 2304 limbs it gained
-/// 1-3% only at 44-56 KiB.
+/// Tuned on whole decodes on Zen 5 (`benches/threshold_tune.rs`). With cached tables a
+/// transform costs less, so prepared products switch earlier. Against a prepared threshold
+/// of 2048, 1280 (owned tables) took 0.85-0.93x the time from 64 KiB to 1 MiB, and 640
+/// (cached) 0.92-0.94x at 32-48 KiB and 0.80-0.90x from 64 KiB. In that binary, owned tables
+/// at 512-1024 were 7% slower at 32-48 KiB. One Toom-3 level on products from 1536 limbs up to these
+/// thresholds changed whole decodes and encodes by -3% to +3% depending on size.
 const IFMA_THRESHOLD: usize = 3072;
-const IFMA_PREPARED_THRESHOLD: usize = 2048;
+const IFMA_PREPARED_THRESHOLD: usize = if cfg!(feature = "cache") { 640 } else { 1280 };
 
 /// The encoders' divide-and-conquer threshold in bytes and leaf size in chunks, tuned on
 /// an M5 Pro against `encode_batched` in one binary. Smaller leaves were up to 4% faster
-/// from 8 KiB up and 1-2% slower at 4-6 KiB.
+/// from 8 KiB up and 1-2% slower at 4-6 KiB. With NEON the radix route takes over from
+/// 3 KiB (`radix::MIN_BYTES`); the division tree alone wins only above 4 KiB.
 #[cfg(any(not(feature = "cache"), test, feature = "__internals"))]
-pub(crate) const ENCODE_THRESHOLD: usize = 4096;
+pub(crate) const ENCODE_THRESHOLD: usize = if cfg!(all(
+    target_arch = "aarch64",
+    target_endian = "little",
+    target_feature = "neon"
+)) {
+    3072
+} else {
+    4096
+};
 const ENCODE_LEAF: usize = 32;
 
 /// The leaf size of the caching encoders, which use [`Leaves::BEST`]. Matrix leaves pay off
@@ -944,8 +954,7 @@ mod tests {
         cached::decode_ntt_cached, decode_ntt_portable, decode_ntt_with, owned::decode_ntt,
     };
     use super::*;
-    use crate::common::CHUNK;
-    use crate::dc::DC_THRESHOLD;
+    use crate::dc::min_digits;
     use crate::tests::{Decode, decode_vec, random_string};
     use crate::{dc, encode};
     use rand_xoshiro::Xoshiro256PlusPlus;
@@ -1523,7 +1532,7 @@ mod tests {
                 decode_ntt_with(s, o, true, IFMA_THRESHOLD, IFMA_PREPARED_THRESHOLD)
             }),
         ];
-        let t = DC_THRESHOLD * CHUNK;
+        let t = min_digits();
         for len in [t + 1, 2 * t + 1, 10_000, 40_960, 100_001, 1_000_000] {
             // 58^len - 1 maximises carries.
             let max = "z".repeat(len);

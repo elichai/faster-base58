@@ -52,7 +52,9 @@ The public paths handle empty and tiny inputs before the general loops.
 padded remainder recursively. Barrett estimates use reciprocals refined by Newton
 steps; each power and reciprocal is reused within one conversion. Karatsuba
 and the fallback NTT encoder share this conversion tree. Unbalanced products
-use blocks.
+use blocks. Decoding leaves hold at most 256 chunks, 128 on Wasm and 64 on x86
+with IFMA Karatsuba products, which are cheap relative to the quadratic leaves.
+The tree needs at least two leaves.
 
 On little-endian AArch64 with NEON and on x86-64 with AVX-512F, large encoding can
 instead use a
@@ -69,12 +71,12 @@ scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
 on the stack; schoolbook sums reserve their usual capacity once and can grow
 for sparse, unbalanced products. All owners are dropped on return.
 This route requires
-more than 4096 significant bytes (on x86, 48 KiB) and at least 5/8 utilization
+more than 3072 significant bytes (on x86, 27 KiB) and at least 5/8 utilization
 of its root transform, or 3/4 with `cache`. Utilization grows linearly with the
 input from 0.48 just above each transform-length step (`17 * 2^k + 1` bytes) to 0.97.
 With `cache`, cached Matrix leaves speed up only the division tree, so its crossover
 is higher. On Zen 5 the division tree with
-IFMA Karatsuba products is faster up to the 32 KiB sizes. Heavily padded sizes,
+IFMA Karatsuba products is faster up to about 26 KiB. Heavily padded sizes,
 significant inputs above 16 MiB, x86 CPUs without AVX-512F (not measured) and
 other targets keep the division tree. The carry pass runs four
 interleaved chains over quarters of the digits, then adds each quarter's carry
@@ -130,8 +132,8 @@ NTT entry points are outlined to keep large stack frames out of tiny encode call
 
 | Mode | Encode | Decode |
 | --- | --- | --- |
-| Auto, default | Fixed matrices at exactly 32/64 bytes; otherwise batched through 4096 significant bytes, with IFMA Karatsuba at 513–4096; then owned NTT | Tiny through two text bytes; batched through 5120 significant digits; Karatsuba through 5632; then owned NTT |
-| Auto + `cache` | Tiny/fixed routes first; batched below 22 significant bytes; general Matrix through 8192, or 3584 with IFMA; then NTT | Batched below 576 significant digits on NEON/Wasm, 1024 elsewhere; supported medium-size Matrix; then NTT |
+| Auto, default | Fixed matrices at exactly 32/64 bytes; otherwise batched through 4096 significant bytes (3072 with NEON), with IFMA Karatsuba at 449–4096; then owned NTT | Tiny through two text bytes; batched through 5120 significant digits (7250 with NEON, 2560 on Wasm, 1280 with IFMA); Karatsuba through 5632 except on NEON and Wasm; then owned NTT |
+| Auto + `cache` | Tiny/fixed routes first; batched below 52 significant bytes (40 on Wasm with SIMD128); general Matrix through 8192, or 3584 with IFMA; then NTT | Batched below 576 significant digits on NEON/Wasm, 1024 elsewhere; supported medium-size Matrix; then NTT |
 | Without `alloc` | Fixed 32/64-byte matrices; batched elsewhere | Tiny/batched |
 
 Cached decoding uses Matrix only on NEON, Wasm or x86 with SSE4.1. Its upper
@@ -139,6 +141,10 @@ boundary is 5632 significant digits, reduced to 5120 with IFMA. IFMA hosts compi
 with AVX2 use batched decoding from the minimum Matrix size through 5120, then
 NTT above 5120. Targets without a supported Matrix kernel use batched decoding
 through 5632, then NTT. Recursive leaves also have independent thresholds.
+
+The short-leaf decode limits are four leaves (`2 * dc::min_digits()`): with two
+leaves the tree lost to batched decoding on Zen 5 and under V8, with four it won.
+On NEON the NTT decoder overtakes batched decoding before Karatsuba does.
 
 The `cache` feature is an implementation policy, not a runtime API parameter.
 `Ntt::new` owns optional per-call tables and initializes them through mutable
