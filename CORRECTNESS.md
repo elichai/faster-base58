@@ -242,7 +242,7 @@ loops have explicit bounds. Required harnesses use 60/180/360-second budgets.
 | Generic batched decoding | All `58^2` valid two-digit strings and capacities 0–3; numeric value, leading zeros, errors and output canaries |
 | Parsing | All 256 lookup entries; validity through four bytes, zero split through eight, partial chunks through nine; full ten-byte numeric value and invalid rejection by verified composition |
 | Limb arithmetic | Full-width two-limb carry/borrow; one-limb multiplication; single radix updates; three limbs folded into one modulo `2^64 - 1` |
-| NTT scalar operations | Reduction for every `i32`, normalization in `(-q,q)`, loading for every `u32`, all three primes; plan bounds and scale at every power-of-two length 1 through `2^23` |
+| NTT scalar operations | Reduction for every `i32`, normalization in `(-q,q)`, loading for every `u32`, all three primes; plan bounds and scale at every power-of-two length 1 through `2^23`; both inverse butterfly kinds for every input in their ranges and every balanced twiddle (outputs below `1.25 q` and `1.9 q`) |
 | Matrix / IFMA models | Two-column carries; eight-column radix-52 carry; 13 limbs ↔ 16 radix-52 digits through a scalar vector model |
 | Capacity | Actual encoded-bound safety, coverage of input count, endpoint saturation and full adjacent monotonicity; owned decoded-bound arithmetic and safe prefix addition for every 64-bit `usize` |
 | Paired update safety | Full-width stored limb and nonzero top, two spare limb slots, both digits below `58^10`: interleaved and sequential updates succeed; numeric equality remains open |
@@ -252,7 +252,9 @@ and split/Horner contracts are separately proved. Adjacent capacity monotonicity
 uses separately proved affine, clamp and actual-function product contracts.
 The logarithmic argument connecting either capacity bound to actual conversion
 length remains outside Kani's scope. Scalar models do not prove emitted SIMD,
-arbitrary-length conversions or concurrent-cache correctness.
+arbitrary-length conversions or concurrent-cache correctness. The inverse stage
+schedule that chains the proved butterflies is checked by tests and by debug
+assertions in the portable kernel, not by Kani.
 
 Wider paired numeric equality, encoder split/step and fixed carries, actual
 Barrett division and the public borrowed-array wrapper remain unresolved.

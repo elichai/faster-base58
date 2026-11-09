@@ -32,16 +32,17 @@ Ranges for 4 MiB Auto (median [min, max] of process medians):
 
 | Platform / policy | Encode | Decode |
 | --- | ---: | ---: |
-| M5 / default | 219.7 ms [216.8, 226.3] | 141.8 ms [140.5, 142.5] |
-| M5 / cache | 221.5 ms [220.1, 223.4] | 135.9 ms [135.2, 138.4] |
-| x86-64 / default | withdrawn | 153.8 ms [153.0, 154.6] |
-| x86-64 / cache | withdrawn | 148.3 ms [147.5, 150.7] |
-| Wasm / default | 1.74 s [1.73, 1.82] | 856.0 ms [851.3, 860.3] |
-| Wasm / cache | 1.73 s [1.73, 1.79] | 849.5 ms [844.3, 856.5] |
+| M5 / default | withdrawn | withdrawn |
+| M5 / cache | withdrawn | withdrawn |
+| x86-64 / default | withdrawn | withdrawn |
+| x86-64 / cache | withdrawn | withdrawn |
+| Wasm / default | withdrawn | withdrawn |
+| Wasm / cache | withdrawn | withdrawn |
 
 The x86-64 encode ranges, and the README's x86-64 Auto encode cells and bars from
 64 KiB, are withdrawn until remeasured: on AVX-512 CPUs those encodes now take the
-radix route.
+radix route. Every 4 MiB range, and the README's Auto cells and bars from 64 KiB,
+are withdrawn until remeasured: the NTT's inverse transform and Garner step changed.
 
 Default Auto encoding around the fixed 32/64-byte routes:
 
@@ -173,16 +174,17 @@ kernels (portable kernels, autovectorized):
 | 128 B | 1.00 [0.99, 1.02] | 1.00 [0.92, 1.02] | 0.50 [0.50, 0.51] | 1.00 [0.93, 1.08] |
 | 1 KiB | 0.99 [0.98, 1.01] | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
 | 4 KiB | 0.99 [0.97, 1.01] | 1.00 [0.96, 1.02] | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
-| 8 KiB | 0.59 [0.58, 0.59] | 0.63 [0.61, 0.64] | 0.27 [0.27, 0.27] | 0.62 [0.62, 0.65] |
-| 64 KiB | 0.50 [0.50, 0.50] | 0.53 [0.52, 0.54] | 0.50 [0.49, 0.50] | 0.52 [0.51, 0.54] |
-| 4 MiB | 0.46 [0.46, 0.46] | 0.47 [0.46, 0.47] | 0.46 [0.45, 0.46] | 0.46 [0.46, 0.47] |
+| 8 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
+| 64 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
+| 4 MiB | withdrawn | withdrawn | withdrawn | withdrawn |
 
-4 MiB Auto takes 627 ms to encode and 313 ms to decode (default; cache 631 / 312 ms).
+The NTT rows and the 4 MiB SIMD128 times are withdrawn until remeasured: the NTT's
+inverse transform and Garner step changed in both arms.
 Cells that reach no Wasm kernel (batched sizes, fixed 32 bytes) stay within
 0.95–1.05. The stripped Auto probe grows by 414 bytes (default) and 1,447 bytes
-(cache). In the same run, `+simd128` without the explicit kernels took 0.80–0.88 of
-scalar time from 8 KiB (NTT), but 1.24–1.30 times for cached Matrix sizes of
-512 B–8 KiB.
+(cache). In the same run, `+simd128` without the explicit kernels took 1.24–1.30
+times scalar time for cached Matrix sizes of 512 B–8 KiB; its NTT-size ratio is
+withdrawn with the rows above.
 
 ## basexx comparison
 
@@ -304,7 +306,9 @@ Unmeasured candidates, largest expected effect first:
   11% of the 4 MiB peak).
 - NTT: clip the scratch envelope at the prepared length (−3.5 MiB at a 4 MiB
   decode) and reserve the cyclic sums only when used (−2 MiB); quantize cached
-  twiddle classes (−49% worst-case retention, larger first builds).
+  twiddle classes (−49% worst-case retention, larger first builds); a forward
+  transform with Cooley–Tukey butterflies and one twiddle per block, which could
+  use the inverse's reduction schedule (bit-reversed twiddles for the small stages).
 - Division encoder: 5 allocations per call down to 1–2; reuse the dead quotient
   buffer during the remainder product (−10–14% node scratch); non-power-of-two
   wrapped remainders; a scaled remainder tree; Karp–Markstein at the top node.

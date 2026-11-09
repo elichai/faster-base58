@@ -219,15 +219,21 @@ fn dif<V: V16>((x, y): (V, V), (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
     (reduce(x.add(y), c), mont(x.sub(y), w, wq, c.q))
 }
 
-/// A stage of [`portable::inverse`] on one vector of pairs; `LAZY` skips the reductions.
+/// A stage of [`portable::inverse`] on one vector of pairs: `RX` reduces `x` first, `LAST`
+/// the outputs (`portable::reduces_x`).
 #[inline(always)]
-fn dit<V: V16, const LAZY: bool>((x, y): (V, V), (w, wq): (V, V), c: &Consts<V>) -> (V, V) {
+fn dit<V: V16, const RX: bool, const LAST: bool>(
+    (x, y): (V, V),
+    (w, wq): (V, V),
+    c: &Consts<V>,
+) -> (V, V) {
     let t = mont(y, w, wq, c.q);
+    let x = if RX { reduce(x, c) } else { x };
     let (s, d) = (x.add(t), x.sub(t));
-    if LAZY {
-        (s, d)
-    } else {
+    if LAST {
         (reduce(s, c), reduce(d, c))
+    } else {
+        (s, d)
     }
 }
 
@@ -368,19 +374,21 @@ fn forward32<V: V16>(xy: (V, V), b: &Block<V>, c: &Consts<V>) -> (V, V) {
     regroup2(last(xy, c), b.idx[4])
 }
 
-/// The inverse stages `h = 1, 2, 4, 8, 16` on the 32 values at `p`, of a transform of
-/// more than 16 points: `h = 2` and `h = 8` are lazy (`portable::lazy`).
+/// The inverse stages `h = 1, 2, 4, 8, 16` on the 32 values at `p`: `h = 2` and `h = 8`
+/// reduce `x` (`portable::reduces_x`), and `LAST` (32 points) reduces the outputs of
+/// `h = 16`.
 ///
 /// Safety: `V` values may be created; 32 values at `p` are readable and writable.
 #[inline(always)]
-unsafe fn inverse32<V: V16>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
+unsafe fn inverse32<V: V16, const LAST: bool>(p: *mut i32, b: &Block<V>, c: &Consts<V>) {
     // SAFETY: the caller provides 32 readable lanes and permits V creation.
     let xy = unsafe { (V::load(p), V::load(p.add(16))) };
-    let xy = last(regroup2(xy, b.idx[0]), c);
-    let xy = dit::<V, true>(regroup2(xy, b.idx[1]), b.w[3], c);
-    let xy = dit::<V, false>(regroup2(xy, b.idx[2]), b.w[2], c);
-    let xy = dit::<V, true>(regroup2(xy, b.idx[3]), b.w[1], c);
-    let (x, y) = dit::<V, false>(regroup2(xy, b.idx[4]), b.w[0], c);
+    let (x, y) = regroup2(xy, b.idx[0]);
+    let xy = (x.add(y), x.sub(y));
+    let xy = dit::<V, true, false>(regroup2(xy, b.idx[1]), b.w[3], c);
+    let xy = dit::<V, false, false>(regroup2(xy, b.idx[2]), b.w[2], c);
+    let xy = dit::<V, true, false>(regroup2(xy, b.idx[3]), b.w[1], c);
+    let (x, y) = dit::<V, false, LAST>(regroup2(xy, b.idx[4]), b.w[0], c);
     // SAFETY: the caller provides 32 writable lanes; these two stores cover them exactly.
     unsafe {
         x.store(p);
@@ -493,7 +501,6 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, iw: &[i32]) {
     if n < 32 {
         return portable::inverse(a, p, iw);
     }
-    debug_assert!(portable::lazy(2, n) && !portable::lazy(4, n) && portable::lazy(8, n));
     // SAFETY: the caller permits V creation.
     let c = unsafe { Consts::<V>::new(p) };
     let pa = a.as_mut_ptr();
@@ -501,41 +508,36 @@ unsafe fn inverse_v<V: V16>(a: &mut [i32], p: Prime, iw: &[i32]) {
     let b = unsafe { Block::new(iw, c.qinv, &INVERSE) };
     for i in (0..n).step_by(32) {
         // SAFETY: `i + 32 <= n`.
-        unsafe { inverse32(pa.add(i), &b, &c) }
+        unsafe {
+            match n {
+                32 => inverse32::<V, true>(pa.add(i), &b, &c),
+                _ => inverse32::<V, false>(pa.add(i), &b, &c),
+            }
+        }
     }
+    // Every `h` below has odd `log2(h)`, so its stage reduces `x` and `2 h`'s does not.
     let mut h = 32;
     while h < n {
-        if 4 * h <= n {
-            // SAFETY: `4 h <= n` and `n <= iw.len()`.
-            unsafe {
-                match (portable::lazy(h, n), portable::lazy(2 * h, n)) {
-                    (false, false) => inverse4::<V, false, false>(pa, n, h, iw, &c),
-                    (false, true) => inverse4::<V, false, true>(pa, n, h, iw, &c),
-                    (true, false) => inverse4::<V, true, false>(pa, n, h, iw, &c),
-                    (true, true) => inverse4::<V, true, true>(pa, n, h, iw, &c),
-                }
+        debug_assert!(portable::reduces_x(h) && !portable::reduces_x(2 * h));
+        // SAFETY: `4 h <= n` (or `2 h <= n`) and `n <= iw.len()`.
+        unsafe {
+            match n / h {
+                4 => inverse4::<V, true>(pa, n, h, iw, &c),
+                2 => inverse2(pa, n, h, iw, &c),
+                _ => inverse4::<V, false>(pa, n, h, iw, &c),
             }
-            h *= 4;
-        } else {
-            // SAFETY: `2 h <= n` and `n <= iw.len()`.
-            unsafe {
-                match portable::lazy(h, n) {
-                    false => inverse2::<V, false>(pa, n, h, iw, &c),
-                    true => inverse2::<V, true>(pa, n, h, iw, &c),
-                }
-            }
-            h *= 2;
         }
+        h *= 4;
     }
 }
 
-/// The inverse stages `h` and `2 h` on four values `h` apart; `L1` and `L2` skip their
-/// reductions.
+/// The inverse stages `h`, which reduces `x`, and `2 h` on four values `h` apart; `LAST`
+/// reduces the outputs of `2 h`.
 ///
 /// Safety: `V` values may be created; `p` has `n` values, `n` is a multiple of `4 h`,
 /// `h` of 16, and `iw` has at least `4 h`.
 #[inline(always)]
-unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
+unsafe fn inverse4<V: V16, const LAST: bool>(
     p: *mut i32,
     n: usize,
     h: usize,
@@ -557,10 +559,12 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
                     V::load(ps[3]),
                 ];
                 let tw1 = twiddles(w.add(h + j), c.qinv);
-                let (x0, x1) = dit::<V, L1>((x[0], x[1]), tw1, c);
-                let (x2, x3) = dit::<V, L1>((x[2], x[3]), tw1, c);
-                let (x0, x2) = dit::<V, L2>((x0, x2), twiddles(w.add(2 * h + j), c.qinv), c);
-                let (x1, x3) = dit::<V, L2>((x1, x3), twiddles(w.add(3 * h + j), c.qinv), c);
+                let (x0, x1) = dit::<V, true, false>((x[0], x[1]), tw1, c);
+                let (x2, x3) = dit::<V, true, false>((x[2], x[3]), tw1, c);
+                let (x0, x2) =
+                    dit::<V, false, LAST>((x0, x2), twiddles(w.add(2 * h + j), c.qinv), c);
+                let (x1, x3) =
+                    dit::<V, false, LAST>((x1, x3), twiddles(w.add(3 * h + j), c.qinv), c);
                 x0.store(ps[0]);
                 x1.store(ps[1]);
                 x2.store(ps[2]);
@@ -570,17 +574,11 @@ unsafe fn inverse4<V: V16, const L1: bool, const L2: bool>(
     }
 }
 
-/// The inverse stage `h`; `LAZY` skips the reductions.
+/// The last inverse stage `h`, which reduces `x` and its outputs.
 ///
 /// Safety: as [`inverse4`], with `2 h` for `4 h`.
 #[inline(always)]
-unsafe fn inverse2<V: V16, const LAZY: bool>(
-    p: *mut i32,
-    n: usize,
-    h: usize,
-    iw: &[i32],
-    c: &Consts<V>,
-) {
+unsafe fn inverse2<V: V16>(p: *mut i32, n: usize, h: usize, iw: &[i32], c: &Consts<V>) {
     let w = iw.as_ptr();
     for s in (0..n).step_by(2 * h) {
         for j in (0..h).step_by(16) {
@@ -588,7 +586,7 @@ unsafe fn inverse2<V: V16, const LAZY: bool>(
             unsafe {
                 let (px, py) = (p.add(s + j), p.add(s + j + h));
                 let tw = twiddles(w.add(h + j), c.qinv);
-                let (x, y) = dit::<V, LAZY>((V::load(px), V::load(py)), tw, c);
+                let (x, y) = dit::<V, true, true>((V::load(px), V::load(py)), tw, c);
                 x.store(px);
                 y.store(py);
             }

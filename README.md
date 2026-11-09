@@ -186,9 +186,12 @@ Rust 1.99.1 / LLVM 23.1.1, `aarch64-apple-darwin`, five processes.
 | 64 B | **23.8 ns** / 26 ns | 24 ns / **25.9 ns** | 23.9 ns / 27.4 ns | 3 µs / 1.21 µs | 77.6 ns / 95.8 ns |
 | 512 B | 1.9 µs / 704 ns | **581 ns** / **575 ns** | 1.97 µs / 714 ns | 234 µs / 80.9 µs | — / — |
 | 4 KiB | 110 µs / 40.8 µs | **29.1 µs** / **26.1 µs** | 113 µs / 39 µs | 15.5 ms / 5.28 ms | — / — |
-| 64 KiB | 1.97 ms / 1.12 ms | **1.94 ms** / **1.02 ms** | 27.2 ms / 9.43 ms | 4.05 s / 1.37 s | — / — |
-| 1 MiB | **46.2 ms** / 29.1 ms | 46.6 ms / **27.4 ms** | — / — | — / — | — / — |
-| 4 MiB | **220 ms** / 142 ms | 222 ms / **136 ms** | — / — | — / — | — / — |
+| 64 KiB | ‡ / ‡ | ‡ / ‡ | 27.2 ms / 9.43 ms | 4.05 s / 1.37 s | — / — |
+| 1 MiB | ‡ / ‡ | ‡ / ‡ | — / — | — / — | — / — |
+| 4 MiB | ‡ / ‡ | ‡ / ‡ | — / — | — / — | — / — |
+
+‡ Withdrawn until remeasured: the code on this path changed after the measurement.
+The figure's matching bars are withdrawn for the same reason.
 
 ![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
 
@@ -203,9 +206,9 @@ selection, CPU 0 pinned, three processes.
 | 64 B | **31.3 ns** / ‡ | **31.3 ns** / ‡ | 31.4 ns / 46.3 ns | 3.87 µs / 1.25 µs | 116 ns / 122 ns |
 | 512 B | 4.04 µs / 1.02 µs | **1.11 µs** / 1.24 µs | 4.35 µs / **1.01 µs** | 284 µs / 92.1 µs | — / — |
 | 4 KiB | 49.6 µs / 33.1 µs | **40.9 µs** / **27.4 µs** | 267 µs / 54.7 µs | 18.1 ms / 5.84 ms | — / — |
-| 64 KiB | † / 1.35 ms | † / **1.21 ms** | 66.7 ms / 13.4 ms | 4.63 s / 1.48 s | — / — |
-| 1 MiB | † / 31.9 ms | † / **29.8 ms** | — / — | — / — | — / — |
-| 4 MiB | † / 154 ms | † / **148 ms** | — / — | — / — | — / — |
+| 64 KiB | † / ‡ | † / ‡ | 66.7 ms / 13.4 ms | 4.63 s / 1.48 s | — / — |
+| 1 MiB | † / ‡ | † / ‡ | — / — | — / — | — / — |
+| 4 MiB | † / ‡ | † / ‡ | — / — | — / — | — / — |
 
 † Withdrawn until remeasured: on AVX-512 CPUs, Auto encodes above 48 KiB now take
 the division-free radix route. The figure's Auto encode bars from 64 KiB are
@@ -228,9 +231,12 @@ with `+simd128` use Wasm SIMD kernels and are a separate cohort; see the
 | 64 B | 102 ns / ‡ | 102 ns / 132 ns | 101 ns / **126 ns** | 2.88 µs / 834 ns | **93.6 ns** / 127 ns |
 | 512 B | 7.6 µs / ‡ | **2.83 µs** / **2.63 µs** | 7.68 µs / 5.16 µs | 235 µs / 76.3 µs | — / — |
 | 4 KiB | 460 µs / 220 µs | **149 µs** / **126 µs** | 450 µs / 301 µs | 15.7 ms / 5.28 ms | — / — |
-| 64 KiB | 14.9 ms / 6.77 ms | **14.9 ms** / **6.64 ms** | 123 ms / 80.2 ms | 4.05 s / 1.38 s | — / — |
-| 1 MiB | **361 ms** / 174 ms | 365 ms / **173 ms** | — / — | — / — | — / — |
-| 4 MiB | 1.74 s / 856 ms | **1.73 s** / **850 ms** | — / — | — / — | — / — |
+| 64 KiB | ‡ / ‡ | ‡ / ‡ | 123 ms / 80.2 ms | 4.05 s / 1.38 s | — / — |
+| 1 MiB | ‡ / ‡ | ‡ / ‡ | — / — | — / — | — / — |
+| 4 MiB | ‡ / ‡ | ‡ / ‡ | — / — | — / — | — / — |
+
+‡ Withdrawn until remeasured: the code on this path changed after the measurement.
+The figure's matching bars are withdrawn for the same reason.
 
 ‡ Withdrawn until remeasured: the code on this path changed after the measurement.
 The figure's matching bars are withdrawn for the same reason.
