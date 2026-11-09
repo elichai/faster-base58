@@ -190,7 +190,7 @@ pub(crate) mod internals {
         let input = input.as_bytes();
         let (zeros, digits) = crate::common::split_zeros(input);
         let result = if digits.len() < min {
-            crate::batched::decode_parts(input, zeros, output)
+            crate::batched::decode_parts(input, digits, output)
         } else if digits.len() > table::MAX_CHARS {
             crate::dc::decode_parts(
                 input,

@@ -114,24 +114,39 @@ fn validate(data: &[u8], sum: [u8; 4], version: Option<u8>) -> Result<(), Error>
 
 #[inline(always)]
 pub(crate) fn decode(input: &[u8], output: &mut [u8], version: Option<u8>) -> Result<usize, Error> {
-    let (zeros, _) = split_zeros(input);
-    let (frame, sum) = decode_frame(input, zeros, output)?;
+    let (_, digits) = split_zeros(input);
+    let (frame, sum) = decode_frame(input, digits, output)?;
     let len = frame.checked_sub(4).ok_or(Error::MissingChecksum)?;
     validate(&output[..len], sum, version)?;
     Ok(len)
 }
 
-/// Decodes all but the last four frame bytes into `output`. Returns the frame length
+/// Decodes all but the last four frame bytes of `input`, whose significant characters
+/// are its suffix `digits`, into `output`. Returns the frame length
 /// and those four bytes, which `output` need not hold. Backends report only
-/// [`DecodeError`]; checksum and version errors belong to [`decode`].
+/// [`DecodeError`]; checksum and version errors belong to [`decode`]. Inlined for the
+/// reason of `api::decode_parts`.
+#[inline(always)]
 fn decode_frame(
     input: &[u8],
-    zeros: usize,
+    digits: &[u8],
     output: &mut [u8],
 ) -> Result<(usize, [u8; 4]), DecodeError> {
-    match crate::api::decode_backend(input.len() - zeros) {
-        DecodeBackend::Batched => crate::batched::decode_checked_parts(input, zeros, output),
-        #[cfg(all(feature = "alloc", not(feature = "cache")))]
+    // Only the tree backends take the zero count.
+    #[cfg(feature = "alloc")]
+    let zeros = input.len() - digits.len();
+    match crate::api::decode_backend(digits.len()) {
+        DecodeBackend::Batched => crate::batched::decode_checked_parts(input, digits, output),
+        #[cfg(all(
+            feature = "alloc",
+            not(feature = "cache"),
+            not(target_arch = "wasm32"),
+            not(all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ))
+        ))]
         DecodeBackend::Karatsuba => {
             let limbs = crate::dc::decode_value(
                 input,

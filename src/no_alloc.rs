@@ -42,7 +42,7 @@ pub(crate) fn decode(input: &[u8], output: &mut [u8]) -> Result<usize, DecodeErr
     if input.len() <= 2 {
         crate::batched::decode_short(input, output)
     } else {
-        let (zeros, _) = split_zeros(input);
-        crate::batched::decode_parts(input, zeros, output)
+        let (_, digits) = split_zeros(input);
+        crate::batched::decode_parts(input, digits, output)
     }
 }
