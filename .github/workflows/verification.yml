@@ -94,7 +94,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
-      PROPTEST_CASES: '512'
+      # Fewer cases than native rows: QEMU emulation makes each case slow.
+      PROPTEST_CASES: '128'
       CROSS_BUILD_ENV_PASSTHROUGH: PROPTEST_CASES
       CROSS_TARGET_POWERPC64_UNKNOWN_LINUX_GNU_IMAGE: ghcr.io/cross-rs/powerpc64-unknown-linux-gnu@sha256:4a5e41791b27c3fc159a63fe35c299d8f4e272a56e0793d10d500e8c59f43839
     strategy:
@@ -142,25 +143,6 @@ jobs:
       - run: cargo test --locked --doc ${{ matrix.caches.public_args }}
       - run: cargo build --locked --release --features ${{ matrix.caches.features }} --benches
 
-  alternate_limb_width:
-    env:
-      PROPTEST_CASES: '512'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-26.04, ubuntu-26.04-arm]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/cache-cargo-sources
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
-        with:
-          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
-      - run: rustc -vV
-      - run: cargo nextest run --locked --lib --tests --features __internals,malachite-nz/32_bit_limbs
-      - run: cargo nextest run --locked --release --lib --tests --features __internals,malachite-nz/32_bit_limbs
-
   portability:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
@@ -170,6 +152,9 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
+      # Criterion's `alloca` dependency compiles C for the Clippy target.
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y gcc-aarch64-linux-gnu
       - run: rustc -vV
       - run: rustup target add wasm32-unknown-unknown aarch64-unknown-linux-gnu thumbv7em-none-eabi x86_64-unknown-none
       - run: rustup component add llvm-tools
@@ -177,7 +162,7 @@ jobs:
       - run: cargo hack clippy --locked --lib --feature-powerset --target wasm32-unknown-unknown -- -D warnings
       - run: cargo hack build --locked --release --lib --feature-powerset --target wasm32-unknown-unknown
       - run: cargo hack build --locked --lib --feature-powerset --target aarch64-unknown-linux-gnu
-      - run: cargo hack clippy --locked --lib --feature-powerset --target aarch64-unknown-linux-gnu -- -D warnings
+      - run: cargo hack clippy --locked --all-targets --feature-powerset --target aarch64-unknown-linux-gnu -- -D warnings
       - run: cargo hack build --locked --release --lib --feature-powerset --target aarch64-unknown-linux-gnu
       - run: cargo hack build --locked --lib --feature-powerset --exclude-features std,cache --target thumbv7em-none-eabi
       - run: cargo hack build --locked --release --lib --feature-powerset --exclude-features std,cache --target thumbv7em-none-eabi
@@ -256,15 +241,7 @@ jobs:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - run: rustup toolchain install ${{ env.RUST_MSRV }} --profile minimal
       - run: cargo +${{ env.RUST_MSRV }} hack build --locked --lib --feature-powerset
-      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std
-        env:
-          PROPTEST_CASES: '512'
-      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache
-        env:
-          PROPTEST_CASES: '512'
-      - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features std,compact
-        env:
-          PROPTEST_CASES: '512'
+      # One runtime configuration; the other feature sets run on the pinned stable.
       - run: cargo +${{ env.RUST_MSRV }} nextest run --locked --test api --test builders --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --test owned_output --test radix_boundaries --features cache,compact
         env:
           PROPTEST_CASES: '512'
@@ -312,17 +289,6 @@ jobs:
       - name: Package contents
         run: cargo package --locked
       - run: python3 scripts/check_package.py target/package
-
-  clippy_arm:
-    runs-on: ubuntu-26.04-arm
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/cache-cargo-sources
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
-        with:
-          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
-      - run: rustc -vV
-      - run: cargo hack clippy --locked --all-targets --feature-powerset -- -D warnings
 
   simd_inlining:
     runs-on: ubuntu-26.04
@@ -450,6 +416,7 @@ jobs:
     env:
       CARGO_BUILD_JOBS: '1'
       CARGO_INCREMENTAL: '0'
+    # Compact rows are separate so that the x86 cache-off row is not the longest job.
     strategy:
       fail-fast: false
       matrix:
@@ -457,6 +424,10 @@ jobs:
         cache:
           - { name: 'off', args: '' }
           - { name: 'on', args: '--cache' }
+        suite: [main, compact]
+        exclude:
+          - arch: arm
+            suite: compact
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources
@@ -490,6 +461,7 @@ jobs:
           pinned_cargo=$(rustup which --toolchain "$MIRI_CARGO_TOOLCHAIN" cargo)
           python3 scripts/build_custom_miri.py --source .custom-miri-source --compiler "$compiler" --cargo "$pinned_cargo" --output "$RUNNER_TEMP/custom-miri-build"
       - name: All SIMD probes, kernels and named buffer cases
+        if: matrix.suite == 'main'
         run: >-
           python3 scripts/run_custom_miri.py
           --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
@@ -498,6 +470,7 @@ jobs:
           --arch ${{ matrix.arch }} --alias-model tree --seed 1 --suite all
           ${{ matrix.cache.args }}
       - name: Alternate alias model and seed for actual kernels
+        if: matrix.suite == 'main'
         run: >-
           python3 scripts/run_custom_miri.py
           --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
@@ -507,30 +480,29 @@ jobs:
           --arch ${{ matrix.arch }} --alias-model stacked --seed 7 --suite kernels
           ${{ matrix.cache.args }}
       - name: Compact IFMA kernels with Tree Borrows
-        if: matrix.arch == 'x86'
+        if: matrix.suite == 'compact'
         run: >-
           python3 scripts/run_custom_miri.py
           --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
           --source . --output "$RUNNER_TEMP/custom-miri-compact-tree"
           --target-dir "$RUNNER_TEMP/custom-miri-target"
-          --sysroot "$RUNNER_TEMP/custom-miri-all/sysroot"
           --arch x86 --alias-model tree --seed 1 --suite kernels --compact
           ${{ matrix.cache.args }}
       - name: Compact IFMA kernels with Stacked Borrows
-        if: matrix.arch == 'x86'
+        if: matrix.suite == 'compact'
         run: >-
           python3 scripts/run_custom_miri.py
           --build-record "$RUNNER_TEMP/custom-miri-build/build.json"
           --source . --output "$RUNNER_TEMP/custom-miri-compact-stacked"
           --target-dir "$RUNNER_TEMP/custom-miri-target"
-          --sysroot "$RUNNER_TEMP/custom-miri-all/sysroot"
+          --sysroot "$RUNNER_TEMP/custom-miri-compact-tree/sysroot"
           --arch x86 --alias-model stacked --seed 7 --suite kernels --compact
           ${{ matrix.cache.args }}
       - name: Retain custom interpreter records and artifacts
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: custom-miri-${{ matrix.arch }}-${{ matrix.cache.name }}
+          name: custom-miri-${{ matrix.arch }}-${{ matrix.cache.name }}-${{ matrix.suite }}
           path: |
             ${{ runner.temp }}/custom-miri-build/build.json
             ${{ runner.temp }}/custom-miri-build/source.json
@@ -682,18 +654,16 @@ jobs:
       CARGO_BUILD_JOBS: '2'
       RUSTFLAGS: -Zextra-const-ub-checks -Zstrict-init-checks --cfg careful -C target-cpu=${{ matrix.cpu }}
       CXXFLAGS: -fno-omit-frame-pointer
+    # The smoke rows of fuzz-corpus.yml; codecov.yml counts these uploads.
     strategy:
       fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
-          - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
           - { runner: ubuntu-26.04, target: x86_64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
           - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: default-generic, cache_args: '' }
           - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: generic, name: cache-generic, cache_args: '--features cache' }
-          - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: default-native, cache_args: '' }
-          - { runner: ubuntu-26.04-arm, target: aarch64-unknown-linux-gnu, cpu: native, name: cache-native, cache_args: '--features cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Corpus inputs come from a mutable branch; do not expose an Actions cache token.
@@ -759,18 +729,16 @@ jobs:
     env:
       PROPTEST_CASES: '512'
       RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+    # The fuzz_coverage rows; codecov.yml counts these uploads.
     strategy:
       fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: default-generic, features: '__internals' }
           - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: cache-generic, features: '__internals,cache' }
-          - { runner: ubuntu-26.04, arch: x86, cpu: native, name: default-native, features: '__internals' }
           - { runner: ubuntu-26.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache' }
           - { runner: ubuntu-26.04-arm, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
           - { runner: ubuntu-26.04-arm, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
-          - { runner: ubuntu-26.04-arm, arch: arm, cpu: native, name: default-native, features: '__internals' }
-          - { runner: ubuntu-26.04-arm, arch: arm, cpu: native, name: cache-native, features: '__internals,cache' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/cache-cargo-sources

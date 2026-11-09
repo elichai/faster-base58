@@ -58,18 +58,18 @@ jobs:
     # minutes on x86-64 runners. candidate_smoke replays the same seeds and the
     # minimized corpus that smoke replays after publication.
     timeout-minutes: 60
+    # Only `src/api.rs` reads a non-baseline target feature at compile time (AVX2,
+    # with cache), so one native row covers it; other native rows changed only
+    # codegen. candidate_smoke must keep the same rows.
     strategy:
       fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
           - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -106,18 +106,15 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
     needs: corpus_snapshot
     timeout-minutes: 50
+    # Mutation and minimization use generic builds only; see smoke.
     strategy:
       fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
           - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -171,9 +168,9 @@ jobs:
           retention-days: 14
 
   # Each replay build keeps the inputs that add libFuzzer coverage features beyond
-  # the deterministic seeds. Builds differ in compiled SIMD paths (CPU) and cache
-  # code, so every row merges the same union and candidate_smoke takes the union of
-  # all eight results. Merging needs coverage counters, not ASan, so these builds
+  # the deterministic seeds. Builds differ in architecture and cache code, so every
+  # row merges the same union and candidate_smoke takes the union of all four
+  # results. Merging needs coverage counters, not ASan, so these builds
   # use --sanitizer none to finish faster; the candidate replay uses ASan.
   # `cargo fuzz cmin` is not used: it exits 0 when the merge fails and cannot
   # start from the seeds. libFuzzer's merge skips an input that crashes, times out
@@ -188,12 +185,8 @@ jobs:
         include:
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
           - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -251,18 +244,16 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
     needs: minimize
     timeout-minutes: 60
+    # The smoke rows: a published input must pass every row that smoke replays.
     strategy:
       fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-26.04, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
           - { runner: ubuntu-26.04-arm, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04-arm, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
