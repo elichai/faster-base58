@@ -2,7 +2,7 @@
 
 use super::{bits, min_digits, split_zeros, ten_digits};
 use crate::BufferTooSmall;
-use crate::common::{ALPHABET, BASE};
+use crate::common::{ALPHABET, BASE, store_low_le};
 
 /// Input bytes per limb update. `2^56 < BASE`, which [`Limbs::step`] relies on.
 const STEP: usize = 7;
@@ -62,7 +62,10 @@ pub(crate) fn encode_parts(
     limbs.feed(x);
     let Limbs { len, top, .. } = limbs;
     let n = write(rest, anchor, len, top)?;
-    ones.fill(b'1');
+    // Most inputs have no leading zeros, and an empty fill is still a `memset` call.
+    if zeros != 0 {
+        ones.fill(b'1');
+    }
     Ok(zeros + n)
 }
 
@@ -132,7 +135,7 @@ fn write(buf: &mut [u8], anchor: usize, len: usize, top: u64) -> Result<usize, B
     assert!(n <= anchor + 2, "min_digits is too low");
     let out = buf.get_mut(..n).ok_or(BufferTooSmall)?;
     let mut pos = 10 - skip;
-    out[..pos].copy_from_slice(&top_digits[skip..]);
+    store_last(&mut out[..pos], top_digits);
     for i in (0..len).rev() {
         let at = anchor - 8 * (i + 1);
         let limb = u64::from_ne_bytes(out[at..at + 8].try_into().unwrap());
@@ -140,6 +143,25 @@ fn write(buf: &mut [u8], anchor: usize, len: usize, top: u64) -> Result<usize, B
         pos += 10;
     }
     Ok(n)
+}
+
+/// Writes the last `out.len()` (1 to 10) bytes of `digits` with fixed-width stores. A
+/// variable-length copy compiles to a stack spill and a `memcpy` call.
+#[inline(always)]
+fn store_last(out: &mut [u8], digits: [u8; 10]) {
+    let [d0, d1, low @ ..] = digits;
+    let low = u64::from_le_bytes(low);
+    let len = out.len();
+    debug_assert!((1..=10).contains(&len));
+    // The last bytes of a little-endian word are its high bytes.
+    if len < 8 {
+        store_low_le(out, low >> (8 * (8 - len)));
+    } else {
+        let (high, rest) = out.split_at_mut(len - 8);
+        let first = u64::from(u16::from_le_bytes([d0, d1]));
+        store_low_le(high, first >> (8 * (10 - len)));
+        rest.copy_from_slice(&low.to_le_bytes());
+    }
 }
 
 /// `(y * 2^56 / BASE, y * 2^56 % BASE)` for `y < BASE`. Depends only on `y`, so it is off
@@ -277,6 +299,23 @@ fn step_limb(y: u64, c: u64) -> (u64, u64) {
     let (q, r) = split(y);
     let (t, k) = reduce(r + c);
     (t, q + k)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn store_last_writes_only_its_bytes() {
+        let digits = *b"0123456789";
+        for len in 1..=10 {
+            let mut buf = [0xA5; 12];
+            store_last(&mut buf[1..1 + len], digits);
+            assert_eq!(buf[1..1 + len], digits[10 - len..], "len {len}");
+            assert_eq!(buf[0], 0xA5);
+            assert!(buf[1 + len..].iter().all(|&b| b == 0xA5), "len {len}");
+        }
+    }
 }
 
 #[cfg(kani)]

@@ -199,8 +199,8 @@ selection, CPU 0 pinned, three processes.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 30 ns / **23.8 ns** | 30 ns / 25.3 ns | **29.9 ns** / 24.7 ns | 901 ns / 322 ns | 52.9 ns / 48.5 ns |
-| 64 B | **31.3 ns** / **46.2 ns** | **31.3 ns** / 46.9 ns | 31.4 ns / 46.3 ns | 3.87 µs / 1.25 µs | 116 ns / 122 ns |
+| 32 B | 30 ns / ‡ | 30 ns / ‡ | **29.9 ns** / 24.7 ns | 901 ns / 322 ns | 52.9 ns / 48.5 ns |
+| 64 B | **31.3 ns** / ‡ | **31.3 ns** / ‡ | 31.4 ns / 46.3 ns | 3.87 µs / 1.25 µs | 116 ns / 122 ns |
 | 512 B | 4.04 µs / 1.02 µs | **1.11 µs** / 1.24 µs | 4.35 µs / **1.01 µs** | 284 µs / 92.1 µs | — / — |
 | 4 KiB | 49.6 µs / 33.1 µs | **40.9 µs** / **27.4 µs** | 267 µs / 54.7 µs | 18.1 ms / 5.84 ms | — / — |
 | 64 KiB | † / 1.35 ms | † / **1.21 ms** | 66.7 ms / 13.4 ms | 4.63 s / 1.48 s | — / — |
@@ -210,6 +210,9 @@ selection, CPU 0 pinned, three processes.
 † Withdrawn until remeasured: on AVX-512 CPUs, Auto encodes above 48 KiB now take
 the division-free radix route. The figure's Auto encode bars from 64 KiB are
 withdrawn for the same reason.
+
+‡ Withdrawn until remeasured: the code on this path changed after the measurement.
+The figure's matching bars are withdrawn for the same reason.
 
 ![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
 

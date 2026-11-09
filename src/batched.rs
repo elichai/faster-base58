@@ -46,7 +46,10 @@ pub(crate) fn decode_parts(
     let tail = buf.get_mut(8 * len..n).ok_or(BufferTooSmall)?;
     store_low_le(tail, top);
     buf[..n].reverse();
-    zero_bytes.fill(0);
+    // Most inputs have no leading zeros, and an empty fill is still a `memset` call.
+    if zeros != 0 {
+        zero_bytes.fill(0);
+    }
     Ok(zeros + n)
 }
 

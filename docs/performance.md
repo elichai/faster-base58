@@ -47,16 +47,19 @@ Default Auto encoding around the fixed 32/64-byte routes:
 
 | Payload | M5 | x86-64 | Wasm |
 | --- | ---: | ---: | ---: |
-| 16 B | 14.3 ns | 25.8 ns | 22 ns |
-| 21 B | 15.1 ns | 27.8 ns | 27 ns |
-| 22 B | 17.1 ns | 31.8 ns | 31.4 ns |
+| 16 B | 14.3 ns | withdrawn | 22 ns |
+| 21 B | 15.1 ns | withdrawn | 27 ns |
+| 22 B | 17.1 ns | withdrawn | withdrawn |
 | 31 B | 24.9 ns | 43.4 ns | 50.2 ns |
 | 32 B | 11.9 ns | 30 ns | 25.6 ns |
-| 33 B | 24.9 ns | 43.2 ns | 49.5 ns |
+| 33 B | withdrawn | 43.2 ns | 49.5 ns |
 | 63 B | 57.7 ns | 108 ns | 146 ns |
 | 64 B | 23.8 ns | 31.3 ns | 102 ns |
 | 65 B | 59.5 ns | 108 ns | 161 ns |
 | 128 B | 154 ns | 321 ns | 527 ns |
+
+Cells marked withdrawn reach the batched encoder's top-digit store and leading fill,
+which changed; they wait for remeasurement.
 
 Not measured: cold calls, owned-output helpers, checked conversion, native CPU
 flags and other compilers.
