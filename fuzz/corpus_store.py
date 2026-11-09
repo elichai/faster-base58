@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Validate and add fuzz inputs to a content-addressed corpus."""
+"""Validate content-addressed fuzz corpora and write inputs into them."""
 
 import argparse
 import hashlib
 import json
 import re
+import shutil
 import stat
+import tempfile
 from pathlib import Path
 
 TARGETS = ("encode_all", "decode_all", "encode_full_width", "encode_radix_full_width")
@@ -60,8 +62,16 @@ def validate(root, max_bytes=MAX_BYTES, max_items=MAX_ITEMS, max_total_bytes=MAX
                 raise ValueError(f"corpus exceeds {max_total_bytes} byte limit")
 
 
-def stage(incoming, corpus, max_bytes=MAX_BYTES):
-    """Add valid artifact files under their SHA-256 names without replacement."""
+def target_digests(root, max_bytes=MAX_BYTES):
+    """Map each target directory under root to the SHA-256 digests of its files."""
+    return {
+        target: {content_digest for _entry, _data, content_digest
+                 in _inputs(root / target, max_bytes, canonical=False)}
+        for target in TARGETS if (root / target).exists()
+    }
+
+
+def _add(incoming, corpus, max_bytes, exclude):
     if corpus.is_symlink():
         raise ValueError(f"corpus root is not a directory: {corpus}")
     corpus.mkdir(parents=True, exist_ok=True)
@@ -73,7 +83,10 @@ def stage(incoming, corpus, max_bytes=MAX_BYTES):
         destination.mkdir(parents=True, exist_ok=True)
         if destination.is_symlink() or not destination.is_dir():
             raise ValueError(f"corpus target is not a directory: {destination}")
+        skip = exclude.get(directory.name, ())
         for _entry, data, content_digest in _inputs(directory, max_bytes, canonical=False):
+            if content_digest in skip:
+                continue
             output = destination / content_digest
             if output.exists() or output.is_symlink():
                 if not _regular(output) or output.read_bytes() != data:
@@ -82,8 +95,42 @@ def stage(incoming, corpus, max_bytes=MAX_BYTES):
             with output.open("xb") as file:
                 file.write(data)
             added[directory.name].append(content_digest)
-    validate(corpus, max_bytes=max_bytes)
     return {target: values for target, values in added.items() if values}
+
+
+def stage(incoming, corpus, max_bytes=MAX_BYTES):
+    """Add valid artifact files under their SHA-256 names without replacement."""
+    added = _add(incoming, corpus, max_bytes, {})
+    validate(corpus, max_bytes=max_bytes)
+    return added
+
+
+def replace(incoming, corpus, exclude=None, max_bytes=MAX_BYTES):
+    """Replace corpus with the union of the incoming roots.
+
+    Inputs whose bytes occur under ``exclude/<target>`` are skipped. An existing
+    corpus must validate before it is removed.
+    """
+    if corpus.is_symlink():
+        raise ValueError(f"corpus root is not a directory: {corpus}")
+    if corpus.exists():
+        validate(corpus, max_bytes=max_bytes)
+    excluded = target_digests(exclude, max_bytes) if exclude else {}
+    corpus.parent.mkdir(parents=True, exist_ok=True)
+    fresh = Path(tempfile.mkdtemp(prefix=f".{corpus.name}-", dir=corpus.parent))
+    try:
+        for target in TARGETS:
+            (fresh / target).mkdir()
+        for root in incoming:
+            _add(root, fresh, max_bytes, excluded)
+        validate(fresh, max_bytes=max_bytes)
+    except BaseException:
+        shutil.rmtree(fresh)
+        raise
+    if corpus.exists():
+        shutil.rmtree(corpus)
+    fresh.rename(corpus)
+    return {target: sum(1 for _ in (corpus / target).iterdir()) for target in TARGETS}
 
 
 def main():
@@ -92,11 +139,19 @@ def main():
     stage_parser = commands.add_parser("stage", help="add artifact inputs to a corpus")
     stage_parser.add_argument("incoming", type=Path)
     stage_parser.add_argument("corpus", type=Path)
+    replace_parser = commands.add_parser("replace", help="replace a corpus with the union of inputs")
+    replace_parser.add_argument("incoming", type=Path, nargs="+")
+    replace_parser.add_argument("corpus", type=Path)
+    replace_parser.add_argument("--exclude", type=Path, metavar="ROOT",
+                                help="skip inputs whose bytes occur under ROOT/<target>")
     validate_parser = commands.add_parser("validate", help="validate a replay corpus")
     validate_parser.add_argument("corpus", type=Path)
     args = parser.parse_args()
     if args.command == "stage":
         print(json.dumps(stage(args.incoming, args.corpus), sort_keys=True))
+    elif args.command == "replace":
+        counts = replace(args.incoming, args.corpus, exclude=args.exclude)
+        print(json.dumps(counts, sort_keys=True))
     else:
         validate(args.corpus)
 

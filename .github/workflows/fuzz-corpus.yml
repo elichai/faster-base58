@@ -54,7 +54,10 @@ jobs:
 
   smoke:
     needs: corpus_snapshot
-    timeout-minutes: 45
+    # Building and replaying only the deterministic seeds takes up to about 31
+    # minutes on x86-64 runners. candidate_smoke replays the same seeds and the
+    # minimized corpus that smoke replays after publication.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -167,22 +170,30 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  candidate_smoke:
+  # Each replay build keeps the inputs that add libFuzzer coverage features beyond
+  # the deterministic seeds. Builds differ in compiled SIMD paths (CPU) and cache
+  # code, so every row merges the same union and candidate_smoke takes the union of
+  # all eight results. Merging needs coverage counters, not ASan, so these builds
+  # use --sanitizer none to finish faster; the candidate replay uses ASan.
+  # `cargo fuzz cmin` is not used: it exits 0 when the merge fails and cannot
+  # start from the seeds. libFuzzer's merge skips an input that crashes, times out
+  # or exceeds the RSS limit and retries, so any retry fails the step.
+  minimize:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
     needs: [corpus_snapshot, nightly]
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-26.04, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -202,10 +213,8 @@ jobs:
         with:
           pattern: fuzz-corpus-nightly-*
           path: incoming
-      - run: |
-          for run in incoming/*; do
-            python3 fuzz/corpus_store.py stage "$run/campaign" .fuzz-corpus/corpora
-          done
+      - run: python3 fuzz/seed_corpus.py
+      - run: python3 fuzz/corpus_store.py replace .fuzz-corpus/corpora incoming/*/campaign fuzz/union --exclude fuzz/corpus
       - if: runner.os == 'Linux'
         run: sudo apt-get update
       - if: runner.os == 'Linux'
@@ -216,37 +225,104 @@ jobs:
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
+      - run: mkdir -p fuzz/minimized fuzz/logs
+      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/minimized/
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-default-features ${{ matrix.args }} encode_all fuzz/minimized/encode_all fuzz/union/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_all.log
+          grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_all.log
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-default-features ${{ matrix.args }} decode_all fuzz/minimized/decode_all fuzz/union/decode_all -- -merge=1 -max_len=89502 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/decode_all.log
+          grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/decode_all.log
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/minimized/encode_full_width fuzz/union/encode_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_full_width.log
+          grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_full_width.log
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/minimized/encode_radix_full_width fuzz/union/encode_radix_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_radix_full_width.log
+          grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_radix_full_width.log
+      # The seeds in each result are removed again when the union is formed.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-corpus-minimized-${{ matrix.arch }}-${{ matrix.cpu }}-${{ matrix.label }}
+          path: fuzz/minimized
+          if-no-files-found: error
+          retention-days: 14
+
+  candidate_smoke:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
+    needs: minimize
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-26.04, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04-arm, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04-arm, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04-arm, cpu: native, label: default, args: '', full_width_args: '--features full-width' }
+          - { runner: ubuntu-26.04-arm, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+      RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Candidate inputs derive from a mutable branch; do not expose an Actions cache token.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: fuzz-corpus-minimized-*
+          path: minimized
       - run: python3 fuzz/seed_corpus.py
-      - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
+      - run: python3 fuzz/corpus_store.py replace minimized/* fuzz/candidate --exclude fuzz/corpus
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
+      - uses: ./.github/actions/nightly-toolchain
+        with:
+          components: rust-src
+      - if: runner.os == 'Linux'
+        uses: ./.github/actions/setup-clang23
+      - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
+      - run: cp -a fuzz/candidate/. fuzz/corpus/
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
+  # Publishing replaces corpora/ with the candidate union; Git history keeps the
+  # removed inputs. Minimization may drop an input that fails on current code, so
+  # publishing also needs smoke, which replays the pinned corpus with ASan.
   publish:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly && inputs.publish)
-    needs: [corpus_snapshot, nightly, candidate_smoke]
+    needs: [corpus_snapshot, smoke, nightly, minimize, candidate_smoke]
     runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Start from the snapshot that was minimized; the rebase below keeps inputs
+      # that another ref published since.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ github.event.repository.full_name }}
-          ref: fuzz-corpus
+          ref: ${{ needs.corpus_snapshot.outputs.revision }}
           path: .fuzz-corpus
       - run: mkdir -p .fuzz-corpus/corpora
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
+          pattern: fuzz-corpus-minimized-*
+          path: minimized
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
           pattern: fuzz-corpus-nightly-*
           path: incoming
-      - run: |
-          for run in incoming/*; do
-            python3 fuzz/corpus_store.py stage "$run/campaign" .fuzz-corpus/corpora
-          done
-      - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
+      - run: python3 fuzz/seed_corpus.py
+      - run: python3 fuzz/corpus_store.py replace minimized/* .fuzz-corpus/corpora --exclude fuzz/corpus
       - run: mkdir -p .fuzz-corpus/runs/${{ github.run_id }}
       - run: |
           for run in incoming/*; do
@@ -254,7 +330,7 @@ jobs:
           done
       - run: git -C .fuzz-corpus config user.name github-actions[bot]
       - run: git -C .fuzz-corpus config user.email 41898282+github-actions[bot]@users.noreply.github.com
-      - run: git -C .fuzz-corpus add corpora runs
+      - run: git -C .fuzz-corpus add -A corpora runs
       - run: git -C .fuzz-corpus diff --cached --quiet || git -C .fuzz-corpus commit -m "fuzz corpus ${{ github.run_id }}"
       - run: git -C .fuzz-corpus pull --rebase origin fuzz-corpus
       - run: |
