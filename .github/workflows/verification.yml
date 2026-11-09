@@ -844,6 +844,9 @@ jobs:
         run: python3 scripts/kani_guard.py -- sh scripts/kani-production.sh
       - name: Two-digit batched decoder
         # SAT avoids Kani 0.68's SMT-lowering failure for this harness.
+        # The four-limb paired loop (UNROLL_PAIRED) is unreachable here but CBMC still
+        # unrolls it: 381 s vs 261 s with it disabled under cfg(kani) (M5, Kani 0.68).
+        # Disabling it would verify different code than ships, so the timeout is raised.
         env:
           CARGO_BUILD_JOBS: '1'
           CARGO_INCREMENTAL: '0'
@@ -852,7 +855,7 @@ jobs:
           python3 scripts/kani_guard.py -- cargo kani --lib --exact
           --harness verification::two_digit_batched_decoding_matches_radix_and_capacity
           -Z function-contracts -Z stubbing -Z unstable-options
-          --harness-timeout 360s --output-format regular --solver cadical
+          --harness-timeout 600s --output-format regular --solver cadical
       # Wider experimental obligations have separate documented timeout results.
       - run: >-
           python3 scripts/kani_guard.py -- cargo kani --lib --harness ntt::proofs:: --harness matrix::proofs::
