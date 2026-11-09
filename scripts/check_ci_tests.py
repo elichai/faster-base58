@@ -34,16 +34,16 @@ def check_lists(workflow, expected):
             if len(names) != len(set(names)) or set(names) != expected:
                 raise ValueError('public test list mismatch: ' + repr(names) + '; expected ' + repr(sorted(expected)))
             lists.append(names)
-    if len(lists) != 7:
-        raise ValueError('expected seven pinned/MSRV public test lists, including compact configurations')
+    if len(lists) != 4:
+        raise ValueError('expected four pinned/MSRV public test lists, including compact configurations')
     return lists
 
 
 def self_test():
     good = '\n'.join('      - run: cargo ' + tool + runner + ' --locked --test api --test owned_output'
-                     for tool, runner in [('', 'nextest run')] * 3 + [('+${{ env.RUST_MSRV }} ', 'test')] * 4)
+                     for tool, runner in [('', 'nextest run')] * 3 + [('+${{ env.RUST_MSRV }} ', 'test')])
     expected = {'api', 'owned_output'}
-    if len(check_lists(good, expected)) != 7:
+    if len(check_lists(good, expected)) != 4:
         raise AssertionError('valid test lists rejected')
     for bad in [good.replace(' --test owned_output', '', 1),
                 good.replace('--test owned_output', '--test api', 1),

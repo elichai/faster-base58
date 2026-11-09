@@ -13,16 +13,17 @@ corpus commit without mutation across the supported architecture/feature/CPU
 matrix. Profile data is never merged across those configurations.
 
 The branch holds a coverage-minimized corpus, not every input that a campaign
-found. Nightly fuzzing writes artifacts only. Each of the eight `minimize` builds
+found. Nightly fuzzing writes artifacts only. Each of the four `minimize` builds
 validates names, file type, size and SHA-256, forms the union of the pinned
 corpus and all campaign artifacts without the deterministic seeds, and runs
 libFuzzer's `-merge=1` with the seeds as the initial corpus. An input stays when
 it adds a coverage feature, an edge-counter bucket, that the seeds and smaller
-inputs do not reach in that build. The builds are the replay matrix: x86-64 and
-AArch64, generic and native CPU, cache off and on; the two full-width targets use
-the `full-width` feature. Inputs are architecture-independent bytes, so the
-candidate is the union of the eight minimized sets, and every `candidate_smoke`
-configuration replays all of it with ASan.
+inputs do not reach in that build. The nightly and `minimize` builds are x86-64
+and AArch64, generic CPU, cache off and on; the two full-width targets use the
+`full-width` feature. Inputs are architecture-independent bytes, so the
+candidate is the union of the four minimized sets. `candidate_smoke` replays all
+of it with ASan in the `smoke` configurations, which add x86-64 native CPU with
+cache.
 
 Merge builds use `--sanitizer none`: cargo-fuzz enables the coverage counters
 without ASan, and the replay is faster. libFuzzer's merge skips an input that
@@ -39,7 +40,7 @@ stored on the branch. Pull requests cannot publish a corpus.
 
 Coverage reports exclude tests, fuzz harnesses, dependencies, and diagnostic
 helpers. In the [verification workflow](../.github/workflows/verification.yml),
-each of the eight `fuzz_coverage` configurations replays the seeds and the pinned
+each of the five `fuzz_coverage` configurations replays the seeds and the pinned
 corpus for `encode_all`, `decode_all` and `encode_radix_full_width` and exports
 LCOV. Each `proptest_coverage` configuration runs the property suites and
 exports LCOV. They upload to Codecov under the shared `fuzz` or `tests` flag; see

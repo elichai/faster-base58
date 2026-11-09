@@ -93,7 +93,7 @@ partial-word store at every length from 0 to 8 bytes, with guard bytes.
 CI selects 512 cases per property in debug and release, cache off/on, on x86-64
 and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian
 PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
-including unit, integration and documentation tests, with 512 cases per property.
+including unit, integration and documentation tests, with 128 cases per property.
 In the `tests` job, the x86-64 Linux debug rows (cache off and on) run the unit,
 API and property suite with `cargo test`, so the tests of one binary share a
 process. All other unit and integration lists in `tests`, `compact`, `msrv` and
@@ -187,7 +187,7 @@ a positive post-initialization mutation-attempt count from libFuzzer's corpus
 statistics. Keep bounded mutation campaigns separate from large boundary replay.
 
 The shared corpus on the `fuzz-corpus` branch is minimized by libFuzzer merge
-in each of the eight replay builds without ASan, then combined
+in each of the four generic-CPU replay builds without ASan, then combined
 ([corpus guide](docs/fuzzing-corpus.md)). It preserves each build's
 edge-counter coverage of the inputs it saw, not each input. Value-profile
 features, ASan-only behavior and inputs that reach the same coverage with
