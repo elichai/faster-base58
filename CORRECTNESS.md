@@ -5,7 +5,8 @@ tests, native sanitizers, Miri and scoped Kani proofs. Each checks different
 properties. Passing these checks does not prove arbitrary-length conversion or
 the semantics of every SIMD instruction. The implementation map is in
 [DESIGN.md](DESIGN.md); repeatable jobs are in
-[the workflow](.github/workflows/verification.yml).
+[the workflow](.github/workflows/verification.yml), and [CI.md](CI.md) gives
+their local commands.
 
 ## Recorded check scope
 
@@ -21,7 +22,7 @@ IFMA and VBMI it passes the `__internals` suites with and without `cache` with
 
 The default-on `alloc` feature enables allocating backends and owned results.
 `cache` and `__internals` imply `alloc`. Allocation-free public tests run with
-`cargo test --locked --no-default-features --features check --test no_alloc`.
+`--no-default-features --features check`.
 The downstream API checker also checks owned/check method availability and
 rejects the removed free functions and `no_alloc` module.
 
@@ -93,19 +94,23 @@ CI selects 512 cases per property in debug and release, cache off/on, on x86-64
 and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian
 PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
 including unit, integration and documentation tests, with 512 cases per property.
-Native unit and integration rows use Nextest except for x86-64 Linux debug,
-cache-off/on shared-process rows; documentation examples remain Cargo tests.
-The cross revision and container image digest are pinned, and so are the toolchains:
-stable in [rust-toolchain.toml](rust-toolchain.toml), which also applies to local
-builds in the repository, and the nightly in
+In the `tests` job, the x86-64 Linux debug rows (cache off and on) run the unit,
+API and property suite with `cargo test`, so the tests of one binary share a
+process. All other unit and integration lists in `tests`, `compact`,
+`alternate_limb_width`, `msrv` and `pointer_width_32` use Nextest, including the
+arm64 Linux debug rows. Documentation examples and the two ignored boundary tests
+(16 MiB radix and `2^23`-point transform) use `cargo test`. The cross revision
+and container image digest are pinned, and so are the toolchains: stable in
+[rust-toolchain.toml](rust-toolchain.toml), which also applies to local builds in
+the repository, and the nightly in
 [ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml). Dependabot
-proposes toolchain updates. Other
-jobs cover 32-bit Linux, Malachite's 32-bit limb
+proposes toolchain updates. Other jobs cover 32-bit Linux, Malachite's 32-bit limb
 mode, bare-metal no_std builds, Wasm/AArch64 builds, Rust 1.95, API namespace
 boundaries, Clippy, formatting and package contents. Build checks alone
 do not execute kernels. The maximum `2^23`-point transform test runs separately;
 two expensive Matrix sweeps execute with `cache` rather than rebuilding the
-same owned tables for every size.
+same owned tables for every size. [CI.md](CI.md#test-jobs) gives the local
+commands for these rows.
 
 The SIMD inlining job builds the Auto consumer library with generic CPU flags for
 x86-64 and arm64 Linux, each default, `cache` and `compact`, on one x86-64 runner
@@ -125,17 +130,6 @@ which cross-compiles x86-64:
 docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
 ```
 
-```sh
-PROPTEST_CASES=512 cargo nextest run --locked --features __internals --lib --tests
-PROPTEST_CASES=512 cargo nextest run --locked --features __internals,cache --lib --tests
-cargo nextest run --locked --release --features __internals --lib --tests
-cargo test --locked --features __internals --lib --tests # shared-process lane
-cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored --exact
-cargo test --locked --features check --test builders --test no_alloc
-cargo test --locked --no-default-features --features check --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core
-cargo test --locked --doc --features check
-```
-
 Wasm SIMD128 kernels build only with `+simd128` and have unit tests against the
 portable kernels: exact NTT kernels and lane arithmetic, Matrix parsing (every byte
 value at every block position) and panels, 64-byte column sums and whole encodes
@@ -144,11 +138,7 @@ They run under a WASI engine together with the rest of the library unit tests. T
 `wasm_simd128` CI job runs them with wasmtime 50.0.1 and `__internals,cache`
 features; default features were also run locally. WASI preview 1 cannot spawn threads or
 processes, so those tests are skipped, and `should_panic` tests are ignored there
-because Wasm panics abort.
-
-```sh
-CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime RUSTFLAGS="-C target-feature=+simd128" cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib -- --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
-```
+because Wasm panics abort. [CI.md](CI.md#test-jobs) gives the local commands.
 
 ## Fuzzing and sanitizers
 
@@ -273,15 +263,8 @@ closed by verified composition.
 
 ## Reproduce and update checks
 
-Use the feature/target matrix and pinned tools in
-[the verification workflow](.github/workflows/verification.yml). The commands
-above cover ordinary local tests; compact, native sanitizer, Miri and proof rows
-need their own selections and hosts. [Fuzzing](fuzz/README.md) documents campaign
-and boundary replay commands. [Development Miri](ci/miri/README.md) describes
-the pinned interpreter; [the extended runner](scripts/miri-extended.sh) isolates
-stock unsupported-intrinsic diagnostics. The workflow selects the full required
-Kani set; [kani-production.sh](scripts/kani-production.sh) runs the tiny public
-conversion and alphabet obligations only.
+[CI.md](CI.md) lists every CI job and repository script with its trigger,
+platforms, prerequisites, host limits and local commands.
 
 When code changes, record the tested source, tool versions, features, target,
 actual execution host and selected tests. Distinguish compiled, executed,
@@ -302,10 +285,17 @@ not refresh a prior result. For performance and memory work, use the separate
    replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
    are finite.
-4. Run the native AVX-512 kernel tests on IFMA hardware in every CI run:
-   `avx512_matches_reference` and `avx512_matches_portable` skip unless
-   `BASE58_REQUIRE_IFMA` is set, which only the sanitizer and custom-Miri jobs set,
-   and the IFMA-only dispatch arms run only when a runner has IFMA.
+4. Run the native AVX-512 kernel tests on AVX-512 hardware in every CI run.
+   `mul_ifma::tests::avx512_matches_reference` needs AVX-512F and IFMA;
+   `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F. Without the
+   feature, each prints `skipped:` and passes; with `BASE58_REQUIRE_IFMA` set, each
+   fails instead. Both compile only for x86-64, so CI can run them only in the
+   x86-64 rows of `tests`, `compact` and `alternate_limb_width`; the
+   `native_sanitizers` memory rows also run `avx512_matches_reference`. No CI job
+   sets the variable: `native_sanitizers` does not pass `--require-ifma`, and the
+   custom Miri runner sets it but `ci/miri/coverage.json` selects neither test.
+   The kernels therefore execute in CI only when a hosted runner has the features,
+   and a skip passes. The IFMA-only dispatch arms also run only on such a runner.
 5. Repeat deployment-specific performance, peak memory and linked-size checks
    using [the measurement guide](docs/performance.md).
 6. Resolve any confirmed source-adaptation notice obligations described in

@@ -17,8 +17,15 @@ names, file type, size, and SHA-256; replays additions; and publishes an
 additive union with a rebase retry. Pull requests cannot publish a corpus.
 
 Coverage reports exclude tests, fuzz harnesses, dependencies, and diagnostic
-helpers. Each fuzz-smoke and property-test configuration exports LCOV and
-uploads it to Codecov under the shared `fuzz` or `tests` flag; see `codecov.yml`.
+helpers. In the [verification workflow](../.github/workflows/verification.yml),
+each of the eight `fuzz_coverage` configurations replays the seeds and the pinned
+corpus for `encode_all`, `decode_all` and `encode_radix_full_width` and exports
+LCOV. Each `proptest_coverage` configuration runs the property suites and
+exports LCOV. They upload to Codecov under the shared `fuzz` or `tests` flag; see
+`codecov.yml`.
+The `smoke` job of the [fuzz corpus workflow](../.github/workflows/fuzz-corpus.yml)
+exports no coverage: it replays the seeds and the pinned corpus through all four
+targets with ASan, without mutation.
 
 ## One-time branch bootstrap
 
