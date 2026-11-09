@@ -29,7 +29,6 @@ faster_base58::api::decode
 faster_base58::dc::dc::<faster_base58::ntt::Ntt>
 faster_base58::dc::decode_value::<faster_base58::ntt::Ntt>
 faster_base58::dc::powers::<faster_base58::ntt::Ntt>
-faster_base58::dc::write_bytes
 faster_base58::encode::batched::encode_parts
 faster_base58::encode::dc::be_bytes
 faster_base58::encode::dc::encode_limbs::<faster_base58::ntt::Ntt>
