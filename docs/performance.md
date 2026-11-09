@@ -314,20 +314,27 @@ V8 14.6.202.34 with `--no-liftoff --no-wasm-lazy-compilation
 loaded the host (load average about 5); A/A medians stay within 0.97–1.03. Wasm
 division trees keep Horner leaves under both policies, and the `cache` cells (to
 544 KiB) match the default ones within 0.04, so the table gives the default build.
-Cells are medians of per-round radix/division ratios at 8.5 KiB–8.5 MiB:
 
-| Used | Scalar | `simd128` |
-| ---: | ---: | ---: |
-| 0.48 | 0.93–1.10 | 0.59–0.91 |
-| 0.51 | 1.06 | 0.67 |
-| 0.57 | 0.89–0.92 | 0.57–0.75 |
-| 0.62 | 0.84–0.86 | 0.53–0.63 |
-| 0.68 | 0.76–0.79 | 0.52–0.59 |
-| 0.75 | 0.72 | 0.55 |
-| 0.91 | 0.58 | 0.45 |
+Each time cell is the radix route's time divided by the division tree's time, for
+the same input: below 1 the radix route is faster. A cell is the median of the
+per-round ratios; a range covers the measured sizes with that used fraction, from
+the smallest size to the largest. The last column says which build selects the
+route at that fraction (scalar Wasm needs 9/16 = 0.5625; `simd128` has no rule).
 
-The scalar cells at 0.48 rise with size (above 1 from 64 KiB). With `simd128` they
-rise too, to 0.91 at 8.5 MiB; the transform limit stops the route at 16 MiB.
+| Root transform used | Sizes measured | Scalar: radix / division | `simd128`: radix / division | Route selected |
+| ---: | --- | ---: | ---: | --- |
+| 0.48 | 8.5 KiB–8.5 MiB | 0.93 → 1.10 | 0.59 → 0.91 | `simd128` only |
+| 0.51 | 9 KiB | 1.06 | 0.67 | `simd128` only |
+| 0.57 | 10 KiB–5 MiB | 0.89–0.92 | 0.57 → 0.75 | both |
+| 0.62 | 11 KiB, 88 KiB | 0.84–0.86 | 0.53–0.63 | both |
+| 0.68 | 12–96 KiB | 0.76–0.79 | 0.52–0.59 | both |
+| 0.75 | 105 KiB | 0.72 | 0.55 | both |
+| 0.91 | 16 KiB | 0.58 | 0.45 | both |
+
+An arrow marks a ratio that rises steadily with input size. At 0.48 used, the
+scalar route is faster up to 34 KiB and slower from 68 KiB (scalar sizes stop at
+1.06 MiB). With `simd128` it stays faster at every size, though the gain shrinks:
+0.91 at 8.5 MiB. The transform limit stops the route at 16 MiB.
 
 Below the default encoder's NTT threshold the alternative is batched encoding. The
 forced route took 0.97 of batched time at 768 B with `simd128` (1.03 at 736 B,
