@@ -184,7 +184,7 @@ Rust 1.99.1 / LLVM 23.1.1, `aarch64-apple-darwin`, five processes.
 |---|---:|---:|---:|---:|---:|
 | 32 B | 11.9 ns / 13.7 ns | 11.9 ns / 13.7 ns | **9.9 ns** / **13.6 ns** | 822 ns / 339 ns | 31.7 ns / 32.5 ns |
 | 64 B | **23.8 ns** / 26 ns | 24 ns / **25.9 ns** | 23.9 ns / 27.4 ns | 3 µs / 1.21 µs | 77.6 ns / 95.8 ns |
-| 512 B | 1.9 µs / 704 ns | **581 ns** / **575 ns** | 1.97 µs / 714 ns | 234 µs / 80.9 µs | — / — |
+| 512 B | 1.9 µs / 704 ns | **581 ns** / ‡ | 1.97 µs / 714 ns | 234 µs / 80.9 µs | — / — |
 | 4 KiB | 110 µs / 40.8 µs | **29.1 µs** / **26.1 µs** | 113 µs / 39 µs | 15.5 ms / 5.28 ms | — / — |
 | 64 KiB | ‡ / ‡ | ‡ / ‡ | 27.2 ms / 9.43 ms | 4.05 s / 1.37 s | — / — |
 | 1 MiB | ‡ / ‡ | ‡ / ‡ | — / — | — / — | — / — |
@@ -229,14 +229,11 @@ with `+simd128` use Wasm SIMD kernels and are a separate cohort; see the
 |---|---:|---:|---:|---:|---:|
 | 32 B | **25.6 ns** / ‡ | 25.6 ns / 53 ns | 25.7 ns / 49.1 ns | 623 ns / 218 ns | 45.6 ns / **41.5 ns** |
 | 64 B | 102 ns / ‡ | 102 ns / 132 ns | 101 ns / **126 ns** | 2.88 µs / 834 ns | **93.6 ns** / 127 ns |
-| 512 B | 7.6 µs / ‡ | **2.83 µs** / **2.63 µs** | 7.68 µs / 5.16 µs | 235 µs / 76.3 µs | — / — |
+| 512 B | 7.6 µs / ‡ | **2.83 µs** / ‡ | 7.68 µs / 5.16 µs | 235 µs / 76.3 µs | — / — |
 | 4 KiB | 460 µs / 220 µs | **149 µs** / **126 µs** | 450 µs / 301 µs | 15.7 ms / 5.28 ms | — / — |
 | 64 KiB | ‡ / ‡ | ‡ / ‡ | 123 ms / 80.2 ms | 4.05 s / 1.38 s | — / — |
 | 1 MiB | ‡ / ‡ | ‡ / ‡ | — / — | — / — | — / — |
 | 4 MiB | ‡ / ‡ | ‡ / ‡ | — / — | — / — | — / — |
-
-‡ Withdrawn until remeasured: the code on this path changed after the measurement.
-The figure's matching bars are withdrawn for the same reason.
 
 ‡ Withdrawn until remeasured: the code on this path changed after the measurement.
 The figure's matching bars are withdrawn for the same reason.
