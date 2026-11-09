@@ -138,13 +138,19 @@ or withdraw them.
 
 ## Timing limits
 
-Code placement can move a cell more than many source changes do. On Zen 5, paths a
-change does not touch can move by up to ±20% between builds, and loading the same
-library at another address can move a 1 KiB encode by 12%. The placement of a
-library file's pages matters as well: in one Zen 5 run the original probe file took
-1.87× as long as each of three byte-identical copies on a 32 KiB decode, and 1.2×
-on an 8 KiB encode. On the M5, default 512 B decoding depends on loop alignment by
-10–20%. Therefore:
+Code placement can move a cell more than many source changes do. On Zen 5 (GCP EPYC
+9B45, 2026-11-07, Auto probes):
+
+- a loop whose closing branch straddles a 64-byte line ran 1.2–1.3× slower, so a
+  16-byte shift of unrelated code moved such cells by that much;
+- the placement of a library file's pages matters as well: in one run the original
+  probe file took 1.87× as long as each of three byte-identical copies on a 32 KiB
+  decode, and 1.2× on an 8 KiB encode, so the same binary can change speed between
+  files and VM sessions;
+- loading the same library at another address can move a 1 KiB encode by 12%.
+
+On the M5, LLVM function and loop alignment options moved cells by up to 7%.
+Therefore:
 
 - compare variants only within one paired run (`--baseline`); on Zen 5 also pass
   `--copies 4`, which times fresh copies of each library file and compares
@@ -197,11 +203,12 @@ and drops inside the loop; bs58 and Auto reuse caller output.
 | --- | ---: | ---: | ---: | ---: |
 | Encode / 1 KiB | 7.3 µs | 1.02 ms | 22.8 µs | 869 µs |
 | Encode / 4 KiB | 111 µs | 16.8 ms | 182 µs | 13.5 ms |
-| Decode / 1 KiB | 2.87 µs | 341 µs | 5.8 µs | 323 µs |
-| Decode / 4 KiB | 42.2 µs | 5.48 ms | 71 µs | 5.29 ms |
+| Decode / 1 KiB | withdrawn | 341 µs | 5.8 µs | 323 µs |
+| Decode / 4 KiB | withdrawn | 5.48 ms | 71 µs | 5.29 ms |
 
 Reproduce with `cargo bench --features __internals --bench encode` (or `decode`),
-filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`.
+filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`. The Auto decode cells are
+withdrawn until remeasured: the decoders' paired multiply-add loop changed.
 
 ## Cache and memory
 
