@@ -9,13 +9,36 @@ use crate::common::{BASE, CHUNK, DecodeError, UNROLL_PAIRED, all_valid, invalid,
 use crate::{BufferTooSmall, matrix, mul};
 use alloc::vec::Vec;
 
-/// Inputs with more chunks than this use divide-and-conquer. Below it,
-/// [`crate::batched::decode_batched`] is faster.
-pub(crate) const DC_THRESHOLD: usize = 512;
-
 /// Leaves have at most this many chunks.
 pub(crate) const LEAF: usize = 256;
-const _: () = assert!(LEAF <= DC_THRESHOLD);
+
+/// Shorter leaves where products are cheap relative to the quadratic leaves. Against
+/// 256, 128 took 0.89-0.98x the time for 4 KiB to 256 KiB decodes under V8 (scalar Wasm)
+/// but 1.02-1.07x on M5; 384 and 512 took 1.1-1.4x under V8.
+const WASM_LEAF: usize = 128;
+
+/// [`LEAF`] when Karatsuba has the AVX-512 IFMA leaf. On Zen 5, 128 took 0.76-0.97x the
+/// time of 256 for 4 KiB to 1 MiB decodes, and 64 a further 0.87-0.99x of 128; 160 and
+/// 192 were 3-28% slower than 128.
+pub(crate) const IFMA_LEAF: usize = 64;
+
+/// The leaf size for this target and CPU.
+fn max_leaf() -> usize {
+    if mul::ifma_threshold() != 0 {
+        IFMA_LEAF
+    } else if cfg!(target_arch = "wasm32") {
+        WASM_LEAF
+    } else {
+        LEAF
+    }
+}
+
+/// Divide and conquer needs more significant digits than this, so that it splits at
+/// least once. Automatic selection keeps [`crate::batched::decode_batched`] for longer
+/// inputs too, up to per-target limits in `api.rs`.
+pub(crate) fn min_digits() -> usize {
+    max_leaf() * CHUNK
+}
 
 /// Like [`crate::batched::decode_batched`], but subquadratic for large inputs.
 ///
@@ -159,7 +182,7 @@ pub(crate) fn decode_with_leaf(
 ) -> Result<usize, Error> {
     let input = input.as_bytes();
     let (zeros, digits) = split_zeros(input);
-    let result = if digits.len() <= DC_THRESHOLD * CHUNK {
+    let result = if digits.len() <= min_digits() {
         crate::batched::decode_parts(input, zeros, output)
     } else {
         decode_parts(input, zeros, output, m, leaf)
@@ -168,7 +191,7 @@ pub(crate) fn decode_with_leaf(
 }
 
 /// Divide-and-conquer conversion after stripping leading `'1'` bytes.
-/// Requires more than `DC_THRESHOLD * CHUNK` significant characters.
+/// Requires more than [`min_digits`] significant characters.
 pub(crate) fn decode_parts(
     input: &[u8],
     zeros: usize,
@@ -196,7 +219,7 @@ pub(crate) fn decode_value(
 ) -> Result<Vec<u64>, DecodeError> {
     let digits = &input[zeros..];
     assert!(
-        digits.len() > DC_THRESHOLD * CHUNK,
+        digits.len() > min_digits(),
         "value is too short for divide and conquer"
     );
     debug_assert_ne!(digits[0], b'1');
@@ -210,7 +233,8 @@ pub(crate) fn decode_value(
     if !all_valid(digits) {
         return Err(invalid(input));
     }
-    let (unit, levels) = split_unit(n);
+    let max_leaf = max_leaf();
+    let (unit, levels) = split_unit_leaf(n, max_leaf);
     // Powers have at most `e` limbs, and `hi` at most `n - e <= e`.
     let e = unit << (levels - 1);
     // Each product is `hi * BASE^e'` with `hi < BASE^e` (`BASE < 2^59`) and `e' <= e`,
@@ -221,7 +245,7 @@ pub(crate) fn decode_value(
     let (limbs, rest) = buf.split_at_mut(n);
     let (table, scratch) = rest.split_at_mut(table_len);
     let powers = powers(unit, levels, table, scratch, m, true);
-    let len = dc(limbs, digits, &powers[..levels], scratch, m, leaf);
+    let len = dc(limbs, digits, &powers[..levels], scratch, m, leaf, max_leaf);
     buf.truncate(len);
     Ok(buf)
 }
@@ -343,18 +367,13 @@ impl<'a> Power<'a> {
     }
 }
 
-/// More than [`split_unit`] can return for any `usize`.
+/// More than [`split_unit_leaf`] can return for any `usize`.
 pub(crate) const MAX_LEVELS: usize = usize::BITS as usize;
 
-/// The smallest `levels` with `unit = ceil(n / 2^levels) <= LEAF`, and that `unit`.
+/// The smallest `levels` with `unit = ceil(n / 2^levels) <= leaf`, and that `unit`.
 ///
 /// [`dc`] splits at `unit * 2^i` chunks for `i < levels`, so the top split is at about
 /// `n / 2` and every level is balanced.
-pub(crate) fn split_unit(n: usize) -> (usize, usize) {
-    split_unit_leaf(n, LEAF)
-}
-
-/// [`split_unit`] with leaves of at most `leaf` chunks.
 pub(crate) fn split_unit_leaf(n: usize, leaf: usize) -> (usize, usize) {
     let (mut unit, mut levels) = (n, 0);
     while unit > leaf {
@@ -448,9 +467,10 @@ fn dc(
     scratch: &mut [u64],
     m: &mut impl Multiplier,
     leaf: Leaf,
+    max_leaf: usize,
 ) -> usize {
     let n = out.len();
-    if n <= LEAF {
+    if n <= max_leaf {
         if leaf == Leaf::Matrix {
             return matrix::leaf(out, digits).expect("`decode_with` validates the digits");
         }
@@ -458,18 +478,18 @@ fn dc(
         values(digits, &mut parsed[..n]);
         return mul_add_chunks(out, 0, &parsed[..n]);
     }
-    // value = hi * BASE^p.exp + lo. `powers[0].exp <= LEAF`, so `p` exists,
+    // value = hi * BASE^p.exp + lo. `powers[0].exp <= max_leaf`, so `p` exists,
     // and the next power is at least `n`, so `hi` is no longer than `lo`.
     let i = powers.partition_point(|p| p.exp < n) - 1;
     let p = &powers[i];
     let (hi, lo) = digits.split_at(digits.len() - p.exp * CHUNK);
     // `t` holds `hi`, then `lo`. `BASE^p.exp < 2^(64 * p.exp)`, so `end <= n`.
     let (t, scratch) = scratch.split_at_mut(p.exp);
-    let hn = dc(&mut t[..n - p.exp], hi, powers, scratch, m, leaf);
+    let hn = dc(&mut t[..n - p.exp], hi, powers, scratch, m, leaf, max_leaf);
     let end = p.shift + p.limbs.len() + hn;
     out[..p.shift].fill(0);
     m.mul_power(&mut out[p.shift..end], &t[..hn], i, p.limbs, scratch);
-    let ln = dc(t, lo, powers, scratch, m, leaf);
+    let ln = dc(t, lo, powers, scratch, m, leaf, max_leaf);
     // lo < BASE^p.exp, so it fits below `end` and the sum does not overflow.
     let carry = mul::add_assign(&mut out[..end], &t[..ln]);
     debug_assert!(!carry);
@@ -566,7 +586,7 @@ mod tests {
     #[test]
     fn matches_batched() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(3);
-        let t = DC_THRESHOLD * CHUNK;
+        let t = min_digits();
         // 163_850 digits are 16385 chunks, whose first leaf has 2 chunks.
         for len in [t + 1, 2 * t + 1, 10_000, 40_960, 100_001, 163_850] {
             // 58^len - 1 maximises carries.
@@ -651,7 +671,8 @@ mod tests {
     #[test]
     fn multiplier_contract() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(5);
-        for len in [DC_THRESHOLD * CHUNK + 1, 10_000, 40_960] {
+        // Two levels at least, so that one power is prepared.
+        for len in [2 * min_digits() + 1, 10_000, 40_960] {
             let s = random_string(&mut rng, len);
             let mut m = Checked::new();
             let mut out = vec![0; len];
@@ -691,7 +712,7 @@ mod tests {
     /// value of `d` digits, `58^(d - 1)`, into a buffer of exactly its length.
     #[test]
     fn early_check_is_a_lower_bound() {
-        for d in DC_THRESHOLD * CHUNK + 1..DC_THRESHOLD * CHUNK + 300 {
+        for d in min_digits() + 1..min_digits() + 300 {
             let s = format!("2{}", "1".repeat(d - 1));
             let want = decode_vec(decode_batched, &s).unwrap();
             let mut out = vec![0; want.len()];

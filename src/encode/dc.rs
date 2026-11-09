@@ -38,9 +38,9 @@ pub(crate) mod karatsuba {
     /// so favours smaller leaves: on Zen 5, 96 took 13-29% longer than 32 at 2-8 KiB.
     const DC_IFMA_LEAF: usize = 32;
 
-    /// [`DC_THRESHOLD`] with the IFMA leaf. On Zen 5 divide and conquer with 32-chunk leaves
-    /// tied [`crate::encode::encode_batched`] at 512 bytes and took 28% less time at 768.
-    pub(crate) const DC_IFMA_THRESHOLD: usize = 512;
+    /// [`DC_THRESHOLD`] with the IFMA leaf. On Zen 5 public encodes with divide and conquer
+    /// from 384 bytes took 1.08x the time at 384 bytes, 1.03x at 448 and 0.82x at 512.
+    pub(crate) const DC_IFMA_THRESHOLD: usize = 448;
 
     pub(crate) fn params() -> (usize, usize) {
         match crate::mul::ifma_threshold() {

@@ -52,9 +52,6 @@ faster_base58::ntt::transform
 
 [!cache]
 <alloc::raw_vec::RawVec<faster_base58::encode::matrix::table::Panel>>::grow_one
-faster_base58::common::values
-faster_base58::dc::dc::<faster_base58::dc::Karatsuba>
-faster_base58::dc::decode_value::<faster_base58::dc::Karatsuba>
 # Also out of line in x86_64 `cache` builds, not in aarch64 ones.
 faster_base58::dc::mul_add_chunks
 
@@ -164,6 +161,10 @@ faster_base58::matrix::x86::avx2
 faster_base58::matrix::x86::sse41
 
 [x86_64 !cache]
+# Karatsuba decoding, which NEON builds do not reach.
+faster_base58::common::values
+faster_base58::dc::dc::<faster_base58::dc::Karatsuba>
+faster_base58::dc::decode_value::<faster_base58::dc::Karatsuba>
 faster_base58::cpu::detect_avx2::init_get::init_inner
 faster_base58::cpu::detect_avx512f::init_get::init_inner
 faster_base58::cpu::detect_ifma::init_get::init_inner
@@ -185,7 +186,6 @@ faster_base58::mul_ifma::avx512::kernel_tf::<11>
 faster_base58::mul_ifma::avx512::kernel_tf::<12>
 
 [x86_64 cache]
-faster_base58::batched::decode_parts
 faster_base58::dc::mul_add_chunks
 # The AVX2 Matrix decoder conversion, parser and panel; `parse` checks the CPU and
 # selects `parse_avx2`.

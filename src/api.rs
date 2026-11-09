@@ -100,11 +100,9 @@ pub(crate) fn decode_parts(
     zeros: usize,
     output: &mut [u8],
 ) -> Result<usize, DecodeError> {
-    let digits = input.len() - zeros;
-    if digits <= decode_small_limit() {
-        return crate::batched::decode_parts(input, zeros, output);
-    }
-    match decode_backend(digits) {
+    // One selection, so that the batched decoder has one call site: a second CPU check
+    // left two, and LLVM stopped inlining it (8-32 byte decodes 7-16% slower on Zen 5).
+    match decode_backend(input.len() - zeros) {
         DecodeBackend::Batched => crate::batched::decode_parts(input, zeros, output),
         #[cfg(not(feature = "cache"))]
         DecodeBackend::Karatsuba => crate::dc::decode_parts(
@@ -132,13 +130,17 @@ pub(crate) enum DecodeBackend {
     Ntt,
 }
 
+/// Whether `digits` significant characters use the batched decoder.
 #[cfg(any(feature = "alloc", feature = "check"))]
 #[inline(always)]
-fn decode_small_limit() -> usize {
+fn decode_is_small(digits: usize) -> bool {
     core::cfg_select! {
-        not(feature = "alloc") => { usize::MAX }
+        not(feature = "alloc") => {
+            let _ = digits;
+            true
+        }
         feature = "cache" => {
-            if cfg!(all(
+            digits <= if cfg!(all(
                 target_arch = "aarch64",
                 target_endian = "little",
                 target_feature = "neon"
@@ -149,14 +151,33 @@ fn decode_small_limit() -> usize {
                 1023
             }
         }
-        _ => { crate::dc::DC_THRESHOLD * crate::common::CHUNK }
+        // With short leaves (Wasm, IFMA) the tree wins from four leaves: Karatsuba took
+        // 1.07x the batched time at 1224 digits and 0.85x at 1311 on Zen 5, and the NTT
+        // decoder 1.07x at 2447 digits and 0.94-0.97x at 2622 under V8. On M5 Karatsuba
+        // took 1.14-1.22x at 6.6-8.4 thousand digits, and the NTT decoder 1.01x at 7167
+        // digits and 0.97x at 7342.
+        _ => {
+            if cfg!(target_arch = "wasm32") {
+                digits <= 2 * crate::dc::min_digits()
+            } else if cfg!(all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            )) {
+                digits <= 7250
+            } else {
+                // The IFMA limit first, so that shorter inputs skip CPU detection.
+                digits <= 2 * crate::dc::IFMA_LEAF * crate::common::CHUNK
+                    || (digits <= 5120 && crate::mul::ifma_threshold() == 0)
+            }
+        }
     }
 }
 
 #[cfg(any(feature = "alloc", feature = "check"))]
 #[inline(always)]
 pub(crate) fn decode_backend(digits: usize) -> DecodeBackend {
-    if digits <= decode_small_limit() {
+    if decode_is_small(digits) {
         return DecodeBackend::Batched;
     }
     core::cfg_select! {
@@ -189,8 +210,11 @@ pub(crate) fn decode_backend(digits: usize) -> DecodeBackend {
             }
             DecodeBackend::Batched
         }
+        // Under V8 with SIMD128 the NTT decoder took 0.56-0.83x Karatsuba's time from 3496
+        // digits. Scalar Wasm Karatsuba was up to 7% faster at 3496-4195 digits, the NTT
+        // decoder from 4545 (0.95x at 5594).
         _ => {
-            if digits <= 5632 {
+            if digits <= 5632 && !cfg!(target_arch = "wasm32") {
                 DecodeBackend::Karatsuba
             } else {
                 DecodeBackend::Ntt

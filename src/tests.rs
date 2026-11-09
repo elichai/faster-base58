@@ -3,8 +3,8 @@
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
-use crate::common::{ALPHABET, CHUNK, DIGITS, all_valid};
-use crate::dc::DC_THRESHOLD;
+use crate::common::{ALPHABET, DIGITS, all_valid};
+use crate::dc::min_digits;
 use crate::internals::{
     decode_batched, decode_karatsuba, decode_matrix, decode_matrix_portable, decode_ntt,
     decode_ntt_cached, decode_ntt_portable,
@@ -82,8 +82,8 @@ fn matches_bs58() {
         rng.fill_bytes(&mut v);
         v
     };
-    // Bytes that encode to about `DC_THRESHOLD` chunks: log(58) / log(256) ≈ 0.732.
-    let t = DC_THRESHOLD * CHUNK * 732 / 1000;
+    // Bytes that encode to about `min_digits()` digits: log(58) / log(256) ≈ 0.732.
+    let t = min_digits() * 732 / 1000;
     for len in (0..=300).chain(t - 15..=t + 15).chain([1024, 4096, 8192]) {
         let random = random_bytes(&mut rng, len);
         let mut leading_zeros = random.clone();
@@ -163,7 +163,7 @@ fn large_inputs_match_batched() {
 #[test]
 fn random_buffer_sizes() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(6);
-    let t = DC_THRESHOLD * CHUNK;
+    let t = min_digits();
     for round in 0..300 {
         let len = rng.next_u32() as usize % if round % 3 == 0 { 2 * t } else { 1500 };
         let mut s = random_string(&mut rng, len);
@@ -210,7 +210,7 @@ fn random_buffer_sizes() {
 #[test]
 fn errors_match_bs58() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(4);
-    let t = DC_THRESHOLD * CHUNK;
+    let t = min_digits();
     for len in [0, 1, 9, 10, 11, 100, t + 1, 2 * t] {
         // Leading '1's take a separate path.
         let valid = format!("11{}", random_string(&mut rng, len));

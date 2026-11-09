@@ -15,7 +15,10 @@ use crate::common::ALPHABET;
 const BASE: u32 = 58u32.pow(3);
 const LEAF_BYTES: usize = 32;
 const LEAF_DIGITS: usize = crate::encode::max_encoded_len(LEAF_BYTES).div_ceil(3);
-const THRESHOLD: usize = 64;
+/// Products whose shorter operand has fewer digits than this use schoolbook
+/// multiplication. Against 64, 32 took 0.97-0.99x the time from 64 KiB on Zen 5 and was
+/// within 1.5% on M5; 128 was 2-10% slower on both.
+const THRESHOLD: usize = 32;
 
 // A transform has at most 2^23 coefficients. Each ordinary product coefficient
 // sums at most 2^22 digit products; two primes therefore determine it exactly.
@@ -115,8 +118,10 @@ fn preferred(bytes: usize) -> bool {
 }
 
 /// The smallest input is larger on x86. On Zen 5 (IFMA Karatsuba in the division
-/// tree) this route took 1.23-2.54x the division tree's time at 4-16 KiB and
-/// 0.95-1.06x around 32 KiB. AVX-512 CPUs without IFMA are not measured.
+/// tree, `benches/radix_tune.rs`) this route took 1.23-2.54x the division tree's time
+/// at 4-16 KiB, and less from about 27 KiB. AVX-512 CPUs without IFMA are not measured.
+/// On M5 it took 0.95x the batched encoder's time at 3200 bytes and 1.01x at 3072, so it
+/// matches the encoders' `ENCODE_THRESHOLD` there.
 #[cfg(any(
     test,
     all(
@@ -127,9 +132,9 @@ fn preferred(bytes: usize) -> bool {
     all(target_arch = "x86_64", target_feature = "sse2")
 ))]
 const MIN_BYTES: usize = if cfg!(target_arch = "x86_64") {
-    48 << 10
+    27 << 10
 } else {
-    4096
+    3072
 };
 
 fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
@@ -633,8 +638,8 @@ mod tests {
 
     #[test]
     fn selection_preserves_fallback_and_short_buffers() {
-        // Below 5/8 of the root transform used, and below 4097 bytes.
-        for bytes in [4096, 4353, 8705, 17_409, 69_633, 89_976, 557_057] {
+        // At most `MIN_BYTES`, or below 5/8 of the root transform used.
+        for bytes in [MIN_BYTES, 4353, 8705, 17_409, 69_633, 89_976, 557_057] {
             assert_eq!(try_encode(0, &vec![255; bytes], &mut []), None);
         }
         // From 5/8 to below 3/4 used: only without `cache`; then also with it.

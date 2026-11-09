@@ -8,7 +8,7 @@ avoids internal allocation, and its general large conversions remain quadratic.
 
 ## Results
 
-Measured **2026-11-05** with ordinary public consumers:
+Measured **2026-11-09** with ordinary public consumers:
 `code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
 `Decoder::bitcoin().decode(..).onto(..)`, with no `__internals`. Release opt-level
 3, fat LTO, 16 codegen units, generic target flags (`RUSTFLAGS=""`). Default and
@@ -18,49 +18,46 @@ Measured **2026-11-05** with ordinary public consumers:
 | Platform | Compiler / runtime | Clock, processes |
 | --- | --- | --- |
 | Apple M5 Pro, macOS 26.7.2, AC power | Rust 1.99.1 / LLVM 23.1.1 | process CPU, 5 |
-| GCP AMD EPYC 9B45 (Zen 5, 4 vCPU), Linux, CPU 0 pinned | Rust 1.99.0 / LLVM 23.1.1 | process CPU, 3 |
-| Scalar Wasm on the M5 | Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34 | V8 elapsed, 3 |
+| GCP AMD EPYC 9B45 (Zen 5, 4 vCPU), Linux 6.1, vCPU 1 pinned, [protocol](#measure-and-update) | Rust 1.99.0 / LLVM 23.1.1 | process CPU, 3 × 4 copies |
+| Scalar Wasm on the M5 | Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34 | V8 elapsed, 5 |
 
 Each fresh process times every library, interleaved, in three batches of at least
-10 ms after calibration. A cell is the median of the process medians; figure bars
-span the process medians. Fixtures are random bytes without leading zeros. Outputs
-and round trips are checked outside timing, decode input is prevalidated UTF-8,
-and caller buffers are reused (decode output is exact). Workspace allocation is
-inside the timing. No-allocation and bs58 stop at 64 KiB; five8 covers 32/64 B.
+10 ms after calibration. A cell is the median of the process medians (on Zen 5, the
+median over copies of each copy's process median); figure bars span the process
+medians. Fixtures are random bytes without leading zeros. Outputs and round trips
+are checked outside timing, decode input is prevalidated UTF-8, and caller buffers
+are reused (decode output is exact). Workspace allocation is inside the timing.
+No-allocation and bs58 stop at 64 KiB; five8 covers 32/64 B.
+
+On Zen 5 the copies of one Auto file spread by more than 5% in default decoding from
+1 KiB to 32 KiB (copy max/min 1.05–1.16, largest at 2 KiB): code placement moves the
+IFMA Karatsuba decoder.
 
 Ranges for 4 MiB Auto (median [min, max] of process medians):
 
 | Platform / policy | Encode | Decode |
 | --- | ---: | ---: |
-| M5 / default | withdrawn | withdrawn |
-| M5 / cache | withdrawn | withdrawn |
-| x86-64 / default | withdrawn | withdrawn |
-| x86-64 / cache | withdrawn | withdrawn |
-| Wasm / default | withdrawn | withdrawn |
-| Wasm / cache | withdrawn | withdrawn |
-
-The x86-64 encode ranges, and the README's x86-64 Auto encode cells and bars from
-64 KiB, are withdrawn until remeasured: on AVX-512 CPUs those encodes now take the
-radix route. Every 4 MiB range, and the README's Auto cells and bars from 64 KiB,
-are withdrawn until remeasured: the NTT's inverse transform and Garner step changed.
+| M5 / default | 212 ms [210 ms, 215 ms] | 129 ms [128 ms, 134 ms] |
+| M5 / cache | 210 ms [208 ms, 213 ms] | 129 ms [127 ms, 133 ms] |
+| x86-64 / default | 227 ms [226 ms, 228 ms] | 119 ms [119 ms, 122 ms] |
+| x86-64 / cache | 227 ms [226 ms, 228 ms] | 116 ms [116 ms, 117 ms] |
+| Wasm / default | 1.61 s [1.59 s, 1.63 s] | 773 ms [765 ms, 792 ms] |
+| Wasm / cache | 1.61 s [1.59 s, 1.65 s] | 768 ms [766 ms, 774 ms] |
 
 Default Auto encoding around the fixed 32/64-byte routes:
 
 | Payload | M5 | x86-64 | Wasm |
 | --- | ---: | ---: | ---: |
-| 16 B | 14.3 ns | withdrawn | 22 ns |
-| 21 B | 15.1 ns | withdrawn | 27 ns |
-| 22 B | 17.1 ns | withdrawn | withdrawn |
-| 31 B | 24.9 ns | 43.4 ns | 50.2 ns |
-| 32 B | 11.9 ns | 30 ns | 25.6 ns |
-| 33 B | withdrawn | 43.2 ns | 49.5 ns |
-| 63 B | 57.7 ns | 108 ns | 146 ns |
-| 64 B | 23.8 ns | 31.3 ns | 102 ns |
-| 65 B | 59.5 ns | 108 ns | 161 ns |
-| 128 B | 154 ns | 321 ns | 527 ns |
-
-Cells marked withdrawn reach the batched encoder's top-digit store and leading fill,
-which changed; they wait for remeasurement.
+| 16 B | 14 ns | 24.8 ns | 21.3 ns |
+| 21 B | 15.4 ns | 28.1 ns | 27.6 ns |
+| 22 B | 17 ns | 29.9 ns | 30.3 ns |
+| 31 B | 24.4 ns | 42.3 ns | 50.9 ns |
+| 32 B | 12 ns | 30 ns | 26.1 ns |
+| 33 B | 23.7 ns | 42 ns | 50.6 ns |
+| 63 B | 59.2 ns | 102 ns | 146 ns |
+| 64 B | 24.1 ns | 31.2 ns | 101 ns |
+| 65 B | 58.2 ns | 105 ns | 160 ns |
+| 128 B | 152 ns | 313 ns | 526 ns |
 
 Not measured: cold calls, owned-output helpers, checked conversion, native CPU
 flags and other compilers.
@@ -132,6 +129,12 @@ comparators in one process with wall time. `benches/encode_tune.rs` and
 `encode_matrix_tune.rs` tune the encoder leaves, `MATRIX_MIN` and `IFMA_CAP`;
 `benches/radix_tune.rs` times the forced radix and division trees in one binary
 (with a division A/A arm) for the [radix utilization rule](#radix-route-utilization).
+`benches/threshold_tune.rs` sweeps the dispatch crossovers and the NTT and IFMA
+product thresholds in one binary; its internal arms fall back below their own
+minimums (divide-and-conquer decoding needs two leaves). Constants without a runtime
+parameter, such as leaf sizes and the cutoffs in `src/api.rs`, are compared as rebuilt
+Auto probes with `public_bench.py --baseline`; on Zen 5 the rebuild alone moved
+untouched cells by up to 7%, so judge only the cells the change reaches.
 
 When the code changes, remeasure the affected tables, figures and scope together,
 or withdraw them.
@@ -179,13 +182,14 @@ kernels (portable kernels, autovectorized):
 | 64 B | 0.56 [0.55, 0.57] | 0.96 [0.86, 1.04] | 0.58 [0.57, 0.59] | 0.99 [0.91, 1.06] |
 | 128 B | 1.00 [0.99, 1.02] | 1.00 [0.92, 1.02] | 0.50 [0.50, 0.51] | 1.00 [0.93, 1.08] |
 | 1 KiB | 0.99 [0.98, 1.01] | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
-| 4 KiB | 0.99 [0.97, 1.01] | 1.00 [0.96, 1.02] | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
+| 4 KiB | 0.99 [0.97, 1.01] | withdrawn | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
 | 8 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
 | 64 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
 | 4 MiB | withdrawn | withdrawn | withdrawn | withdrawn |
 
 The NTT rows and the 4 MiB SIMD128 times are withdrawn until remeasured: the NTT's
-inverse transform and Garner step changed in both arms.
+inverse transform and Garner step changed in both arms. The 4 KiB default decode
+cell is withdrawn too: Wasm now decodes it with the NTT decoder instead of Karatsuba.
 Cells that reach no Wasm kernel (batched sizes, fixed 32 bytes) stay within
 0.95–1.05. The stripped Auto probe grows by 414 bytes (default) and 1,447 bytes
 (cache). In the same run, `+simd128` without the explicit kernels took 1.24–1.30
@@ -195,20 +199,19 @@ withdrawn with the rows above.
 ## basexx comparison
 
 `basexx` 0.2.0 is a benchmark comparator: its `Base58` is much faster than bs58.
-Criterion medians (wall time) on the M5, 2026-11-05, generic flags, fat LTO,
+Criterion medians (wall time) on the M5, 2026-11-09, generic flags, fat LTO,
 `__internals`, cache off. basexx returns an owned result that the adapter copies
 and drops inside the loop; bs58 and Auto reuse caller output.
 
 | Operation / payload | Auto | bs58 0.5.1 | basexx Base58 | basexx Base58B |
 | --- | ---: | ---: | ---: | ---: |
-| Encode / 1 KiB | 7.3 µs | 1.02 ms | 22.8 µs | 869 µs |
-| Encode / 4 KiB | 111 µs | 16.8 ms | 182 µs | 13.5 ms |
-| Decode / 1 KiB | withdrawn | 341 µs | 5.8 µs | 323 µs |
-| Decode / 4 KiB | withdrawn | 5.48 ms | 71 µs | 5.29 ms |
+| Encode / 1 KiB | 7.24 µs | 1.02 ms | 23 µs | 843 µs |
+| Encode / 4 KiB | 74.4 µs | 16.1 ms | 180 µs | 13.4 ms |
+| Decode / 1 KiB | 1.91 µs | 336 µs | 5.51 µs | 314 µs |
+| Decode / 4 KiB | 28.8 µs | 5.42 ms | 73.4 µs | 5.22 ms |
 
 Reproduce with `cargo bench --features __internals --bench encode` (or `decode`),
-filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`. The Auto decode cells are
-withdrawn until remeasured: the decoders' paired multiply-add loop changed.
+filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`.
 
 ## Cache and memory
 
@@ -221,18 +224,18 @@ an active-heap bound. Wasm linear-memory pages need not return to the host. Firs
 cached calls build the tables they need; whether reuse repays that depends on the
 workload.
 
-Warm peaks on the M5 (2026-11-05, counted `__internals` Auto workers, caller buffers
+Warm peaks on the M5 (2026-11-09, counted `__internals` Auto workers, caller buffers
 and previously retained tables excluded):
 
 | Payload | Policy | Operation | Warm requests | Warm peak | First call retains |
 | --- | --- | --- | ---: | ---: | ---: |
-| 1 MiB | default | encode | 7 | 17,788,292 B | 0 B |
+| 1 MiB | default | encode | 7 | 17,787,780 B | 0 B |
 | 1 MiB | default | decode | 16 | 14,781,952 B | 0 B |
-| 1 MiB | cache | encode | 7 | 17,788,292 B | 0 B |
+| 1 MiB | cache | encode | 7 | 17,787,780 B | 0 B |
 | 1 MiB | cache | decode | 13 | 10,849,792 B | 4,090,048 B |
-| 4 MiB | default | encode | 7 | 69,575,396 B | 0 B |
+| 4 MiB | default | encode | 7 | 69,574,884 B | 0 B |
 | 4 MiB | default | decode | 18 | 56,783,096 B | 0 B |
-| 4 MiB | cache | encode | 7 | 69,575,396 B | 0 B |
+| 4 MiB | cache | encode | 7 | 69,574,884 B | 0 B |
 | 4 MiB | cache | decode | 18 | 56,783,096 B | 616,704 B |
 
 Requests count allocations plus reallocations; peaks are requested Rust layouts,
@@ -303,10 +306,6 @@ which the README tables use, keep their route.
 
 Unmeasured candidates, largest expected effect first:
 
-- M5: start the radix route below 4 KiB, where batched encoding still runs. In the
-  utilization sweep (default) the forced route took 0.83 of batched time at 3.5 KiB
-  and 0.68–0.71 at 4 KiB, but 1.03 at 3 KiB and 1.14–1.15 at 2 KiB; the public
-  dispatch boundary was not measured.
 - Radix tree: fuse the first forward stage, whose upper half is always zero
   (about 2–3% of encode); build sparse schoolbook products column by column
   (sparse inputs need more heap); share the digit scratch with the output (about

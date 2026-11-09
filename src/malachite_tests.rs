@@ -1,5 +1,4 @@
-use crate::common::CHUNK;
-use crate::dc::{DC_THRESHOLD, Multiplier};
+use crate::dc::{Multiplier, min_digits};
 use crate::malachite::{Malachite, decode_malachite};
 use crate::mul;
 use crate::tests::{decode_vec, random_string};
@@ -76,7 +75,7 @@ fn limb_width_adapter_preserves_word_boundaries() {
 #[test]
 fn matches_karatsuba_decode() {
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(41);
-    let t = DC_THRESHOLD * CHUNK;
+    let t = min_digits();
     for len in [t + 1, 2 * t + 1, 10_000, 40_960, 100_001, 1_000_000] {
         // 58^len - 1 maximises carries.
         let max = "z".repeat(len);
