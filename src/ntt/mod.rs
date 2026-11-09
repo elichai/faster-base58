@@ -37,7 +37,8 @@ mod proofs;
         target_endian = "little",
         target_feature = "neon"
     ),
-    all(target_arch = "x86_64", target_feature = "sse2")
+    all(target_arch = "x86_64", target_feature = "sse2"),
+    target_arch = "wasm32"
 ))]
 mod radix;
 mod tables;
@@ -80,17 +81,16 @@ const IFMA_PREPARED_THRESHOLD: usize = if cfg!(feature = "cache") { 640 } else {
 
 /// The encoders' divide-and-conquer threshold in bytes and leaf size in chunks, tuned on
 /// an M5 Pro against `encode_batched` in one binary. Smaller leaves were up to 4% faster
-/// from 8 KiB up and 1-2% slower at 4-6 KiB. With NEON the radix route takes over from
-/// 3 KiB (`radix::MIN_BYTES`); the division tree alone wins only above 4 KiB.
+/// from 8 KiB up and 1-2% slower at 4-6 KiB. With NEON and on Wasm the radix route
+/// takes over from its own minimum: on M5 the division tree alone wins only above 4 KiB,
+/// and on Wasm only from about 3 KiB (`simd128`) or 4.3 KiB (scalar).
 #[cfg(any(not(feature = "cache"), test, feature = "__internals"))]
-pub(crate) const ENCODE_THRESHOLD: usize = if cfg!(all(
-    target_arch = "aarch64",
-    target_endian = "little",
-    target_feature = "neon"
-)) {
-    3072
-} else {
-    4096
+pub(crate) const ENCODE_THRESHOLD: usize = core::cfg_select! {
+    any(
+        all(target_arch = "aarch64", target_endian = "little", target_feature = "neon"),
+        target_arch = "wasm32"
+    ) => radix::MIN_BYTES,
+    _ => 4096,
 };
 const ENCODE_LEAF: usize = 32;
 
@@ -143,7 +143,7 @@ pub(crate) fn decode_value(
     )
 }
 
-/// Large encoding with NTT multiplication. NEON and x86 AVX-512 use a multiplication
+/// Large encoding with NTT multiplication. NEON, x86 AVX-512 and Wasm use a multiplication
 /// tree in base 58^3 when transform padding and input size favor it. Other cases retain
 /// the division tree and feature-selected leaves. Both routes retain twiddles
 /// through log18 with `cache`; larger twiddles are owned per call. Powers,
@@ -162,7 +162,8 @@ pub(crate) fn encode(
             target_endian = "little",
             target_feature = "neon"
         ),
-        all(target_arch = "x86_64", target_feature = "sse2")
+        all(target_arch = "x86_64", target_feature = "sse2"),
+        target_arch = "wasm32"
     ))]
     if let Some(result) = radix::try_encode(zeros, input, output) {
         return result;
@@ -185,7 +186,8 @@ pub(crate) fn encode_staged(
             target_endian = "little",
             target_feature = "neon"
         ),
-        all(target_arch = "x86_64", target_feature = "sse2")
+        all(target_arch = "x86_64", target_feature = "sse2"),
+        target_arch = "wasm32"
     ))]
     if let Some(result) = radix::try_encode_staged(zeros, end, output) {
         return result;

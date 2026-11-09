@@ -181,8 +181,8 @@ kernels (portable kernels, autovectorized):
 | --- | ---: | ---: | ---: | ---: |
 | 64 B | 0.56 [0.55, 0.57] | 0.96 [0.86, 1.04] | 0.58 [0.57, 0.59] | 0.99 [0.91, 1.06] |
 | 128 B | 1.00 [0.99, 1.02] | 1.00 [0.92, 1.02] | 0.50 [0.50, 0.51] | 1.00 [0.93, 1.08] |
-| 1 KiB | 0.99 [0.98, 1.01] | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
-| 4 KiB | 0.99 [0.97, 1.01] | withdrawn | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
+| 1 KiB | withdrawn | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
+| 4 KiB | withdrawn | withdrawn | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
 | 8 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
 | 64 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
 | 4 MiB | withdrawn | withdrawn | withdrawn | withdrawn |
@@ -190,10 +190,11 @@ kernels (portable kernels, autovectorized):
 The NTT rows and the 4 MiB SIMD128 times are withdrawn until remeasured: the NTT's
 inverse transform and Garner step changed in both arms. The 4 KiB default decode
 cell is withdrawn too: Wasm now decodes it with the NTT decoder instead of Karatsuba.
-Cells that reach no Wasm kernel (batched sizes, fixed 32 bytes) stay within
-0.95–1.05. The stripped Auto probe grows by 414 bytes (default) and 1,447 bytes
-(cache). In the same run, `+simd128` without the explicit kernels took 1.24–1.30
-times scalar time for cached Matrix sizes of 512 B–8 KiB; its NTT-size ratio is
+The default 1 KiB and 4 KiB encodes are withdrawn as well: they now take the radix
+route, which uses the kernels. Cells that reach no Wasm kernel (batched sizes, fixed
+32 bytes) stay within 0.95–1.05. The stripped Auto probe's growth from the kernels is
+withdrawn until remeasured. In the same run, `+simd128` without the explicit kernels
+took 1.24–1.30 times scalar time for cached Matrix sizes of 512 B–8 KiB; its NTT-size ratio is
 withdrawn with the rows above.
 
 ## basexx comparison
@@ -264,7 +265,8 @@ Double SHA-256 adds a fixed cost to every checked call.
 ## Radix route utilization
 
 The radix route needs a used fraction of its root transform (base-`58^3` digit
-bound over transform points) of 5/8, or 3/4 with `cache`. The fraction rises
+bound over transform points) of 5/8, or 3/4 with `cache`; on scalar Wasm 9/16 and
+on Wasm `simd128` none, under both policies. The fraction rises
 linearly with the input from 0.48 just above each transform-length step
 (`17 * 2^k + 1` bytes) to 0.97 below the next one.
 
@@ -301,6 +303,74 @@ same flags, five processes; Zen 5 `--cpu 0`): cells that change route take
 0.84–0.93 (Zen 5 default) and 0.87 (Zen 5 cache) of the earlier time. Cells that
 keep their route, and all decode cells, stay within 0.978–1.014. Power-of-two sizes,
 which the README tables use, keep their route.
+
+### Wasm
+
+Measured **2026-11-09** on the M5 Pro (AC power), Rust 1.99.1, Node 26.13.0 /
+V8 14.6.202.34 with `--no-liftoff --no-wasm-lazy-compilation
+--no-wasm-async-compilation`: `wasm32-wasip1` builds of `benches/radix_tune.rs`
+(11 rounds, 7 from 640 KiB) and of a same-binary sweep of every encoder backend
+(15–21 rounds), scalar and `+simd128`, default and `cache` builds. Other sessions
+loaded the host (load average about 5); A/A medians stay within 0.97–1.03. Wasm
+division trees keep Horner leaves under both policies, and the `cache` cells (to
+544 KiB) match the default ones within 0.04, so the table gives the default build.
+Cells are medians of per-round radix/division ratios at 8.5 KiB–8.5 MiB:
+
+| Used | Scalar | `simd128` |
+| ---: | ---: | ---: |
+| 0.48 | 0.93–1.10 | 0.59–0.91 |
+| 0.51 | 1.06 | 0.67 |
+| 0.57 | 0.89–0.92 | 0.57–0.75 |
+| 0.62 | 0.84–0.86 | 0.53–0.63 |
+| 0.68 | 0.76–0.79 | 0.52–0.59 |
+| 0.75 | 0.72 | 0.55 |
+| 0.91 | 0.58 | 0.45 |
+
+The scalar cells at 0.48 rise with size (above 1 from 64 KiB). With `simd128` they
+rise too, to 0.91 at 8.5 MiB; the transform limit stops the route at 16 MiB.
+
+Below the default encoder's NTT threshold the alternative is batched encoding. The
+forced route took 0.97 of batched time at 768 B with `simd128` (1.03 at 736 B,
+0.71 at 1 KiB, 0.93–0.94 at 1152 B with 0.51 used) and 0.965 at 3 KiB scalar (0.84 at
+3.25 KiB, 0.59 at 4 KiB, 1.15–1.64 at 2.25–2.75 KiB with 0.51–0.63 used). The
+forced division tree took 1.0–1.8 times batched time below 3 KiB (`simd128`) and
+4.3 KiB (scalar). Hence Wasm uses the route's minimum, 768 B (`simd128`) or 3 KiB,
+as the NTT threshold; from 3 KiB the scalar sizes up to 4352 B are used at least
+0.68. With `cache`, cached Matrix took 0.80–0.90 of the route's time at 8 KiB and
+less below, so the Matrix range is unchanged.
+
+The route adds to Wasm Auto probes (`code_size.py --target wasm32-unknown-unknown
+--cpu generic`, both directions, above the empty consumer, 2026-11-09):
+
+| Cohort | CODE section | DATA section | Stripped gzip |
+| --- | ---: | ---: | ---: |
+| Scalar, default | +13,663 B (75,736 → 89,399) | +700 B | +5,285 B |
+| Scalar, `cache` | +13,667 B (77,819 → 91,486) | +729 B | +4,992 B |
+| `simd128`, default | +15,463 B (84,449 → 99,912) | +777 B | +5,196 B |
+| `simd128`, `cache` | +15,229 B (86,723 → 101,952) | +772 B | +5,289 B |
+
+End to end (`public_bench.py --wasm --baseline`, Auto probes of 9f5a778 and this
+route, same flags and day, five processes, three batches; median [range] of
+per-process ratios against 9f5a778, same cache policy):
+
+| Payload | Scalar | Scalar `cache` | `simd128` | `simd128` `cache` |
+| ---: | ---: | ---: | ---: | ---: |
+| 769 B | 1.00 | 1.01 | 1.01 [1.00, 1.01] | 1.01 |
+| 1 KiB | 1.00 | 1.01 | 0.73 [0.73, 0.74] | 1.00 |
+| 1152 B | 1.00 | 0.99 | 0.95 [0.93, 0.97] | 0.99 |
+| 3073 B | 0.97 [0.96, 1.03] | 1.01 | 0.37 [0.37, 0.38] | 1.00 |
+| 4 KiB | 0.59 [0.58, 0.64] | 1.00 | 0.25 [0.24, 0.25] | 1.00 |
+| 5 KiB | 0.94 [0.93, 1.00] | 0.99 | 0.56 [0.55, 0.56] | 0.98 |
+| 8 KiB | 0.57 [0.54, 0.58] | 1.00 | 0.46 [0.45, 0.46] | 1.00 |
+| 10 KiB | 0.89 [0.88, 0.93] | 0.89 [0.88, 0.96] | 0.60 [0.59, 0.61] | 0.58 [0.57, 0.60] |
+| 16 KiB | 0.58 [0.56, 0.58] | 0.59 [0.58, 0.59] | 0.48 [0.47, 0.51] | 0.46 [0.46, 0.47] |
+| 64 KiB | 0.60 [0.60, 0.62] | 0.60 [0.59, 0.61] | 0.52 [0.50, 0.52] | 0.50 [0.49, 0.50] |
+| 1 MiB | 0.65 [0.64, 0.67] | 0.65 [0.57, 0.65] | 0.57 [0.57, 0.58] | 0.56 [0.55, 0.57] |
+| 4 MiB | 0.66 [0.66, 0.68] | 0.65 [0.63, 0.67] | 0.60 [0.59, 0.61] | 0.58 [0.58, 0.59] |
+
+Ranges are given where the route changes. At 769 B with `simd128` the route only
+breaks even. Encode cells that keep their route take 0.95–1.03 of the earlier time,
+and all decode cells 0.98–1.04.
 
 ## Open levers
 

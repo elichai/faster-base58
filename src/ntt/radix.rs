@@ -37,7 +37,8 @@ const _: () =
         target_endian = "little",
         target_feature = "neon"
     ),
-    all(target_arch = "x86_64", target_feature = "sse2")
+    all(target_arch = "x86_64", target_feature = "sse2"),
+    target_arch = "wasm32"
 ))]
 pub(super) fn try_encode(
     zeros: usize,
@@ -59,7 +60,8 @@ pub(super) fn try_encode(
             target_endian = "little",
             target_feature = "neon"
         ),
-        all(target_arch = "x86_64", target_feature = "sse2")
+        all(target_arch = "x86_64", target_feature = "sse2"),
+        target_arch = "wasm32"
     )
 ))]
 pub(super) fn try_encode_staged(
@@ -83,7 +85,8 @@ pub(super) fn try_encode_staged(
         target_endian = "little",
         target_feature = "neon"
     ),
-    all(target_arch = "x86_64", target_feature = "sse2")
+    all(target_arch = "x86_64", target_feature = "sse2"),
+    target_arch = "wasm32"
 ))]
 fn supported() -> bool {
     core::cfg_select! {
@@ -99,29 +102,31 @@ fn supported() -> bool {
         target_endian = "little",
         target_feature = "neon"
     ),
-    all(target_arch = "x86_64", target_feature = "sse2")
+    all(target_arch = "x86_64", target_feature = "sse2"),
+    target_arch = "wasm32"
 ))]
 fn preferred(bytes: usize) -> bool {
     let Some((_, _, points)) = layout(bytes) else {
         return false;
     };
-    // Full transforms waste work when heavily padded, and the balanced tree repeats
-    // roughly this padding ratio at each level. The used fraction of the root transform
-    // must reach 5/8, or 3/4 with `cache`, whose cached Matrix leaves speed up only the
-    // division tree. Same-binary sweeps (`benches/radix_tune.rs`, generic flags) put
-    // the crossover near 0.55 (M5) and 0.62 (Zen 5) without `cache`, and near 0.7 on
-    // both with it. Not adopted: 7/8 forgoes 6-22% at 0.68-0.81 used; 9/16 loses 4-6%
-    // at 5 KiB (M5) and 4-25% on Zen 5; 5/8 with `cache` loses up to 13% (M5, 12 KiB).
-    // With `cache`, 3/4 still costs up to 3% at 13-14 KiB on M5.
-    let eighths = if cfg!(feature = "cache") { 6 } else { 5 };
-    bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 8 >= points * eighths
+    bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 16 >= points * MIN_USED
 }
 
-/// The smallest input is larger on x86. On Zen 5 (IFMA Karatsuba in the division
-/// tree, `benches/radix_tune.rs`) this route took 1.23-2.54x the division tree's time
-/// at 4-16 KiB, and less from about 27 KiB. AVX-512 CPUs without IFMA are not measured.
-/// On M5 it took 0.95x the batched encoder's time at 3200 bytes and 1.01x at 3072, so it
-/// matches the encoders' `ENCODE_THRESHOLD` there.
+/// The used fraction of the root transform that the route needs, in sixteenths. Full
+/// transforms waste work when heavily padded, and the balanced tree repeats roughly
+/// this padding ratio at each level. Natively it is 5/8, or 3/4 with `cache`, whose
+/// cached Matrix leaves speed up only the division tree. Same-binary sweeps
+/// (`benches/radix_tune.rs`, generic flags) put the crossover near 0.55 (M5) and 0.62
+/// (Zen 5) without `cache`, and near 0.7 on both with it. Not adopted: 7/8 forgoes
+/// 6-22% at 0.68-0.81 used; 9/16 loses 4-6% at 5 KiB (M5) and 4-25% on Zen 5; 5/8 with
+/// `cache` loses up to 13% (M5, 12 KiB). With `cache`, 3/4 still costs up to 3% at
+/// 13-14 KiB on M5.
+///
+/// Wasm division trees keep Horner leaves under both policies, which therefore share
+/// one rule. Under V8 (M5, both policies alike) the scalar crossover is near 0.5: the
+/// route took 0.89-0.92x the division tree's time at 0.57 used (10 KiB-5 MiB) and
+/// 0.93-1.10x at 0.48-0.51; 5/8 forgoes the 0.57 cells. With `simd128` it took
+/// 0.59-0.91x at 0.48 used (8.5 KiB-8.5 MiB, rising with size), and less above.
 #[cfg(any(
     test,
     all(
@@ -129,12 +134,39 @@ fn preferred(bytes: usize) -> bool {
         target_endian = "little",
         target_feature = "neon"
     ),
-    all(target_arch = "x86_64", target_feature = "sse2")
+    all(target_arch = "x86_64", target_feature = "sse2"),
+    target_arch = "wasm32"
 ))]
-const MIN_BYTES: usize = if cfg!(target_arch = "x86_64") {
-    27 << 10
-} else {
-    3072
+const MIN_USED: usize = core::cfg_select! {
+    all(target_arch = "wasm32", target_feature = "simd128") => 0,
+    target_arch = "wasm32" => 9,
+    feature = "cache" => 12,
+    _ => 10,
+};
+
+/// The smallest input is larger on x86. On Zen 5 (IFMA Karatsuba in the division
+/// tree, `benches/radix_tune.rs`) this route took 1.23-2.54x the division tree's time
+/// at 4-16 KiB, and less from about 27 KiB. AVX-512 CPUs without IFMA are not measured.
+/// With NEON and on Wasm the encoders' `ENCODE_THRESHOLD` equals this, so the route
+/// replaces batched encoding. On M5 it took 0.95x the batched encoder's time at 3200
+/// bytes and 1.01x at 3072. Under V8 (M5) it took 0.97x the batched time at 768 bytes
+/// with `simd128` (0.83x at 896) and 0.97x at 3072 bytes without (0.84x at 3328); the
+/// division tree beats batched encoding only from about 3 KiB (`simd128`) and 4.3 KiB
+/// (scalar).
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2"),
+    target_arch = "wasm32"
+))]
+pub(super) const MIN_BYTES: usize = core::cfg_select! {
+    target_arch = "x86_64" => 27 << 10,
+    all(target_arch = "wasm32", target_feature = "simd128") => 768,
+    _ => 3072,
 };
 
 fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
@@ -398,6 +430,9 @@ fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
                 garner_two_portable(r1, r2)
             }
         }
+        all(target_arch = "wasm32", target_feature = "simd128") => {
+            super::wasm::garner_two(r1, r2)
+        }
         _ => garner_two_portable(r1, r2),
     }
 }
@@ -405,10 +440,13 @@ fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
 /// [`garner_two`] for any length.
 #[cfg(any(
     test,
-    not(all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
+    not(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
     ))
 ))]
 pub(super) fn garner_two_portable(r1: &mut [i32], r2: &mut [i32]) {
@@ -638,19 +676,45 @@ mod tests {
 
     #[test]
     fn selection_preserves_fallback_and_short_buffers() {
-        // At most `MIN_BYTES`, or below 5/8 of the root transform used.
-        for bytes in [MIN_BYTES, 4353, 8705, 17_409, 69_633, 89_976, 557_057] {
-            assert_eq!(try_encode(0, &vec![255; bytes], &mut []), None);
-        }
-        // From 5/8 to below 3/4 used: only without `cache`; then also with it.
-        let default_only =
-            [6144, 12_288, 89_977, 98_304, 107_972, 786_432].map(|b| (b, !cfg!(feature = "cache")));
-        let always = [
-            4097, 8192, 32_768, 65_536, 107_973, 262_143, 1_048_575, 1_048_576,
-        ]
-        .map(|b| (b, true));
-        for (bytes, used) in default_only.into_iter().chain(always) {
-            let selected = supported() && bytes > MIN_BYTES && used;
+        // Sizes and the sixteenths of their root transform used, rounded down: the first
+        // and last sizes of each rule and of the Wasm and native minimums.
+        for (bytes, used) in [
+            (768, 10),
+            (769, 10),
+            (1152, 8),
+            (2304, 8),
+            (3072, 10),
+            (3073, 10),
+            (4096, 14),
+            (4097, 14),
+            (4353, 7),
+            (5120, 9),
+            (6144, 10),
+            (8192, 14),
+            (8705, 7),
+            (10_240, 9),
+            (12_288, 10),
+            (17_409, 7),
+            (27_648, 12),
+            (27_649, 12),
+            (32_768, 14),
+            (65_536, 14),
+            (69_633, 7),
+            (89_976, 9),
+            (89_977, 10),
+            (98_304, 10),
+            (107_972, 11),
+            (107_973, 12),
+            (262_143, 14),
+            (557_057, 7),
+            (786_432, 10),
+            (1_048_575, 14),
+            (1_048_576, 14),
+        ] {
+            let (_, _, points) = layout(bytes).unwrap();
+            let digits = crate::encode::max_encoded_len(bytes).div_ceil(3);
+            assert_eq!(digits * 16 / points, used, "{bytes} bytes");
+            let selected = supported() && bytes > MIN_BYTES && used >= MIN_USED;
             assert_eq!(
                 try_encode(0, &vec![255; bytes], &mut []),
                 selected.then_some(Err(BufferTooSmall)),
