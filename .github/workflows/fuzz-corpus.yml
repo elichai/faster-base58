@@ -54,9 +54,11 @@ jobs:
 
   smoke:
     needs: corpus_snapshot
-    # candidate_smoke replays the same seeds and the minimized corpus that smoke
+    # candidate_smoke replays the same seeds and the merged corpus that smoke
     # replays after publication. Replays omit compare tracing: it only guides
-    # mutation (no job sets -use_value_profile) and took most of the replay time.
+    # mutation (replays do not use the value profile) and took most of the replay
+    # time. Debug assertions and overflow checks left the replay time unchanged
+    # (M5, ASan, 2026-11-10).
     timeout-minutes: 60
     # Only `src/api.rs` reads a non-baseline target feature at compile time (AVX2,
     # with cache), so one native row covers it; other native rows changed only
@@ -97,24 +99,27 @@ jobs:
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
   nightly:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
     needs: corpus_snapshot
     timeout-minutes: 50
-    # Mutation and minimization use generic builds only; see smoke.
+    # Mutation and minimization use generic builds only; see smoke. Mutation checks
+    # debug assertions and overflow; neither changed the execution rate measurably
+    # (M5, ASan, 2026-11-10). The cache rows add libFuzzer's value profile, which
+    # also left the rate unchanged there and kept more inputs.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width', profile: '' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache', profile: '-use_value_profile=1' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width', profile: '' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache', profile: '-use_value_profile=1' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -146,16 +151,16 @@ jobs:
       - run: mkdir -p fuzz/campaign
       - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/campaign/
       - run: cp -a .fuzz-corpus/corpora/. fuzz/campaign/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
       - run: mkdir -p fuzz/publish
       - run: >-
           python3 fuzz/provenance.py --output fuzz/publish/provenance.json
           --field source_commit=${{ github.sha }} --field corpus_commit=${{ needs.corpus_snapshot.outputs.revision }}
           --field run_id=${{ github.run_id }} --field arch=${{ matrix.arch }} --field target_cpu=${{ matrix.cpu }}
-          --field features=${{ matrix.label }} --field sanitizer=address --field seed="$FUZZ_SEED"
+          --field features=${{ matrix.label }} --field sanitizer=address --field debug_assertions=true --field value_profile=${{ matrix.profile != '' }} --field seed="$FUZZ_SEED"
           --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=${{ env.RUST_NIGHTLY }}
           --field cargo_fuzz=${{ env.CARGO_FUZZ_VERSION }} --field rustflags="$RUSTFLAGS" --field exit=0
           --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width --digest dictionary=fuzz/base58.dict
@@ -167,12 +172,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # Each replay build keeps the inputs that add libFuzzer coverage features beyond
-  # the deterministic seeds. Builds differ in architecture and cache code, so every
-  # row merges the same union and candidate_smoke takes the union of all four
-  # results. Merging needs coverage counters, not ASan or compare tracing, so these
-  # builds use --sanitizer none --no-trace-compares to finish faster; the candidate
-  # replay uses ASan.
+  # Each replay build keeps the stored corpus and adds the campaign inputs that add
+  # libFuzzer coverage features beyond it and the deterministic seeds. A row never
+  # drops a stored input: inputs whose coverage needs another CPU (AVX-512, IFMA,
+  # NEON) or a native build look redundant on a generic hosted runner. Shrinking the
+  # store is a manual merge on such hosts (fuzz/README.md). Builds differ in
+  # architecture and cache code, so every row merges the same campaign union and
+  # candidate_smoke takes the union of all four results. Merging needs coverage
+  # counters, not ASan or compare tracing, so these builds use --sanitizer none
+  # --no-trace-compares to finish faster; the candidate replay uses ASan.
   # `cargo fuzz cmin` is not used: it exits 0 when the merge fails and cannot
   # start from the seeds. libFuzzer's merge skips an input that crashes, times out
   # or exceeds the RSS limit and retries, so any retry fails the step.
@@ -208,7 +216,9 @@ jobs:
           pattern: fuzz-corpus-nightly-*
           path: incoming
       - run: python3 fuzz/seed_corpus.py
-      - run: python3 fuzz/corpus_store.py replace .fuzz-corpus/corpora incoming/*/campaign fuzz/union --exclude fuzz/corpus
+      # Campaign inputs not already stored. The seeds stay in it so that every target
+      # has a directory.
+      - run: python3 fuzz/corpus_store.py replace incoming/*/campaign fuzz/union --exclude .fuzz-corpus/corpora
       - if: runner.os == 'Linux'
         run: sudo apt-get update
       - if: runner.os == 'Linux'
@@ -221,6 +231,8 @@ jobs:
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: mkdir -p fuzz/minimized fuzz/logs
       - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/minimized/
+      # libFuzzer's merge keeps every input of its first directory.
+      - run: cp -a .fuzz-corpus/corpora/. fuzz/minimized/
       - run: |
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-trace-compares --no-default-features ${{ matrix.args }} encode_all fuzz/minimized/encode_all fuzz/union/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_all.log
           grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_all.log
@@ -280,14 +292,15 @@ jobs:
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: cp -a fuzz/candidate/. fuzz/corpus/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
-  # Publishing replaces corpora/ with the candidate union; Git history keeps the
-  # removed inputs. Minimization may drop an input that fails on current code, so
-  # publishing also needs smoke, which replays the pinned corpus with ASan.
+  # Publishing replaces corpora/ with the candidate union, which holds every stored
+  # input, so it only adds inputs. Merging skips an input that fails, which fails
+  # the merge step, but it does not use ASan, so publishing also needs smoke, which
+  # replays the pinned corpus with ASan.
   publish:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly && inputs.publish)
     needs: [corpus_snapshot, smoke, nightly, minimize, candidate_smoke]
