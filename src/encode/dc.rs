@@ -386,6 +386,7 @@ fn divide(
         let q = &p[qn..];
         hi[..q.len()].copy_from_slice(q);
         let ql = trimmed_len(hi);
+        let quotient = &hi[..ql];
         // The remainder `A - q pn` is below `7 pn < β^(dn + 1)`, so it is also its own
         // residue modulo `β^L - 1` for `L >= dn + 2`. Same arguments as in
         // `divide_scratch_len`.
@@ -393,7 +394,7 @@ fn divide(
             Some(l) if ql > 0 => {
                 let (w, s) = s.split_at_mut(l);
                 let (r, s) = s.split_at_mut(l);
-                m.mul_power_wrapped(w, &hi[..ql], 2 * i, d.pn, s);
+                m.mul_power_wrapped(w, quotient, 2 * i, d.pn, s);
                 fold_wrapped(r, a);
                 sub_wrapped(r, w);
                 canonical(r);
@@ -404,7 +405,7 @@ fn divide(
             }
             None if ql > 0 => {
                 let (qp, s) = s.split_at_mut(ql + dn);
-                m.mul_power(qp, &hi[..ql], 2 * i, d.pn, s);
+                m.mul_power(qp, quotient, 2 * i, d.pn, s);
                 let borrow = sub_assign(a, qp);
                 debug_assert!(!borrow, "the quotient estimate is too large");
             }
@@ -504,8 +505,9 @@ fn node(
     }
     // `divs[0].exp <= leaf < n`, so `i` exists, and the next power is at least `n`, so
     // `x < BASE^(2 exp)`.
-    let i = t.divs.partition_point(|d| d.exp < n) - 1;
-    let d = &t.divs[i];
+    let end = t.divs.partition_point(|d| d.exp < n);
+    let (d, _) = t.divs[..end].split_last().expect("a divisor below n");
+    let i = end - 1;
     let qn = d.qn();
     let (hi, s) = s.split_at_mut(qn + 1);
     let (lo, s) = s.split_at_mut(qn);
@@ -737,7 +739,9 @@ fn div_schoolbook(q: &mut [u64], u: &mut [u64], v: &[u64]) {
         };
         let top = ((*high as u128) << 64) | *u1 as u128;
         let next = *u0 as u128;
-        let (mut qhat, mut rhat) = (top / v1, top % v1);
+        let mut qhat = top / v1;
+        // qhat * v1 <= top, so derive the remainder without a second division.
+        let mut rhat = top - qhat * v1;
         // At most two steps make `qhat` exact or one too large.
         while qhat >> 64 != 0 || qhat * v0 > ((rhat << 64) | next) {
             qhat -= 1;
