@@ -114,12 +114,12 @@ const CACHED_LEAF: usize = match Leaves::BEST {
 #[inline(never)]
 #[cfg(feature = "alloc")]
 pub(crate) fn decode(
-    input: &[u8],
+    digits: &[u8],
     zeros: usize,
     output: &mut [u8],
 ) -> Result<usize, crate::common::DecodeError> {
     dc::decode_parts(
-        input,
+        digits,
         zeros,
         output,
         &mut Ntt::new(Kernels::best()),
@@ -130,12 +130,12 @@ pub(crate) fn decode(
 /// [`crate::dc::decode_value`] with the NTT multiplier of [`decode`].
 #[cfg(all(feature = "check", feature = "alloc"))]
 pub(crate) fn decode_value(
-    input: &[u8],
+    digits: &[u8],
     zeros: usize,
     capacity: usize,
 ) -> Result<alloc::vec::Vec<u64>, crate::common::DecodeError> {
     dc::decode_value(
-        input,
+        digits,
         zeros,
         capacity,
         &mut Ntt::new(Kernels::best()),

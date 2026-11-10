@@ -166,97 +166,12 @@ scratch, larger owned tables, allocator overhead and concurrent calls add to it.
 The static headers of the cache families take 2,176 bytes when present. None of
 these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-and-cache-costs).
 
-## Performance
+## Performance and linked size
 
-Measured **2026-11-09** with ordinary public consumers (no
-`__internals`), release opt-level 3, fat LTO and generic target flags. Each cell is
-**encode / decode**: the median over fresh processes, each timing all libraries
-interleaved in batches of at least 10 ms. Native cells use process CPU time, Wasm V8
-elapsed time. Workspace allocation is included; caller buffers are reused. Bold marks
-the lowest median, without a significance claim. No-allocation and bs58 stop at
-64 KiB; five8 covers 32/64 B. [Method, ranges and limits](docs/performance.md).
-
-### Apple M5 Pro
-
-Rust 1.99.1 / LLVM 23.1.1, `aarch64-apple-darwin`, five processes.
-
-| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
-|---|---:|---:|---:|---:|---:|
-| 32 B | 12 ns / **13.6 ns** | 12 ns / 13.9 ns | **9.88 ns** / 13.9 ns | 819 ns / 341 ns | 32.7 ns / 32.5 ns |
-| 64 B | 24.1 ns / **26.3 ns** | 24.3 ns / 26.7 ns | **24.1 ns** / 26.6 ns | 3.14 µs / 1.36 µs | 79.9 ns / 96.8 ns |
-| 512 B | 1.92 µs / 538 ns | **603 ns** / **501 ns** | 1.97 µs / 533 ns | 243 µs / 80.9 µs | — / — |
-| 4 KiB | 74.8 µs / 27.7 µs | **29.2 µs** / **25.6 µs** | 114 µs / 27.8 µs | 15.7 ms / 5.41 ms | — / — |
-| 64 KiB | 1.9 ms / 992 µs | **1.86 ms** / **956 µs** | 27.2 ms / 6.52 ms | 4.01 s / 1.37 s | — / — |
-| 1 MiB | **44.4 ms** / 26.4 ms | 44.6 ms / **25.6 ms** | — / — | — / — | — / — |
-| 4 MiB | 212 ms / 129 ms | **210 ms** / **129 ms** | — / — | — / — | — / — |
-
-![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
-
-### AMD EPYC 9B45 (GCP, generic x86-64)
-
-Rust 1.99.0 / LLVM 23.1.1, generic `x86_64-unknown-linux-gnu` with runtime CPU
-selection, vCPU 1 pinned with its SMT sibling idle, three processes over four copies
-of each library ([protocol](docs/performance.md#measure-and-update)).
-
-| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
-|---|---:|---:|---:|---:|---:|
-| 32 B | 30 ns / **23.1 ns** | 30.1 ns / 23.9 ns | **29.9 ns** / 23.8 ns | 903 ns / 322 ns | 53 ns / 48.6 ns |
-| 64 B | **31.2 ns** / 46.6 ns | 31.3 ns / **44.1 ns** | 31.4 ns / 44.8 ns | 3.88 µs / 1.25 µs | 115 ns / 123 ns |
-| 512 B | 3.25 µs / 870 ns | **1.08 µs** / **860 ns** | 4.3 µs / 867 ns | 282 µs / 92.3 µs | — / — |
-| 4 KiB | 48.9 µs / **16.1 µs** | **39.7 µs** / 16.1 µs | 257 µs / 43.3 µs | 18.1 ms / 5.85 ms | — / — |
-| 64 KiB | 2.23 ms / 1.03 ms | **2.04 ms** / **832 µs** | 64.8 ms / 10.5 ms | 4.63 s / 1.49 s | — / — |
-| 1 MiB | 49 ms / 24.2 ms | **48.8 ms** / **22.7 ms** | — / — | — / — | — / — |
-| 4 MiB | **227 ms** / 119 ms | 227 ms / **116 ms** | — / — | — / — | — / — |
-
-![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
-
-### WebAssembly on Apple M5 Pro (Node/V8)
-
-Scalar Wasm, Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34; five processes. Builds
-with `+simd128` use Wasm SIMD kernels and are a separate cohort; see the
-[performance guide](docs/performance.md#wasm-simd128).
-
-| Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
-|---|---:|---:|---:|---:|---:|
-| 32 B | 26.1 ns / 51.7 ns | **25.6 ns** / 49.8 ns | 26 ns / 51.2 ns | 632 ns / 217 ns | 45.9 ns / **41.5 ns** |
-| 64 B | 101 ns / 140 ns | 101 ns / 130 ns | 102 ns / 139 ns | 2.93 µs / 839 ns | **93.8 ns** / **127 ns** |
-| 512 B | 7.59 µs / 5.53 µs | **2.81 µs** / **2.52 µs** | 7.72 µs / 5.3 µs | 238 µs / 75.9 µs | — / — |
-| 4 KiB | † / 188 µs | **149 µs** / **124 µs** | 448 µs / 316 µs | 15.6 ms / 5.38 ms | — / — |
-| 64 KiB | † / 6 ms | † / **5.97 ms** | 116 ms / 78.8 ms | 4.05 s / 1.38 s | — / — |
-| 1 MiB | † / 157 ms | † / **156 ms** | — / — | — / — | — / — |
-| 4 MiB | † / 773 ms | † / **768 ms** | — / — | — / — | — / — |
-
-† Withdrawn until remeasured: Wasm Auto encodes above 3 KiB (768 B with `simd128`),
-and above 8 KiB with `cache`, now take the division-free radix route. The figure's
-matching bars are withdrawn for the same reason.
-
-![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
-
-A separate [basexx comparison](docs/performance.md#basexx-comparison) includes a
-general-purpose comparator that is much faster than bs58.
-
-## Linked size
-
-Code and data linked **above an empty consumer** with the same scaffold, both
-directions reachable, from the same builds as the timing tables. These are cdylib
-section deltas, including associated code and metadata; readonly data, BSS, cache
-headers, retained heap and Wasm memory pages are separate costs.
-
-| Consumer | M5 code / readonly | x86-64 code / readonly | Wasm code / data section |
-|---|---:|---:|---:|
-| Auto | 68.0 KiB / 24.1 KiB | 301.9 KiB / 37.7 KiB | † |
-| Auto + cache | 76.1 KiB / 26.7 KiB | 297.5 KiB / 38.6 KiB | † |
-| No allocation | 10.5 KiB / 10.6 KiB | 21.0 KiB / 14.4 KiB | 14.2 KiB / 9.5 KiB |
-| bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.7 KiB |
-
-† Withdrawn until remeasured with the timing tables: Wasm Auto now links the radix
-route, about 13 KiB of code and 0.7 KiB of data more on 2026-11-09 builds
-([performance guide](docs/performance.md#wasm)).
-
-On x86-64, `features = ["compact"]` keeps eight IFMA kernel widths instead of
-twelve. This reduces linked code and uses more chunks for some multiplications.
-It preserves the API and allocation contracts; the speed tradeoff depends on
-operand size. Other production targets do not use these IFMA kernels.
+Public timing and linked-size results are awaiting remeasurement after changes to
+large-input decoding. See the [performance guide](docs/performance.md) for the
+measurement procedure and resource costs. On x86-64, the `compact` feature
+reduces IFMA kernel code size, with a workload-dependent speed tradeoff.
 
 ## Development and license
 

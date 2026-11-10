@@ -14,7 +14,7 @@ from current import check
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', required=True,
-                        help='check documentation links, selected figures and SVG syntax')
+                        help='check documentation links and SVG syntax')
     parser.parse_args()
     try:
         result = check(Path(__file__).resolve().parents[2])

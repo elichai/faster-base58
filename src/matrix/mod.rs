@@ -193,7 +193,7 @@ pub(crate) mod internals {
             crate::batched::decode_parts(input, digits, output)
         } else if digits.len() > table::MAX_CHARS {
             crate::dc::decode_parts(
-                input,
+                digits,
                 zeros,
                 output,
                 &mut crate::dc::Karatsuba,

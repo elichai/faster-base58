@@ -38,12 +38,6 @@ class DocumentationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'SVG'):
             check(self.root)
 
-    def test_readme_must_embed_selected_figure(self):
-        guide = self.root / 'README.md'
-        guide.write_text(guide.read_text().replace('![figure](assets/graphs/gcp-public.svg)', ''))
-        with self.assertRaisesRegex(ValueError, 'README.*gcp-public'):
-            check(self.root)
-
     def test_reference_and_encoded_links_are_checked(self):
         (self.root / 'DESIGN.md').write_text('[reference][target]\n\n[target]: docs/missing%20file.md')
         with self.assertRaisesRegex(ValueError, 'missing file.md'):
