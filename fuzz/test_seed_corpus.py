@@ -90,6 +90,37 @@ class SeedCorpusTests(unittest.TestCase):
                               ("native-owned", b"\x82"), ("portable-owned", b"\x80")]:
                 self.assertEqual((root / "encode_radix_full_width" / name).read_bytes(), raw)
 
+    def test_zero_run_seeds_pair_texts_with_encoder_inputs(self):
+        self.assertEqual(seed_corpus.base58_value(b"21"), 58)
+        self.assertEqual(seed_corpus.base58_value(b"2" + b"1" * 99), 58**99)
+        self.assertEqual(seed_corpus.base58_value(b"z" * 100), 58**100 - 1)
+        with TemporaryDirectory() as directory:
+            previous = seed_corpus.ROOT
+            seed_corpus.ROOT = root = Path(directory)
+            try:
+                with redirect_stdout(StringIO()):
+                    seed_corpus.main()
+            finally:
+                seed_corpus.ROOT = previous
+            for name, (length, runs) in seed_corpus.ZERO_RUNS.items():
+                with self.subTest(name=name):
+                    digits = (root / "decode_all" / f"zero-run-{name}").read_bytes()
+                    text = bytes(seed_corpus.ALPHABET[d % 58] for d in digits)
+                    data = (root / "encode_all" / f"zero-run-{name}").read_bytes()
+                    self.assertEqual(len(text), length)
+                    self.assertLessEqual(len(text), seed_corpus.DECODE_MAX_BYTES)
+                    self.assertLessEqual(len(data), seed_corpus.ENCODE_MAX_BYTES)
+                    self.assertNotEqual(text[0], ord("1"))
+                    self.assertNotEqual(data[0], 0)
+                    self.assertEqual(text.count(b"1"), sum(run for _, run in runs))
+                    for start, run in runs:
+                        self.assertEqual(text[start:start + run], b"1" * run)
+                    # Trailing zero digits: exact multiples of a power of 58.
+                    zeros = length - len(text.rstrip(b"1"))
+                    value = int.from_bytes(data, "big")
+                    self.assertEqual(value % 58**zeros, 0)
+                    self.assertNotEqual(value % 58 ** (zeros + 1), 0)
+
     def test_split_carry_fallback_seeds_are_64_byte_inputs(self):
         with TemporaryDirectory() as directory:
             previous = seed_corpus.ROOT

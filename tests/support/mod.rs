@@ -288,6 +288,27 @@ pub fn check_decode(input: &str, selector: usize) {
     check_decode_as(input, &oracle_decode(input), selector);
 }
 
+/// The encoders whose division tree writes zero blocks for runs of the digit `1`.
+const TREE_ENCODERS: [&str; 4] = ["auto", "dc", "ntt", "ntt-cached"];
+
+/// [`check_decode`], then, for valid text, the division-tree encoders on the decoded bytes,
+/// which must give `input` back: each byte string has exactly one encoding. Text reaches
+/// encoder inputs that random bytes almost never do, such as long runs of the zero digit.
+pub fn check_decode_round_trip(input: &str, selector: usize) {
+    let want = oracle_decode(input);
+    check_decode_as(input, &want, selector);
+    let Ok(data) = want else { return };
+    // Exact output slices only: the encode targets check the others, and each costs a
+    // whole conversion. `decode_all` replays of the stored corpus (M5, ASan, 2026-11-10)
+    // took 1.27 times as long with these encoders on its mapped text; every encoder at every
+    // capacity on both of its texts took 2.7 times, and every encoder on the mapped text 2.2.
+    for &(name, encode) in ENCODERS {
+        if TREE_ENCODERS.contains(&name) {
+            check_encoder_capacity(name, encode, &data, input.as_bytes(), input.len());
+        }
+    }
+}
+
 fn check_decode_as(input: &str, want: &Result<Vec<u8>, usize>, selector: usize) {
     for &(name, decode) in DECODERS {
         if !skip_quadratic(name, input.len()) {

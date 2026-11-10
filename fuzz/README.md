@@ -17,7 +17,11 @@ invalid byte index. The public decoder takes raw bytes, so decode also passes th
 fuzz input unchanged, including invalid UTF-8. The backend hooks take `&str`, so
 they see malformed UTF-8 only after lossy conversion. The encode targets then
 decode the expected text with every decoder and expect the original input, so
-they need no decode oracle.
+they need no decode oracle. In the other direction, `decode_all` encodes the bytes of
+its mapped valid text with the division-tree encoders (`auto`, `dc`, `ntt`,
+`ntt-cached`) into exact slices and expects the text back. Mutated digits reach
+encoder inputs that mutated bytes almost never do, such as long runs of the zero
+digit `1`, which make whole leaves and subtrees zero.
 
 The forced `radix` and `radix-portable` encoders bypass production CPU/size
 selection and participate in the shared differential checks on every target.
@@ -40,6 +44,10 @@ version. Inputs are capped at 8,193 bytes for the quadratic oracle.
 
 Radix seeds include binary powers and sparse values around leaf/tree boundaries,
 so zero subtrees and sparse carry paths do not depend on random mutations.
+`zero-run-*` seeds pair texts that contain 2,000–30,000-digit runs of `1` with
+their bytes (in `encode_all`), so that zero leaves and subtrees of the division tree
+are covered from the start. The `decode_all` copies store digit values (`1` is
+`0x00`), which the target maps back to the text.
 
 `encode_radix_full_width` repeats each raw input to 256 KiB or 1 MiB, selected
 by its first byte's high bit, then sets the expanded first byte's high bit.

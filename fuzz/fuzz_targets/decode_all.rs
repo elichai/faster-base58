@@ -21,7 +21,7 @@ fuzz_target!(|data: &[u8]| {
         .iter()
         .map(|&byte| support::ALPHABET[byte as usize % 58] as char)
         .collect();
-    support::check_decode(&valid, selector);
+    support::check_decode_round_trip(&valid, selector);
     let at = selector % (valid.len() + 1);
     // Include multi-byte invalid characters. The expected error is a byte offset,
     // and the position can cover the complete input rather than only 0..255.

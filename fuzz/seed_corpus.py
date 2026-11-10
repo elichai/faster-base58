@@ -32,6 +32,18 @@ SPLIT_FALLBACKS = tuple(
 )
 RADIX_LENGTHS = [33, 64, 65, 127, 128, 129, 255, 256, 257, 511, 512, 513,
                  8191, 8192, 8193, ENCODE_MAX_BYTES]
+ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+# Texts with runs of the zero digit `1` that cover whole divide-and-conquer blocks (up to
+# 2,560 digits for Horner leaves, 10,240 for matrix leaves), as length and (start, run)
+# pairs. Random encoder bytes almost never encode to such runs.
+ZERO_RUNS = {
+    "trailing-12000": (12_000, [(10_000, 2_000)]),
+    "trailing-60000": (60_000, [(30_000, 30_000)]),
+    "middle-15000": (15_000, [(6_000, 3_000)]),
+    "middle-80000": (80_000, [(24_000, 25_000)]),
+    "high-40000": (40_000, [(4, 20_000)]),
+    "many-89000": (89_000, [(start, 4_000) for start in range(8_900, 89_000, 17_800)]),
+}
 
 
 def write_seed(target, name, data):
@@ -58,6 +70,28 @@ def split_fallback_seed(k, segment):
     digits.extend([0] * (FIXED_64_COLUMNS - len(digits)))
     digits[segment * FIXED_64_COLUMNS // k + 1] = 0
     return sum(digit * COL_BASE ** index for index, digit in enumerate(digits)).to_bytes(64, "big")
+
+
+def zero_run_text(length, runs):
+    """Pseudo-random nonzero digits with the given runs of `1`."""
+    state, text = length, bytearray()
+    for _ in range(length):
+        state = (state * 6364136223846793005 + 1) & ((1 << 64) - 1)
+        text.append(ALPHABET[1 + (state >> 58) % 57])
+    for start, run in runs:
+        text[start:start + run] = b"1" * run
+    return bytes(text)
+
+
+def base58_value(text):
+    """Divide and conquer, so Python's subquadratic multiplication does the work."""
+    if len(text) <= 64:
+        value = 0
+        for char in text:
+            value = value * 58 + ALPHABET.index(char)
+        return value
+    half = len(text) // 2
+    return base58_value(text[:half]) * 58 ** (len(text) - half) + base58_value(text[half:])
 
 
 def main():
@@ -99,6 +133,12 @@ def main():
                 write_seed("decode_small", f"{label}-{length}", data)
     for length in DECODE_CARRY_LENGTHS:
         write_seed("decode_all", f"ntt-carry-{length}", b"z" * length)
+    for name, (length, runs) in ZERO_RUNS.items():
+        text = zero_run_text(length, runs)
+        value = base58_value(text)
+        # `decode_all` maps each byte to the digit with that value modulo 58.
+        write_seed("decode_all", f"zero-run-{name}", bytes(ALPHABET.index(c) for c in text))
+        write_seed("encode_all", f"zero-run-{name}", value.to_bytes((value.bit_length() + 7) // 8, "big"))
     for length in UNICODE_LENGTHS:
         for label, char in INVALID_UNICODE:
             bad = char.encode("utf-8")
@@ -117,6 +157,7 @@ def main():
     count = (
         len(LENGTHS) * 6
         + len(DECODE_CARRY_LENGTHS)
+        + 2 * len(ZERO_RUNS)
         + sum(n <= SMALL_MAX_BYTES for n in LENGTHS) * 6
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
