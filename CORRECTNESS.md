@@ -156,8 +156,11 @@ wrappers and both allocation policies: values, capacities, suffixes, canaries, o
 helpers and malformed input. Decode also maps bytes to valid digits and inserts
 invalid ASCII or multibyte characters, including late positions. The shared
 oracle switches from bs58 to Malachite above 2,048 bytes, so large inputs do not
-pay for a quadratic oracle; the quadratic `batched` encoder under test still
-dominates their time. Named boundary replay covers larger recursive kernels.
+pay for a quadratic oracle. The quadratic `batched` and `no-alloc` hooks run only
+up to 8,193 bytes or characters; `large_inputs_round_trip` and
+`large_inputs_match_batched` check them at 200,001 bytes and 300,001 characters.
+Results above that size check exact or oversized slices, alternating by input.
+Named boundary replay covers larger recursive kernels.
 
 `check_all` (feature `check`) compares Base58Check encoding and decoding with
 bs58's checksum validation plus an independent version rule, with and without a
@@ -180,9 +183,9 @@ The optional `encode_full_width` target expands every raw mutation into a
 periodic 65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
 audit places those values above the native NTT thresholds. Its default-policy
-native careful-ASan stage is **unverified**. It uses the Malachite oracle; the
-quadratic `batched` encoder under test still takes most of each input's time.
-This structured domain does not include every value at that width.
+native careful-ASan stage is **unverified**. It uses the Malachite oracle and
+skips the quadratic hooks, as above. This structured domain does not include every
+value at that width.
 
 Campaign callback counts include initial corpus processing and possible repeats;
 they are not distinct mutations or seed-file counts. Full-width stages require

@@ -699,7 +699,7 @@ jobs:
           llvm_dir="$(rustup run ${{ env.RUST_NIGHTLY }} rustc --print sysroot)/lib/rustlib/$host/bin"
           features="full-width${{ matrix.cache_args != '' && ',cache' || '' }}"
           for target in encode_all decode_all encode_radix_full_width; do
-            cargo +${{ env.RUST_NIGHTLY }} fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target ${{ matrix.target }} --target-dir target/coverage --no-default-features --features "$features" --jobs 1 "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
+            cargo +${{ env.RUST_NIGHTLY }} fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target ${{ matrix.target }} --target-dir target/coverage --no-default-features --features "$features" "$target" "fuzz/corpus/$target" -- -timeout=120 -rss_limit_mb=4096
             "$llvm_dir/llvm-cov" report "target/coverage/${{ matrix.target }}/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" '-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$' > "fuzz/coverage/$target/report.txt"
             if [ "$target" != decode_all ]; then
               "$llvm_dir/llvm-cov" report "target/coverage/${{ matrix.target }}/release/$target" -instr-profile="fuzz/coverage/$target/coverage.profdata" src/ntt/radix.rs > "fuzz/coverage/$target/radix.txt"

@@ -76,9 +76,24 @@ pub const DECODERS: &[(&str, Decode)] = &[
 const GUARD: usize = 16;
 const CANARY: u8 = 0xA5;
 
+/// Output capacities for a result of `n` bytes or characters: empty, one short, exact, with
+/// slack, and one picked by `selector`. Large backends reject capacities below about
+/// `n - 2` before converting, so one short, exact and slack each cost a whole conversion.
+/// Above [`QUADRATIC_MAX_LEN`], exact and slack alternate by input.
+fn capacities(n: usize, selector: usize) -> impl Iterator<Item = usize> {
+    let skip = match (n > QUADRATIC_MAX_LEN, selector & 1) {
+        (false, _) => None,
+        (true, 0) => Some(n + 17),
+        (true, _) => Some(n),
+    };
+    [0, n.saturating_sub(1), n, n + 17, selector % (n + 18)]
+        .into_iter()
+        .filter(move |&capacity| Some(capacity) != skip)
+}
+
 pub fn check_encoder(name: &str, encode: Encode, data: &[u8], want: &[u8], selector: usize) {
     let n = want.len();
-    for capacity in [0, n.saturating_sub(1), n, n + 17, selector % (n + 18)] {
+    for capacity in capacities(n, selector) {
         check_encoder_capacity(name, encode, data, want, capacity);
     }
 }
@@ -123,6 +138,16 @@ pub fn check_encoder_capacity(
     }
 }
 
+/// Longest input, in bytes or characters, for the quadratic `batched` and `no-alloc`
+/// backends (`no-alloc` calls `batched` at these sizes). Their carry bounds hold per limb
+/// whatever the length; `large_inputs_round_trip` and `large_inputs_match_batched` check
+/// them at 200-300 K. Above this they took about half of the full-width replay time.
+pub const QUADRATIC_MAX_LEN: usize = 8 * 1024 + 1;
+
+fn skip_quadratic(name: &str, len: usize) -> bool {
+    len > QUADRATIC_MAX_LEN && matches!(name, "batched" | "no-alloc")
+}
+
 /// Longest input for the bs58 oracle, whose quadratic conversion takes seconds at 64 KiB.
 /// Longer inputs use malachite-nz's subquadratic conversion; `properties` checks that the two
 /// agree across this boundary.
@@ -155,7 +180,9 @@ pub fn check_encode(data: &[u8], selector: usize) -> String {
         want
     );
     for &(name, encode) in ENCODERS {
-        check_encoder(name, encode, data, &want, selector);
+        if !skip_quadratic(name, data.len()) {
+            check_encoder(name, encode, data, &want, selector);
+        }
     }
     // Matrix comparison hooks no longer select fixed-size kernels.
     let fixed: Option<Encode> = match data.len() {
@@ -223,7 +250,7 @@ pub fn check_decoder<T: AsRef<[u8]> + ?Sized>(
 ) {
     let len = input.as_ref().len();
     let n = want.as_ref().map_or(len, Vec::len);
-    for capacity in [0, n.saturating_sub(1), n, n + 17, selector % (n + 18)] {
+    for capacity in capacities(n, selector) {
         let mut storage = vec![CANARY; GUARD + capacity + GUARD];
         let result = decode(input, &mut storage[GUARD..GUARD + capacity]);
         assert!(
@@ -263,7 +290,9 @@ pub fn check_decode(input: &str, selector: usize) {
 
 fn check_decode_as(input: &str, want: &Result<Vec<u8>, usize>, selector: usize) {
     for &(name, decode) in DECODERS {
-        check_decoder(name, decode, input, want, selector);
+        if !skip_quadratic(name, input.len()) {
+            check_decoder(name, decode, input, want, selector);
+        }
     }
     assert_eq!(
         faster_base58::Decoder::bitcoin().decode(input).into_vec(),

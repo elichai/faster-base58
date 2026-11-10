@@ -8,7 +8,11 @@ input. A property test checks that the two oracles agree on both sides of the
 switch. A [linear-time residue check](../tests/support/residue.rs) confirms each
 successful oracle result: equal zero prefixes and equal values modulo three
 fixed 61-bit primes. They check empty inputs, leading zeros, exact/short/oversized output
-slices, result suffixes, and canaries around each slice. Decoding checks the first
+slices, result suffixes, and canaries around each slice. Results longer than 8,193
+bytes or characters check exact or oversized slices, alternating by input, since
+each costs a whole conversion. The quadratic `batched` and `no-alloc` hooks run only
+on inputs up to 8,193 bytes or characters; unit tests check them at 200,001 bytes
+and 300,001 characters. Decoding checks the first
 invalid byte index. The public decoder takes raw bytes, so decode also passes the
 fuzz input unchanged, including invalid UTF-8. The backend hooks take `&str`, so
 they see malformed UTF-8 only after lossy conversion. The encode targets then
@@ -94,8 +98,7 @@ debug assertions and integer overflow checks remain enabled. Repeat with
 `--features cache`; use `--sanitizer leak` for the separate LeakSanitizer campaign.
 The short-input campaigns perform mutations quickly; replaying
 the full boundary corpus exercises larger kernels without spending the entire
-mutation budget on large inputs, where the quadratic `batched` encoder under test
-takes most of the time. For sustained large-input fuzzing,
+mutation budget on large inputs. For sustained large-input fuzzing,
 replace `-runs=0` with `-max_total_time=3600`.
 
 `encode_full_width` adds structured large-input mutations. Each raw input repeats
