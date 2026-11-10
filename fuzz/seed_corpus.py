@@ -33,9 +33,10 @@ SPLIT_FALLBACKS = tuple(
 RADIX_LENGTHS = [33, 64, 65, 127, 128, 129, 255, 256, 257, 511, 512, 513,
                  8191, 8192, 8193, ENCODE_MAX_BYTES]
 ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-# Texts with runs of the zero digit `1` that cover whole divide-and-conquer blocks (up to
-# 2,560 digits for Horner leaves, 10,240 for matrix leaves), as length and (start, run)
-# pairs. Random encoder bytes almost never encode to such runs.
+# Encoder inputs whose text has runs of the zero digit `1` that cover whole leaves of the
+# division tree (up to 2,560 digits for Horner leaves, 10,240 for matrix leaves), as text
+# length and (start, run) pairs. Random bytes almost never encode to such runs;
+# `encode_all`'s digit mutation moves and resizes them.
 ZERO_RUNS = {
     "trailing-12000": (12_000, [(10_000, 2_000)]),
     "trailing-60000": (60_000, [(30_000, 30_000)]),
@@ -134,10 +135,7 @@ def main():
     for length in DECODE_CARRY_LENGTHS:
         write_seed("decode_all", f"ntt-carry-{length}", b"z" * length)
     for name, (length, runs) in ZERO_RUNS.items():
-        text = zero_run_text(length, runs)
-        value = base58_value(text)
-        # `decode_all` maps each byte to the digit with that value modulo 58.
-        write_seed("decode_all", f"zero-run-{name}", bytes(ALPHABET.index(c) for c in text))
+        value = base58_value(zero_run_text(length, runs))
         write_seed("encode_all", f"zero-run-{name}", value.to_bytes((value.bit_length() + 7) // 8, "big"))
     for length in UNICODE_LENGTHS:
         for label, char in INVALID_UNICODE:
@@ -157,7 +155,7 @@ def main():
     count = (
         len(LENGTHS) * 6
         + len(DECODE_CARRY_LENGTHS)
-        + 2 * len(ZERO_RUNS)
+        + len(ZERO_RUNS)
         + sum(n <= SMALL_MAX_BYTES for n in LENGTHS) * 6
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2

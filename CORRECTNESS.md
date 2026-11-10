@@ -154,10 +154,10 @@ because Wasm panics abort. [CI.md](CI.md#test-jobs) gives the local commands.
 The [two general differential targets](fuzz/README.md) compare all backend
 wrappers and both allocation policies: values, capacities, suffixes, canaries, owned
 helpers and malformed input. Decode also maps bytes to valid digits and inserts
-invalid ASCII or multibyte characters, including late positions. It re-encodes the
-bytes of the mapped text with the division-tree encoders and expects the text back;
-with the `zero-run-*` seeds this covers zero leaves and subtrees of that tree, which
-random bytes almost never reach. The shared
+invalid ASCII or multibyte characters, including late positions. Encode's mutator
+also mutates base-58 digits, and `zero-run-*` seeds start it with long runs of the
+zero digit; this reaches zero leaves and subtrees of the encoders' division tree,
+which random bytes almost never do. The shared
 oracle switches from bs58 to Malachite above 2,048 bytes, so large inputs do not
 pay for a quadratic oracle. The quadratic `batched` and `no-alloc` hooks run only
 up to 8,193 bytes or characters; `large_inputs_round_trip` and

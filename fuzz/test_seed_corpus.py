@@ -90,7 +90,7 @@ class SeedCorpusTests(unittest.TestCase):
                               ("native-owned", b"\x82"), ("portable-owned", b"\x80")]:
                 self.assertEqual((root / "encode_radix_full_width" / name).read_bytes(), raw)
 
-    def test_zero_run_seeds_pair_texts_with_encoder_inputs(self):
+    def test_zero_run_seeds_encode_to_runs_of_ones(self):
         self.assertEqual(seed_corpus.base58_value(b"21"), 58)
         self.assertEqual(seed_corpus.base58_value(b"2" + b"1" * 99), 58**99)
         self.assertEqual(seed_corpus.base58_value(b"z" * 100), 58**100 - 1)
@@ -104,11 +104,10 @@ class SeedCorpusTests(unittest.TestCase):
                 seed_corpus.ROOT = previous
             for name, (length, runs) in seed_corpus.ZERO_RUNS.items():
                 with self.subTest(name=name):
-                    digits = (root / "decode_all" / f"zero-run-{name}").read_bytes()
-                    text = bytes(seed_corpus.ALPHABET[d % 58] for d in digits)
+                    text = seed_corpus.zero_run_text(length, runs)
                     data = (root / "encode_all" / f"zero-run-{name}").read_bytes()
+                    self.assertEqual(seed_corpus.base58_value(text), int.from_bytes(data, "big"))
                     self.assertEqual(len(text), length)
-                    self.assertLessEqual(len(text), seed_corpus.DECODE_MAX_BYTES)
                     self.assertLessEqual(len(data), seed_corpus.ENCODE_MAX_BYTES)
                     self.assertNotEqual(text[0], ord("1"))
                     self.assertNotEqual(data[0], 0)

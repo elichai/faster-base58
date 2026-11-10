@@ -288,28 +288,6 @@ pub fn check_decode(input: &str, selector: usize) {
     check_decode_as(input, &oracle_decode(input), selector);
 }
 
-/// [`check_decode`], then, for valid text, the encoders with a division tree on the decoded
-/// bytes, which must give `input` back: each byte string has exactly one encoding. Text
-/// reaches encoder inputs that random bytes almost never do, such as long runs of the zero
-/// digit `1`, which make whole leaves and subtrees zero.
-pub fn check_decode_round_trip(input: &str, selector: usize) {
-    let want = oracle_decode(input);
-    check_decode_as(input, &want, selector);
-    let Ok(data) = want else { return };
-    // Exact output slices only: the encode targets check the others, and each costs a
-    // whole conversion. `decode_all` replays of the stored corpus (M5, ASan, 2026-11-10)
-    // took 1.13 times as long with these, 1.27 with `auto` too, 2.2 with every encoder,
-    // and 2.7 with every encoder at every capacity on both of its texts.
-    let tree: [(&str, Encode); 3] = [
-        ("dc", faster_base58::internals::encode_karatsuba),
-        ("ntt", faster_base58::internals::encode_ntt),
-        ("ntt-cached", faster_base58::internals::encode_ntt_cached),
-    ];
-    for (name, encode) in tree {
-        check_encoder_capacity(name, encode, &data, input.as_bytes(), input.len());
-    }
-}
-
 fn check_decode_as(input: &str, want: &Result<Vec<u8>, usize>, selector: usize) {
     for &(name, decode) in DECODERS {
         if !skip_quadratic(name, input.len()) {
