@@ -18,8 +18,8 @@ fuzz input unchanged, including invalid UTF-8. The backend hooks take `&str`, so
 they see malformed UTF-8 only after lossy conversion. The encode targets then
 decode the expected text with every decoder and expect the original input, so
 they need no decode oracle. In the other direction, `decode_all` encodes the bytes of
-its mapped valid text with the division-tree encoders (`auto`, `dc`, `ntt`,
-`ntt-cached`) into exact slices and expects the text back. Mutated digits reach
+its mapped valid text with the division-tree encoders (`dc`, `ntt`, `ntt-cached`)
+into exact slices and expects the text back. Mutated digits reach
 encoder inputs that mutated bytes almost never do, such as long runs of the zero
 digit `1`, which make whole leaves and subtrees zero.
 
