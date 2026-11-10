@@ -100,6 +100,8 @@ first-invalid indices; Malachite replaces it above that length. Canary checks su
 unspecified error-buffer contents. Unit tests also cover MiB conversions, all-one
 carry patterns, powers, small exhaustive inputs, all legal NTT scale lengths and the
 partial-word store at every length from 0 to 8 bytes, with guard bytes.
+The `tests` coverage flag includes unit and property suites. Direct unit tests
+cover supported ISA kernels that runtime dispatch may bypass on a given runner.
 
 CI selects 512 cases per property in debug and release, cache off/on, on x86-64
 and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian
