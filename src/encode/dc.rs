@@ -420,9 +420,11 @@ fn divide(
     }
     // lo = (A >> bits) β^shift + x mod β^shift. The remainder is below `pn`.
     let low = &x[..sh.min(x.len())];
-    lo[..low.len()].copy_from_slice(low);
-    lo[low.len()..sh].fill(0);
-    shr(&mut lo[sh..], &a[..dn], d.bits);
+    let (low_out, high_out) = lo.split_at_mut(sh);
+    let (copy_out, zero_out) = low_out.split_at_mut(low.len());
+    copy_out.copy_from_slice(low);
+    zero_out.fill(0);
+    shr(high_out, &a[..dn], d.bits);
     (trimmed_len(hi), trimmed_len(lo))
 }
 
@@ -508,11 +510,12 @@ fn node(
     let (hi, s) = s.split_at_mut(qn + 1);
     let (lo, s) = s.split_at_mut(qn);
     let (hn, ln) = divide(x, d, i, hi, lo, s, m);
+    let lo = &lo[..ln];
     if !pad && hn == 0 {
-        return node(&lo[..ln], d.exp, false, t, out, s, m);
+        return node(lo, d.exp, false, t, out, s, m);
     }
     node(&hi[..hn], n - d.exp, pad, t, out, s, m)?;
-    node(&lo[..ln], d.exp, true, t, out, s, m)
+    node(lo, d.exp, true, t, out, s, m)
 }
 
 /// Scratch limbs [`node`] needs for any node, by induction on the levels: a node at level
