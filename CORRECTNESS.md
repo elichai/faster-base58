@@ -80,6 +80,9 @@ Product tests check poisoned output and the live low-child
 prefix consumed by fused carry. Forced best/portable radix hooks participate in
 unit, property and fuzz backend lists; their out-of-domain fallback is checked.
 
+Matrix leaf tests check one- through four-digit heads with and without padding,
+including the unwritten output tail.
+
 The whole-limb formatter's `ten_digits_matches_division` test compares serial
 division at both domain ends, radix boundaries and 10,000 seeded values; that is
 not exhaustive coverage of the `58^10` domain.

@@ -15,7 +15,7 @@ use core::cmp::Ordering;
 use super::batched::Limbs;
 use super::{bits, matrix, min_digits, split_zeros, ten_digits};
 use crate::BufferTooSmall;
-use crate::common::CHUNK;
+use crate::common::{CHUNK, store_low_le};
 use crate::dc::{LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len};
 use crate::mul::{add_assign, fold_wrapped, sub_assign};
 
@@ -559,7 +559,9 @@ fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), 
     let (head, body) = out.take(lead + 4 * rest.len())?.split_at_mut(lead);
     if lead <= 4 {
         debug_assert!(top[..4 - lead].iter().all(|&c| c == b'1'), "x >= BASE^n");
-        head.copy_from_slice(&top[4 - lead..]);
+        // The head holds at most four trailing digits; keep their byte order on any host.
+        let digits = u64::from(u32::from_le_bytes(top));
+        store_low_le(head, digits >> (8 * (4 - lead)));
     } else {
         head[..lead - 4].fill(b'1');
         head[lead - 4..].copy_from_slice(&top);
@@ -1289,6 +1291,14 @@ mod tests {
                 check_leaf(kind, n, &[1], b"2");
                 check_leaf(kind, n, &[], b"");
             }
+        }
+    }
+
+    #[test]
+    fn matrix_leaf_short_heads() {
+        for text in [b"z".as_slice(), b"zz", b"zzz", b"zzzz"] {
+            let value = text.iter().fold(0u64, |n, _| n * 58 + 57);
+            check_leaf(Leaves::Matrix, 1, &[value], text);
         }
     }
 
