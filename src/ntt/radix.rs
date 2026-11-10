@@ -273,10 +273,9 @@ fn encode_value(
             spectrum,
         });
         if i + 1 < levels {
-            let p = &powers[i];
             let slot;
-            (slot, remaining) = remaining.split_at_mut(2 * p.digits.len());
-            let len = arithmetic.multiply_add(p.digits, p.digits, slot, 0, p.spectrum);
+            (slot, remaining) = remaining.split_at_mut(2 * digits.len());
+            let len = arithmetic.multiply_add(digits, digits, slot, 0, spectrum);
             digits = &slot[..len];
         } else {
             break;
