@@ -396,9 +396,10 @@ python3 fuzz/seed_corpus.py
 python3 fuzz/corpus_store.py validate CORPUS_ROOT
 cp -a CORPUS_ROOT/. fuzz/corpus/
 export RUSTFLAGS='-Zextra-const-ub-checks -Zstrict-init-checks --cfg careful -C target-cpu=generic'
-cargo +"$nightly" fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features --features full-width --jobs 1 encode_all fuzz/corpus/encode_all -- -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features --features full-width encode_all fuzz/corpus/encode_all -- -timeout=120 -rss_limit_mb=4096
 ```
 
+`fuzz coverage` replays batches of at least 100 inputs in one process per CPU.
 The workflow gives the `llvm-cov report` and `llvm-cov export` commands and the
 file filter. `CORPUS_ROOT` is the `corpora` directory of a `fuzz-corpus` checkout.
 
