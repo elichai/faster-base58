@@ -327,9 +327,11 @@ impl Arithmetic<'_, '_> {
     fn prepare<'a>(&self, b: &[u32], storage: &'a mut [i32]) -> [&'a [i32]; 2] {
         let n = (2 * b.len()).max(8).next_power_of_two();
         assert_eq!(storage.len(), 2 * n);
-        for (j, f) in storage.chunks_exact_mut(n).enumerate() {
+        let tw = self.tw.first_chunk::<2>().expect("two transform primes");
+        let (a, b_storage) = storage.split_at_mut(n);
+        for ((f, p), tw) in [a, b_storage].into_iter().zip(PRIMES).zip(tw) {
             load(f, b);
-            (self.kernels.forward)(f, PRIMES[j], self.tw[j].fw());
+            (self.kernels.forward)(f, p, tw.fw());
         }
         let (a, b) = storage.split_at(n);
         [a, b]
@@ -374,28 +376,29 @@ impl Arithmetic<'_, '_> {
                     *s += a as u64 * b as u64;
                 }
             }
-            let sums = &self.sums;
+            let sums = &self.sums[..len];
             carry(out, |i| sums[i], add_len);
         } else {
             let n = len.max(8).next_power_of_two();
             let r = &mut self.residues[..2 * n];
             let tmp = &mut self.tmp[..n];
             let square = core::ptr::eq(a, b);
-            for (j, r) in r.chunks_exact_mut(n).enumerate() {
-                let p = PRIMES[j];
-                let tw = &self.tw[j];
-                if square && let Some(f) = fb {
-                    r.copy_from_slice(&f[j][..n]);
+            let tw = self.tw.first_chunk::<2>().expect("two transform primes");
+            let (r1, r2) = r.split_at_mut(n);
+            let spectra = fb.map_or([None; 2], |f| f.map(Some));
+            for (((r, p), tw), f) in [r1, r2].into_iter().zip(PRIMES).zip(tw).zip(spectra) {
+                if square && let Some(f) = f {
+                    r.copy_from_slice(&f[..n]);
                 } else {
                     load(r, a);
                     (self.kernels.forward)(r, p, tw.fw());
                 }
                 if square {
                     (self.kernels.square)(r, p);
-                } else if let Some(f) = fb {
+                } else if let Some(f) = f {
                     // The bit-reversed spectrum's first n entries are the smaller
                     // cyclic transform. Here b.len() <= n, so no input folds.
-                    (self.kernels.pointwise)(r, &f[j][..n], p);
+                    (self.kernels.pointwise)(r, &f[..n], p);
                 } else {
                     load(tmp, b);
                     (self.kernels.forward)(tmp, p, tw.fw());
@@ -409,6 +412,7 @@ impl Arithmetic<'_, '_> {
                 &mut r2[..len.next_multiple_of(4)],
             );
             let q1 = PRIMES[0].q as u64;
+            let (r1, r2) = (&r1[..len], &r2[..len]);
             carry(out, |i| r1[i] as u64 + q1 * r2[i] as u64, add_len);
         }
         out.iter().rposition(|&d| d != 0).map_or(0, |i| i + 1)
@@ -489,9 +493,14 @@ fn carry(out: &mut [u32], coef: impl Fn(usize) -> u64, add_len: usize) {
     };
     let s = out.len() / K;
     let mut carries = [0; K];
-    for j in 0..s {
-        for (k, c) in carries.iter_mut().enumerate() {
-            *c = step(&mut out[k * s + j], k * s + j, *c);
+    let (quarters, _) = out.as_chunks_mut::<K>();
+    let quarters = quarters.as_flattened_mut();
+    let (ab, cd) = quarters.split_at_mut(quarters.len() / 2);
+    let (a, b) = ab.split_at_mut(ab.len() / 2);
+    let (c, d) = cd.split_at_mut(cd.len() / 2);
+    for (j, (((a, b), c), d)) in a.iter_mut().zip(b).zip(c).zip(d).enumerate() {
+        for (k, (digit, carry)) in [a, b, c, d].into_iter().zip(&mut carries).enumerate() {
+            *carry = step(digit, k * s + j, *carry);
         }
     }
     for (i, digit) in (K * s..).zip(&mut out[K * s..]) {

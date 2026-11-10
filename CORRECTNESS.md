@@ -84,6 +84,11 @@ Matrix leaf tests check mixed-digit heads of widths one through four without
 padding and widths two and four with padding, including leading padding digits,
 exact/short buffers, guard bytes and the unwritten output tail.
 
+Paired batched encoding is checked against two sequential updates for stored-limb
+lengths 0–9, zero and maximal carries, and untouched spare slots. Schoolbook
+division tests recover a constructed quotient and remainder for normalized
+divisors of 2–16 limbs, zero/maximal/random quotients, and remainder `v - 1`.
+
 The whole-limb formatter's `ten_digits_matches_division` test compares serial
 division at both domain ends, radix boundaries and 10,000 seeded values; that is
 not exhaustive coverage of the `58^10` domain.

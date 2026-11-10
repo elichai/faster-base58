@@ -721,38 +721,48 @@ fn recip_scratch_len(n: usize, m: &impl Multiplier) -> usize {
 /// top bit set, `u` of `k + n + 1` limbs whose top limb is zero, and `q` of `k + 1` limbs.
 fn div_schoolbook(q: &mut [u64], u: &mut [u64], v: &[u64]) {
     let n = v.len();
-    let (v1, v0) = (v[n - 1] as u128, v[n - 2] as u128);
-    for j in (0..u.len() - n).rev() {
-        let top = ((u[j + n] as u128) << 64) | u[j + n - 1] as u128;
+    let [.., v0, v1] = v else {
+        panic!("schoolbook division needs at least two divisor limbs");
+    };
+    let (v1, v0) = (*v1 as u128, *v0 as u128);
+    let q = &mut q[..u.len() - n];
+    for (j, quotient) in q.iter_mut().enumerate().rev() {
+        let window = &mut u[j..=j + n];
+        let (high, low) = window.split_last_mut().expect("one high dividend limb");
+        let [.., u0, u1] = low else {
+            unreachable!("the window has as many limbs as the divisor");
+        };
+        let top = ((*high as u128) << 64) | *u1 as u128;
+        let next = *u0 as u128;
         let (mut qhat, mut rhat) = (top / v1, top % v1);
         // At most two steps make `qhat` exact or one too large.
-        while qhat >> 64 != 0 || qhat * v0 > ((rhat << 64) | u[j + n - 2] as u128) {
+        while qhat >> 64 != 0 || qhat * v0 > ((rhat << 64) | next) {
             qhat -= 1;
             rhat += v1;
             if rhat >> 64 != 0 {
                 break;
             }
         }
-        // u[j..=j+n] -= qhat v.
+        // Subtract qhat v from this n + 1 limb window.
         let (mut carry, mut borrow) = (0u64, false);
-        for i in 0..n {
-            let (lo, hi) = (qhat as u64).carrying_mul(v[i], carry);
-            (u[j + i], borrow) = u[j + i].borrowing_sub(lo, borrow);
+        for (u, &v) in low.iter_mut().zip(v) {
+            let (lo, hi) = (qhat as u64).carrying_mul(v, carry);
+            (*u, borrow) = u.borrowing_sub(lo, borrow);
             carry = hi;
         }
-        let (top, b1) = u[j + n].overflowing_sub(carry);
+        let (top, b1) = high.overflowing_sub(carry);
         let (top, b2) = top.overflowing_sub(borrow as u64);
-        u[j + n] = top;
+        *high = top;
         if b1 | b2 {
             // One too large: add `v` back.
             qhat -= 1;
             let mut c = false;
-            for i in 0..n {
-                (u[j + i], c) = u[j + i].carrying_add(v[i], c);
+            for (u, &v) in low.iter_mut().zip(v) {
+                (*u, c) = u.carrying_add(v, c);
             }
-            u[j + n] = u[j + n].wrapping_add(c as u64);
+            *high = high.wrapping_add(c as u64);
         }
-        q[j] = qhat as u64;
+        *quotient = qhat as u64;
     }
 }
 
@@ -777,12 +787,13 @@ fn shl(dst: &mut [u64], src: &[u64], bits: u32) {
 
 /// `dst = src >> bits` for `bits < 64`, cut to `dst.len() <= src.len()` limbs.
 fn shr(dst: &mut [u64], src: &[u64], bits: u32) {
-    for (j, d) in dst.iter_mut().enumerate() {
+    let low = &src[..dst.len()];
+    for (j, (d, &v)) in dst.iter_mut().zip(low).enumerate() {
         let up = match (bits, src.get(j + 1)) {
             (0, _) | (_, None) => 0,
             (_, Some(&v)) => v << (64 - bits),
         };
-        *d = (src[j] >> bits) | up;
+        *d = (v >> bits) | up;
     }
 }
 
@@ -887,6 +898,43 @@ mod tests {
             &mut vec![0; mul::scratch_len(a.len().max(b.len()))],
         );
         out
+    }
+
+    /// Every division window must preserve the exact quotient and remainder.
+    #[test]
+    fn schoolbook_recovers_quotient_and_remainder() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(39);
+        for n in 2..=RECIP_BASECASE {
+            for qn in [1, 2, 5] {
+                for pattern in 0..3 {
+                    let mut v: Vec<u64> = (0..n).map(|_| rng.next_u64()).collect();
+                    let mut want_q: Vec<u64> = (0..qn).map(|_| rng.next_u64()).collect();
+                    match pattern {
+                        0 => {
+                            v.fill(0);
+                            v[n - 1] = 1 << 63;
+                            want_q.fill(0);
+                        }
+                        1 => {
+                            v.fill(u64::MAX);
+                            want_q.fill(u64::MAX);
+                        }
+                        _ => v[n - 1] |= 1 << 63,
+                    }
+                    let mut want_r = v.clone();
+                    sub_assign(&mut want_r, &[1]);
+                    let mut u = product(&v, &want_q);
+                    assert!(!add_assign(&mut u, &want_r));
+                    u.push(0);
+                    let mut q = vec![0; u.len() - n];
+                    div_schoolbook(&mut q, &mut u, &v);
+                    want_q.push(0);
+                    assert_eq!(q, want_q, "n {n}, qn {qn}, pattern {pattern}");
+                    assert_eq!(&u[..n], want_r, "n {n}, qn {qn}, pattern {pattern}");
+                    assert!(u[n..].iter().all(|&limb| limb == 0));
+                }
+            }
+        }
     }
 
     /// Karatsuba, with every product that may wrap wrapped modulo `β^(n + extra) - 1` by

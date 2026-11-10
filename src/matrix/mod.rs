@@ -307,11 +307,18 @@ fn convert_with<'a>(
     // After `parse`, so invalid input builds no table.
     let table = table::get(digits.len());
     let cols = zeroed(&mut scratch.cols, table.cols(panels));
+    let metadata = &table.panels[..panels];
     // Columns below `from` get no more products: later panels start further up.
     let mut from = 0;
-    for (p, d) in groups.as_chunks::<ROWS>().0.iter().enumerate() {
-        let end = p + 4 * table.panels[p].nb;
-        panel(&mut cols[p..end], table.words(p), d);
+    for (p, (d, &meta)) in groups
+        .as_chunks::<ROWS>()
+        .0
+        .iter()
+        .zip(metadata)
+        .enumerate()
+    {
+        let end = p + 4 * meta.nb;
+        panel(&mut cols[p..end], table.words(meta), d);
         if (p + 1).is_multiple_of(CARRY_EVERY) {
             carry32(&mut cols[from..=end]);
             from = p + 1;

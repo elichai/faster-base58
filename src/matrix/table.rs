@@ -87,10 +87,11 @@ impl Table {
                 offset: data.len(),
             });
             for b in 0..nb {
-                for (r, &len) in lengths.iter().enumerate() {
+                for (row, &len) in rows.chunks_exact(stride).zip(&lengths) {
+                    let row = &row[..len];
                     for w in 0..4 {
                         let j = p + 4 * b + w;
-                        data.push(if j < len { rows[r * stride + j] } else { 0 });
+                        data.push(row.get(j).copied().unwrap_or(0));
                     }
                 }
             }
@@ -105,9 +106,9 @@ impl Table {
         (panels - 1 + 4 * last.nb + 1).next_multiple_of(2)
     }
 
-    /// The words of panel `p`.
-    pub(crate) fn words(&self, p: usize) -> &[u32] {
-        let Panel { nb, offset } = self.panels[p];
+    /// The words of `panel` from this table.
+    pub(crate) fn words(&self, panel: Panel) -> &[u32] {
+        let Panel { nb, offset } = panel;
         &self.data[offset..offset + 32 * nb]
     }
 }
@@ -298,7 +299,7 @@ mod tests {
         let mut want = vec![1u32];
         for p in 0..t.panels.len() {
             let Panel { nb, .. } = t.panels[p];
-            let words = t.words(p);
+            let words = t.words(t.panels[p]);
             for r in 0..ROWS {
                 let i = ROWS * p + r;
                 if i.is_multiple_of(37) {

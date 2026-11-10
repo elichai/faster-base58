@@ -302,16 +302,23 @@ fn mul_add_base2(limbs: &mut [u64], len: usize, c1: u64, c2: u64) -> usize {
     }
     (*previous, k2) = p.carrying_mul(BASE, k2);
     // The first pass's carry, if non-zero, is its new top limb.
-    let mut len = len;
-    if k1 != 0 {
-        (spare[0], k2) = k1.carrying_mul(BASE, k2);
-        len += 1;
+    let (carry, extra) = if k1 != 0 {
+        let (lo, hi) = k1.carrying_mul(BASE, k2);
+        ([lo, hi], 1 + usize::from(hi != 0))
+    } else {
+        ([k2, 0], usize::from(k2 != 0))
+    };
+    // Check space once, then use fixed stores instead of a variable-length copy.
+    match &mut spare[..extra] {
+        [] => {}
+        [first] => *first = carry[0],
+        [first, second] => {
+            *first = carry[0];
+            *second = carry[1];
+        }
+        _ => unreachable!(),
     }
-    if k2 != 0 {
-        spare[len - active.len()] = k2;
-        len += 1;
-    }
-    len
+    len + extra
 }
 
 /// Folds `chunks` (most significant first) into `limbs[..len]`. Returns the new length.
@@ -357,11 +364,18 @@ pub(crate) struct Power<'a> {
 
 impl<'a> Power<'a> {
     fn new(exp: usize, limbs: &'a [u64], shift: usize) -> Self {
-        let limbs = &limbs[..trimmed_len(limbs)];
-        let zeros = limbs.iter().take_while(|&&x| x == 0).count();
+        let mut limbs = limbs;
+        while let [rest @ .., 0] = limbs {
+            limbs = rest;
+        }
+        let mut zeros = 0;
+        while let [0, rest @ ..] = limbs {
+            limbs = rest;
+            zeros += 1;
+        }
         Power {
             exp,
-            limbs: &limbs[zeros..],
+            limbs,
             shift: shift + zeros,
         }
     }
@@ -427,9 +441,9 @@ pub(crate) fn powers<'a>(
     let len = (0..unit).step_by(LEAF).fold(1, |len, i| {
         mul_add_chunks(p, len, &zeros[..LEAF.min(unit - i)])
     });
-    powers[0] = Power::new(unit, &p[..len], 0);
-    for i in 1..levels {
-        let last = powers[i - 1];
+    let mut last = Power::new(unit, &p[..len], 0);
+    powers[0] = last;
+    for (i, slot) in powers[..levels].iter_mut().enumerate().skip(1) {
         if prepare {
             m.prepare_power(i - 1, last.limbs, product_len(last.exp, last.limbs.len()));
         }
@@ -440,7 +454,8 @@ pub(crate) fn powers<'a>(
         } else {
             m.mul(sq, last.limbs, last.limbs, scratch);
         }
-        powers[i] = Power::new(2 * last.exp, sq, 2 * last.shift);
+        *slot = Power::new(2 * last.exp, sq, 2 * last.shift);
+        last = *slot;
     }
     powers
 }
@@ -480,8 +495,9 @@ fn dc(
     }
     // value = hi * BASE^p.exp + lo. `powers[0].exp <= max_leaf`, so `p` exists,
     // and the next power is at least `n`, so `hi` is no longer than `lo`.
-    let i = powers.partition_point(|p| p.exp < n) - 1;
-    let p = &powers[i];
+    let end = powers.partition_point(|p| p.exp < n);
+    let (p, _) = powers[..end].split_last().expect("a power below n");
+    let i = end - 1;
     let (hi, lo) = digits.split_at(digits.len() - p.exp * CHUNK);
     // `t` holds `hi`, then `lo`. `BASE^p.exp < 2^(64 * p.exp)`, so `end <= n`.
     let (t, scratch) = scratch.split_at_mut(p.exp);

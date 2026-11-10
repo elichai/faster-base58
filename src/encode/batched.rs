@@ -241,26 +241,27 @@ impl Limbs<'_> {
     fn step2(&mut self, c1: u64, c2: u64) {
         let cap = self.slots.len();
         let l = &mut self.slots[cap - self.len..];
-        let n = l.len();
-        if n == 0 {
+        let Some((last, rest)) = l.split_last_mut() else {
             self.step(c1);
             return self.step(c2);
-        }
+        };
         // `p` is the previous limb after the first pass only.
-        let (q, r) = split(u64::from_ne_bytes(l[n - 1]));
+        let (q, r) = split(u64::from_ne_bytes(*last));
         let (mut p, mut k1) = reduce(r + c1);
         let (mut q1, mut q2, mut k2) = (q, c2, 0);
-        for i in (0..n - 1).rev() {
-            let (qa, ra) = split(u64::from_ne_bytes(l[i]));
+        let mut previous = last;
+        for current in rest.iter_mut().rev() {
+            let (qa, ra) = split(u64::from_ne_bytes(*current));
             let (a, ka) = reduce(ra + q1 + k1);
             let (qb, rb) = split(p);
             let (b, kb) = reduce(rb + q2 + k2);
-            l[i + 1] = b.to_ne_bytes();
+            *previous = b.to_ne_bytes();
+            previous = current;
             (p, q1, k1, q2, k2) = (a, qa, ka, qb, kb);
         }
         let (qb, rb) = split(p);
         let (b, kb) = reduce(rb + q2 + k2);
-        l[0] = b.to_ne_bytes();
+        *previous = b.to_ne_bytes();
         let mut c2 = qb + kb;
         // The first pass on `top`. If it pushes a limb, the second pass handles it too.
         let (t, ct) = step_limb(self.top, q1 + k1);
@@ -304,6 +305,40 @@ fn step_limb(y: u64, c: u64) -> (u64, u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand_xoshiro::Xoshiro256PlusPlus;
+    use rand_xoshiro::rand_core::{Rng, SeedableRng};
+
+    #[test]
+    fn paired_update_matches_sequential() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(73);
+        for len in 0..=9 {
+            for top in [0, 1, BASE - 1] {
+                for c1 in [0, 1, (1 << 56) - 1] {
+                    for c2 in [0, 1, (1 << 56) - 1] {
+                        let mut paired = core::array::from_fn::<_, 11, _>(|_| {
+                            (rng.next_u64() % BASE).to_ne_bytes()
+                        });
+                        let mut sequential = paired;
+                        let mut p = Limbs {
+                            slots: &mut paired,
+                            len,
+                            top,
+                        };
+                        let mut s = Limbs {
+                            slots: &mut sequential,
+                            len,
+                            top,
+                        };
+                        p.step2(c1, c2);
+                        s.step(c1);
+                        s.step(c2);
+                        assert_eq!((p.len, p.top), (s.len, s.top), "len {len}");
+                        assert_eq!(paired, sequential, "len {len}");
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn store_last_writes_only_its_bytes() {

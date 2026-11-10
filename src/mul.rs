@@ -119,11 +119,12 @@ fn schoolbook(out: &mut [u64], a: &[u64], b: &[u64]) {
     }
     if let &[x] = last {
         let i = a.len() - 1;
+        let (top, row) = out[i..i + n + 1].split_last_mut().unwrap();
         let mut carry = 0;
-        for (o, &y) in out[i..].iter_mut().zip(b) {
+        for (o, &y) in row.iter_mut().zip(b) {
             (*o, carry) = x.carrying_mul_add(y, *o, carry);
         }
-        out[i + n] = carry;
+        *top = carry;
     }
 }
 

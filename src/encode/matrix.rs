@@ -297,21 +297,31 @@ fn convert_with<'a>(
     let panels = x.len().div_ceil(PANEL_BYTES);
     let words = zeroed(&mut scratch.words, ROWS * panels);
     let (head, body) = x.as_rchunks::<WORD>();
-    for (w, c) in words.iter_mut().zip(body.iter().rev()) {
-        *w = u32::from_be_bytes(*c);
-    }
-    if !head.is_empty() {
-        words[body.len()] = head.iter().fold(0, |v, &b| (v << 8) | b as u32);
+    let values = body
+        .iter()
+        .rev()
+        .map(|c| u32::from_be_bytes(*c))
+        .chain((!head.is_empty()).then(|| head.iter().fold(0, |v, &b| (v << 8) | b as u32)));
+    for (w, value) in words.iter_mut().zip(values) {
+        *w = value;
     }
     let table = table::get(x.len());
     let cols = zeroed(&mut scratch.cols, table.cols(panels));
-    for (p, d) in words.as_chunks::<ROWS>().0.iter().enumerate() {
-        let end = 4 * table.panels[p].nb;
-        panel(&mut cols[..end], table.words(p), d);
+    for (p, (d, meta)) in words
+        .as_chunks::<ROWS>()
+        .0
+        .iter()
+        .zip(&table.panels)
+        .enumerate()
+    {
+        let end = 4 * meta.nb;
+        let active = &mut cols[..=end];
+        let (_, panel_cols) = active.split_last_mut().expect("the carry column exists");
+        panel(panel_cols, table.words(p), d);
         if (p + 1).is_multiple_of(CARRY_EVERY) {
             // `cols[end]` is the carry column: panel ends increase, so neither a panel
             // nor an earlier pass has written it.
-            spread(&mut cols[..=end]);
+            spread(active);
         }
     }
     // Every column is a non-negative part of the value, so those at or above its length
