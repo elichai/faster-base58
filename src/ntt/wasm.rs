@@ -315,6 +315,26 @@ pub(crate) fn garner([r1, r2, r3]: [&mut [i32]; 3]) {
     }
 }
 
+/// `radix::garner_two_portable` for lengths divisible by four.
+pub(super) fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
+    let n = r1.len();
+    assert!(n == r2.len() && n.is_multiple_of(4));
+    let [p1, p2, _] = PRIMES;
+    let (q1, q2) = (i32x4_splat(p1.q), i32x4_splat(p2.q));
+    let k = [q2, i32x4_splat(GARNER.c12), i32x4_splat(GARNER.c12q)];
+    for i in (0..n).step_by(4) {
+        let [q2, c12, c12q] = fresh(&k);
+        // SAFETY: `i + 4 <= n` for both slices.
+        unsafe {
+            let a = normalize(ld(r1.as_ptr().add(i)), q1);
+            let b = ld(r2.as_ptr().add(i));
+            let v2 = normalize(mont(i32x4_sub(b, a), c12, c12q, q2), q2);
+            st(r1.as_mut_ptr().add(i), a);
+            st(r2.as_mut_ptr().add(i), v2);
+        }
+    }
+}
+
 pub(crate) fn load_twist(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]) {
     let m = 2 * limbs.len();
     assert!(dst.len() >= m && w.len() >= m);
@@ -601,5 +621,11 @@ mod tests {
         let [b1, b2, b3] = &mut b;
         portable::garner([b1, b2, b3]);
         assert_eq!(a, b, "garner");
+        let r1 = samples(&mut rng, PRIMES[0].q, n)[..n].to_vec();
+        let r2 = samples(&mut rng, PRIMES[1].q, n)[..n].to_vec();
+        let ((mut a1, mut a2), (mut b1, mut b2)) = ((r1.clone(), r2.clone()), (r1, r2));
+        garner_two(&mut a1, &mut a2);
+        crate::ntt::radix::garner_two_portable(&mut b1, &mut b2);
+        assert_eq!((a1, a2), (b1, b2), "garner_two");
     }
 }

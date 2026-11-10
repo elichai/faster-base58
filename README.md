@@ -221,10 +221,14 @@ with `+simd128` use Wasm SIMD kernels and are a separate cohort; see the
 | 32 B | 26.1 ns / 51.7 ns | **25.6 ns** / 49.8 ns | 26 ns / 51.2 ns | 632 ns / 217 ns | 45.9 ns / **41.5 ns** |
 | 64 B | 101 ns / 140 ns | 101 ns / 130 ns | 102 ns / 139 ns | 2.93 µs / 839 ns | **93.8 ns** / **127 ns** |
 | 512 B | 7.59 µs / 5.53 µs | **2.81 µs** / **2.52 µs** | 7.72 µs / 5.3 µs | 238 µs / 75.9 µs | — / — |
-| 4 KiB | 460 µs / 188 µs | **149 µs** / **124 µs** | 448 µs / 316 µs | 15.6 ms / 5.38 ms | — / — |
-| 64 KiB | 14 ms / 6 ms | **14 ms** / **5.97 ms** | 116 ms / 78.8 ms | 4.05 s / 1.38 s | — / — |
-| 1 MiB | **335 ms** / 157 ms | 336 ms / **156 ms** | — / — | — / — | — / — |
-| 4 MiB | 1.61 s / 773 ms | **1.61 s** / **768 ms** | — / — | — / — | — / — |
+| 4 KiB | † / 188 µs | **149 µs** / **124 µs** | 448 µs / 316 µs | 15.6 ms / 5.38 ms | — / — |
+| 64 KiB | † / 6 ms | † / **5.97 ms** | 116 ms / 78.8 ms | 4.05 s / 1.38 s | — / — |
+| 1 MiB | † / 157 ms | † / **156 ms** | — / — | — / — | — / — |
+| 4 MiB | † / 773 ms | † / **768 ms** | — / — | — / — | — / — |
+
+† Withdrawn until remeasured: Wasm Auto encodes above 3 KiB (768 B with `simd128`),
+and above 8 KiB with `cache`, now take the division-free radix route. The figure's
+matching bars are withdrawn for the same reason.
 
 ![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
 
@@ -240,10 +244,14 @@ headers, retained heap and Wasm memory pages are separate costs.
 
 | Consumer | M5 code / readonly | x86-64 code / readonly | Wasm code / data section |
 |---|---:|---:|---:|
-| Auto | 68.0 KiB / 24.1 KiB | 301.9 KiB / 37.7 KiB | 70.3 KiB / 14.2 KiB |
-| Auto + cache | 76.1 KiB / 26.7 KiB | 297.5 KiB / 38.6 KiB | 76.1 KiB / 15.0 KiB |
+| Auto | 68.0 KiB / 24.1 KiB | 301.9 KiB / 37.7 KiB | † |
+| Auto + cache | 76.1 KiB / 26.7 KiB | 297.5 KiB / 38.6 KiB | † |
 | No allocation | 10.5 KiB / 10.6 KiB | 21.0 KiB / 14.4 KiB | 14.2 KiB / 9.5 KiB |
 | bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.7 KiB |
+
+† Withdrawn until remeasured with the timing tables: Wasm Auto now links the radix
+route, about 13 KiB of code and 0.7 KiB of data more on 2026-11-09 builds
+([performance guide](docs/performance.md#wasm)).
 
 On x86-64, `features = ["compact"]` keeps eight IFMA kernel widths instead of
 twelve. This reduces linked code and uses more chunks for some multiplications.

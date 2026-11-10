@@ -216,6 +216,8 @@ jobs:
       - run: >-
           cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib --
           --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
+      - run: cargo test --locked --target wasm32-wasip1 --test radix_boundaries
+      - run: cargo test --locked --target wasm32-wasip1 --test radix_boundaries --features cache
 
   maximum_transform:
     runs-on: ubuntu-26.04

@@ -113,7 +113,7 @@ Jobs that upload records keep them as artifacts for 14 days.
 | `big_endian` | Unit, integration, property and documentation tests on PowerPC64 | x86-64 Linux, cross/QEMU; cache off and on | All |
 | `compact` | Tests with `compact` | x86-64 Linux; cache off and on | All |
 | `portability` | Feature-powerset builds for Wasm, AArch64 Linux, Cortex-M and bare x86-64; library Clippy for Wasm and all-target Clippy for AArch64 Linux; Wasm ABI and counted-allocation contracts | x86-64 Linux | All |
-| `wasm_simd128` | Clippy and the library unit tests with `+simd128`, run under wasmtime | x86-64 Linux, `wasm32-wasip1` target | All |
+| `wasm_simd128` | Clippy, the library unit tests and the public radix boundaries with `+simd128`, run under wasmtime | x86-64 Linux, `wasm32-wasip1` target | All |
 | `maximum_transform` | The ignored `2^23`-point transform test | x86-64 Linux | All |
 | `msrv` | Feature-powerset build and public tests on Rust 1.95 | x86-64 Linux | All |
 | `pointer_width_32` | Tests on i686 | x86-64 Linux | All |
@@ -189,7 +189,8 @@ cargo test --locked --release --lib ntt::tests::largest_transforms -- --ignored 
 - `maximum_transform` requires the summary `1 passed; 0 failed; 0 ignored`.
 
 `wasm_simd128` builds the Wasm SIMD128 kernels, which exist only with `+simd128`,
-and runs the library unit tests under wasmtime. WASI preview 1 cannot spawn threads
+and runs the library unit tests and the public radix boundaries (both cache
+policies) under wasmtime. WASI preview 1 cannot spawn threads
 or processes, so the job skips the tests that need them; `should_panic` tests are
 ignored there because Wasm panics abort. Install wasmtime 50.0.1, then:
 
@@ -198,7 +199,11 @@ rustup target add wasm32-wasip1
 export RUSTFLAGS="-C target-feature=+simd128" CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime
 cargo clippy --locked --lib --target wasm32-wasip1 --features cache -- -D warnings
 cargo test --locked --target wasm32-wasip1 --features __internals,cache --lib -- --skip threads --skip invalid_input_builds_no_table --skip retention_is_bounded_across_histories
+cargo test --locked --target wasm32-wasip1 --test radix_boundaries
+cargo test --locked --target wasm32-wasip1 --test radix_boundaries --features cache
 ```
+
+Unset `RUSTFLAGS` to run the same tests on scalar Wasm.
 
 `big_endian` installs the pinned cross revision and runs the suite in a QEMU
 container. On Ubuntu, first install `qemu-user-binfmt` and register `qemu-ppc64`
