@@ -293,6 +293,6 @@ a smaller general path. Fixed-only five8 has a narrower contract.
 The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to
 eight vector groups. It removes four large unrolled kernel bodies (about 93 KiB of
 code) and increases the chunk count for some operand shapes; the
-[performance guide](docs/performance.md#linked-size-and-compact) describes how to
-measure the tradeoff. Format, API and the no-allocation contract are unchanged; wide12 remains
+[performance guide](docs/performance.md#linked-size-and-compact) has the measured
+tradeoff. Format, API and the no-allocation contract are unchanged; wide12 remains
 the default. Other production architectures do not use these IFMA kernels.

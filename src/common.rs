@@ -128,11 +128,11 @@ fn full_chunk(s: &[u8; CHUNK]) -> (u64, u8) {
     (half(&d[..5]) * 58u64.pow(5) + half(&d[5..]), bad)
 }
 
-/// The error for the first invalid character in `input`.
-pub(crate) fn invalid(input: &[u8]) -> DecodeError {
+/// The first invalid byte in `input`, reported relative to a prefix of `offset` bytes.
+pub(crate) fn invalid(input: &[u8], offset: usize) -> DecodeError {
     let index = input.iter().position(|&c| DIGITS[c as usize] == 0xFF);
     DecodeError::InvalidCharacter {
-        index: index.expect("caller saw an invalid character"),
+        index: offset + index.expect("caller saw an invalid character"),
     }
 }
 

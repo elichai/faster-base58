@@ -119,7 +119,7 @@ pub(crate) mod entry {
     ) -> Result<usize, DecodeError> {
         let digits = preflight(input, zeros, output.len())?;
         let mut scratch = Scratch::new();
-        let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input))?;
+        let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input, 0))?;
         Ok(write_bytes(zeros, limbs, output)?)
     }
 
@@ -134,7 +134,7 @@ pub(crate) mod entry {
     ) -> Result<(usize, [u8; 4]), DecodeError> {
         let digits = preflight(input, zeros, output.len().saturating_add(4))?;
         let mut scratch = Scratch::new();
-        let limbs = convert(&BEST, digits, &mut scratch).ok_or_else(|| invalid(input))?;
+        let limbs = convert(&BEST, digits, &mut scratch).ok_or_else(|| invalid(input, 0))?;
         Ok(crate::check::split(zeros, limbs, output)?)
     }
 

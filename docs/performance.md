@@ -1,10 +1,71 @@
 # Performance and resource tradeoffs
 
-Public-API timings and linked sizes are awaiting remeasurement. Auto trades
-workspace for large-input speed; disabling `alloc`
+The [README tables](../README.md#performance) show the public-API timings and
+linked sizes. Auto trades workspace for large-input speed; disabling `alloc`
 avoids internal allocation, and its general large conversions remain quadratic.
 [DESIGN.md](../DESIGN.md) describes dispatch and algorithms;
 [CORRECTNESS.md](../CORRECTNESS.md) describes validation and remaining gaps.
+
+## Results
+
+These results and the README figures were measured before the tree-decoder change.
+Auto decoding that enters the tree and Auto linked sizes require remeasurement;
+the figures retain the earlier values. The change does not alter the other measured
+backends.
+
+Measured **2026-11-09** with ordinary public consumers:
+`code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
+`Decoder::bitcoin().decode(..).onto(..)`, with no `__internals`. Release opt-level
+3, fat LTO, 16 codegen units, generic target flags (`RUSTFLAGS=""`). Default and
+`cache` are separate builds; no-allocation uses `default-features = false`; bs58
+0.5.1 and five8 1.0.0 use their defaults.
+
+| Platform | Compiler / runtime | Clock, processes |
+| --- | --- | --- |
+| Apple M5 Pro, macOS 26.7.2, AC power | Rust 1.99.1 / LLVM 23.1.1 | process CPU, 5 |
+| GCP AMD EPYC 9B45 (Zen 5, 4 vCPU), Linux 6.1, vCPU 1 pinned, [protocol](#measure-and-update) | Rust 1.99.0 / LLVM 23.1.1 | process CPU, 3 × 4 copies |
+| Scalar Wasm on the M5 | Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34 | V8 elapsed, 5 |
+
+Each fresh process times every library, interleaved, in three batches of at least
+10 ms after calibration. A cell is the median of the process medians (on Zen 5, the
+median over copies of each copy's process median); figure bars span the process
+medians. Fixtures are random bytes without leading zeros. Outputs and round trips
+are checked outside timing, decode input is prevalidated UTF-8, and caller buffers
+are reused (decode output is exact). Workspace allocation is inside the timing.
+No-allocation and bs58 stop at 64 KiB; five8 covers 32/64 B.
+
+On Zen 5 the copies of one Auto file spread by more than 5% in default decoding from
+1 KiB to 32 KiB (copy max/min 1.05–1.16, largest at 2 KiB): code placement moves the
+IFMA Karatsuba decoder.
+
+Ranges for 4 MiB Auto (median [min, max] of process medians):
+
+| Platform / policy | Encode | Decode |
+| --- | ---: | ---: |
+| M5 / default | 212 ms [210 ms, 215 ms] | 129 ms [128 ms, 134 ms] |
+| M5 / cache | 210 ms [208 ms, 213 ms] | 129 ms [127 ms, 133 ms] |
+| x86-64 / default | 227 ms [226 ms, 228 ms] | 119 ms [119 ms, 122 ms] |
+| x86-64 / cache | 227 ms [226 ms, 228 ms] | 116 ms [116 ms, 117 ms] |
+| Wasm / default | 1.61 s [1.59 s, 1.63 s] | 773 ms [765 ms, 792 ms] |
+| Wasm / cache | 1.61 s [1.59 s, 1.65 s] | 768 ms [766 ms, 774 ms] |
+
+Default Auto encoding around the fixed 32/64-byte routes:
+
+| Payload | M5 | x86-64 | Wasm |
+| --- | ---: | ---: | ---: |
+| 16 B | 14 ns | 24.8 ns | 21.3 ns |
+| 21 B | 15.4 ns | 28.1 ns | 27.6 ns |
+| 22 B | 17 ns | 29.9 ns | 30.3 ns |
+| 31 B | 24.4 ns | 42.3 ns | 50.9 ns |
+| 32 B | 12 ns | 30 ns | 26.1 ns |
+| 33 B | 23.7 ns | 42 ns | 50.6 ns |
+| 63 B | 59.2 ns | 102 ns | 146 ns |
+| 64 B | 24.1 ns | 31.2 ns | 101 ns |
+| 65 B | 58.2 ns | 105 ns | 160 ns |
+| 128 B | 152 ns | 313 ns | 526 ns |
+
+Not measured: cold calls, owned-output helpers, checked conversion, native CPU
+flags and other compilers.
 
 ## Measure and update
 
@@ -12,7 +73,7 @@ Run from the repository root on an idle host (laptops on AC power); keep output
 under ignored `target/measurements/`. Build every compared artifact before timing
 and never time while compiling.
 
-Public consumer measurements:
+Public consumers (the README tables and figures):
 
 ```sh
 python3 -B scripts/code_size.py --source . --output target/measurements/m5-default --target aarch64-apple-darwin --cpu generic --backends empty,auto,no-alloc,bs58,five8 --directions both --kinds cdylib
@@ -113,13 +174,50 @@ rerun with more processes rather than dropping observations.
 
 ## Wasm SIMD128
 
-Builds with `-C target-feature=+simd128` use SIMD kernels and need a compatible
-engine. Performance comparisons are awaiting remeasurement.
+The published Wasm cohort is scalar. Builds with `-C target-feature=+simd128` are a
+separate cohort that needs a SIMD-capable engine. Measured **2026-11-07** on the M5
+Pro (AC power), Node 26.13.0 / V8 14.6.202.34, Rust 1.99.1: `code_size.py
+--wasm-simd128` Auto probes (generic CPU, fat LTO, default and `cache` builds),
+`public_bench.py --wasm`, five processes, three batches, V8 elapsed time. Ratios are
+medians [range] of per-process ratios against the same build without the Wasm
+kernels (portable kernels, autovectorized):
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 64 B | 0.56 [0.55, 0.57] | 0.96 [0.86, 1.04] | 0.58 [0.57, 0.59] | 0.99 [0.91, 1.06] |
+| 128 B | 1.00 [0.99, 1.02] | 1.00 [0.92, 1.02] | 0.50 [0.50, 0.51] | 1.00 [0.93, 1.08] |
+| 1 KiB | withdrawn | 0.97 [0.84, 1.01] | 0.29 [0.28, 0.29] | 0.33 [0.32, 0.33] |
+| 4 KiB | withdrawn | withdrawn | 0.26 [0.26, 0.27] | 0.27 [0.27, 0.28] |
+| 8 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
+| 64 KiB | withdrawn | withdrawn | withdrawn | withdrawn |
+| 4 MiB | withdrawn | withdrawn | withdrawn | withdrawn |
+
+The NTT rows and the 4 MiB SIMD128 times are withdrawn until remeasured: the NTT's
+inverse transform and Garner step changed in both arms. The 4 KiB default decode
+cell is withdrawn too: Wasm now decodes it with the NTT decoder instead of Karatsuba.
+The default 1 KiB and 4 KiB encodes are withdrawn as well: they now take the radix
+route, which uses the kernels. Cells that reach no Wasm kernel (batched sizes, fixed
+32 bytes) stay within 0.95–1.05. The stripped Auto probe's growth from the kernels is
+withdrawn until remeasured. In the same run, `+simd128` without the explicit kernels
+took 1.24–1.30 times scalar time for cached Matrix sizes of 512 B–8 KiB; its NTT-size ratio is
+withdrawn with the rows above.
 
 ## basexx comparison
 
-`basexx` 0.2.0 is a general-purpose benchmark comparator. Reproduce comparisons
-with `cargo bench --features __internals --bench encode` (or `decode`).
+`basexx` 0.2.0 is a benchmark comparator: its `Base58` is much faster than bs58.
+Criterion medians (wall time) on the M5, 2026-11-09, generic flags, fat LTO,
+`__internals`, cache off. basexx returns an owned result that the adapter copies
+and drops inside the loop; bs58 and Auto reuse caller output.
+
+| Operation / payload | Auto | bs58 0.5.1 | basexx Base58 | basexx Base58B |
+| --- | ---: | ---: | ---: | ---: |
+| Encode / 1 KiB | 7.24 µs | 1.02 ms | 23 µs | 843 µs |
+| Encode / 4 KiB | 74.4 µs | 16.1 ms | 180 µs | 13.4 ms |
+| Decode / 1 KiB | 1.91 µs | 336 µs | 5.51 µs | 314 µs |
+| Decode / 4 KiB | 28.8 µs | 5.42 ms | 73.4 µs | 5.22 ms |
+
+Reproduce with `cargo bench --features __internals --bench encode` (or `decode`),
+filtering `(bs58|basexx|basexx-b|auto)/(1024|4096)$`.
 
 ## Cache and memory
 
@@ -151,7 +249,8 @@ not RSS, allocator usable sizes or stack high water.
 
 ## Linked size and compact
 
-Linked-size measurements subtract each cohort's empty consumer (same scaffold, no conversion call) from cdylibs with both directions
+The [README size table](../README.md#linked-size) subtracts each cohort's empty
+consumer (same scaffold, no conversion call) from cdylibs with both directions
 reachable. Native columns are code and readonly sections; Wasm columns are CODE and
 DATA sections. Initialized data, BSS, file size and linear-memory pages are
 different costs. `CHAR_PAIRS` (3,364 two-byte entries, 6,728 B) is in readonly data
@@ -203,6 +302,13 @@ The Zen 5 cells above 1 at 0.62 are 44 KiB (below the x86 minimum) and 349 KiB
 at 0.68. With `cache`, cached Matrix leaves speed up only the division tree, which
 moves its crossover from about 0.55–0.62 to about 0.7.
 
+End to end (`public_bench.py --baseline`, Auto probes of d317ee4 and this rule,
+same flags, five processes; Zen 5 `--cpu 0`): cells that change route take
+0.78–0.87 (M5 default), 0.86–0.94 (M5 cache, except 1.03 at 13,495 B),
+0.84–0.93 (Zen 5 default) and 0.87 (Zen 5 cache) of the earlier time. Cells that
+keep their route, and all decode cells, stay within 0.978–1.014. Power-of-two sizes,
+which the README tables use, keep their route.
+
 ### Wasm
 
 Measured **2026-11-09** on the M5 Pro (AC power), Rust 1.99.1, Node 26.13.0 /
@@ -244,6 +350,39 @@ forced division tree took 1.0–1.8 times batched time below 3 KiB (`simd128`) a
 as the NTT threshold; from 3 KiB the scalar sizes up to 4352 B are used at least
 0.68. With `cache`, cached Matrix took 0.80–0.90 of the route's time at 8 KiB and
 less below, so the Matrix range is unchanged.
+
+The route adds to Wasm Auto probes (`code_size.py --target wasm32-unknown-unknown
+--cpu generic`, both directions, above the empty consumer, 2026-11-09):
+
+| Cohort | CODE section | DATA section | Stripped gzip |
+| --- | ---: | ---: | ---: |
+| Scalar, default | +13,663 B (75,736 → 89,399) | +700 B | +5,285 B |
+| Scalar, `cache` | +13,667 B (77,819 → 91,486) | +729 B | +4,992 B |
+| `simd128`, default | +15,463 B (84,449 → 99,912) | +777 B | +5,196 B |
+| `simd128`, `cache` | +15,229 B (86,723 → 101,952) | +772 B | +5,289 B |
+
+End to end (`public_bench.py --wasm --baseline`, Auto probes of 9f5a778 and this
+route, same flags and day, five processes, three batches; median [range] of
+per-process ratios against 9f5a778, same cache policy):
+
+| Payload | Scalar | Scalar `cache` | `simd128` | `simd128` `cache` |
+| ---: | ---: | ---: | ---: | ---: |
+| 769 B | 1.00 | 1.01 | 1.01 [1.00, 1.01] | 1.01 |
+| 1 KiB | 1.00 | 1.01 | 0.73 [0.73, 0.74] | 1.00 |
+| 1152 B | 1.00 | 0.99 | 0.95 [0.93, 0.97] | 0.99 |
+| 3073 B | 0.97 [0.96, 1.03] | 1.01 | 0.37 [0.37, 0.38] | 1.00 |
+| 4 KiB | 0.59 [0.58, 0.64] | 1.00 | 0.25 [0.24, 0.25] | 1.00 |
+| 5 KiB | 0.94 [0.93, 1.00] | 0.99 | 0.56 [0.55, 0.56] | 0.98 |
+| 8 KiB | 0.57 [0.54, 0.58] | 1.00 | 0.46 [0.45, 0.46] | 1.00 |
+| 10 KiB | 0.89 [0.88, 0.93] | 0.89 [0.88, 0.96] | 0.60 [0.59, 0.61] | 0.58 [0.57, 0.60] |
+| 16 KiB | 0.58 [0.56, 0.58] | 0.59 [0.58, 0.59] | 0.48 [0.47, 0.51] | 0.46 [0.46, 0.47] |
+| 64 KiB | 0.60 [0.60, 0.62] | 0.60 [0.59, 0.61] | 0.52 [0.50, 0.52] | 0.50 [0.49, 0.50] |
+| 1 MiB | 0.65 [0.64, 0.67] | 0.65 [0.57, 0.65] | 0.57 [0.57, 0.58] | 0.56 [0.55, 0.57] |
+| 4 MiB | 0.66 [0.66, 0.68] | 0.65 [0.63, 0.67] | 0.60 [0.59, 0.61] | 0.58 [0.58, 0.59] |
+
+Ranges are given where the route changes. At 769 B with `simd128` the route only
+breaks even. Encode cells that keep their route take 0.95–1.03 of the earlier time,
+and all decode cells 0.98–1.04.
 
 ## Open levers
 

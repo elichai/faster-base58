@@ -230,12 +230,7 @@ pub(crate) fn decode_value(
         return Err(DecodeError::BufferTooSmall);
     }
     if !all_valid(digits) {
-        let DecodeError::InvalidCharacter { index } = invalid(digits) else {
-            unreachable!()
-        };
-        return Err(DecodeError::InvalidCharacter {
-            index: zeros + index,
-        });
+        return Err(invalid(digits, zeros));
     }
     let max_leaf = max_leaf();
     let (unit, levels) = split_unit_leaf(n, max_leaf);

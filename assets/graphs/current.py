@@ -137,6 +137,10 @@ def check(root):
             require(linked.is_relative_to(root) and linked.exists(),
                     f'{name}: missing local link: {unquote(url.path)}')
         documents[name] = text
+    guide = documents['README.md']
+    for name in ['m5-public.svg', 'gcp-public.svg', 'wasm-public.svg']:
+        require(re.search(r'!\[[^\]]*\]\(assets/graphs/' + re.escape(name) + r'\)', guide),
+                f'README is missing selected figure: {name}')
     figures = list((root / 'assets/graphs').glob('*.svg'))
     for path in figures:
         try:
@@ -146,4 +150,4 @@ def check(root):
         require(svg.tag == '{http://www.w3.org/2000/svg}svg', f'Invalid SVG root: {path.name}')
         require(not svg.findall('.//{http://www.w3.org/2000/svg}script'), f'Executable SVG: {path.name}')
     return dict(status='pass', documents=len(documents), svg_figures=len(figures),
-                validation='local documentation links and SVG syntax; no measurement, numeric-table or pixel verification')
+                validation='local documentation links, selected figure references and SVG syntax; no measurement, numeric-table or pixel verification')

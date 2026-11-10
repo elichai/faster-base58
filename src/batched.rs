@@ -27,7 +27,7 @@ pub(crate) fn decode_parts(
     let zeros = input.len() - digits.len();
     debug_assert_ne!(digits.first(), Some(&b'1'));
     let (zero_bytes, buf) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
-    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input)));
+    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input, 0)));
     // The first chunk is the starting value; the rest come in pairs.
     let top = chunks.next().transpose()?.unwrap_or(0);
     let mut value = Value {
@@ -61,7 +61,7 @@ pub(crate) fn decode_short(input: &[u8], output: &mut [u8]) -> Result<usize, Dec
     let first = DIGITS[first as usize];
     let second = input.get(1).map(|&b| DIGITS[b as usize]);
     if first == 0xFF || second == Some(0xFF) {
-        return Err(invalid(input));
+        return Err(invalid(input, 0));
     }
     let Some(second) = second else {
         *output.first_mut().ok_or(BufferTooSmall)? = first;
@@ -108,7 +108,7 @@ pub(crate) fn decode_checked_parts(
         low = product as u32;
         (product >> 32) as u64
     };
-    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input)));
+    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input, 0)));
     while let Some(c1) = chunks.next() {
         let carry1 = next(c1?);
         match chunks.next() {
