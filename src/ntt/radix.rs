@@ -499,9 +499,11 @@ fn carry(out: &mut [u32], coef: impl Fn(usize) -> u64, add_len: usize) {
     let (a, b) = ab.split_at_mut(ab.len() / 2);
     let (c, d) = cd.split_at_mut(cd.len() / 2);
     for (j, (((a, b), c), d)) in a.iter_mut().zip(b).zip(c).zip(d).enumerate() {
-        for (k, (digit, carry)) in [a, b, c, d].into_iter().zip(&mut carries).enumerate() {
-            *carry = step(digit, k * s + j, *carry);
-        }
+        // Keep the four chains explicit: an inner reference iterator left them in memory.
+        carries[0] = step(a, j, carries[0]);
+        carries[1] = step(b, s + j, carries[1]);
+        carries[2] = step(c, 2 * s + j, carries[2]);
+        carries[3] = step(d, 3 * s + j, carries[3]);
     }
     for (i, digit) in (K * s..).zip(&mut out[K * s..]) {
         carries[K - 1] = step(digit, i, carries[K - 1]);
@@ -681,6 +683,58 @@ mod tests {
             }
         }
         assert!(MAX_COEFFICIENT < PRIMES[0].q as u64 * PRIMES[1].q as u64);
+    }
+
+    #[test]
+    fn quarter_carries_match_serial_with_addends_and_tails() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(5817);
+        for len in 0usize..=65 {
+            for pattern in 0..3 {
+                let coefficients: Vec<u64> = (0..len)
+                    .map(|i| {
+                        if len <= 4 {
+                            u64::from(BASE / 2 - 1)
+                        } else if i >= len.saturating_sub(4) {
+                            0
+                        } else if pattern == 0 {
+                            MAX_COEFFICIENT
+                        } else {
+                            rng.next_u64() % (MAX_COEFFICIENT + 1)
+                        }
+                    })
+                    .collect();
+                let digits: Vec<u32> = (0..len)
+                    .map(|i| {
+                        if len <= 4 {
+                            BASE / 2 - 1
+                        } else if i >= len.saturating_sub(4) {
+                            0
+                        } else if pattern == 2 {
+                            rng.next_u32() % BASE
+                        } else {
+                            BASE - 1
+                        }
+                    })
+                    .collect();
+                for add_len in 0..=len {
+                    let mut expected = Vec::with_capacity(len);
+                    let mut c = 0;
+                    for i in 0..len {
+                        let value = coefficients[i]
+                            + c
+                            + if i < add_len { u64::from(digits[i]) } else { 0 };
+                        expected.push((value % u64::from(BASE)) as u32);
+                        c = value / u64::from(BASE);
+                    }
+                    assert_eq!(c, 0);
+                    let mut guarded = vec![0xa5a5_a5a5; len + 2];
+                    guarded[1..1 + len].copy_from_slice(&digits);
+                    carry(&mut guarded[1..1 + len], |i| coefficients[i], add_len);
+                    assert_eq!(&guarded[1..1 + len], expected, "len {len}, add {add_len}");
+                    assert_eq!((guarded[0], guarded[len + 1]), (0xa5a5_a5a5, 0xa5a5_a5a5));
+                }
+            }
+        }
     }
 
     #[test]
