@@ -15,7 +15,7 @@ use core::cmp::Ordering;
 use super::batched::Limbs;
 use super::{bits, matrix, min_digits, split_zeros, ten_digits};
 use crate::BufferTooSmall;
-use crate::common::CHUNK;
+use crate::common::{CHUNK, store_low_le};
 use crate::dc::{LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len};
 use crate::mul::{add_assign, fold_wrapped, sub_assign};
 
@@ -559,7 +559,9 @@ fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), 
     let (head, body) = out.take(lead + 4 * rest.len())?.split_at_mut(lead);
     if lead <= 4 {
         debug_assert!(top[..4 - lead].iter().all(|&c| c == b'1'), "x >= BASE^n");
-        head.copy_from_slice(&top[4 - lead..]);
+        // The head holds at most four trailing digits; keep their byte order on any host.
+        let digits = u64::from(u32::from_le_bytes(top));
+        store_low_le(head, digits >> (8 * (4 - lead)));
     } else {
         head[..lead - 4].fill(b'1');
         head[lead - 4..].copy_from_slice(&top);
@@ -1288,6 +1290,54 @@ mod tests {
                 check_leaf(kind, n, &below, &below_text);
                 check_leaf(kind, n, &[1], b"2");
                 check_leaf(kind, n, &[], b"");
+            }
+        }
+    }
+
+    #[test]
+    fn matrix_leaf_short_heads() {
+        for (n, text) in [
+            (1, "2"),
+            (1, "2z"),
+            (1, "2zA"),
+            (1, "2zA9"),
+            (1, "2zA9bC3dE"),
+            (1, "2zA9bC3dEf"),
+            (2, "2zA9bC3dEf4gH5iJ6"),
+            (2, "2zA9bC3dEf4gH5iJ6k"),
+            (2, "2zA9bC3dEf4gH5iJ6kL"),
+            (2, "2zA9bC3dEf4gH5iJ6kLm"),
+        ] {
+            let bytes = bs58::decode(text).into_vec().unwrap();
+            let limbs: Vec<u64> = bytes
+                .rchunks(8)
+                .map(|c| c.iter().fold(0, |v, &b| (v << 8) | u64::from(b)))
+                .collect();
+            for pad in [false, true] {
+                let ones = if pad { 10 * n - text.len() } else { 0 };
+                let want = [vec![b'1'; ones], text.as_bytes().to_vec()].concat();
+                // Padded heads have width 2 or 4: 10*n - 4*body_columns.
+                for capacity in [0, want.len() - 1, want.len(), want.len() + 1] {
+                    let mut buf = vec![0xAA; capacity + 2];
+                    let mut out = Out {
+                        buf: &mut buf[1..1 + capacity],
+                        pos: 0,
+                    };
+                    let result = leaf_matrix(&limbs, n, pad, &mut out);
+                    let pos = out.pos;
+                    let what = format!("{text}, pad {pad}, capacity {capacity}");
+                    if capacity < want.len() {
+                        assert_eq!(result, Err(BufferTooSmall), "{what}");
+                        assert_eq!(pos, 0, "{what}");
+                        assert!(buf.iter().all(|&b| b == 0xAA), "{what}");
+                    } else {
+                        assert_eq!(result, Ok(()), "{what}");
+                        assert_eq!(pos, want.len(), "{what}");
+                        assert_eq!(&buf[1..1 + pos], want, "{what}");
+                        assert_eq!(buf[0], 0xAA, "{what}");
+                        assert!(buf[1 + pos..].iter().all(|&b| b == 0xAA), "{what}");
+                    }
+                }
             }
         }
     }

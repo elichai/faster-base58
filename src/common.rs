@@ -142,6 +142,7 @@ pub(crate) fn invalid(input: &[u8]) -> DecodeError {
 /// variable-length `copy_from_slice` compiles to a stack spill and a `memcpy` call. One
 /// overlapping 8-byte store ending at the length measured faster at 21-25 bytes but
 /// slower at 32-82 bytes (Zen 5, M5), so it is not used.
+#[inline]
 pub(crate) fn store_low_le(out: &mut [u8], value: u64) {
     let len = out.len();
     debug_assert!(len <= 8);
