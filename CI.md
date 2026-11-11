@@ -103,9 +103,10 @@ the run in progress. Three dispatch inputs enable jobs that are off by default:
 | `extended_miri` | `miri_unsupported_simd` | Fails while the stock Miri shims are missing |
 | `run_fuzz` | `fuzz` | Passes |
 
-`fuzz_corpus_snapshot`, `fuzz_coverage` and `proptest_coverage` do not run for
-pull requests from forks. The coverage jobs upload to Codecov with an OIDC token.
-Jobs that upload records keep them as artifacts for 14 days.
+`proptest_coverage` does not run for pull requests from forks. It and
+`fuzz_coverage` of the [fuzz corpus workflow](#fuzz-corpus-workflow) upload to
+Codecov with an OIDC token. Jobs that upload records keep them as artifacts for
+14 days.
 
 | Job | Checks | Platforms | Trigger |
 | --- | --- | --- | --- |
@@ -125,9 +126,7 @@ Jobs that upload records keep them as artifacts for 14 days.
 | `miri_custom` | Development Miri on all SIMD probes, kernels and buffer cases | x86-64 Linux, AArch64 and x86-64 targets; cache off and on; separate x86-64 `compact` rows | All |
 | `miri_unsupported_simd` | Stock Miri on every unsupported SIMD probe | x86-64 Linux, AArch64 and x86-64 targets | Dispatch, `extended_miri` |
 | `fuzz` | Careful ASan and LSan campaigns | x86-64 Linux | Dispatch, `run_fuzz` |
-| `fuzz_corpus_snapshot` | Validates the head of the `fuzz-corpus` branch and pins its revision | x86-64 Linux | Not fork pull requests |
-| `fuzz_coverage` | Replays the pinned corpus and uploads source coverage | x86-64 and arm64 Linux, generic CPU, cache off and on; x86-64 native CPU with cache | Not fork pull requests |
-| `proptest_coverage` | Runs the property suites and uploads coverage | Same as `fuzz_coverage` | Not fork pull requests |
+| `proptest_coverage` | Runs the property suites and uploads coverage | x86-64 and arm64 Linux, generic CPU, cache off and on; x86-64 native CPU with cache | Not fork pull requests |
 | `native_sanitizers` | MemorySanitizer and ThreadSanitizer on selected tests | x86-64 Linux | All |
 | `proofs` | Required Kani harnesses | x86-64 Linux | All |
 | `proofs_open` | Open Kani obligations | x86-64 Linux | Dispatch, `experimental_proofs` |
@@ -386,23 +385,6 @@ rustc +"$nightly" --edition=2024 --test fuzz/full_width.rs -o target/full-width-
 target/full-width-tests
 ```
 
-`fuzz_corpus_snapshot` validates the `fuzz-corpus` branch. `fuzz_coverage` copies
-that revision into `fuzz/corpus`, then runs `fuzz coverage` and `llvm-cov` for
-`encode_all`, `decode_all` and `encode_radix_full_width`. It needs the nightly
-`llvm-tools-preview` component. For one target on x86-64 Linux:
-
-```sh
-python3 fuzz/seed_corpus.py
-python3 fuzz/corpus_store.py validate CORPUS_ROOT
-cp -a CORPUS_ROOT/. fuzz/corpus/
-export RUSTFLAGS='-Zextra-const-ub-checks -Zstrict-init-checks --cfg careful -C target-cpu=generic'
-cargo +"$nightly" fuzz coverage --sanitizer none --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features --features full-width encode_all fuzz/corpus/encode_all -- -timeout=120 -rss_limit_mb=4096
-```
-
-`fuzz coverage` replays batches of at least 100 inputs in one process per CPU.
-The workflow gives the `llvm-cov report` and `llvm-cov export` commands and the
-file filter. `CORPUS_ROOT` is the `corpora` directory of a `fuzz-corpus` checkout.
-
 `proptest_coverage` exports LCOV for the property suites. CI adds
 `RUSTFLAGS=-C target-cpu=generic` or `native`, and `cache` in three of the five
 rows.
@@ -467,28 +449,36 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | Job | Checks | Platforms | Trigger |
 | --- | --- | --- | --- |
 | `corpus_snapshot` | Validates the head of `fuzz-corpus` and pins its revision | x86-64 Linux | All |
-| `smoke` | Replays seeds and the pinned corpus through the four targets with ASan, without mutation | x86-64 and arm64 Linux, generic CPU, cache off and on; x86-64 native CPU with cache | All |
+| `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, cache off and on; arm64 Linux, generic CPU, cache on; each of the four targets | All |
 | `nightly` | Mutation campaigns seeded by the run ID, with debug assertions and overflow checks, and value profile in the cache rows; writes provenance and uploads the campaign | x86-64 and arm64 Linux, generic CPU, cache off and on | Schedule; dispatch with `run_nightly` |
 | `minimize` | Keeps the seeds and the pinned corpus, and merges in the campaign inputs that add coverage beyond them in its build | Same as `nightly` | Schedule; dispatch with `run_nightly` |
-| `candidate_smoke` | Replays the seeds and the union of the four merged sets | Same as `smoke` | Schedule; dispatch with `run_nightly` |
-| `publish` | Replaces `corpora/` with that union, which holds every stored input, and adds the provenance to `fuzz-corpus`; needs `smoke`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
+| `candidate_smoke` | Replays the seeds and the union of the four merged sets with ASan | Same rows as `fuzz_coverage` | Schedule; dispatch with `run_nightly` |
+| `publish` | Replaces `corpora/` with that union, which holds every stored input, and adds the provenance to `fuzz-corpus`; needs `fuzz_coverage`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
 
-The replay lanes use `--sanitizer address --debug-assertions` without
-`--careful`, and set `RUSTFLAGS=-C target-cpu=generic` or `native`. `minimize` uses
-`--sanitizer none`. Both use `--no-trace-compares`: compare tracing only guides
-mutation, and it takes most of the replay time. `nightly` keeps it. To replay
-the pinned corpus locally:
+`fuzz_coverage` runs `cargo fuzz coverage --sanitizer address` with
+`--debug-assertions` and the careful `RUSTFLAGS` of the `fuzz` job, on prebuilt
+std. A crash, ASan report or oracle mismatch fails the job. `RUSTC_WRAPPER` is
+[`fuzz/oracle_rustc.py`](fuzz/oracle_rustc.py), which builds the Malachite and
+bs58 oracles without coverage, sanitizer-coverage or debug checks; ASan stays.
+`candidate_smoke` uses `fuzz run --sanitizer address --debug-assertions` without
+`--careful`; `minimize` uses `--sanitizer none`. The replay and merge builds use
+`--no-trace-compares`: compare tracing only guides mutation, and it takes most
+of the replay time. `nightly` keeps it. Every `cargo fuzz` command passes
+`--verbose`, so logs show each `rustc` call. The coverage step needs the nightly
+`llvm-tools-preview` component. To replay the pinned corpus for one target as
+an x86-64 `fuzz_coverage` row does:
 
 ```sh
 python3 fuzz/seed_corpus.py
 python3 fuzz/corpus_store.py validate CORPUS_ROOT
 cp -a CORPUS_ROOT/. fuzz/corpus/
-cargo +"$nightly" fuzz run --sanitizer address --no-trace-compares --debug-assertions encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+export RUSTFLAGS='-Zextra-const-ub-checks -Zstrict-init-checks --cfg careful -C target-cpu=generic'
+RUSTC_WRAPPER="$PWD/fuzz/oracle_rustc.py" cargo +"$nightly" fuzz coverage --sanitizer address --no-trace-compares --debug-assertions --strip-dead-code=false --target x86_64-unknown-linux-gnu --target-dir target/coverage --no-default-features --features full-width encode_all fuzz/corpus/encode_all -- -timeout=120 -rss_limit_mb=4096
 ```
 
-The workflow also replays `decode_all` with `-max_len=89502`, and
-`encode_full_width` and `encode_radix_full_width` with `--features full-width`
-and `-max_len=8193`.
+`fuzz coverage` replays batches of at least 100 inputs in one process per CPU.
+The workflow gives the `llvm-cov report` and `llvm-cov export` commands and the
+file filter. `CORPUS_ROOT` is the `corpora` directory of a `fuzz-corpus` checkout.
 
 `python3 fuzz/corpus_store.py replace INCOMING... CORPUS_ROOT --exclude fuzz/corpus`
 writes the union of the input roots as a fresh store under SHA-256 names, without
@@ -576,7 +566,8 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates a content-addressed corpus, adds inputs to it, or replaces it with the union of input roots | `validate CORPUS`, `stage INCOMING CORPUS`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
 | [`fuzz/provenance.py`](fuzz/provenance.py) | Writes the JSON provenance of one campaign | `--output`, `--field KEY=VALUE`, `--digest KEY=PATH` | `nightly` |
 | [`fuzz/check_mutations.py`](fuzz/check_mutations.py) | Requires a nonzero mutation-attempt count in a libFuzzer log | `--self-test`; `LOG --seconds N` | `fuzz` |
-| `fuzz/test_*.py` | Tests the seed generator, the corpus store and the provenance writer | — | `fuzz`, `fuzz_coverage` |
+| [`fuzz/oracle_rustc.py`](fuzz/oracle_rustc.py) | `RUSTC_WRAPPER` that builds the Malachite and bs58 oracles without coverage, sanitizer-coverage or debug checks | Called by Cargo | `fuzz_coverage` |
+| `fuzz/test_*.py` | Tests the seed generator, the corpus store, the provenance writer and the oracle wrapper | — | `fuzz`, `fuzz_coverage` |
 | [`tools/code-size/`](tools/code-size/README.md) | Probe sources that `code_size.py` copies into a standalone package | — | Through `code_size.py` |
 | [`tools/resource-profile/`](tools/resource-profile/Cargo.toml) | Worker of `resource_report.py`; features `count-allocations`, `cache`, `compact` | `self-check` | `measurement_tools` |
 | [`ci/miri/`](ci/miri/README.md) | Pins (`pins.json`), exact selection (`coverage.json`) and patch (`shims.patch`) of the development Miri | Read by the custom-Miri scripts | `miri_custom` |

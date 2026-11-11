@@ -24,7 +24,9 @@ not reach in that build. The nightly and `minimize` builds are x86-64 and
 AArch64, generic CPU, cache off and on; the two full-width targets use the
 `full-width` feature. Inputs are architecture-independent bytes, so the
 candidate is the union of the four results. `candidate_smoke` replays all of it
-with ASan in the `smoke` configurations, which add x86-64 native CPU with cache.
+with ASan in the three `fuzz_coverage` configurations: x86-64 with cache off and
+on, and AArch64 with cache. SIMD paths are chosen at run time, and the code that
+differs without cache does not depend on the architecture.
 
 CI never drops a stored input. Coverage depends on the CPU that runs the build:
 runtime dispatch selects AVX-512, IFMA or NEON kernels and thresholds, and a
@@ -44,21 +46,21 @@ the job instead of dropping that input.
 The trusted publisher replaces `corpora/` with the candidate union, which holds
 every stored input, so a nightly publication only adds inputs. It commits on the
 pinned snapshot and rebases onto any later publication, with a retry.
-Publishing requires every `smoke`, `minimize` and `candidate_smoke` row to pass;
-`smoke` replays the pinned corpus with ASan, debug assertions and overflow
-checks. The deterministic seeds stay on
-`main` and are not stored on the branch. Pull requests cannot publish a corpus.
+Publishing requires every `fuzz_coverage`, `minimize` and `candidate_smoke` row
+to pass; `fuzz_coverage` replays the pinned corpus with ASan, debug assertions
+and overflow checks. The deterministic seeds stay on `main` and are not stored
+on the branch. Pull requests cannot publish a corpus.
 
 Coverage reports exclude tests, fuzz harnesses, dependencies, and diagnostic
-helpers. In the [verification workflow](../.github/workflows/verification.yml),
-each of the five `fuzz_coverage` configurations replays the seeds and the pinned
-corpus for `encode_all`, `decode_all` and `encode_radix_full_width` and exports
-LCOV. Each `proptest_coverage` configuration runs the property suites and
-exports LCOV. They upload to Codecov under the shared `fuzz` or `tests` flag; see
+helpers. In the [fuzz corpus workflow](../.github/workflows/fuzz-corpus.yml),
+`fuzz_coverage` runs one job per configuration and target. Each replays the seeds
+and the pinned corpus with ASan, without mutation, and exports LCOV, so the same
+replay checks correctness and measures coverage. The Malachite and bs58 oracles
+are built without coverage or debug instrumentation. In the
+[verification workflow](../.github/workflows/verification.yml), each
+`proptest_coverage` configuration runs the property suites and exports LCOV.
+They upload to Codecov under the shared `fuzz` or `tests` flag; see
 `codecov.yml`.
-The `smoke` job of the [fuzz corpus workflow](../.github/workflows/fuzz-corpus.yml)
-exports no coverage: it replays the seeds and the pinned corpus through all four
-targets with ASan, without mutation.
 
 ## One-time branch bootstrap
 
