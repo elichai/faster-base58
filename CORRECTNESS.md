@@ -71,6 +71,11 @@ rejects the removed free functions and `no_alloc` module.
 | [Public API](tests/api.rs) and [tiny inputs](tests/tiny_inputs.rs) | Borrowed/owned agreement, exact arrays, zero prefixes and capacities at dispatch boundaries, standard error traits; every byte and short text against bs58 with byte offsets |
 | [Cold Matrix tables](tests/matrix_cold.rs) and [Miri entry points](tests/miri.rs) | First decodes from several threads in a fresh process; buffer cases split for the custom Miri runner |
 
+Divide-and-conquer decoding validates the whole input before arithmetic. Its
+Horner leaf parser relies on that invariant; tests that pass invalid input
+directly to this internal helper check its debug assertion only when debug
+assertions are enabled. Public malformed-input tests run in both profiles.
+
 Radix allocation tests bound allocation requests and peak requested live bytes at
 1/4 MiB and guard both ends of the output. A forced owned-NTT case checks one allocation
 per prime plus the packed conversion arena, without prepared spectra or reallocations.

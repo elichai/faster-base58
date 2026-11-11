@@ -95,8 +95,11 @@ form `58 a + b` pairs and `58^2 p + q` groups with multiply-adds. The
 largest pair, 3363, fits a signed 16-bit lane. AVX2 maps each byte through two
 nibble-indexed class tables and one offset table, without a range compare per
 alphabet segment. Validation only sets a flag; the scalar scan still reports the
-first invalid byte. Batched decoding and Horner leaves keep their scalar
-ten-character chunk parse on every target.
+first invalid byte. The first-invalid-byte scan is a shared cold error handler.
+Batched decoding and Horner leaves keep their scalar ten-character chunk parse
+on every target. Divide-and-conquer decoding validates the whole input before
+allocation and arithmetic; its Horner leaves check that invariant only in debug
+builds.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
 local sums. Their table type keeps rows first and 16-byte aligned for NEON

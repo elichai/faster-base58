@@ -86,6 +86,7 @@ pub(crate) fn chunks(digits: &[u8]) -> impl Iterator<Item = Option<u64>> {
 
 /// [`chunks`] of valid `digits` into `out`, one value per chunk, in one loop: a caller
 /// that zipped the iterator into its buffer got its `next` as a call per chunk.
+/// The caller must validate `digits`; debug builds check that invariant again.
 #[cfg(any(feature = "alloc", test, kani))]
 pub(crate) fn values(digits: &[u8], out: &mut [u64]) {
     let (head, tail) = digits.as_rchunks::<CHUNK>();
@@ -101,7 +102,7 @@ pub(crate) fn values(digits: &[u8], out: &mut [u64]) {
         *o = v;
         bad |= b;
     }
-    assert!(bad < 0x80, "caller validates the digits");
+    debug_assert!(bad < 0x80, "caller validates the digits");
 }
 
 /// The value of up to `CHUNK` digits and the OR of their digit values, which reaches
@@ -129,6 +130,7 @@ fn full_chunk(s: &[u8; CHUNK]) -> (u64, u8) {
 }
 
 /// The first invalid byte in `input`, reported relative to a prefix of `offset` bytes.
+#[cold]
 pub(crate) fn invalid(input: &[u8], offset: usize) -> DecodeError {
     let index = input.iter().position(|&c| DIGITS[c as usize] == 0xFF);
     DecodeError::InvalidCharacter {
@@ -211,12 +213,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "caller validates the digits")]
     fn values_reject_an_invalid_head() {
         values(b"01111111111", &mut [0; 2]);
     }
 
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "caller validates the digits")]
     fn values_reject_an_invalid_chunk() {
         values(b"11111111110", &mut [0; 2]);

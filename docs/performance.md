@@ -6,6 +6,16 @@ avoids internal allocation, and its general large conversions remain quadratic.
 [DESIGN.md](../DESIGN.md) describes dispatch and algorithms;
 [CORRECTNESS.md](../CORRECTNESS.md) describes validation and remaining gaps.
 
+## Stack including PR 67 — measurement status
+
+PR 67 makes the redundant Horner-leaf validity assertion debug-only and marks
+the shared invalid-byte handler cold. Current-stack native timings and linked
+sizes await a fresh GCP comparison against current main. Local benchmarks await
+explicit user authorization. All dated numerical studies below retain their
+original source revisions and are historical; they do not measure this new
+decoder or certify its emitted layout. Comparator, Wasm and allocation cohorts
+retain their own dates and scope.
+
 ## Power-array copy follow-up — 2026-11-12
 
 This separate comparison measures the full stack before and after the safe

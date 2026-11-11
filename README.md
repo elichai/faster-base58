@@ -168,6 +168,12 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Performance
 
+The stack now includes #67's decoder validation and cold-error changes.
+Its GCP timing and linked-size refresh is pending. Local measurements will run
+only after explicit authorization. The dated studies below describe earlier
+source revisions; their values and figures are historical records, not current
+measurements of this stack.
+
 The **2026-11-12 Power-array follow-up** removes the extra 2 KiB return copy
 without new Power-index bounds guards in the inspected optimized M5/GCP builds.
 It measures the full fixed stack against the previously published stack, with
