@@ -1296,9 +1296,49 @@ mod tests {
 
     #[test]
     fn matrix_leaf_short_heads() {
-        for text in [b"z".as_slice(), b"zz", b"zzz", b"zzzz"] {
-            let value = text.iter().fold(0u64, |n, _| n * 58 + 57);
-            check_leaf(Leaves::Matrix, 1, &[value], text);
+        for (n, text) in [
+            (1, "2"),
+            (1, "2z"),
+            (1, "2zA"),
+            (1, "2zA9"),
+            (1, "2zA9bC3dE"),
+            (1, "2zA9bC3dEf"),
+            (2, "2zA9bC3dEf4gH5iJ6"),
+            (2, "2zA9bC3dEf4gH5iJ6k"),
+            (2, "2zA9bC3dEf4gH5iJ6kL"),
+            (2, "2zA9bC3dEf4gH5iJ6kLm"),
+        ] {
+            let bytes = bs58::decode(text).into_vec().unwrap();
+            let limbs: Vec<u64> = bytes
+                .rchunks(8)
+                .map(|c| c.iter().fold(0, |v, &b| (v << 8) | u64::from(b)))
+                .collect();
+            for pad in [false, true] {
+                let ones = if pad { 10 * n - text.len() } else { 0 };
+                let want = [vec![b'1'; ones], text.as_bytes().to_vec()].concat();
+                // Padded heads have width 2 or 4: 10*n - 4*body_columns.
+                for capacity in [0, want.len() - 1, want.len(), want.len() + 1] {
+                    let mut buf = vec![0xAA; capacity + 2];
+                    let mut out = Out {
+                        buf: &mut buf[1..1 + capacity],
+                        pos: 0,
+                    };
+                    let result = leaf_matrix(&limbs, n, pad, &mut out);
+                    let pos = out.pos;
+                    let what = format!("{text}, pad {pad}, capacity {capacity}");
+                    if capacity < want.len() {
+                        assert_eq!(result, Err(BufferTooSmall), "{what}");
+                        assert_eq!(pos, 0, "{what}");
+                        assert!(buf.iter().all(|&b| b == 0xAA), "{what}");
+                    } else {
+                        assert_eq!(result, Ok(()), "{what}");
+                        assert_eq!(pos, want.len(), "{what}");
+                        assert_eq!(&buf[1..1 + pos], want, "{what}");
+                        assert_eq!(buf[0], 0xAA, "{what}");
+                        assert!(buf[1 + pos..].iter().all(|&b| b == 0xAA), "{what}");
+                    }
+                }
+            }
         }
     }
 
