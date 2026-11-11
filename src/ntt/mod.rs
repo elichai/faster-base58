@@ -336,7 +336,20 @@ impl Multiplier for Ntt {
     }
 
     fn scratch_len(&self, n: usize) -> usize {
-        scratch_len(n)
+        match self.log {
+            Some(log) => {
+                // A later cache lookup may return any larger retained table, including
+                // one initialized concurrently after this scratch is allocated.
+                #[cfg(feature = "cache")]
+                let log = if log <= CACHE_MAX_LOG {
+                    CACHE_MAX_LOG
+                } else {
+                    log
+                };
+                scratch_len(n).min(capped_scratch_len(n, log))
+            }
+            None => scratch_len(n),
+        }
     }
 
     fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
@@ -587,6 +600,19 @@ pub(crate) fn scratch_len(n: usize) -> usize {
     mul::scratch_len(n).max(bound)
 }
 
+/// Scratch envelope when `prepare` limits transforms to `2^log` points. Any transform
+/// product has at most `2 * cap` limbs, so the ordinary envelope at `cap` covers it.
+/// A larger product splits into four; its temporary uses at most `n + 1` limbs and
+/// children have at most `ceil(n / 2)` limbs. Blocks use at most `n` limbs before a
+/// child of at most `n / 2`. The second term covers both using the ordinary envelope
+/// for those children, and satisfies the growth needed by `dc_scratch_len` too.
+fn capped_scratch_len(n: usize, log: u32) -> usize {
+    let cap = 1usize << (log - 2);
+    scratch_len(n.min(cap))
+        .max(n + 1 + scratch_len(n.div_ceil(2)))
+        .max(mul::scratch_len(n))
+}
+
 /// `log2` of the transform length for a product of `len` limbs: at least `2 len` points
 /// (two 32-bit coefficients per limb), and at least 8.
 fn log_len(len: usize) -> u32 {
@@ -594,7 +620,9 @@ fn log_len(len: usize) -> u32 {
 }
 
 /// `out = a * b`. Requires `out.len() == a.len() + b.len()`, `t.log >= 5`, and
-/// `scratch.len() >= scratch_len(max(a.len(), b.len()))`; `scratch` may hold anything.
+/// `scratch.len()` is at least the smaller of [`scratch_len`] and
+/// [`capped_scratch_len`]`(n, t.log)`, where `n` is the longer operand length;
+/// `scratch` may hold anything.
 ///
 /// Uses Karatsuba when the shorter operand is below `threshold` limbs, and splits
 /// products too long for `t`.
@@ -1128,6 +1156,50 @@ mod tests {
             assert!(n / 2 + scratch_len(n / 2) <= scratch_len(n));
             if n >= 9 {
                 assert!(n + 1 + scratch_len(n.div_ceil(2)) <= scratch_len(n));
+            }
+        }
+    }
+
+    #[test]
+    fn capped_scratch_covers_split_products() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(39);
+        for log in 5..=10 {
+            let cap = 1usize << (log - 2);
+            let mut ntt = scalar_ntt(Kernels::portable());
+            ntt.threshold = 1;
+            ntt.max_log = log;
+            ntt.prepare(2 * cap);
+            for n in 1..=4 * cap {
+                let budget = ntt.scratch_len(n);
+                assert!(budget >= mul::scratch_len(n));
+                assert!(n / 2 + ntt.scratch_len(n / 2) <= budget);
+                if n >= 9 {
+                    assert!(n + 1 + ntt.scratch_len(n.div_ceil(2)) <= budget);
+                }
+            }
+            for nb in [cap - 1, cap, cap + 1, 2 * cap - 1, 2 * cap + 1, 4 * cap - 1] {
+                for na in [nb / 3, nb.div_ceil(2), nb - 1, nb] {
+                    let a: Vec<_> = (0..na).map(|_| rng.next_u64()).collect();
+                    let b: Vec<_> = (0..nb).map(|_| rng.next_u64()).collect();
+                    let mut want = vec![0; na + nb];
+                    mul::mul(&mut want, &a, &b, &mut vec![0; mul::scratch_len(nb)]);
+                    let mut got = vec![0; na + nb];
+                    let budget = ntt.scratch_len(nb);
+                    let mut scratch = vec![0x5a5a5a5a5a5a5a5a; budget + 1];
+                    ntt.mul(&mut got, &a, &b, &mut scratch[..budget]);
+                    assert_eq!(got, want, "log {log}, a {na}, b {nb}");
+                    assert_eq!(scratch[budget], 0x5a5a5a5a5a5a5a5a);
+                    if na + nb <= 2 * cap
+                        && na >= ntt.prepared_threshold
+                        && nb >= ntt.prepared_threshold
+                    {
+                        ntt.prepare_power(0, &b, na + nb);
+                        got.fill(0);
+                        ntt.mul_power(&mut got, &a, 0, &b, &mut scratch[..budget]);
+                        assert_eq!(got, want, "prepared log {log}, a {na}, b {nb}");
+                        assert_eq!(scratch[budget], 0x5a5a5a5a5a5a5a5a);
+                    }
+                }
             }
         }
     }
