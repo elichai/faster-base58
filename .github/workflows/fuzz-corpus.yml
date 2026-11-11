@@ -52,31 +52,39 @@ jobs:
       - id: revision
         run: echo "revision=$(git -C .fuzz-corpus rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  smoke:
+  # Replays the seeds and the pinned corpus without mutation, one job per row and
+  # target, in an ASan build with source coverage. A crash, ASan report or oracle
+  # mismatch fails `cargo fuzz coverage`. candidate_smoke replays the minimized
+  # corpus in the same rows before publication.
+  fuzz_coverage:
     needs: corpus_snapshot
-    # candidate_smoke replays the same seeds and the merged corpus that smoke
-    # replays after publication. Replays omit compare tracing: it only guides
-    # mutation (replays do not use the value profile) and took most of the replay
-    # time. Debug assertions and overflow checks left the replay time unchanged
-    # (M5, ASan, 2026-11-10).
-    timeout-minutes: 60
-    # Only `src/api.rs` reads a non-baseline target feature at compile time (AVX2,
-    # with cache), so one native row covers it; other native rows changed only
-    # codegen. candidate_smoke must keep the same rows.
+    # Replays omit compare tracing: it only guides mutation (replays do not use the
+    # value profile) and took most of the replay time. Debug assertions and overflow
+    # checks left the ASan replay time unchanged (M5, 2026-11-10).
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    # SIMD paths are chosen at run time, so generic builds take every path the
+    # runner supports; a native build adds only the AVX2-compiled IFMA arm in
+    # `src/api.rs` (proptest_coverage keeps a native row). Code that differs without
+    # cache (owned tables, plan constants) does not depend on the architecture, so
+    # one cache-off row covers it. candidate_smoke must keep the same rows;
+    # codecov.yml counts the uploads (rows x targets).
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-    runs-on: ${{ matrix.runner }}
+        fuzz_target: [encode_all, decode_all, encode_full_width, encode_radix_full_width]
+        row:
+          - { runner: ubuntu-26.04, triple: x86_64-unknown-linux-gnu, cpu: generic, label: default, features: full-width }
+          - { runner: ubuntu-26.04, triple: x86_64-unknown-linux-gnu, cpu: generic, label: cache, features: 'full-width,cache' }
+          - { runner: ubuntu-26.04-arm, triple: aarch64-unknown-linux-gnu, cpu: generic, label: cache, features: 'full-width,cache' }
+    runs-on: ${{ matrix.row.runner }}
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_BUILD_JOBS: '2'
-      RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+      RUSTFLAGS: -Zextra-const-ub-checks -Zstrict-init-checks --cfg careful -C target-cpu=${{ matrix.row.cpu }}
+      CXXFLAGS: -fno-omit-frame-pointer
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Corpus inputs come from a mutable branch; do not expose an Actions cache token.
@@ -92,26 +100,63 @@ jobs:
         run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
       - uses: ./.github/actions/nightly-toolchain
         with:
-          components: rust-src
+          components: llvm-tools-preview
       - if: runner.os == 'Linux'
         uses: ./.github/actions/setup-clang23
-      - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
-      - run: python3 fuzz/seed_corpus.py
+      # Host tooling must not inherit nightly-only target instrumentation.
+      - run: env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
+      - run: |
+          cd fuzz
+          python3 -m unittest test_seed_corpus.py test_corpus_store.py test_provenance.py test_oracle_rustc.py
+          python3 seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      # Coverage builds use prebuilt std. The wrapper builds the Malachite and bs58
+      # oracles without coverage, sanitizer-coverage or debug checks (ASan stays):
+      # instrumented, Malachite took 69% of a 1 MiB radix input, which then ran
+      # 6.9x slower (M5, 2026-11-11).
+      - name: Replay with ASan and report source coverage
+        env:
+          RUSTC_WRAPPER: ${{ github.workspace }}/fuzz/oracle_rustc.py
+          TARGET: ${{ matrix.fuzz_target }}
+        run: |
+          host="$(rustup run ${{ env.RUST_NIGHTLY }} rustc -vV | sed -n 's/^host: //p')"
+          llvm_dir="$(rustup run ${{ env.RUST_NIGHTLY }} rustc --print sysroot)/lib/rustlib/$host/bin"
+          binary="target/coverage/${{ matrix.row.triple }}/release/$TARGET"
+          profile="fuzz/coverage/$TARGET/coverage.profdata"
+          ignore='-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$'
+          cargo +${{ env.RUST_NIGHTLY }} fuzz coverage --verbose --sanitizer address --no-trace-compares --debug-assertions --strip-dead-code=false --target ${{ matrix.row.triple }} --target-dir target/coverage --no-default-features --features "${{ matrix.row.features }}" "$TARGET" "fuzz/corpus/$TARGET" -- -timeout=120 -rss_limit_mb=4096
+          "$llvm_dir/llvm-cov" report "$binary" -instr-profile="$profile" "$ignore" > "fuzz/coverage/$TARGET/report.txt"
+          if [ "$TARGET" != decode_all ]; then
+            "$llvm_dir/llvm-cov" report "$binary" -instr-profile="$profile" src/ntt/radix.rs > "fuzz/coverage/$TARGET/radix.txt"
+          fi
+          "$llvm_dir/llvm-cov" export -format=lcov "$binary" -instr-profile="$profile" "$ignore" > "fuzz/coverage/$TARGET/lcov.info"
+      # Fork pull requests get no OIDC token; scheduled and dispatched runs would
+      # add uploads beyond the count in codecov.yml.
+      - if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        with:
+          use_oidc: true
+          files: fuzz/coverage/${{ matrix.fuzz_target }}/lcov.info
+          flags: fuzz
+          fail_ci_if_error: true
+      - name: Retain coverage records
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-coverage-${{ matrix.row.triple }}-${{ matrix.row.cpu }}-${{ matrix.row.label }}-${{ matrix.fuzz_target }}
+          path: fuzz/coverage
+          if-no-files-found: error
+          retention-days: 14
 
   nightly:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
     needs: corpus_snapshot
     timeout-minutes: 50
-    # Mutation and minimization use generic builds only; see smoke. Mutation checks
-    # debug assertions and overflow; neither changed the execution rate measurably
-    # (M5, ASan, 2026-11-10). The cache rows add libFuzzer's value profile, which
-    # also left the rate unchanged there and kept more inputs.
+    # Mutation and minimization use generic builds only; see fuzz_coverage. Mutation
+    # checks debug assertions and overflow; neither changed the execution rate
+    # measurably (M5, ASan, 2026-11-10). The cache rows add libFuzzer's value
+    # profile, which also left the rate unchanged there and kept more inputs.
     strategy:
       fail-fast: false
       matrix:
@@ -151,10 +196,10 @@ jobs:
       - run: mkdir -p fuzz/campaign
       - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/campaign/
       - run: cp -a .fuzz-corpus/corpora/. fuzz/campaign/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
       - run: mkdir -p fuzz/publish
       - run: >-
           python3 fuzz/provenance.py --output fuzz/publish/provenance.json
@@ -234,16 +279,16 @@ jobs:
       # libFuzzer's merge keeps every input of its first directory.
       - run: cp -a .fuzz-corpus/corpora/. fuzz/minimized/
       - run: |
-          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-trace-compares --no-default-features ${{ matrix.args }} encode_all fuzz/minimized/encode_all fuzz/union/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_all.log
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer none --no-trace-compares --no-default-features ${{ matrix.args }} encode_all fuzz/minimized/encode_all fuzz/union/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_all.log
           grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_all.log
       - run: |
-          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-trace-compares --no-default-features ${{ matrix.args }} decode_all fuzz/minimized/decode_all fuzz/union/decode_all -- -merge=1 -max_len=89502 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/decode_all.log
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer none --no-trace-compares --no-default-features ${{ matrix.args }} decode_all fuzz/minimized/decode_all fuzz/union/decode_all -- -merge=1 -max_len=89502 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/decode_all.log
           grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/decode_all.log
       - run: |
-          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/minimized/encode_full_width fuzz/union/encode_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_full_width.log
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer none --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/minimized/encode_full_width fuzz/union/encode_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_full_width.log
           grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_full_width.log
       - run: |
-          cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer none --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/minimized/encode_radix_full_width fuzz/union/encode_radix_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_radix_full_width.log
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer none --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/minimized/encode_radix_full_width fuzz/union/encode_radix_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_radix_full_width.log
           grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_radix_full_width.log
       # The seeds in each result are removed again when the union is formed.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -257,15 +302,13 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
     needs: minimize
     timeout-minutes: 60
-    # The smoke rows: a published input must pass every row that smoke replays.
+    # The fuzz_coverage rows: a published input must pass every row that it replays.
     strategy:
       fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-26.04, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04, cpu: native, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
           - { runner: ubuntu-26.04-arm, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
     runs-on: ${{ matrix.runner }}
     env:
@@ -292,18 +335,18 @@ jobs:
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: cp -a fuzz/candidate/. fuzz/corpus/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
   # Publishing replaces corpora/ with the candidate union, which holds every stored
   # input, so it only adds inputs. Merging skips an input that fails, which fails
-  # the merge step, but it does not use ASan, so publishing also needs smoke, which
-  # replays the pinned corpus with ASan.
+  # the merge step, but it does not use ASan, so publishing also needs
+  # fuzz_coverage, which replays the pinned corpus with ASan.
   publish:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_nightly && inputs.publish)
-    needs: [corpus_snapshot, smoke, nightly, minimize, candidate_smoke]
+    needs: [corpus_snapshot, fuzz_coverage, nightly, minimize, candidate_smoke]
     runs-on: ubuntu-26.04
     permissions:
       contents: write
