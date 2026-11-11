@@ -643,7 +643,7 @@ jobs:
         include:
           - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: default-generic, features: '__internals' }
           - { runner: ubuntu-26.04, arch: x86, cpu: generic, name: cache-generic, features: '__internals,cache' }
-          - { runner: ubuntu-26.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache' }
+          - { runner: ubuntu-26.04, arch: x86, cpu: native, name: cache-native, features: '__internals,cache,compact' }
           - { runner: ubuntu-26.04-arm, arch: arm, cpu: generic, name: default-generic, features: '__internals' }
           - { runner: ubuntu-26.04-arm, arch: arm, cpu: generic, name: cache-generic, features: '__internals,cache' }
     steps:
@@ -654,23 +654,31 @@ jobs:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
       - run: rustc -vV
       - run: rustup component add llvm-tools-preview
-      - name: Run property suites and export production coverage
+      - name: Run unit and integration suites and export source coverage
         run: >-
-          cargo llvm-cov --locked --features ${{ matrix.features }}
-          --test properties --test public_properties
+          cargo llvm-cov --locked --features ${{ matrix.features }},check
+          --lib --tests
           --lcov --output-path proptests.lcov
           --ignore-filename-regex '/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$'
+      - name: Run public suites without allocation and export source coverage
+        run: >-
+          cargo llvm-cov --locked --no-default-features --features check
+          --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core
+          --lcov --output-path no-alloc.lcov
+          --ignore-filename-regex '/(registry|rustc|rustlib)/|/fuzz/|/tests/'
       - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           use_oidc: true
-          files: proptests.lcov
+          files: proptests.lcov,no-alloc.lcov
           flags: tests
           fail_ci_if_error: true
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: proptests-coverage-${{ matrix.arch }}-${{ matrix.name }}
-          path: proptests.lcov
+          path: |
+            proptests.lcov
+            no-alloc.lcov
           if-no-files-found: ignore
           retention-days: 14
 

@@ -126,7 +126,7 @@ Codecov with an OIDC token. Jobs that upload records keep them as artifacts for
 | `miri_custom` | Development Miri on all SIMD probes, kernels and buffer cases | x86-64 Linux, AArch64 and x86-64 targets; cache off and on; separate x86-64 `compact` rows | All |
 | `miri_unsupported_simd` | Stock Miri on every unsupported SIMD probe | x86-64 Linux, AArch64 and x86-64 targets | Dispatch, `extended_miri` |
 | `fuzz` | Careful ASan and LSan campaigns | x86-64 Linux | Dispatch, `run_fuzz` |
-| `proptest_coverage` | Runs the property suites and uploads coverage | x86-64 and arm64 Linux, generic CPU, cache off and on; x86-64 native CPU with cache | Not fork pull requests |
+| `proptest_coverage` | Runs unit and integration suites, including properties, builders, cache diagnostics and no-allocation tests; uploads coverage | x86-64 and arm64 Linux, generic CPU, cache off and on; x86-64 native CPU with cache and `compact` | Not fork pull requests |
 | `native_sanitizers` | MemorySanitizer and ThreadSanitizer on selected tests | x86-64 Linux | All |
 | `proofs` | Required Kani harnesses | x86-64 Linux | All |
 | `proofs_open` | Open Kani obligations | x86-64 Linux | Dispatch, `experimental_proofs` |
@@ -385,17 +385,32 @@ rustc +"$nightly" --edition=2024 --test fuzz/full_width.rs -o target/full-width-
 target/full-width-tests
 ```
 
-`proptest_coverage` exports LCOV for the property suites. CI adds
-`RUSTFLAGS=-C target-cpu=generic` or `native`, and `cache` in three of the five
-rows.
+`proptest_coverage` exports LCOV for all library unit tests and integration
+suites, with `__internals` and `check`. This includes direct SIMD kernel tests,
+builder and error contracts, and the separate cold-cache/preflight binaries.
+CI adds `RUSTFLAGS=-C target-cpu=generic` or `native`, and `cache` in three of
+the five rows. The native x86 row also enables `compact`. Each row exports a
+second report for the public no-allocation suites with only `check` enabled.
 
 ```sh
 export PROPTEST_CASES=512
-cargo llvm-cov --locked --features __internals --test properties --test public_properties --lcov --output-path target/proptests.lcov --ignore-filename-regex '/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$'
+cargo llvm-cov --locked --features __internals,check --lib --tests --lcov --output-path proptests.lcov --ignore-filename-regex '/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$'
+cargo llvm-cov --locked --no-default-features --features check --test no_alloc --test tiny_inputs --test public_properties --test bitcoin_core --lcov --output-path no-alloc.lcov --ignore-filename-regex '/(registry|rustc|rustlib)/|/fuzz/|/tests/'
 ```
 
-The coverage jobs upload with the Codecov flags `fuzz` and `tests`.
-[codecov.yml](codecov.yml) waits for five uploads per flag.
+Keep both reports outside the coverage target directory: the second command
+cleans the first command's build artifacts. Both LCOV files are uploaded together
+with the `tests` flag. The fuzz reports use the `fuzz` flag.
+[codecov.yml](codecov.yml) waits for five `tests` uploads and twelve `fuzz` uploads.
+
+Runtime feature detection still selects instructions supported by the host;
+`target-cpu=generic` does not force a scalar or SSE4.1 fallback. Direct kernel
+unit tests call each supported implementation even when dispatch prefers a newer
+ISA. Unsupported ISA tests and ignored large-boundary tests remain outside these
+reports. Compile-time-only functions and unused generic instantiations can also
+have zero runtime counts. The file filter excludes external code, test-support
+files and the measurement-only NTT diagnostics module; it does not exclude
+Matrix or NTT table cache diagnostics.
 
 ### Native sanitizers
 

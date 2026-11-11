@@ -114,6 +114,15 @@ two expensive Matrix sweeps execute with `cache` rather than rebuilding the
 same owned tables for every size. [CI.md](CI.md#test-jobs) gives the local
 commands for these rows.
 
+The `proptest_coverage` job uploads all library unit and integration suites,
+including direct SIMD kernel comparisons, builder/error contracts and cold-cache
+preflight tests, with `check` and both cache policies. The native x86 row also
+enables `compact`. Each row uploads a separate no-allocation public-suite report.
+Coverage does not include ignored large-boundary tests, unsupported ISA paths or
+compile-time evaluation. A generic CPU build still performs runtime dispatch;
+it does not force every dispatch branch. [CI.md](CI.md#fuzzing-and-coverage-jobs)
+gives the report commands and file filters.
+
 The SIMD inlining job builds the Auto consumer library with generic CPU flags for
 x86-64 and arm64 Linux, each default, `cache` and `compact`, on one x86-64 runner
 (arm64 is cross-compiled). [check_simd_inlining.py](scripts/check_simd_inlining.py)
