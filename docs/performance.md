@@ -125,6 +125,15 @@ inlined or moved out of line, compare the two unstripped probes:
 `python3 -B scripts/check_simd_inlining.py --compare OLD NEW` (sizes run to the
 next symbol, so they include alignment padding).
 
+For traversal refactors, check both fat LTO and LTO disabled, with and without
+`cache`. Inspect the linked hot loops as well as the symbol list. Radix carry
+keeps its four lane updates explicit so each carry chain can stay in registers.
+Matrix encoding packs complete words separately from the partial head and keeps
+the panel loop indexed, avoiding iterator setup on small cached conversions.
+Loop iterators that remove bounds checks can still inhibit vectorization or
+leave iterator-construction calls in the linked code. Measure an isolated
+alternative before treating either code shape as a latency improvement.
+
 Internal backends and allocations: `scripts/resource_report.py build` / `run`
 times internal workers (`__internals`, not ordinary public consumers) and counts
 allocations with `--count-allocations` in separate, untimed builds;

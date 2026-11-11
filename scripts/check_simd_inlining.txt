@@ -51,7 +51,6 @@ faster_base58::ntt::transform
 
 [!cache]
 <alloc::raw_vec::RawVec<faster_base58::encode::matrix::table::Panel>>::grow_one
-core::ptr::drop_glue::<faster_base58::encode::matrix::table::Table>
 # Also out of line in x86_64 `cache` builds, not in aarch64 ones.
 faster_base58::dc::mul_add_chunks
 
@@ -161,6 +160,7 @@ faster_base58::matrix::x86::avx2
 faster_base58::matrix::x86::sse41
 
 [x86_64 !cache]
+faster_base58::mul::fold_wrapped
 # Karatsuba decoding, which NEON builds do not reach.
 faster_base58::common::values
 faster_base58::dc::dc::<faster_base58::dc::Karatsuba>

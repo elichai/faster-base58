@@ -738,6 +738,29 @@ mod tests {
     }
 
     #[test]
+    fn quarter_carries_reach_nonzero_tails_and_cross_quarters() {
+        for len in 5..=7 {
+            let mut coefficients = vec![1; len];
+            coefficients[..3].fill(0);
+            coefficients[3] = u64::from(BASE);
+            let mut digits = vec![1; len];
+            digits[..4].fill(0);
+            carry(&mut digits, |i| coefficients[i], len);
+            assert_eq!(&digits[..4], &[0; 4]);
+            assert_eq!(digits[4], 3);
+            assert!(digits[5..].iter().all(|&d| d == 2));
+        }
+        let mut coefficients = [u64::from(BASE - 1); 17];
+        coefficients[..3].fill(0);
+        coefficients[3] = u64::from(BASE);
+        coefficients[16] = 0;
+        let mut digits = [0; 17];
+        carry(&mut digits, |i| coefficients[i], 0);
+        assert_eq!(&digits[..16], &[0; 16]);
+        assert_eq!(digits[16], 1);
+    }
+
+    #[test]
     fn selection_preserves_fallback_and_short_buffers() {
         // Sizes and the sixteenths of their root transform used, rounded down: the first
         // and last sizes of each rule and of the Wasm and native minimums.
