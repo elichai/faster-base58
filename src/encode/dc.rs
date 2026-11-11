@@ -740,7 +740,7 @@ fn div_schoolbook(q: &mut [u64], u: &mut [u64], v: &[u64]) {
         let top = ((*high as u128) << 64) | *u1 as u128;
         let next = *u0 as u128;
         let mut qhat = top / v1;
-        // qhat * v1 <= top, so derive the remainder without a second division.
+        // qhat * v1 <= top, so the product fits and subtraction gives the exact remainder.
         let mut rhat = top - qhat * v1;
         // At most two steps make `qhat` exact or one too large.
         while qhat >> 64 != 0 || qhat * v0 > ((rhat << 64) | next) {
