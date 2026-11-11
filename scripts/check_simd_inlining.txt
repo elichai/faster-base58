@@ -73,7 +73,6 @@ faster_base58::encode::matrix::encode_parts
 faster_base58::matrix::entry::decode_parts
 
 [x86_64]
-faster_base58::mul::fold_wrapped
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::scratch_len
 <faster_base58::ntt::tables::Tables>::twiddles::<2>
 # CPU detection reads XCR0 once, outside any `xsave` function.
@@ -160,6 +159,7 @@ faster_base58::matrix::x86::avx2
 faster_base58::matrix::x86::sse41
 
 [x86_64 !cache]
+faster_base58::mul::fold_wrapped
 # Karatsuba decoding, which NEON builds do not reach.
 faster_base58::common::values
 faster_base58::dc::dc::<faster_base58::dc::Karatsuba>
