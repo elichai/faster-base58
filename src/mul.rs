@@ -158,6 +158,7 @@ fn karatsuba(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64], t: usiz
 }
 
 /// `out = x + y`. Requires `out` to be longer than `x` and `y`.
+#[inline]
 fn sum(out: &mut [u64], x: &[u64], y: &[u64]) {
     let (lo, hi) = out.split_at_mut(x.len());
     lo.copy_from_slice(x);

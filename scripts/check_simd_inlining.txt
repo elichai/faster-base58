@@ -73,7 +73,6 @@ faster_base58::encode::matrix::convert
 faster_base58::encode::matrix::encode_parts
 faster_base58::matrix::entry::decode_parts
 faster_base58::mul::fold_wrapped
-faster_base58::mul::sum
 
 [x86_64]
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::scratch_len
@@ -215,7 +214,6 @@ faster_base58::encode::matrix::neon::carry_cold
 
 [aarch64 !cache]
 faster_base58::mul::fold_wrapped
-faster_base58::mul::sum
 
 [aarch64 cache]
 <faster_base58::ntt::tables::Tables>::twiddles::<2>
