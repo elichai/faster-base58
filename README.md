@@ -168,9 +168,76 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Performance
 
-The tables and figures below were measured before the tree-decoder change. Auto
-decode results that enter the tree and Auto linked-size results need remeasurement;
-the figures still show those earlier measurements. Other results remain useful.
+The **2026-11-11 native refresh** compares the complete #53 → #55 → #57 → #59
+stack with `main` containing merged #58. The large encoder regression was removed
+in the measured configurations. Results are mixed at smaller sizes: M5 cached
+512-byte decode with fat LTO remains about 2.6% slower. These measurements do not
+establish that every changed path is neutral or faster.
+
+Ordinary public Auto, borrowed caller buffers, generic CPU flags, release opt-level
+3 and 16 codegen units. Both default/cache and fat/no LTO were measured. The tables
+here give **candidate warm encode / decode medians with fat LTO**. The figures show
+paired candidate/main ratios for both LTO settings; below 1 is faster, and bars
+span observed process ratios, not confidence intervals. Methods, frozen revisions,
+full tables, first calls and assembly limits are in the
+[performance guide](docs/performance.md#native-refresh--2026-11-11).
+
+### Apple M5 Pro
+
+| Payload | Default encode / decode | Cache encode / decode |
+| --- | ---: | ---: |
+| 32 B | 11.7 ns / 13.4 ns | 11.9 ns / 13.5 ns |
+| 512 B | 1.73 µs / 503 ns | 588 ns / 501 ns |
+| 4 KiB | 71.5 µs / 25.3 µs | 28.8 µs / 24.5 µs |
+| 1 MiB | 42.8 ms / 25.2 ms | 43.4 ms / 25.2 ms |
+| 4 MiB | 204 ms / 125 ms | 206 ms / 125 ms |
+
+![Full-stack paired native latency ratios on Apple M5 Pro](assets/graphs/m5-public.svg)
+
+### AMD EPYC 9B45 (GCP)
+
+| Payload | Default encode / decode | Cache encode / decode |
+| --- | ---: | ---: |
+| 32 B | 30.2 ns / 24.5 ns | 30.1 ns / 23.3 ns |
+| 512 B | 3.23 µs / 847 ns | 1.08 µs / 845 ns |
+| 4 KiB | 47.6 µs / 16.1 µs | 39.6 µs / 16.1 µs |
+| 1 MiB | 48.1 ms / 24.2 ms | 47.6 ms / 22.8 ms |
+| 4 MiB | 221 ms / 120 ms | 222 ms / 117 ms |
+
+![Full-stack paired native latency ratios on AMD EPYC 9B45 (GCP)](assets/graphs/gcp-public.svg)
+
+The isolated #58 comparison used an earlier `main` and a separate timing phase.
+It establishes no consistent cross-platform latency win; its default/cache and
+fat/no-LTO figures are [reported separately](docs/performance.md#isolated-pr-58).
+No-allocation, bs58, five8 and Wasm were not remeasured in this refresh.
+
+## Linked size
+
+The same native timing artifacts link the following bytes **above a matching
+empty consumer**, with both directions reachable. Code and readonly data are
+separate; these are cdylib section differences, not crate-only instruction counts.
+Full initialized-data, BSS and stripped-file differences are in the performance
+guide. Heap and stack are separate costs.
+
+| Host / LTO / policy | Candidate code B | Candidate readonly B | Code Δ vs main B |
+| --- | ---: | ---: | ---: |
+| m5 / fat / default | 67,952 | 24,854 | -1,472 |
+| m5 / fat / cache | 76,296 | 27,628 | -1,536 |
+| m5 / off / default | 80,920 | 49,974 | +192 |
+| m5 / off / cache | 85,080 | 58,055 | +320 |
+| gcp / fat / default | 308,541 | 38,160 | -736 |
+| gcp / fat / cache | 303,949 | 38,952 | -896 |
+| gcp / off / default | 333,251 | 75,688 | -8,384 |
+| gcp / off / cache | 325,027 | 71,644 | -7,920 |
+
+<details>
+<summary>Earlier comparator and Wasm cohort — 2026-11-09, before the tree-decoder change</summary>
+
+### Historical public-consumer cohort — 2026-11-09
+
+The tables and figures below were measured before the tree-decoder change. Their
+native Auto tree-decode and linked-size values are superseded by the refresh above.
+The comparator and Wasm measurements retain their original scope and dates.
 
 Measured **2026-11-09** with ordinary public consumers (no
 `__internals`), release opt-level 3, fat LTO and generic target flags. Each cell is
@@ -194,7 +261,7 @@ Rust 1.99.1 / LLVM 23.1.1, `aarch64-apple-darwin`, five processes.
 | 1 MiB | **44.4 ms** / 26.4 ms | 44.6 ms / **25.6 ms** | — / — | — / — | — / — |
 | 4 MiB | 212 ms / 129 ms | **210 ms** / **129 ms** | — / — | — / — | — / — |
 
-![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
+![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public-20261109.svg)
 
 ### AMD EPYC 9B45 (GCP, generic x86-64)
 
@@ -212,7 +279,7 @@ of each library ([protocol](docs/performance.md#measure-and-update)).
 | 1 MiB | 49 ms / 24.2 ms | **48.8 ms** / **22.7 ms** | — / — | — / — | — / — |
 | 4 MiB | **227 ms** / 119 ms | 227 ms / **116 ms** | — / — | — / — | — / — |
 
-![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
+![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public-20261109.svg)
 
 ### WebAssembly on Apple M5 Pro (Node/V8)
 
@@ -239,7 +306,7 @@ matching bars are withdrawn for the same reason.
 A separate [basexx comparison](docs/performance.md#basexx-comparison) includes a
 general-purpose comparator that is much faster than bs58.
 
-## Linked size
+### Historical linked sizes
 
 Code and data linked **above an empty consumer** with the same scaffold, both
 directions reachable, from the same builds as the timing tables. These are cdylib
@@ -256,6 +323,9 @@ headers, retained heap and Wasm memory pages are separate costs.
 † Withdrawn until remeasured with the timing tables: Wasm Auto now links the radix
 route, about 13 KiB of code and 0.7 KiB of data more on 2026-11-09 builds
 ([performance guide](docs/performance.md#wasm)).
+
+
+</details>
 
 On x86-64, `features = ["compact"]` keeps eight IFMA kernel widths instead of
 twelve. This reduces linked code and uses more chunks for some multiplications.

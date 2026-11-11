@@ -6,12 +6,544 @@ avoids internal allocation, and its general large conversions remain quadratic.
 [DESIGN.md](../DESIGN.md) describes dispatch and algorithms;
 [CORRECTNESS.md](../CORRECTNESS.md) describes validation and remaining gaps.
 
-## Results
+## Native refresh — 2026-11-11
 
-These results and the README figures were measured before the tree-decoder change.
-Auto decoding that enters the tree and Auto linked sizes require remeasurement;
-the figures retain the earlier values. The change does not alter the other measured
-backends.
+Two independently timed native comparisons are reported here. Do not compare
+absolute times across their different phases or relabel the earlier comparator
+and Wasm cohort as current.
+
+| Study | Baseline source | Candidate source |
+| --- | --- | --- |
+| Whole #53 → #55 → #57 → #59 stack | `9825212e9b9223f13cfae73905357e7877ded357` | `d82345997505864abd732a7f4b6d497827072564` |
+| Isolated #58, based directly on main | `62ede32a59814a3385383dd93ae8d118be5bf284` | `9626df5a899836a9c63c58c2c2621810050e432d` |
+
+The published full-stack code at `972c29a58db6733fa32f523f5cf24d17eae44628`
+differs from its measured candidate only in `scripts/check_simd_inlining.txt`.
+Main `9825212` already includes merged #58; the full-stack comparison does not
+isolate the final #59 commit. Documentation/figure changes do not remeasure code.
+
+Both studies use ordinary public Auto consumers with encode and decode reachable
+in each shared library. No `__internals`, allocation counter, `check` or `compact`
+feature is enabled. Builds use release opt-level 3, 16 codegen units, no debug
+information, generic CPU flags (`RUSTFLAGS=""`), and either fat LTO or fully
+disabled LTO (`CARGO_PROFILE_RELEASE_LTO=off`). Default and `cache` are separate
+builds. Linked sizes come from the same artifacts as timing, subtracting the
+matching empty consumer. Code, readonly, initialized data, BSS and stripped file
+are distinct. File/page layout and embedded paths can affect non-code sizes.
+
+| Host | Compiler | Execution |
+| --- | --- | --- |
+| Apple M5 Pro, macOS 26.7.2 | Rust 1.99.1 / LLVM 23.1.1 | AC power; process CPU time |
+| GCP c4d-highcpu-4, AMD EPYC 9B45 | Rust 1.99.0 / LLVM 23.1.1 | Process CPU time; vCPU 1 pinned |
+
+GCP sources, builds, temporary files and results use `/mnt/bench`; execution waits
+for the shared VM lock. These are shared/interactive hosts without exclusive
+hardware, fixed frequency, SCHED_FIFO or disabled ASLR. No timing overlaps our
+builds or tests. The older protocol below describes a different cohort.
+
+Each primary cohort has **5 fresh processes × 3 fresh file copies × 3 interleaved
+batches**. Calibration targets at least 5 ms per batch for the full stack and
+10 ms for #58; one large conversion can exceed that. Fixtures are deterministic
+random bytes without leading zero bytes, at 27 full-stack sizes or 22 #58 sizes
+from empty through 4 MiB. Outputs are checked against the common fixture before
+timing. Caller buffers are reused and 64-byte aligned; decode capacity is exact.
+Fixture construction, caller-buffer allocation and UTF-8 prevalidation for the
+Rust `&str` API are outside timing. Internal codec workspace allocation remains
+included. These are warm borrowed-buffer measurements.
+
+Ratios are candidate/main medians [min, max] of paired process ratios, after
+taking the median over copies within each process. Below 1 is faster. Ranges are
+descriptive, not confidence intervals. Absolute times use a separate estimator:
+median over copies of each copy's process median. Dividing the displayed absolute
+times need not reproduce a paired ratio. #58's retained stdout ratios have three
+decimal places; that precision is preserved.
+
+### Corrected whole stack
+
+The large default/fat-LTO encoder regression was removed in the measured native
+configurations by explicit four-lane carry updates and restoring the encoder's
+complete-word/panel traversal and the decoder's indexed table-row builder. Some
+small differences remain: M5 fat-LTO cached 512-byte decode is about 2.6% slower.
+No uniform speedup or universal non-regression is established.
+
+![Full-stack M5 paired latency ratios](../assets/graphs/m5-public.svg)
+
+![Full-stack GCP paired latency ratios](../assets/graphs/gcp-public.svg)
+
+The original GCP no-LTO/default 32-byte encode ratio was 1.096 [1.093, 1.099],
+while an identical-main control was 1.048. A separate 7-process × 5-copy × 3-batch,
+15 ms repeat measured candidate/main 0.999 [0.998, 1.000], and control/main
+1.000 [1.000, 1.000]. The graphs retain the original points and show the focused
+repeat at 32/64/65 bytes as diamonds. Neither run is silently substituted for the
+other, and the original outlier is not attributed to a source-level regression.
+
+Absolute values below are **main → candidate**. All measured sizes of at least
+32 bytes are included in the expandable paired-ratio tables.
+
+#### Apple M5 Pro, fat LTO
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 11.7 ns → 11.7 ns | 13.5 ns → 13.4 ns | 11.8 ns → 11.9 ns | 13.8 ns → 13.5 ns |
+| 512 B | 1.83 µs → 1.73 µs | 520 ns → 503 ns | 584 ns → 588 ns | 489 ns → 501 ns |
+| 4 KiB | 72.6 µs → 71.5 µs | 26.7 µs → 25.3 µs | 28.7 µs → 28.8 µs | 24.6 µs → 24.5 µs |
+| 32 KiB | 837 µs → 828 µs | 421 µs → 416 µs | 823 µs → 823 µs | 403 µs → 406 µs |
+| 1 MiB | 43.4 ms → 42.8 ms | 25.6 ms → 25.2 ms | 43.3 ms → 43.4 ms | 25 ms → 25.2 ms |
+| 4 MiB | 206 ms → 204 ms | 126 ms → 125 ms | 205 ms → 206 ms | 124 ms → 125 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 0.997 [0.994, 1.000] | 0.995 [0.991, 1.005] | 1.004 [1.002, 1.008] | 0.974 [0.971, 0.985] |
+| 52 B | 0.989 [0.964, 0.999] | 1.004 [0.991, 1.008] | 1.001 [0.992, 1.012] | 0.991 [0.988, 0.995] |
+| 64 B | 1.008 [1.002, 1.014] | 0.982 [0.966, 0.997] | 0.996 [0.991, 1.005] | 0.985 [0.976, 0.990] |
+| 65 B | 1.000 [0.980, 1.048] | 0.986 [0.983, 0.988] | 0.941 [0.934, 0.946] | 0.982 [0.977, 0.987] |
+| 128 B | 0.970 [0.958, 0.981] | 0.986 [0.979, 0.986] | 0.973 [0.964, 0.978] | 0.972 [0.970, 0.976] |
+| 256 B | 0.946 [0.938, 0.957] | 0.976 [0.974, 0.980] | 0.983 [0.966, 0.988] | 0.981 [0.976, 0.992] |
+| 512 B | 0.948 [0.934, 0.960] | 0.964 [0.962, 0.972] | 1.008 [1.000, 1.015] | 1.026 [1.020, 1.027] |
+| 1 KiB | 0.970 [0.965, 0.976] | 0.971 [0.958, 0.985] | 1.000 [0.997, 1.010] | 0.998 [0.995, 1.002] |
+| 1,504 B | 0.968 [0.963, 0.990] | 0.953 [0.932, 0.959] | 1.002 [0.997, 1.009] | 0.996 [0.993, 0.999] |
+| 1,875 B | 0.960 [0.956, 0.965] | 0.955 [0.948, 0.964] | 1.000 [0.989, 1.017] | 0.998 [0.993, 1.004] |
+| 2 KiB | 0.952 [0.941, 0.969] | 0.942 [0.937, 0.946] | 0.998 [0.973, 1.025] | 1.001 [0.986, 1.012] |
+| 4 KiB | 0.985 [0.978, 1.001] | 0.947 [0.893, 0.958] | 0.999 [0.991, 1.004] | 1.003 [0.994, 1.004] |
+| 8 KiB | 0.986 [0.975, 0.990] | 1.002 [1.001, 1.015] | 1.001 [0.976, 1.015] | 1.000 [0.997, 1.005] |
+| 16 KiB | 0.982 [0.980, 0.987] | 0.987 [0.971, 1.008] | 1.002 [1.001, 1.020] | 1.006 [1.001, 1.007] |
+| 24 KiB | 0.980 [0.976, 0.989] | 0.988 [0.981, 0.998] | 0.995 [0.988, 0.997] | 1.003 [0.995, 1.008] |
+| 28 KiB | 0.980 [0.975, 0.983] | 0.990 [0.978, 1.003] | 0.997 [0.993, 1.003] | 1.004 [1.002, 1.005] |
+| 32 KiB | 0.984 [0.974, 0.998] | 0.985 [0.980, 0.992] | 1.000 [0.995, 1.007] | 1.010 [1.004, 1.035] |
+| 36 KiB | 0.988 [0.965, 0.994] | 0.992 [0.990, 1.001] | 1.002 [1.000, 1.006] | 1.005 [1.003, 1.005] |
+| 48 KiB | 0.986 [0.981, 0.994] | 0.993 [0.984, 0.997] | 0.993 [0.991, 1.023] | 1.006 [1.005, 1.007] |
+| 64 KiB | 0.981 [0.972, 0.987] | 0.987 [0.982, 0.995] | 1.004 [0.971, 1.009] | 1.010 [1.003, 1.010] |
+| 128 KiB | 0.979 [0.977, 0.991] | 0.988 [0.984, 0.992] | 1.005 [0.999, 1.012] | 1.011 [1.008, 1.050] |
+| 144 KiB | 0.992 [0.975, 0.998] | 0.990 [0.978, 0.999] | 1.006 [1.001, 1.010] | 1.006 [1.004, 1.011] |
+| 256 KiB | 0.979 [0.937, 0.986] | 0.990 [0.984, 0.998] | 1.003 [0.999, 1.004] | 1.011 [1.007, 1.012] |
+| 1 MiB | 0.986 [0.979, 0.987] | 0.988 [0.986, 0.991] | 1.002 [1.001, 1.003] | 1.009 [1.009, 1.010] |
+| 4 MiB | 0.987 [0.983, 0.990] | 0.992 [0.990, 1.013] | 1.001 [0.998, 1.004] | 1.008 [1.006, 1.009] |
+
+</details>
+
+#### Apple M5 Pro, LTO off
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 23.2 ns → 23 ns | 40.1 ns → 38.5 ns | 23.2 ns → 22.5 ns | 40.1 ns → 38.5 ns |
+| 512 B | 2.36 µs → 2.27 µs | 896 ns → 904 ns | 578 ns → 570 ns | 504 ns → 514 ns |
+| 4 KiB | 75.8 µs → 76.5 µs | 32 µs → 27.3 µs | 28.8 µs → 28.8 µs | 24.4 µs → 24.5 µs |
+| 32 KiB | 863 µs → 871 µs | 440 µs → 444 µs | 858 µs → 859 µs | 407 µs → 408 µs |
+| 1 MiB | 44.1 ms → 44.3 ms | 26.1 ms → 26.1 ms | 44.7 ms → 44.7 ms | 25.2 ms → 25.2 ms |
+| 4 MiB | 209 ms → 209 ms | 128 ms → 128 ms | 211 ms → 211 ms | 125 ms → 126 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 0.996 [0.965, 1.014] | 0.962 [0.956, 0.979] | 0.977 [0.969, 0.989] | 0.962 [0.948, 0.978] |
+| 52 B | 0.983 [0.966, 1.032] | 0.982 [0.980, 0.993] | 0.973 [0.973, 0.989] | 0.975 [0.968, 0.995] |
+| 64 B | 0.998 [0.994, 1.006] | 0.984 [0.978, 1.003] | 0.990 [0.982, 1.007] | 0.987 [0.980, 0.998] |
+| 65 B | 1.018 [0.998, 1.038] | 0.991 [0.990, 0.998] | 0.988 [0.985, 1.009] | 0.988 [0.983, 1.002] |
+| 128 B | 1.003 [0.971, 1.050] | 0.992 [0.976, 1.008] | 0.993 [0.978, 1.006] | 1.003 [0.996, 1.020] |
+| 256 B | 0.951 [0.933, 0.967] | 1.003 [0.982, 1.016] | 1.004 [0.979, 1.024] | 1.007 [0.991, 1.021] |
+| 512 B | 0.954 [0.942, 0.995] | 1.012 [0.995, 1.028] | 0.989 [0.983, 0.994] | 1.018 [1.012, 1.024] |
+| 1 KiB | 0.975 [0.970, 1.001] | 0.961 [0.945, 0.975] | 1.001 [0.984, 1.009] | 1.007 [0.999, 1.018] |
+| 1,504 B | 0.964 [0.957, 0.971] | 0.920 [0.908, 0.934] | 0.991 [0.985, 0.997] | 0.998 [0.988, 1.002] |
+| 1,875 B | 0.963 [0.958, 0.973] | 0.892 [0.883, 0.896] | 0.999 [0.982, 1.006] | 0.998 [0.994, 1.003] |
+| 2 KiB | 0.961 [0.953, 0.970] | 0.887 [0.875, 0.904] | 0.999 [0.964, 1.007] | 1.003 [0.998, 1.020] |
+| 4 KiB | 1.009 [1.003, 1.014] | 0.860 [0.807, 0.862] | 0.998 [0.989, 1.014] | 1.002 [0.991, 1.005] |
+| 8 KiB | 1.007 [0.998, 1.018] | 0.994 [0.987, 0.999] | 1.000 [0.985, 1.010] | 0.999 [0.995, 1.003] |
+| 16 KiB | 1.003 [0.995, 1.018] | 0.990 [0.985, 1.001] | 1.005 [1.000, 1.032] | 1.004 [1.000, 1.008] |
+| 24 KiB | 1.008 [0.998, 1.020] | 0.987 [0.973, 1.004] | 0.994 [0.989, 1.002] | 1.003 [1.000, 1.006] |
+| 28 KiB | 0.996 [0.991, 1.005] | 0.991 [0.982, 1.002] | 1.003 [1.000, 1.021] | 1.007 [1.001, 1.011] |
+| 32 KiB | 1.010 [0.995, 1.013] | 0.989 [0.959, 1.011] | 1.003 [0.983, 1.006] | 1.003 [0.998, 1.010] |
+| 36 KiB | 1.003 [0.992, 1.009] | 0.996 [0.993, 0.997] | 0.996 [0.995, 1.001] | 1.009 [0.998, 1.014] |
+| 48 KiB | 1.005 [1.002, 1.010] | 0.990 [0.982, 0.997] | 1.002 [0.994, 1.006] | 1.003 [0.981, 1.007] |
+| 64 KiB | 1.012 [1.000, 1.013] | 0.990 [0.988, 1.000] | 1.006 [1.003, 1.019] | 0.999 [0.984, 1.010] |
+| 128 KiB | 1.012 [1.000, 1.014] | 0.993 [0.991, 0.996] | 1.000 [0.991, 1.016] | 1.004 [1.003, 1.008] |
+| 144 KiB | 1.004 [0.990, 1.015] | 0.992 [0.988, 0.998] | 0.996 [0.990, 1.003] | 1.005 [0.978, 1.011] |
+| 256 KiB | 1.007 [1.003, 1.015] | 0.993 [0.989, 1.010] | 1.003 [0.999, 1.011] | 1.001 [0.999, 1.005] |
+| 1 MiB | 1.003 [1.002, 1.006] | 0.996 [0.995, 0.998] | 1.002 [0.996, 1.003] | 1.004 [1.000, 1.011] |
+| 4 MiB | 1.005 [1.001, 1.005] | 0.998 [0.994, 1.002] | 1.001 [0.998, 1.012] | 1.004 [0.999, 1.008] |
+
+</details>
+
+#### AMD EPYC 9B45 · GCP, fat LTO
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 30.1 ns → 30.2 ns | 24.4 ns → 24.5 ns | 30.1 ns → 30.1 ns | 23.6 ns → 23.3 ns |
+| 512 B | 3.24 µs → 3.23 µs | 884 ns → 847 ns | 1.08 µs → 1.08 µs | 872 ns → 845 ns |
+| 4 KiB | 48.6 µs → 47.6 µs | 16.1 µs → 16.1 µs | 39.8 µs → 39.6 µs | 16.2 µs → 16.1 µs |
+| 32 KiB | 1.01 ms → 1 ms | 412 µs → 412 µs | 925 µs → 920 µs | 381 µs → 382 µs |
+| 1 MiB | 48.5 ms → 48.1 ms | 24.1 ms → 24.2 ms | 47.8 ms → 47.6 ms | 22.8 ms → 22.8 ms |
+| 4 MiB | 223 ms → 221 ms | 120 ms → 120 ms | 223 ms → 222 ms | 117 ms → 117 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 1.002 [1.000, 1.002] | 1.006 [0.973, 1.010] | 1.000 [0.999, 1.001] | 0.989 [0.985, 0.990] |
+| 52 B | 1.015 [1.015, 1.018] | 0.997 [0.972, 1.003] | 1.001 [0.996, 1.005] | 1.005 [1.002, 1.006] |
+| 64 B | 0.994 [0.989, 1.074] | 0.997 [0.997, 0.998] | 0.998 [0.858, 1.002] | 0.999 [0.998, 1.008] |
+| 65 B | 1.010 [1.007, 1.013] | 0.988 [0.970, 0.993] | 1.003 [0.997, 1.005] | 1.014 [1.007, 1.018] |
+| 128 B | 0.993 [0.992, 1.022] | 0.982 [0.977, 0.996] | 1.000 [0.999, 1.001] | 0.985 [0.984, 0.987] |
+| 256 B | 0.987 [0.979, 0.990] | 0.949 [0.947, 0.950] | 0.984 [0.981, 1.001] | 0.977 [0.975, 0.977] |
+| 512 B | 0.994 [0.988, 0.999] | 0.961 [0.959, 0.966] | 0.998 [0.997, 1.002] | 0.971 [0.969, 0.973] |
+| 1 KiB | 0.982 [0.979, 0.987] | 1.021 [1.015, 1.023] | 1.002 [1.000, 1.002] | 1.006 [1.003, 1.010] |
+| 1,504 B | 0.976 [0.971, 0.980] | 0.997 [0.995, 0.998] | 1.002 [1.001, 1.002] | 1.002 [0.999, 1.004] |
+| 1,875 B | 0.970 [0.958, 0.973] | 0.965 [0.961, 0.968] | 1.001 [1.000, 1.002] | 1.003 [1.001, 1.004] |
+| 2 KiB | 0.965 [0.960, 0.971] | 0.984 [0.972, 0.991] | 1.002 [1.001, 1.002] | 1.003 [1.002, 1.004] |
+| 4 KiB | 0.977 [0.971, 0.981] | 0.994 [0.993, 1.004] | 0.994 [0.981, 1.009] | 0.992 [0.985, 1.014] |
+| 8 KiB | 0.997 [0.993, 1.001] | 1.007 [0.995, 1.007] | 0.997 [0.988, 1.000] | 0.997 [0.992, 1.009] |
+| 16 KiB | 0.996 [0.993, 1.000] | 1.003 [1.002, 1.007] | 0.999 [0.995, 1.000] | 0.994 [0.985, 1.005] |
+| 24 KiB | 0.996 [0.995, 0.997] | 1.000 [0.996, 1.001] | 1.002 [0.998, 1.004] | 1.000 [0.996, 1.002] |
+| 28 KiB | 0.992 [0.992, 0.993] | 0.989 [0.986, 0.993] | 0.992 [0.990, 0.995] | 0.990 [0.988, 0.992] |
+| 32 KiB | 0.994 [0.986, 0.995] | 0.999 [0.996, 1.004] | 0.995 [0.993, 0.997] | 1.004 [1.000, 1.005] |
+| 36 KiB | 0.997 [0.996, 1.002] | 1.001 [0.999, 1.005] | 0.991 [0.981, 0.997] | 0.998 [0.995, 0.999] |
+| 48 KiB | 0.994 [0.991, 0.994] | 0.997 [0.995, 1.004] | 1.001 [0.999, 1.002] | 1.000 [0.999, 1.002] |
+| 64 KiB | 0.993 [0.992, 0.994] | 1.000 [0.999, 1.004] | 0.993 [0.989, 0.994] | 0.998 [0.995, 1.004] |
+| 128 KiB | 0.992 [0.990, 0.998] | 1.002 [1.000, 1.008] | 0.996 [0.989, 0.996] | 1.001 [0.996, 1.004] |
+| 144 KiB | 1.001 [0.999, 1.004] | 1.004 [0.998, 1.006] | 0.995 [0.993, 0.997] | 0.999 [0.996, 1.002] |
+| 256 KiB | 0.993 [0.993, 0.994] | 1.001 [1.001, 1.004] | 0.995 [0.991, 0.999] | 0.999 [0.998, 0.999] |
+| 1 MiB | 0.992 [0.991, 0.997] | 1.003 [1.001, 1.006] | 0.995 [0.990, 0.997] | 1.000 [0.997, 1.002] |
+| 4 MiB | 0.994 [0.993, 0.998] | 1.002 [1.001, 1.003] | 0.993 [0.989, 0.994] | 0.999 [0.992, 1.001] |
+
+</details>
+
+#### AMD EPYC 9B45 · GCP, LTO off
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 33.2 ns → 36.4 ns | 70.5 ns → 70.1 ns | 34.8 ns → 35.3 ns | 69.9 ns → 70.3 ns |
+| 512 B | 4.49 µs → 4.4 µs | 1.56 µs → 1.49 µs | 1.17 µs → 1.11 µs | 1.56 µs → 1.5 µs |
+| 4 KiB | 57.9 µs → 56.9 µs | 21.8 µs → 21.9 µs | 41.9 µs → 41.8 µs | 22.1 µs → 22 µs |
+| 32 KiB | 1.05 ms → 1.06 ms | 457 µs → 459 µs | 965 µs → 975 µs | 431 µs → 429 µs |
+| 1 MiB | 49.8 ms → 49.7 ms | 25.7 ms → 25.7 ms | 48.8 ms → 48.9 ms | 24.2 ms → 24.2 ms |
+| 4 MiB | 227 ms → 226 ms | 126 ms → 126 ms | 226 ms → 226 ms | 122 ms → 122 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 1.096 [1.093, 1.099] | 0.994 [0.987, 1.010] | 1.015 [1.003, 1.016] | 1.010 [0.999, 1.026] |
+| 52 B | 0.987 [0.981, 0.994] | 0.992 [0.987, 1.008] | 0.991 [0.987, 0.994] | 1.010 [0.996, 1.022] |
+| 64 B | 0.995 [0.994, 1.003] | 0.994 [0.903, 1.009] | 1.000 [0.994, 1.008] | 1.005 [0.999, 1.014] |
+| 65 B | 0.990 [0.976, 0.992] | 0.993 [0.989, 1.000] | 0.994 [0.993, 0.997] | 1.004 [0.996, 1.015] |
+| 128 B | 0.978 [0.977, 0.980] | 0.978 [0.955, 0.985] | 0.965 [0.960, 0.971] | 0.990 [0.988, 0.998] |
+| 256 B | 0.975 [0.973, 0.977] | 0.964 [0.962, 0.967] | 0.941 [0.940, 0.950] | 0.971 [0.970, 0.982] |
+| 512 B | 0.973 [0.968, 0.989] | 0.949 [0.945, 0.951] | 0.948 [0.941, 0.950] | 0.957 [0.956, 0.964] |
+| 1 KiB | 0.977 [0.963, 0.987] | 0.999 [0.998, 1.007] | 0.965 [0.963, 0.965] | 0.998 [0.993, 1.000] |
+| 1,504 B | 0.983 [0.981, 0.987] | 0.988 [0.982, 0.995] | 0.973 [0.969, 0.975] | 0.995 [0.994, 0.996] |
+| 1,875 B | 0.983 [0.982, 0.986] | 1.003 [0.995, 1.007] | 0.976 [0.975, 0.979] | 0.998 [0.997, 0.999] |
+| 2 KiB | 0.977 [0.971, 0.980] | 1.007 [0.993, 1.021] | 0.978 [0.976, 0.981] | 0.999 [0.997, 0.999] |
+| 4 KiB | 0.983 [0.978, 0.988] | 1.001 [0.998, 1.003] | 0.997 [0.993, 1.001] | 0.999 [0.985, 1.004] |
+| 8 KiB | 0.986 [0.985, 0.990] | 1.001 [0.993, 1.008] | 0.997 [0.993, 1.002] | 0.990 [0.987, 1.004] |
+| 16 KiB | 0.989 [0.987, 0.995] | 0.998 [0.994, 1.009] | 0.997 [0.992, 0.999] | 0.998 [0.989, 1.003] |
+| 24 KiB | 0.992 [0.988, 0.992] | 0.995 [0.993, 0.997] | 1.001 [0.997, 1.001] | 0.990 [0.987, 0.991] |
+| 28 KiB | 1.006 [1.004, 1.008] | 0.989 [0.982, 0.990] | 1.010 [1.007, 1.011] | 0.993 [0.991, 0.995] |
+| 32 KiB | 1.000 [0.999, 1.002] | 1.009 [1.000, 1.019] | 1.009 [1.009, 1.011] | 0.997 [0.992, 1.000] |
+| 36 KiB | 0.992 [0.990, 0.994] | 0.998 [0.993, 1.001] | 0.991 [0.986, 0.995] | 0.996 [0.993, 1.000] |
+| 48 KiB | 1.009 [1.009, 1.010] | 0.999 [0.998, 1.001] | 1.001 [0.998, 1.003] | 0.994 [0.991, 0.995] |
+| 64 KiB | 1.002 [1.001, 1.004] | 1.002 [0.995, 1.006] | 1.008 [1.000, 1.013] | 0.997 [0.995, 1.005] |
+| 128 KiB | 1.000 [0.998, 1.002] | 1.002 [1.000, 1.005] | 1.004 [1.002, 1.010] | 0.995 [0.994, 1.001] |
+| 144 KiB | 0.995 [0.993, 0.998] | 0.999 [0.996, 1.003] | 0.994 [0.991, 0.999] | 0.997 [0.990, 1.005] |
+| 256 KiB | 1.000 [0.998, 1.001] | 1.002 [0.998, 1.005] | 1.003 [1.000, 1.006] | 0.996 [0.993, 1.002] |
+| 1 MiB | 0.998 [0.992, 0.999] | 1.000 [0.999, 1.006] | 1.001 [1.000, 1.013] | 0.998 [0.996, 1.000] |
+| 4 MiB | 0.996 [0.992, 0.997] | 1.001 [0.998, 1.002] | 1.000 [0.998, 1.004] | 0.998 [0.995, 1.002] |
+
+</details>
+
+#### Linked sections above the matching empty consumer
+
+| Host / LTO / policy | Code B, main → candidate (Δ) | Readonly B, main → candidate (Δ) | Data / BSS Δ B | Stripped file B, main → candidate (Δ) |
+| --- | ---: | ---: | ---: | ---: |
+| m5 / fat / default | 69,424 → 67,952 (-1,472) | 25,835 → 24,854 (-981) | +0 / +0 | 82,784 → 82,768 (-16) |
+| m5 / fat / cache | 77,832 → 76,296 (-1,536) | 28,665 → 27,628 (-1,037) | +0 / +0 | 99,328 → 99,328 (+0) |
+| m5 / off / default | 80,728 → 80,920 (+192) | 50,491 → 49,974 (-517) | +0 / +0 | 132,416 → 132,432 (+16) |
+| m5 / off / cache | 84,760 → 85,080 (+320) | 58,404 → 58,055 (-349) | +0 / +0 | 132,464 → 132,480 (+16) |
+| gcp / fat / default | 309,277 → 308,541 (-736) | 38,676 → 38,160 (-516) | -648 / +1,896 | 354,936 → 353,040 (-1,896) |
+| gcp / fat / cache | 304,845 → 303,949 (-896) | 39,528 → 38,952 (-576) | -600 / +2,072 | 354,144 → 352,072 (-2,072) |
+| gcp / off / default | 341,635 → 333,251 (-8,384) | 76,340 → 75,688 (-652) | -712 / -2,552 | 429,048 → 419,312 (-9,736) |
+| gcp / off / cache | 332,947 → 325,027 (-7,920) | 72,048 → 71,644 (-404) | -608 / +752 | 417,224 → 408,280 (-8,944) |
+
+### First-call decode
+
+Separate full-stack first-call confirmation uses 15 fresh processes and two
+fresh copies per label. Each mapping makes one first public decode of `b"2" * N`
+with an exact output buffer; an independent Python integer oracle checks output.
+Library loading, fixture/oracle construction and caller-buffer allocation are
+outside timing. Conversion and table initialization where selected are included;
+OS caches are not flushed. This measures the first call, not an isolated table
+constructor. Ratios use median [min, max] over process ratios after merging copies.
+
+At 2,816 characters:
+
+| Host / LTO / policy | Candidate/main | Identical-main control/main |
+| --- | ---: | ---: |
+| m5 / fat / default | 0.909 [0.731, 1.238] | 1.000 [0.731, 1.364] |
+| m5 / fat / cache | 0.982 [0.920, 1.019] | 0.997 [0.920, 1.111] |
+| m5 / off / default | 0.931 [0.750, 1.107] | 1.000 [0.806, 1.179] |
+| m5 / off / cache | 0.990 [0.952, 1.090] | 0.993 [0.950, 1.059] |
+| gcp / fat / default | 1.030 [0.956, 1.160] | 0.969 [0.921, 1.101] |
+| gcp / fat / cache | 1.007 [0.948, 1.047] | 1.006 [0.943, 1.052] |
+| gcp / off / default | 1.021 [0.861, 1.090] | 1.020 [0.884, 1.153] |
+| gcp / off / cache | 1.000 [0.959, 1.012] | 1.002 [0.957, 1.044] |
+
+The [cold summary CSV](../assets/graphs/data/native-20261111-cold.csv) also retains
+1,408- and 5,632-character cells. Wide ranges remain part of the result.
+
+### Assembly findings and limits
+
+The linked native public paths were reviewed on both hosts for default/cache and
+fat/no LTO, including setup, tails and cold/error branches. The fixed carry loops
+retain four explicit chains. However, the published code still has a 2 KiB local
+Power-array return copy and larger stack frame, no-LTO quarter/NEON/matrix/shift
+setup, and encoder register-pressure tradeoffs. The M5 generic no-LTO invalid-input
+scan also adds work. AVX-512 fixed twiddles retain direct loads without an array
+copy; all twelve IFMA convolution streams match after relocation normalization
+in each of the four GCP configurations. These facts do not prove latency for
+every input, compiler-created copy or feature.
+
+Software `perf` on GCP supports the earlier carry-loop attribution: the final
+1 MiB encode sample run reports 48.61 ms/encode with 24.02% of samples in
+`Arithmetic::multiply_add`, versus the regressed stack's separate 54.28 ms and
+33.78%. The final run has 7,982 samples and zero lost. These are separate software
+profiles, not paired estimates. Hardware cycles/instructions are unsupported;
+no IPC or retired-instruction count is claimed. Detailed investigation, controls
+and scoped validation are in [#59](https://github.com/elichai/faster-base58/pull/59).
+
+No Wasm, no-allocation, comparator, checked-conversion, owned-output, native-CPU
+flag or alternate compiler cohort is refreshed here. Checked/internal-only
+callers and every compiler-created clone are not certified by this assembly
+audit. Allocation/retention figures elsewhere retain their own measurement dates.
+
+### Isolated PR 58
+
+The independent #58 comparison establishes **no consistent cross-platform latency
+win**. On GCP, default 4 KiB encode is 0.960× with fat LTO versus 1.017× without
+LTO; cached 256-byte encode is 0.949× versus 1.055×. M5 results are mixed and some
+ranges are wide. Large conversions are mostly near parity. Do not use the
+full-stack cohort's absolute times as this study's baseline.
+
+![Isolated PR 58 M5 paired latency ratios](../assets/graphs/m5-pr58.svg)
+
+![Isolated PR 58 GCP paired latency ratios](../assets/graphs/gcp-pr58.svg)
+
+Original-boundary assembly shows direct short-head stores with fat LTO. Without
+LTO, width dispatch and fixed-copy helpers remain. The inline hint also moves
+existing batched helper logic into callers, changing code size/call placement.
+It does not establish call-free or universally faster code. The suspected extra
+GCP column-loop pointer reload was disproved by checking the exact baseline.
+
+Build paths were not remapped: the `pr58main` source directory name is four bytes
+longer than `main`. Its embedded strings affect readonly/file deltas. For example,
+the M5 default fat-LTO readonly increase of 76 B matches 19 paths × 4 B; those
+small non-code deltas are raw artifact differences, not isolated store costs.
+Code bytes are reported separately. More context is in
+[#58](https://github.com/elichai/faster-base58/pull/58).
+
+Absolute values below are **main → candidate**.
+
+#### Apple M5 Pro, fat LTO
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 12 ns → 11.9 ns | 13.8 ns → 13.9 ns | 12.1 ns → 12.1 ns | 14.1 ns → 14.1 ns |
+| 512 B | 1.91 µs → 1.93 µs | 531 ns → 532 ns | 602 ns → 592 ns | 497 ns → 496 ns |
+| 4 KiB | 75.1 µs → 75.4 µs | 27.6 µs → 27.7 µs | 29.8 µs → 29.8 µs | 24.9 µs → 24.8 µs |
+| 32 KiB | 998 µs → 1.05 ms | 505 µs → 500 µs | 930 µs → 993 µs | 499 µs → 485 µs |
+| 1 MiB | 44.4 ms → 44.4 ms | 26.6 ms → 26.5 ms | 44.1 ms → 44 ms | 26.6 ms → 25.8 ms |
+| 4 MiB | 226 ms → 226 ms | 134 ms → 135 ms | 226 ms → 222 ms | 133 ms → 132 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 1.003 [0.987, 1.004] | 1.009 [0.995, 1.013] | 1.001 [0.997, 1.003] | 0.997 [0.996, 1.011] |
+| 64 B | 0.998 [0.829, 1.008] | 0.991 [0.934, 1.004] | 1.000 [0.997, 1.060] | 1.003 [0.968, 1.055] |
+| 65 B | 0.999 [0.976, 1.011] | 0.987 [0.894, 1.015] | 1.009 [0.978, 1.064] | 1.005 [0.985, 1.073] |
+| 128 B | 1.000 [0.986, 1.024] | 1.000 [0.998, 1.037] | 0.991 [0.991, 1.018] | 0.998 [0.942, 1.007] |
+| 256 B | 0.997 [0.927, 1.006] | 0.998 [0.993, 1.004] | 1.010 [0.969, 1.016] | 1.000 [0.995, 1.056] |
+| 512 B | 1.001 [0.998, 1.034] | 0.998 [0.987, 1.003] | 0.991 [0.985, 1.006] | 0.996 [0.993, 1.038] |
+| 1 KiB | 1.002 [0.994, 1.078] | 0.999 [0.978, 1.250] | 0.989 [0.945, 0.999] | 0.991 [0.959, 0.997] |
+| 2 KiB | 0.998 [0.974, 1.009] | 1.003 [0.989, 1.008] | 0.992 [0.962, 1.061] | 0.999 [0.988, 1.008] |
+| 4 KiB | 1.006 [1.002, 1.020] | 1.002 [0.995, 1.063] | 1.001 [0.986, 1.009] | 1.000 [0.980, 1.019] |
+| 8 KiB | 1.000 [0.976, 1.014] | 1.002 [0.965, 1.017] | 1.001 [0.937, 1.011] | 0.995 [0.953, 1.026] |
+| 16 KiB | 1.001 [0.998, 1.015] | 0.997 [0.917, 1.020] | 0.997 [0.931, 1.001] | 1.002 [0.979, 1.093] |
+| 24 KiB | 0.991 [0.960, 1.007] | 1.017 [0.991, 1.143] | 1.001 [0.983, 1.037] | 0.989 [0.930, 1.021] |
+| 28 KiB | 1.020 [1.001, 1.071] | 1.017 [1.004, 1.075] | 0.993 [0.966, 1.021] | 1.007 [0.979, 1.112] |
+| 32 KiB | 1.047 [1.000, 1.053] | 1.006 [0.977, 1.138] | 1.005 [0.952, 1.137] | 1.000 [0.934, 1.080] |
+| 48 KiB | 1.001 [0.980, 1.024] | 0.995 [0.986, 1.002] | 0.997 [0.945, 1.006] | 1.000 [0.926, 1.063] |
+| 64 KiB | 1.003 [0.992, 1.038] | 1.013 [0.996, 1.028] | 0.998 [0.987, 1.005] | 0.997 [0.992, 1.059] |
+| 128 KiB | 1.000 [0.946, 1.056] | 0.998 [0.929, 1.002] | 1.002 [0.987, 1.008] | 0.998 [0.933, 1.007] |
+| 256 KiB | 1.000 [0.979, 1.017] | 0.999 [0.998, 1.079] | 0.999 [0.970, 1.038] | 1.010 [0.941, 1.032] |
+| 1 MiB | 1.000 [0.929, 1.018] | 1.000 [0.998, 1.009] | 0.998 [0.979, 1.001] | 0.996 [0.968, 1.016] |
+| 4 MiB | 0.997 [0.957, 1.000] | 1.001 [0.965, 1.023] | 0.990 [0.959, 1.023] | 0.999 [0.935, 1.042] |
+
+</details>
+
+#### Apple M5 Pro, LTO off
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 27.2 ns → 26 ns | 46.5 ns → 43.6 ns | 26.9 ns → 27.1 ns | 43.6 ns → 46 ns |
+| 512 B | 2.89 µs → 3.03 µs | 1.01 µs → 1.08 µs | 672 ns → 743 ns | 552 ns → 557 ns |
+| 4 KiB | 103 µs → 90.9 µs | 37.7 µs → 37.2 µs | 36.1 µs → 36 µs | 30.8 µs → 29.1 µs |
+| 32 KiB | 1.08 ms → 1.1 ms | 578 µs → 574 µs | 1.13 ms → 1.09 ms | 547 µs → 551 µs |
+| 1 MiB | 52.8 ms → 51.1 ms | 30.2 ms → 35.3 ms | 54.4 ms → 50.2 ms | 30.1 ms → 33.3 ms |
+| 4 MiB | 212 ms → 217 ms | 130 ms → 130 ms | 226 ms → 220 ms | 127 ms → 127 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 1.001 [0.932, 1.016] | 0.957 [0.932, 1.007] | 0.996 [0.973, 1.078] | 1.008 [0.958, 1.089] |
+| 64 B | 1.000 [0.925, 1.123] | 1.013 [0.926, 1.018] | 1.096 [0.998, 1.185] | 1.042 [1.009, 1.081] |
+| 65 B | 0.994 [0.914, 1.047] | 0.993 [0.919, 1.035] | 0.997 [0.985, 1.023] | 1.019 [0.990, 1.099] |
+| 128 B | 1.026 [0.962, 1.036] | 0.995 [0.974, 1.057] | 0.986 [0.919, 1.012] | 1.000 [0.989, 1.005] |
+| 256 B | 1.015 [0.930, 1.068] | 1.011 [0.977, 1.028] | 0.990 [0.944, 1.015] | 1.005 [0.885, 1.078] |
+| 512 B | 1.001 [0.989, 1.067] | 0.995 [0.967, 1.089] | 1.002 [0.976, 1.105] | 0.998 [0.990, 1.008] |
+| 1 KiB | 1.014 [0.914, 1.018] | 0.991 [0.945, 1.049] | 1.009 [0.989, 1.085] | 0.999 [0.988, 0.999] |
+| 2 KiB | 1.010 [0.998, 1.103] | 0.994 [0.883, 1.039] | 1.004 [0.964, 1.112] | 0.999 [0.951, 1.087] |
+| 4 KiB | 0.998 [0.883, 1.012] | 0.992 [0.904, 1.175] | 0.989 [0.973, 1.053] | 0.984 [0.944, 1.033] |
+| 8 KiB | 1.002 [0.995, 1.040] | 0.998 [0.972, 1.250] | 0.985 [0.966, 0.995] | 1.000 [0.997, 1.080] |
+| 16 KiB | 1.000 [0.935, 1.202] | 0.994 [0.938, 1.003] | 0.995 [0.922, 1.001] | 1.004 [0.980, 1.033] |
+| 24 KiB | 1.002 [0.882, 1.112] | 0.979 [0.961, 1.006] | 1.002 [0.947, 1.042] | 1.003 [0.940, 1.028] |
+| 28 KiB | 0.992 [0.916, 1.003] | 1.000 [0.979, 1.062] | 0.968 [0.888, 0.999] | 1.007 [0.994, 1.033] |
+| 32 KiB | 1.005 [0.974, 1.015] | 1.001 [0.903, 1.052] | 0.997 [0.954, 1.019] | 1.004 [0.982, 1.016] |
+| 48 KiB | 0.997 [0.895, 1.002] | 1.000 [0.813, 1.028] | 1.002 [0.862, 1.052] | 1.002 [0.988, 1.054] |
+| 64 KiB | 0.985 [0.885, 1.002] | 0.999 [0.865, 1.075] | 1.000 [0.987, 1.011] | 1.002 [0.909, 1.019] |
+| 128 KiB | 1.004 [0.987, 1.041] | 0.989 [0.899, 1.002] | 0.996 [0.922, 1.086] | 1.000 [0.992, 1.110] |
+| 256 KiB | 0.997 [0.969, 1.142] | 0.999 [0.866, 1.021] | 1.000 [0.898, 1.168] | 0.999 [0.983, 1.072] |
+| 1 MiB | 1.000 [0.856, 1.079] | 1.002 [0.992, 1.136] | 0.971 [0.857, 1.007] | 1.029 [0.999, 1.109] |
+| 4 MiB | 1.002 [0.951, 1.192] | 0.999 [0.924, 1.008] | 0.999 [0.963, 1.002] | 1.000 [0.910, 1.008] |
+
+</details>
+
+#### AMD EPYC 9B45 · GCP, fat LTO
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 29.9 ns → 29.9 ns | 23.8 ns → 24.2 ns | 29.9 ns → 29.9 ns | 23.4 ns → 23.5 ns |
+| 512 B | 3.22 µs → 3.21 µs | 872 ns → 871 ns | 1.13 µs → 1.08 µs | 867 ns → 869 ns |
+| 4 KiB | 49.8 µs → 47.8 µs | 16 µs → 15.9 µs | 39.6 µs → 39.9 µs | 15.8 µs → 15.8 µs |
+| 32 KiB | 1.01 ms → 1.02 ms | 408 µs → 409 µs | 959 µs → 960 µs | 380 µs → 379 µs |
+| 1 MiB | 47.8 ms → 47.8 ms | 24 ms → 24 ms | 47.8 ms → 47.9 ms | 22.6 ms → 22.6 ms |
+| 4 MiB | 220 ms → 221 ms | 118 ms → 119 ms | 220 ms → 220 ms | 115 ms → 116 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 0.998 [0.998, 0.999] | 1.018 [1.009, 1.024] | 1.000 [0.999, 1.000] | 1.005 [1.000, 1.006] |
+| 64 B | 1.000 [1.000, 1.000] | 1.015 [1.009, 1.019] | 1.001 [0.997, 1.005] | 1.001 [0.999, 1.002] |
+| 65 B | 1.002 [1.001, 1.002] | 1.004 [0.997, 1.015] | 0.996 [0.996, 0.998] | 1.002 [0.997, 1.003] |
+| 128 B | 0.999 [0.999, 1.002] | 1.001 [0.999, 1.002] | 0.975 [0.974, 0.981] | 1.001 [1.001, 1.005] |
+| 256 B | 0.999 [0.993, 1.006] | 0.992 [0.984, 0.994] | 0.949 [0.939, 0.960] | 1.000 [0.999, 1.000] |
+| 512 B | 0.996 [0.990, 1.013] | 1.001 [1.000, 1.006] | 0.953 [0.953, 0.954] | 1.001 [0.999, 1.008] |
+| 1 KiB | 0.983 [0.977, 0.984] | 1.010 [1.007, 1.011] | 0.964 [0.959, 0.967] | 1.002 [0.999, 1.002] |
+| 2 KiB | 0.974 [0.964, 0.984] | 1.003 [1.000, 1.006] | 0.982 [0.976, 0.989] | 0.998 [0.998, 1.004] |
+| 4 KiB | 0.960 [0.957, 0.969] | 0.997 [0.989, 0.999] | 1.009 [1.007, 1.011] | 1.003 [1.001, 1.008] |
+| 8 KiB | 0.976 [0.971, 0.980] | 0.994 [0.994, 1.005] | 1.008 [1.005, 1.010] | 1.000 [0.997, 1.004] |
+| 16 KiB | 0.982 [0.978, 0.987] | 1.000 [0.996, 1.006] | 1.002 [1.000, 1.008] | 1.002 [0.995, 1.006] |
+| 24 KiB | 0.995 [0.993, 1.000] | 0.984 [0.982, 0.988] | 1.001 [0.997, 1.001] | 0.994 [0.993, 0.996] |
+| 28 KiB | 1.003 [1.003, 1.003] | 0.994 [0.992, 1.009] | 1.003 [1.002, 1.004] | 0.988 [0.982, 0.988] |
+| 32 KiB | 1.001 [1.000, 1.002] | 1.002 [0.997, 1.010] | 0.999 [0.998, 1.000] | 0.999 [0.999, 1.007] |
+| 48 KiB | 1.002 [1.000, 1.003] | 0.992 [0.989, 0.998] | 1.000 [1.000, 1.005] | 0.996 [0.993, 0.998] |
+| 64 KiB | 1.001 [1.000, 1.003] | 1.003 [0.998, 1.003] | 1.000 [0.999, 1.002] | 1.001 [0.999, 1.004] |
+| 128 KiB | 1.002 [1.001, 1.003] | 1.001 [1.000, 1.002] | 1.001 [1.000, 1.002] | 1.001 [0.998, 1.005] |
+| 256 KiB | 1.000 [1.000, 1.003] | 1.001 [0.999, 1.002] | 1.000 [1.000, 1.007] | 1.003 [1.001, 1.004] |
+| 1 MiB | 1.002 [1.000, 1.003] | 1.000 [0.998, 1.003] | 1.003 [1.001, 1.005] | 1.001 [1.001, 1.002] |
+| 4 MiB | 1.002 [1.000, 1.007] | 1.003 [1.001, 1.006] | 1.002 [0.997, 1.002] | 1.003 [1.000, 1.008] |
+
+</details>
+
+#### AMD EPYC 9B45 · GCP, LTO off
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 34.6 ns → 34.7 ns | 70.1 ns → 69.9 ns | 34.7 ns → 35.9 ns | 69.5 ns → 69.5 ns |
+| 512 B | 4.47 µs → 4.48 µs | 1.56 µs → 1.56 µs | 1.1 µs → 1.17 µs | 1.56 µs → 1.56 µs |
+| 4 KiB | 57.7 µs → 58.6 µs | 21.9 µs → 21.8 µs | 42.1 µs → 41.8 µs | 22 µs → 22 µs |
+| 32 KiB | 1.06 ms → 1.06 ms | 459 µs → 458 µs | 998 µs → 997 µs | 429 µs → 428 µs |
+| 1 MiB | 48.9 ms → 48.9 ms | 25.5 ms → 25.6 ms | 48.9 ms → 48.9 ms | 24.1 ms → 24.1 ms |
+| 4 MiB | 226 ms → 226 ms | 125 ms → 125 ms | 226 ms → 226 ms | 122 ms → 122 ms |
+
+<details>
+<summary>All paired warm ratios, median [min, max]</summary>
+
+| Payload | Default encode | Default decode | Cache encode | Cache decode |
+| --- | ---: | ---: | ---: | ---: |
+| 32 B | 1.001 [1.000, 1.008] | 0.994 [0.991, 1.001] | 1.034 [1.032, 1.035] | 1.000 [0.992, 1.032] |
+| 64 B | 1.000 [0.996, 1.005] | 0.996 [0.993, 1.001] | 1.001 [0.998, 1.007] | 0.993 [0.991, 0.995] |
+| 65 B | 0.994 [0.993, 0.998] | 0.993 [0.989, 1.002] | 0.999 [0.997, 1.000] | 0.984 [0.984, 0.985] |
+| 128 B | 0.998 [0.996, 0.999] | 1.002 [1.000, 1.003] | 1.028 [1.020, 1.037] | 1.003 [1.001, 1.005] |
+| 256 B | 0.999 [0.998, 1.000] | 0.991 [0.987, 0.992] | 1.055 [1.044, 1.063] | 1.014 [1.013, 1.017] |
+| 512 B | 0.999 [0.998, 1.000] | 1.001 [1.001, 1.002] | 1.058 [1.056, 1.060] | 1.001 [1.000, 1.002] |
+| 1 KiB | 1.007 [1.003, 1.015] | 0.996 [0.994, 0.996] | 1.045 [1.044, 1.047] | 1.003 [1.001, 1.004] |
+| 2 KiB | 1.006 [0.996, 1.016] | 0.996 [0.995, 0.999] | 1.017 [0.994, 1.025] | 1.001 [0.998, 1.010] |
+| 4 KiB | 1.017 [1.014, 1.023] | 0.996 [0.994, 0.999] | 0.994 [0.988, 0.996] | 1.000 [0.994, 1.001] |
+| 8 KiB | 1.013 [1.008, 1.014] | 1.001 [0.999, 1.004] | 0.992 [0.990, 0.996] | 0.996 [0.989, 1.005] |
+| 16 KiB | 1.005 [0.956, 1.007] | 1.001 [0.989, 1.004] | 0.996 [0.993, 1.012] | 0.998 [0.997, 1.017] |
+| 24 KiB | 0.996 [0.994, 0.999] | 0.998 [0.995, 1.000] | 0.995 [0.994, 0.995] | 0.997 [0.995, 0.999] |
+| 28 KiB | 0.998 [0.998, 0.998] | 1.000 [0.999, 1.001] | 0.998 [0.996, 1.001] | 0.990 [0.990, 0.991] |
+| 32 KiB | 0.998 [0.997, 0.998] | 1.001 [0.992, 1.004] | 0.998 [0.995, 1.000] | 0.998 [0.994, 1.002] |
+| 48 KiB | 0.999 [0.997, 1.001] | 0.994 [0.993, 0.995] | 0.997 [0.996, 0.998] | 0.999 [0.999, 1.003] |
+| 64 KiB | 0.999 [0.998, 0.999] | 0.997 [0.994, 0.999] | 0.998 [0.997, 1.001] | 0.999 [0.999, 1.001] |
+| 128 KiB | 0.998 [0.997, 0.998] | 0.999 [0.998, 1.002] | 1.000 [0.994, 1.001] | 1.000 [0.999, 1.001] |
+| 256 KiB | 1.000 [0.998, 1.001] | 0.999 [0.996, 0.999] | 0.998 [0.995, 1.002] | 1.000 [0.998, 1.002] |
+| 1 MiB | 0.999 [0.999, 1.002] | 1.001 [0.998, 1.002] | 0.998 [0.998, 0.999] | 0.999 [0.997, 1.000] |
+| 4 MiB | 0.998 [0.991, 1.000] | 1.002 [0.995, 1.008] | 0.998 [0.995, 1.001] | 0.999 [0.996, 1.001] |
+
+</details>
+
+#### Linked sections above the matching empty consumer
+
+| Host / LTO / policy | Code B, main → candidate (Δ) | Readonly B, main → candidate (Δ) | Data / BSS Δ B | Stripped file B, main → candidate (Δ) |
+| --- | ---: | ---: | ---: | ---: |
+| m5 / fat / default | 69,488 → 69,424 (-64) | 25,949 → 26,025 (+76) | +0 / +0 | 82,784 → 82,784 (+0) |
+| m5 / fat / cache | 77,576 → 77,832 (+256) | 28,785 → 28,885 (+100) | +0 / +0 | 99,328 → 99,328 (+0) |
+| m5 / off / default | 80,664 → 80,728 (+64) | 50,625 → 50,701 (+76) | +0 / +0 | 132,416 → 132,416 (+0) |
+| m5 / off / cache | 84,632 → 84,760 (+128) | 58,604 → 58,624 (+20) | +0 / +0 | 132,464 → 132,464 (+0) |
+| gcp / fat / default | 309,277 → 309,277 (+0) | 38,828 → 38,900 (+72) | +0 / -80 | 355,080 → 355,160 (+80) |
+| gcp / fat / cache | 304,717 → 304,845 (+128) | 39,680 → 39,784 (+104) | +0 / -224 | 354,176 → 354,400 (+224) |
+| gcp / off / default | 341,203 → 341,635 (+432) | 76,488 → 76,596 (+108) | +48 / -544 | 428,760 → 429,304 (+544) |
+| gcp / off / cache | 332,627 → 332,947 (+320) | 72,064 → 72,304 (+240) | +72 / -696 | 416,784 → 417,480 (+696) |
+
+### Reproduce this documentation refresh
+
+The committed [warm summary CSV](../assets/graphs/data/native-20261111.csv),
+[linked-size CSV](../assets/graphs/data/native-20261111-sizes.csv), and
+[input-hash manifest](../assets/graphs/data/native-20261111-sources.json) identify
+the two studies, policies, LTO settings and revisions. Raw records, source/harness
+hashes and commands remain under ignored `target/measurements/pr-vetting` and
+`pr-stack-refresh` locally, with their corresponding `/mnt/bench` directories on
+GCP. Perf data remain on GCP.
+
+With the pinned `assets/graphs/requirements.txt` installed, regenerate all four
+native SVGs and their tables into a new directory:
+
+```sh
+python3 assets/graphs/render_pr20261111.py --output target/measurements/native-docs-regenerated
+```
+
+The renderer refuses an existing destination. Review generated files before
+replacing tracked figures. `render.py --check` below checks links and SVG syntax;
+it does not validate numeric provenance or pixels.
+
+## Earlier public-consumer results — 2026-11-09
+
+The results in this historical section and the README's expandable comparator
+cohort predate the tree-decoder change. Their native Auto tree-decode and linked
+sizes are superseded by the native refresh above. Wasm and the other backends
+were not remeasured in that refresh. Historical figures retain their original
+dates, values and withdrawal limits.
 
 Measured **2026-11-09** with ordinary public consumers:
 `code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
