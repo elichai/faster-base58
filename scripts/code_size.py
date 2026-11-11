@@ -289,6 +289,7 @@ incremental = false
     metadata = {"label": args.label, "source": str(source), "target": args.target, "cache": args.cache,
                 "compact": args.compact, "selected_cargo_features": {},
                 "rustflags": env["RUSTFLAGS"], "profile": manifest,
+                "lto": env.get("CARGO_PROFILE_RELEASE_LTO", "fat"),
                 "rustc": run(["rustc", "-Vv"]), "commands": [],
                 "rustc_target_cfg": run(target_cfg),
                 "dependency_tree_default": run(["cargo", "tree", "--offline", "--manifest-path", str(work / "Cargo.toml"), "--edges", "normal"], env),

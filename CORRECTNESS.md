@@ -118,9 +118,11 @@ two expensive Matrix sweeps execute with `cache` rather than rebuilding the
 same owned tables for every size. [CI.md](CI.md#test-jobs) gives the local
 commands for these rows.
 
-The SIMD inlining job builds the Auto consumer library with generic CPU flags for
+The SIMD inlining job builds the Auto consumer executable with generic CPU flags for
 x86-64 and arm64 Linux, each default, `cache` and `compact`, on one x86-64 runner
-(arm64 is cross-compiled). [check_simd_inlining.py](scripts/check_simd_inlining.py)
+(arm64 is cross-compiled). It explicitly disables LTO with
+`CARGO_PROFILE_RELEASE_LTO=off`, so the check exercises ordinary crate boundaries.
+[check_simd_inlining.py](scripts/check_simd_inlining.py)
 compares every out-of-line function whose name mentions the crate or a `core::arch`
 intrinsic with [check_simd_inlining.txt](scripts/check_simd_inlining.txt), per
 configuration. It fails on an unlisted function and on a listed function that is no

@@ -30,3 +30,7 @@ The build uses release optimization, fat LTO, 16 codegen units, no debug info, a
 the target's default panic strategy. The script overrides ambient Rust flags with
 the recorded CPU flag, preserves unstripped and stripped artifacts, and records
 commands and compiler identity. It never reports an `.rlib` as a deployed program.
+
+`CARGO_PROFILE_RELEASE_LTO=off` disables LTO for a separate cohort; the effective
+setting is recorded in metadata. The symbol guard uses this setting and a linked
+Auto executable, so fat LTO cannot hide missing cross-crate inline hints.

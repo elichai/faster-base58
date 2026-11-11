@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check which functions the Auto consumer library keeps out of line.
+"""Check which functions the non-LTO Auto consumer executable keeps out of line.
 
 Dispatch calls a `#[target_feature]` function, and everything it runs must be inlined
 into it: a function left out of line has no target features, so each intrinsic in it
@@ -117,7 +117,7 @@ def read(nm, library):
 
 
 def build(directory):
-    """{config: (library, nm)} after building the Auto consumer for every configuration."""
+    """{config: (executable, nm)} after building every configuration with LTO off."""
     host = platform.machine()
     if sys.platform != "linux" or host not in ARCHES:
         raise SystemExit("--build runs on x86-64 or arm64 Linux")
@@ -128,15 +128,17 @@ def build(directory):
         target = f"{arch}-unknown-linux-gnu"
         tools = "" if arch == host else f"{arch}-linux-gnu-"
         env = dict(os.environ)
+        # Fat LTO can hide missing inline annotations at crate boundaries.
+        env["CARGO_PROFILE_RELEASE_LTO"] = "off"
         if tools:
             env.setdefault(f"CARGO_TARGET_{target.upper().replace('-', '_')}_LINKER", tools + "gcc")
         output = Path(directory).resolve() / config
         subprocess.run([sys.executable, "-B", str(ROOT / "scripts/code_size.py"), "--source", str(ROOT),
                         "--output", str(output), "--target", target, "--cpu", "generic",
-                        "--backends", "auto", "--directions", "both", "--kinds", "cdylib",
+                        "--backends", "auto", "--directions", "both", "--kinds", "bin",
                         "--strip-tool", tools + "strip", *(f"--{feature}" for feature in features)],
                        cwd=ROOT, env=env, check=True)
-        libraries[config] = (output / "auto-both-cdylib.so", tools + "nm")
+        libraries[config] = (output / "auto-both-bin", tools + "nm")
     return libraries
 
 
