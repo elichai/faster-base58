@@ -302,7 +302,7 @@ jobs:
       - run: sudo apt-get install -y gcc-aarch64-linux-gnu
       - run: rustc -vV
       - run: rustup target add aarch64-unknown-linux-gnu
-      - name: Build x86-64 and arm64 Auto consumers and check their out-of-line functions
+      - name: Build non-LTO x86-64 and arm64 Auto executables and check their functions
         run: python3 scripts/check_simd_inlining.py --build "$RUNNER_TEMP/simd"
 
   measurement_tools:

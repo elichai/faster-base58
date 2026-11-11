@@ -119,7 +119,7 @@ Codecov with an OIDC token. Jobs that upload records keep them as artifacts for
 | `msrv` | Feature-powerset build and public tests on Rust 1.95 | x86-64 Linux | All |
 | `pointer_width_32` | Tests on i686 | x86-64 Linux | All |
 | `lint` | Script tests, public test lists, rustfmt, Clippy, rustdoc warnings, package contents | x86-64 Linux | All |
-| `simd_inlining` | Compares every out-of-line crate function of the Auto consumer library with `scripts/check_simd_inlining.txt` | x86-64 Linux; x86-64 and arm64 targets, each default, `cache` and `compact` | All |
+| `simd_inlining` | Compares every out-of-line crate function of the non-LTO Auto executable with `scripts/check_simd_inlining.txt` | x86-64 Linux; x86-64 and arm64 targets, each default, `cache` and `compact` | All |
 | `measurement_tools` | `resource-profile` tests and self-checks; script self-tests; documentation check | x86-64 Linux; cache off and on | All |
 | `miri_supported` | Stock Miri on portable paths and AVX2 kernels | x86-64 Linux | All |
 | `miri_arm_panel` | Stock Miri on a NEON panel and forced encoder leaves | x86-64 Linux, AArch64 target | All |
@@ -267,11 +267,13 @@ python3 scripts/check_package.py target/package
 
 `cargo package` refuses uncommitted changes unless you add `--allow-dirty`.
 
-`simd_inlining` builds the Auto consumer library with generic CPU flags for x86-64
+`simd_inlining` builds the Auto consumer executable with generic CPU flags for x86-64
 and arm64 Linux, each default, `cache` and `compact`, and compares every out-of-line
 function whose name mentions the crate or a `core::arch` intrinsic with
-[check_simd_inlining.txt](scripts/check_simd_inlining.txt). It fails on an unlisted
-function (`+`) and on a listed function that is no longer out of line (`-`); fix the
+[check_simd_inlining.txt](scripts/check_simd_inlining.txt). The build explicitly sets
+`CARGO_PROFILE_RELEASE_LTO=off`, so cross-crate LTO cannot hide missing inline hints.
+It fails on an unlisted function (`+`) and on a listed function that is no longer
+out of line (`-`); fix the
 code or update the list in the same commit. On x86-64 or arm64 Linux, with
 `gcc-ARCH-linux-gnu` for the other architecture and its Rust target:
 
@@ -281,10 +283,11 @@ python3 scripts/check_simd_inlining.py --build target/measurements/simd
 
 [CORRECTNESS.md](CORRECTNESS.md#tests-and-independent-references) gives the
 container command for Apple silicon Macs. `check_simd_inlining.py CONFIG=LIBRARY`
-checks libraries built elsewhere (`--nm` selects the `nm`).
+checks matching non-LTO executables built elsewhere (`--nm` selects the `nm`).
 `check_simd_inlining.py --list LIBRARY` prints the out-of-line crate functions with
 their sizes, and `--compare OLD NEW` lists what a change inlined, outlined or
-resized. On macOS, pass the unstripped `.dylib` and `--nm` with an `llvm-nm`.
+resized. On macOS, use `--nm` with an `llvm-nm` and an unstripped executable;
+the diagnostic `--list` and `--compare` modes also accept unstripped `.dylib` files.
 
 `measurement_tools` tests the [resource-profile](tools/resource-profile/Cargo.toml)
 worker and runs its `self-check` command:
@@ -539,7 +542,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/check_ci_tests.py`](scripts/check_ci_tests.py) | Fails when a public integration test is missing from one of the four explicit test lists in `verification.yml` | `--self-test` | `lint`, `measurement_tools` |
 | [`scripts/check_package.py`](scripts/check_package.py) | Checks the packaged `.crate`: allowed paths, required files, 2 MiB budget, license and feature metadata | `--self-test`; package directory (default `target/package`) | `lint` |
 | [`scripts/check_public_api.py`](scripts/check_public_api.py) | Compiles downstream fixtures against seven feature profiles: normal API, `internals` namespace, removed paths, owned and checked methods | `--self-test` (needs `--output`, compiles nothing) | `tests`, `measurement_tools` (self-test) |
-| [`scripts/check_simd_inlining.py`](scripts/check_simd_inlining.py) | Fails when the out-of-line crate functions of a library differ from [check_simd_inlining.txt](scripts/check_simd_inlining.txt); reads symbols only | `--build DIR`; `CONFIG=LIBRARY`; `--list LIBRARY`; `--compare OLD NEW`; `--self-test`; `--nm` | `simd_inlining`, `measurement_tools` (self-test) |
+| [`scripts/check_simd_inlining.py`](scripts/check_simd_inlining.py) | Fails when the out-of-line crate functions of a non-LTO executable differ from [check_simd_inlining.txt](scripts/check_simd_inlining.txt); reads symbols only | `--build DIR`; `CONFIG=LIBRARY`; `--list LIBRARY`; `--compare OLD NEW`; `--self-test`; `--nm` | `simd_inlining`, `measurement_tools` (self-test) |
 | [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools`, `simd_inlining` |
 | [`scripts/code_size_wasm.mjs`](scripts/code_size_wasm.mjs) | Checks the Wasm probe ABI: allocator, pointers, UTF-8 and outputs | Wasm module paths | `portability` |
 | [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted `empty`, `auto` and `no-alloc` Wasm modules: allocator counts and ABI | `--self-test DIR` only | `portability` |
