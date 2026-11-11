@@ -137,11 +137,18 @@ The shared corpus is not committed to `main`. The protected orphan
 `corpora/<target>/<sha256>` and per-run metadata under `runs/`. Main/PR CI
 only validates and replays a pinned revision. The optional Verification dispatch
 with `run_fuzz` runs bounded campaigns on its selected ref but never publishes
-the corpus. Nightly workers upload artifacts; every replay build minimizes their
-union with the pinned corpus by libFuzzer merge, and after an ASan replay of the
-combined result the separate trusted publisher replaces the stored corpus with it
+the corpus. Nightly workers upload artifacts; every replay build adds the
+artifacts that bring new coverage to the pinned corpus by libFuzzer merge, and
+after an ASan replay of the combined result the separate trusted publisher
+replaces the stored corpus with it. CI never removes a stored input
 ([details](../docs/fuzzing-corpus.md)).
 Use `python3 fuzz/corpus_store.py validate CORPUS_ROOT` before any replay.
+
+To shrink the store, merge it with any new campaigns from the seeds alone, as in
+[CI.md](../CI.md#fuzz-corpus-workflow), in every build that selects different code:
+`-C target-cpu=generic` and `native`, cache off and on (`full-width` for the two
+full-width targets), on AArch64 and on an x86-64 CPU with AVX-512 IFMA and VBMI.
+Store the union of the results only after an ASan replay of it on the same hosts.
 
 See [CORRECTNESS.md](../CORRECTNESS.md) for run counts, sanitizer limits,
 proof domains and missing Miri shims. PR CI replays the targets; the optional

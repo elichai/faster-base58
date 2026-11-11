@@ -468,22 +468,22 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | --- | --- | --- | --- |
 | `corpus_snapshot` | Validates the head of `fuzz-corpus` and pins its revision | x86-64 Linux | All |
 | `smoke` | Replays seeds and the pinned corpus through the four targets with ASan, without mutation | x86-64 and arm64 Linux, generic CPU, cache off and on; x86-64 native CPU with cache | All |
-| `nightly` | Mutation campaigns seeded by the run ID; writes provenance and uploads the campaign | x86-64 and arm64 Linux, generic CPU, cache off and on | Schedule; dispatch with `run_nightly` |
-| `minimize` | Merges the pinned corpus and every campaign, without the seeds, into the inputs that add coverage beyond the seeds in its build | Same as `nightly` | Schedule; dispatch with `run_nightly` |
-| `candidate_smoke` | Replays the seeds and the union of the four minimized sets | Same as `smoke` | Schedule; dispatch with `run_nightly` |
-| `publish` | Replaces `corpora/` with that union and adds the provenance to `fuzz-corpus`; needs `smoke`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
+| `nightly` | Mutation campaigns seeded by the run ID, with debug assertions and overflow checks, and value profile in the cache rows; writes provenance and uploads the campaign | x86-64 and arm64 Linux, generic CPU, cache off and on | Schedule; dispatch with `run_nightly` |
+| `minimize` | Keeps the seeds and the pinned corpus, and merges in the campaign inputs that add coverage beyond them in its build | Same as `nightly` | Schedule; dispatch with `run_nightly` |
+| `candidate_smoke` | Replays the seeds and the union of the four merged sets | Same as `smoke` | Schedule; dispatch with `run_nightly` |
+| `publish` | Replaces `corpora/` with that union, which holds every stored input, and adds the provenance to `fuzz-corpus`; needs `smoke`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
 
-The replay lanes use `--sanitizer address` without `--careful`, and set
-`RUSTFLAGS=-C target-cpu=generic` or `native`. `minimize` uses
+The replay lanes use `--sanitizer address --debug-assertions` without
+`--careful`, and set `RUSTFLAGS=-C target-cpu=generic` or `native`. `minimize` uses
 `--sanitizer none`. Both use `--no-trace-compares`: compare tracing only guides
-mutation, since no job sets `-use_value_profile`, and it takes most of the
-replay time. `nightly` keeps it. To replay the pinned corpus locally:
+mutation, and it takes most of the replay time. `nightly` keeps it. To replay
+the pinned corpus locally:
 
 ```sh
 python3 fuzz/seed_corpus.py
 python3 fuzz/corpus_store.py validate CORPUS_ROOT
 cp -a CORPUS_ROOT/. fuzz/corpus/
-cargo +"$nightly" fuzz run --sanitizer address --no-trace-compares encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
+cargo +"$nightly" fuzz run --sanitizer address --no-trace-compares --debug-assertions encode_all -- -runs=0 -max_len=65537 -timeout=120 -rss_limit_mb=4096
 ```
 
 The workflow also replays `decode_all` with `-max_len=89502`, and
@@ -492,22 +492,27 @@ and `-max_len=8193`.
 
 `python3 fuzz/corpus_store.py replace INCOMING... CORPUS_ROOT --exclude fuzz/corpus`
 writes the union of the input roots as a fresh store under SHA-256 names, without
-the seeds; `stage INCOMING CORPUS_ROOT` only adds. To minimize one target in one
-build, as a `minimize` row does, with `CAMPAIGN` a campaign directory:
+the seeds; `stage INCOMING CORPUS_ROOT` only adds. To add one campaign's new
+coverage for one target in one build, as a `minimize` row does, with `CAMPAIGN`
+a campaign directory:
 
 ```sh
 python3 fuzz/seed_corpus.py
-python3 fuzz/corpus_store.py replace CORPUS_ROOT CAMPAIGN UNION --exclude fuzz/corpus
+python3 fuzz/corpus_store.py replace CAMPAIGN UNION --exclude CORPUS_ROOT
 mkdir -p MINIMIZED
 cp -a fuzz/corpus/encode_all MINIMIZED/
+cp -a CORPUS_ROOT/encode_all/. MINIMIZED/encode_all/
 cargo +"$nightly" fuzz run --sanitizer none --no-trace-compares encode_all MINIMIZED/encode_all UNION/encode_all -- -merge=1 -max_len=65537 -timeout=120 -rss_limit_mb=4096
 ```
 
 The output must contain `MERGE-OUTER: successful in 1 attempt(s)`; a later
-attempt means that an input failed. `MINIMIZED` then holds the seeds and the
-selected inputs; `replace` with `--exclude fuzz/corpus` removes the seeds again.
-Use `--exclude` only while `fuzz/corpus` holds just the seeds: after a replay
-copy, it would also exclude the copied corpus inputs.
+attempt means that an input failed. `MINIMIZED` then holds the seeds, the stored
+inputs and the selected new inputs; `replace` with `--exclude fuzz/corpus`
+removes the seeds again. Use `--exclude fuzz/corpus` only while `fuzz/corpus`
+holds just the seeds: after a replay copy, it would also exclude the copied
+corpus inputs. To shrink the store instead, form `UNION` from `CORPUS_ROOT` and
+the campaigns and leave the stored inputs out of `MINIMIZED`, in every build that
+[fuzz/README.md](fuzz/README.md) lists.
 
 ## Other workflows
 
