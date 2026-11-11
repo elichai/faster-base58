@@ -86,12 +86,12 @@ impl Table {
                 nb,
                 offset: data.len(),
             });
+            // Keep row indexing: chunk/zip setup added per-block divisions without LTO.
             for b in 0..nb {
-                for (row, &len) in rows.chunks_exact(stride).zip(&lengths) {
-                    let row = &row[..len];
+                for (r, &len) in lengths.iter().enumerate() {
                     for w in 0..4 {
                         let j = p + 4 * b + w;
-                        data.push(row.get(j).copied().unwrap_or(0));
+                        data.push(if j < len { rows[r * stride + j] } else { 0 });
                     }
                 }
             }

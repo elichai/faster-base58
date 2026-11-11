@@ -130,6 +130,8 @@ For traversal refactors, check both fat LTO and LTO disabled, with and without
 keeps its four lane updates explicit so each carry chain can stay in registers.
 Matrix encoding packs complete words separately from the partial head and keeps
 the panel loop indexed, avoiding iterator setup on small cached conversions.
+The decoder table builder also keeps row indexing so each block does not recreate
+chunk/zip iterators; first-call table construction needs its own measurements.
 Loop iterators that remove bounds checks can still inhibit vectorization or
 leave iterator-construction calls in the linked code. Measure an isolated
 alternative before treating either code shape as a latency improvement.
