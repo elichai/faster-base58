@@ -585,7 +585,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/test_process_supervisor.py`](scripts/test_process_supervisor.py) | Tests `process_supervisor.py` with real child processes | — | `lint` |
 | [`scripts/test_kani_guard.py`](scripts/test_kani_guard.py) | Tests `kani_guard.py` with a fake Z3 | — | `lint` |
 | [`scripts/test_custom_miri.py`](scripts/test_custom_miri.py) | Tests the coverage guards of `run_custom_miri.py`; runs no Rust | — | `lint` |
-| [`assets/graphs/render.py`](assets/graphs/render.py) | Checks local links in the maintained guides, the README figure references and SVG syntax; checks no numbers | `--check` (required) | `measurement_tools` |
+| [`assets/graphs/render.py`](assets/graphs/render.py) | Checks local links in the maintained guides, README figure references or explicit withdrawals, and SVG syntax; checks no numbers | `--check` (required) | `measurement_tools` |
 | [`assets/graphs/render_current.py`](assets/graphs/render_current.py) | Renders the README figures and tables from measurement CSVs into a new directory; needs Matplotlib | `--data`, `--sizes`, `--output` | — |
 | [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | — |
 | [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | — | `measurement_tools` |

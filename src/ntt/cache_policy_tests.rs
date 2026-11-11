@@ -10,6 +10,31 @@ const POLICY_LOGS: &[u32] = if cfg!(miri) { &[5, 7, 6] } else { &[5, 12, 8] };
 #[cfg(not(feature = "cache"))]
 const OWNED_LOGS: &[u32] = if cfg!(miri) { &[5, 7] } else { &[5, 12] };
 
+#[cfg(feature = "cache")]
+#[test]
+fn larger_cached_table_fits_prepared_scratch() {
+    // Another caller can populate the cache after prepare but before the first product.
+    let mut ntt = Ntt::new(Kernels::portable());
+    ntt.threshold = 1;
+    ntt.prepare(1 << 12);
+    let n = 3500;
+    let len = ntt.scratch_len(n);
+    assert_eq!(len, scratch_len(n));
+    // Pin a valid larger cache result so parallel tests cannot change which cache
+    // entry is selected between the setup and the product.
+    ntt.shared = Some(Tables::cached(14));
+    let a = vec![u64::MAX; n];
+    let b = vec![0x5a5a5a5a5a5a5a5a; n];
+    let mut expected = vec![0; 2 * n];
+    mul::mul(&mut expected, &a, &b, &mut vec![0; mul::scratch_len(n)]);
+    let mut got = vec![0; 2 * n];
+    let mut scratch = vec![0xa5a5a5a5a5a5a5a5; len + 1];
+    ntt.mul(&mut got, &a, &b, &mut scratch[..len]);
+    assert!(ntt.initialized_tables().log >= 14);
+    assert_eq!(got, expected);
+    assert_eq!(scratch[len], 0xa5a5a5a5a5a5a5a5);
+}
+
 #[test]
 fn feature_policy_and_owned_override_select_table_source() {
     for (name, mut ntt, owned) in [

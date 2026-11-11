@@ -81,6 +81,8 @@ Radix allocation tests bound allocation requests and peak requested live bytes a
 per prime plus the packed conversion arena, without prepared spectra or reallocations.
 Scratch tests enumerate every plan through the transform limit and retain the
 running workspace maximum, including alignment and recursion requirements.
+The prepared-length envelope also checks exact-sized split and blocked products
+against Karatsuba with guard limbs and tests the recursive scratch inequalities.
 Product tests check poisoned output and the live low-child
 prefix consumed by fused carry. Forced best/portable radix hooks participate in
 unit, property and fuzz backend lists; their out-of-domain fallback is checked.
