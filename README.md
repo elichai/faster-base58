@@ -139,9 +139,9 @@ all consumers of that crate instance. Dropping an owned input can still call its
 allocator; borrow inputs when counting all allocator operations.
 
 Auto trades workspace for large-input speed. At 4 MiB on the M5 Pro, default
-encoding peaks at about 66 MiB of extra requested heap in 7 allocations and
-decoding at about 54 MiB in 18, excluding caller buffers (2026-11-05; [allocation
-details](docs/performance.md#cache-and-memory)).
+encoding peaks at about 66 MiB of extra requested heap and decoding at about
+51 MiB, excluding caller buffers. They issue 7 and 18 allocation/reallocation
+requests, respectively (2026-11-12; [allocation details](docs/performance.md#cache-and-memory)).
 
 ## Optional caching
 
@@ -172,6 +172,9 @@ Measured **2026-11-12**: the complete #53 → #55 → #57 → #59 → #67 stack,
 [`3fcfbaff62f3`](https://github.com/elichai/faster-base58/commit/3fcfbaff62f3257ddc6de357f4856cf6225eabf8),
 against main [`65ea1581aae4`](https://github.com/elichai/faster-base58/commit/65ea1581aae4d5da128abd70dcac3ead50cb7f65).
 These are whole-stack results; they do not isolate #67's contribution.
+
+The timing and linked-size cohort predates the prepared NTT scratch bound. Its
+heap usage is measured separately in [cache and memory](docs/performance.md#cache-and-memory).
 
 Ordinary public Auto with caller buffers, generic CPU flags, release opt-level 3,
 16 codegen units, default/cache and fat/off LTO. Tables give **stack warm

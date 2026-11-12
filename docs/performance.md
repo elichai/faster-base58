@@ -12,11 +12,10 @@ the full #53 → #55 → #57 → #59 → #67 stack is
 [`3fcfbaff62f3257ddc6de357f4856cf6225eabf8`](https://github.com/elichai/faster-base58/commit/3fcfbaff62f3257ddc6de357f4856cf6225eabf8).
 The stack contains #67's debug-only redundant Horner validity assertion and cold
 invalid-byte helper, plus the direct Power-array construction. This comparison
-measures the whole stack against main, not each layer or #67 alone. Later changes
-sync main's expanded crate documentation and fix its `Base58Check` heading for
-Clippy. Outside the leading crate-doc block, executable Rust, Cargo and consumer
-inputs match the measured stack. Timings and sizes remain bound to the frozen
-artifacts above; the documentation edits are not a new measurement cohort.
+measures the whole stack against main, not each layer or #67 alone. Timings and
+sizes remain bound to the frozen artifacts above. They predate the prepared NTT
+scratch bound, whose [heap usage](#cache-and-memory) is measured separately below.
+The bound's effects on latency and linked size have not been remeasured.
 
 | Host | Target / ISA | OS | Compiler |
 | --- | --- | --- | --- |
@@ -396,8 +395,9 @@ Default/cache debug/release correctness with `check,__internals` and 512 propert
 cases passes on M5 and GCP, as do no-default-features/check debug/release suites.
 Formatting, all-target/all-feature Clippy and six Linux x86-64/AArch64 ×
 default/cache/compact inlining manifests pass. These checks do not substitute for
-unrun CI jobs or other toolchains. No new invalid-input, owned-output, checked,
-allocation-counting, native-CPU, no-allocation or Wasm performance claim is made.
+unrun CI jobs or other toolchains. This timing cohort makes no new invalid-input,
+owned-output, checked, allocation-counting, native-CPU, no-allocation or Wasm
+performance claim. The separate counted-heap cohort follows below.
 
 ## Cache and memory
 
@@ -408,11 +408,48 @@ retained capacities and ownership are in
 allocator overhead and concurrent calls add to retention. It is not an active-heap
 bound. Wasm linear-memory pages need not return to the host.
 
-Count allocations in separate, untimed builds with
-`scripts/resource_report.py build --count-allocations`, then `run`; these use internal
-workers and are not ordinary public consumers. Requests count allocations plus
-reallocations; requested-layout peaks are not RSS, allocator usable sizes or stack
-high water. No counted-allocation cohort was refreshed with these timings.
+### Counted heap usage
+
+Measured **2026-11-12** at
+[`1df40babe367`](https://github.com/elichai/faster-base58/commit/1df40babe367aea8978a5c99d67657e53e1abf5e)
+on the Apple M5 Pro, macOS 26.7.3, native `aarch64-apple-darwin` with NEON,
+Rust 1.99.1 (58cf8f9c3) / LLVM 23.1.1. Builds use release opt-level 3, 16 codegen
+units, fat LTO and empty `RUSTFLAGS`. The internal Auto workers enable
+`__internals,count-allocations`, with separate default and `cache` builds; `check`
+and `compact` are disabled. These are separate, untimed allocation measurements,
+with no timing clock; they are not ordinary public-consumer latency measurements.
+
+`scripts/resource_report.py` uses deterministic size-seeded byte fixtures with a
+nonzero leading byte, caller output buffers, and independent Malachite fixture
+conversion. Each size/operation/policy uses three fresh worker processes. Each
+process measures its first conversion and then one warm conversion, checking the
+returned length and output bytes. All three processes produced identical counts
+and byte totals for each cell.
+
+Requests count allocations plus reallocations. Peaks are extra live requested Rust
+layout bytes above the live-byte count immediately before each conversion; caller
+buffers are excluded. First-call peaks include tables initialized during that
+call. Warm peaks exclude tables retained from the first call. First-call retained
+bytes remain live after that conversion; every measured warm call retains zero
+additional bytes. These values are not RSS, allocator usable sizes, stack high
+water or a bound for other inputs and call histories.
+
+| Payload | Policy | Operation | First-call requests | First-call peak B | Warm requests | Warm peak B | First-call retained B |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 MiB | default | encode | 7 | 17,787,780 | 7 | 17,787,780 | 0 |
+| 1 MiB | default | decode | 16 | 13,864,448 | 16 | 13,864,448 | 0 |
+| 1 MiB | cache | encode | 7 | 17,787,780 | 7 | 17,787,780 | 0 |
+| 1 MiB | cache | decode | 19 | 14,030,784 | 13 | 9,932,288 | 4,090,048 |
+| 4 MiB | default | encode | 7 | 69,574,884 | 7 | 69,574,884 | 0 |
+| 4 MiB | default | decode | 18 | 53,113,080 | 18 | 53,113,080 | 0 |
+| 4 MiB | cache | encode | 7 | 69,574,884 | 7 | 69,574,884 | 0 |
+| 4 MiB | cache | decode | 21 | 53,746,680 | 18 | 53,113,080 | 616,704 |
+
+Reproduce with `scripts/resource_report.py build --count-allocations` and
+`run --mode allocations --backends auto --sizes 1048576,4194304 --repeats 3 --samples 1`,
+supplying fresh metadata/output paths. Repeat the build with `--cache`. Source and
+binary hashes, environment and raw allocation records are retained locally under
+ignored `target/measurements/pr68-heap/`.
 
 ## Measure and update
 
