@@ -602,6 +602,7 @@ pub(crate) fn scratch_len(n: usize) -> usize {
 /// children have at most `ceil(n / 2)` limbs. Blocks use at most `n` limbs before a
 /// child of at most `n / 2`. The second term covers both using the ordinary envelope
 /// for those children, and satisfies the growth needed by `dc_scratch_len` too.
+#[inline]
 fn capped_scratch_len(n: usize, log: u32) -> usize {
     let cap = 1usize << (log - 2);
     scratch_len(n.min(cap))

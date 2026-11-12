@@ -17,6 +17,7 @@
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::mul_power
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::prepare_power
+<faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::scratch_len
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::wrap_len
 <faster_base58::ntt::radix::Arithmetic>::multiply_add
 <faster_base58::ntt::tables::Tables>::new
@@ -39,7 +40,6 @@ faster_base58::encode::dc::node::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::recip_scratch_len::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::reciprocal::<faster_base58::ntt::Ntt>
 faster_base58::mul::mul_with
-faster_base58::ntt::capped_scratch_len
 faster_base58::ntt::crt
 faster_base58::ntt::crt::carry_out
 faster_base58::ntt::decode
