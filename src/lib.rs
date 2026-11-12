@@ -73,7 +73,7 @@
 //! implementations or from dropping owned inputs are outside this guarantee; borrow
 //! inputs when counting all allocator operations.
 //!
-//! # Base58Check
+//! # `Base58Check`
 //!
 //! Enable `check` to add Bitcoin's four-byte double-SHA-256 checksum:
 //!

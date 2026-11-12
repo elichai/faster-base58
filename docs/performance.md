@@ -12,8 +12,11 @@ the full #53 → #55 → #57 → #59 → #67 stack is
 [`3fcfbaff62f3257ddc6de357f4856cf6225eabf8`](https://github.com/elichai/faster-base58/commit/3fcfbaff62f3257ddc6de357f4856cf6225eabf8).
 The stack contains #67's debug-only redundant Horner validity assertion and cold
 invalid-byte helper, plus the direct Power-array construction. This comparison
-measures the whole stack against main, not each layer or #67 alone. Subsequent
-documentation changes leave the measured Rust, Cargo and consumer inputs unchanged.
+measures the whole stack against main, not each layer or #67 alone. Later changes
+sync main's expanded crate documentation and fix its `Base58Check` heading for
+Clippy. Outside the leading crate-doc block, executable Rust, Cargo and consumer
+inputs match the measured stack. Timings and sizes remain bound to the frozen
+artifacts above; the documentation edits are not a new measurement cohort.
 
 | Host | Target / ISA | OS | Compiler |
 | --- | --- | --- | --- |
