@@ -6,6 +6,191 @@ avoids internal allocation, and its general large conversions remain quadratic.
 [DESIGN.md](../DESIGN.md) describes dispatch and algorithms;
 [CORRECTNESS.md](../CORRECTNESS.md) describes validation and remaining gaps.
 
+## Power-array copy follow-up — 2026-11-12
+
+This separate comparison measures the full stack before and after the safe
+`dc::powers` refactor on #55. Baseline is the previously published full stack
+`f4b3f2fe20720d0504447038a24f49ff4fa4ca65`; candidate is the rebased stack
+`9d91b9af82e6921367e56878475f1fc8be5c7e4f`. **This baseline is not main.** The
+earlier main/#58 studies below retain their measured revisions and values.
+The only Rust-source difference is the power-builder loop; later data/docs
+commits do not change its measured Rust, Cargo or consumer-harness inputs.
+
+The builder writes each Power into the returned array directly. Its existing
+checked prefix, `powers[..levels]`, bounds the indexed loop. No unsafe operation
+or unchecked indexing is introduced. The inspected optimized native artifacts
+have no new per-iteration Power-index bounds guard. The prior extent and
+limb-table capacity checks remain. Debug builds and other compilers are not
+covered by this emitted-code claim.
+
+All four M5 NTT instances and all four GCP NTT instances lose the 2,048-byte
+return copy. The inspected GCP Karatsuba instances also lose it: standalone
+no-LTO/default, fat/default encode and decode, and no-LTO/default decode.
+M5 NTT total frames shrink from 0x10b0 to 0x8b0 with fat LTO, and to 0x8a0
+without LTO. GCP NTT local stack allocation (excluding unchanged pushes) shrinks
+from 0x1038 to 0x838 with fat LTO, and to 0x828 without LTO. The separate
+2 KiB zero-chunk buffer remains. The final form keeps the previous Power in
+local state and avoids the per-iteration four-field array reloads found in the
+earlier indexed candidate. Register allocation and spill scheduling still
+change, and standalone no-LTO Karatsuba has two more decoded instructions than
+that intermediate candidate. These local findings do not certify every emitted
+instruction stream as cheaper.
+
+Hosts, compiler versions and public-consumer build settings match the native
+study below: generic flags, release opt-level 3, 16 codegen units, default/cache
+and fat/off LTO. GCP uses `/mnt/bench`, waits for the shared VM lock and pins vCPU
+1. M5 warm timing starts and ends on AC with no reported thermal warning. Timing
+does not overlap our builds/tests. Each warm cohort uses 5 processes × 3 fresh
+file copies × 3 interleaved batches, at least 5 ms per batch. Both public
+operations are checked before timing at 32, 512, 1,024, 2,048, 4,096, 32,768,
+1,048,576 and 4,194,304 decoded bytes. The same fixtures, borrowed aligned
+buffers and process-CPU timing exclusions described below apply. `ctrl` is a
+separate label copied from the identical baseline artifact.
+
+The removed setup copy does not establish a uniform public-API latency win.
+Final fat/cache encode ratios include M5 2 KiB **1.012 [1.007, 1.020]**,
+GCP 512 B **1.050 [1.049, 1.052]**, and GCP 1 KiB
+**1.037 [1.035, 1.038]**. These artifact-level differences are retained.
+M5 no-LTO/cache 32 B encode is **1.034 [1.004, 1.039]**, with a wider
+process range; it is also retained in the table and figure, without assigning
+the difference to the power builder's execution.
+
+The earlier indexed candidate `43f79b820b1854510903dd3401c7d8021303886e`
+was also measured. Separate 7-process × 5-copy × 3-batch, 15 ms repeats gave
+M5 2 KiB encode 1.016 [1.010, 1.057], GCP 512 B 1.049 [1.047, 1.051],
+and GCP 1 KiB 1.035 [1.035, 1.037], with median controls about 1.000–1.001.
+Those repeats belong to the earlier candidate; the figure diamonds are labeled
+separately and do not replace final measurements. The inspected M5 2 KiB and GCP
+512 B/1 KiB/2 KiB cached encodes use matrix conversion and do not reach `dc::powers`.
+The earlier candidate's reached instructions and hot constant bytes match the
+baseline after verified address relocations; linked loop and static-data
+placement change. No direct added hot-path work was identified there. Placement
+is a possible explanation, not a demonstrated cause or a basis to dismiss the
+timing difference. See the PR notes for the assembly review and limits.
+Other measured differences and all controls remain in the
+[warm summary](https://github.com/elichai/faster-base58/blob/9a5b13e6c6ec7ec44618d3b5d6376b8157fb166b/assets/graphs/data/power-copy-20261112-warm.csv).
+
+![M5 Power-copy follow-up ratios](https://raw.githubusercontent.com/elichai/faster-base58/9a5b13e6c6ec7ec44618d3b5d6376b8157fb166b/assets/graphs/m5-power-copy.svg)
+
+![GCP Power-copy follow-up ratios](https://raw.githubusercontent.com/elichai/faster-base58/9a5b13e6c6ec7ec44618d3b5d6376b8157fb166b/assets/graphs/gcp-power-copy.svg)
+
+Ratios below are fix/published-stack median [min, max] of paired process ratios,
+after taking each process's median over copies. Below 1 is faster. Ranges are
+observations, not confidence intervals.
+
+<details>
+<summary>m5 / fat: warm paired ratios</summary>
+
+| Decoded B | Default encode | Default decode | Cache encode | Cache decode |
+| ---: | ---: | ---: | ---: | ---: |
+| 32 | 1.000 [0.997, 1.005] | 1.001 [1.000, 1.012] | 1.005 [0.987, 1.014] | 1.015 [1.009, 1.019] |
+| 512 | 0.996 [0.991, 1.011] | 1.008 [0.985, 1.043] | 0.997 [0.994, 1.007] | 0.990 [0.987, 0.995] |
+| 1,024 | 0.996 [0.991, 1.027] | 1.002 [1.000, 1.008] | 1.008 [0.999, 1.011] | 1.001 [0.998, 1.006] |
+| 2,048 | 0.997 [0.969, 0.999] | 1.008 [0.992, 1.040] | 1.012 [1.007, 1.020] | 1.002 [0.989, 1.004] |
+| 4,096 | 0.998 [0.992, 1.003] | 1.002 [0.998, 1.012] | 1.010 [1.002, 1.014] | 1.002 [0.997, 1.004] |
+| 32,768 | 1.000 [0.995, 1.007] | 0.997 [0.989, 1.005] | 0.997 [0.995, 1.007] | 1.002 [0.998, 1.007] |
+| 1,048,576 | 0.999 [0.996, 1.002] | 1.002 [0.996, 1.005] | 0.999 [0.997, 1.009] | 0.999 [0.997, 1.001] |
+| 4,194,304 | 1.001 [0.993, 1.004] | 1.005 [0.997, 1.015] | 1.001 [0.998, 1.009] | 1.000 [0.997, 1.003] |
+
+</details>
+
+<details>
+<summary>m5 / off: warm paired ratios</summary>
+
+| Decoded B | Default encode | Default decode | Cache encode | Cache decode |
+| ---: | ---: | ---: | ---: | ---: |
+| 32 | 0.985 [0.979, 1.004] | 1.014 [1.004, 1.033] | 1.034 [1.004, 1.039] | 0.999 [0.996, 1.025] |
+| 512 | 0.995 [0.982, 1.020] | 1.007 [0.965, 1.019] | 1.005 [1.000, 1.045] | 1.002 [0.998, 1.005] |
+| 1,024 | 0.996 [0.991, 1.007] | 1.009 [0.986, 1.021] | 1.016 [1.006, 1.016] | 0.997 [0.990, 1.000] |
+| 2,048 | 0.998 [0.990, 1.014] | 0.997 [0.988, 1.025] | 0.999 [0.989, 1.008] | 1.000 [0.985, 1.004] |
+| 4,096 | 0.994 [0.980, 1.000] | 0.990 [0.974, 0.997] | 0.999 [0.997, 1.018] | 1.008 [1.000, 1.014] |
+| 32,768 | 0.998 [0.989, 1.004] | 1.005 [0.986, 1.009] | 1.000 [0.988, 1.007] | 0.998 [0.996, 1.002] |
+| 1,048,576 | 0.999 [0.945, 1.003] | 1.002 [0.999, 1.014] | 0.998 [0.962, 1.002] | 1.000 [0.998, 1.002] |
+| 4,194,304 | 1.000 [0.997, 1.003] | 1.000 [0.996, 1.006] | 1.000 [0.999, 1.003] | 1.000 [0.997, 1.009] |
+
+</details>
+
+<details>
+<summary>gcp / fat: warm paired ratios</summary>
+
+| Decoded B | Default encode | Default decode | Cache encode | Cache decode |
+| ---: | ---: | ---: | ---: | ---: |
+| 32 | 1.001 [1.001, 1.001] | 0.986 [0.974, 0.988] | 1.000 [0.999, 1.001] | 0.991 [0.914, 0.993] |
+| 512 | 1.001 [0.996, 1.007] | 1.000 [0.999, 1.001] | 1.050 [1.049, 1.052] | 1.008 [0.982, 1.011] |
+| 1,024 | 0.998 [0.989, 1.005] | 1.000 [0.989, 1.014] | 1.037 [1.035, 1.038] | 1.000 [0.999, 1.002] |
+| 2,048 | 1.005 [0.996, 1.010] | 0.996 [0.994, 1.008] | 1.022 [1.022, 1.024] | 1.000 [0.999, 1.001] |
+| 4,096 | 1.004 [0.998, 1.008] | 1.004 [0.997, 1.016] | 1.000 [0.995, 1.003] | 0.991 [0.986, 0.997] |
+| 32,768 | 1.000 [1.000, 1.001] | 0.999 [0.994, 1.000] | 0.999 [0.998, 1.002] | 0.999 [0.995, 1.001] |
+| 1,048,576 | 0.999 [0.997, 1.000] | 0.997 [0.994, 0.999] | 1.001 [0.996, 1.002] | 0.998 [0.995, 1.000] |
+| 4,194,304 | 1.000 [0.999, 1.003] | 0.998 [0.996, 1.000] | 1.000 [0.999, 1.002] | 0.999 [0.996, 1.005] |
+
+</details>
+
+<details>
+<summary>gcp / off: warm paired ratios</summary>
+
+| Decoded B | Default encode | Default decode | Cache encode | Cache decode |
+| ---: | ---: | ---: | ---: | ---: |
+| 32 | 0.998 [0.997, 1.002] | 0.998 [0.995, 1.005] | 1.001 [1.000, 1.001] | 0.993 [0.974, 1.000] |
+| 512 | 1.003 [0.997, 1.013] | 1.001 [1.001, 1.002] | 1.001 [0.997, 1.007] | 0.992 [0.990, 0.993] |
+| 1,024 | 1.006 [0.996, 1.008] | 0.988 [0.985, 0.996] | 0.994 [0.993, 0.996] | 1.002 [1.000, 1.004] |
+| 2,048 | 1.006 [0.996, 1.008] | 0.996 [0.992, 1.004] | 0.996 [0.996, 0.999] | 1.002 [1.001, 1.003] |
+| 4,096 | 1.003 [1.000, 1.006] | 0.997 [0.985, 1.001] | 1.003 [0.993, 1.007] | 0.995 [0.990, 1.007] |
+| 32,768 | 1.001 [1.000, 1.002] | 1.000 [0.987, 1.003] | 0.999 [0.996, 1.002] | 1.000 [0.998, 1.020] |
+| 1,048,576 | 0.999 [0.997, 1.005] | 0.997 [0.992, 0.998] | 1.000 [0.994, 1.009] | 1.001 [0.999, 1.004] |
+| 4,194,304 | 1.000 [0.996, 1.004] | 0.999 [0.995, 1.001] | 0.998 [0.996, 1.003] | 1.000 [0.997, 1.003] |
+
+</details>
+
+### Coupled linked sizes
+
+These are from the same timing artifacts, with each matching empty consumer
+subtracted. Deltas compare the fixed stack to the previously published stack.
+Path labels have equal lengths. Readonly metadata, BSS, initialized data and
+file/page layout remain separate from instructions; a positive BSS delta is
+not a measured retained-heap increase.
+
+| Host / LTO / policy | Fixed code B | Code Δ B | Readonly Δ B | Data Δ B | BSS Δ B | Stripped file Δ B |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| m5 / fat / default | 67,888 | -128 | +0 | +0 | +0 | +0 |
+| m5 / fat / cache | 76,360 | +64 | +8 | +0 | +0 | +0 |
+| m5 / off / default | 80,856 | -64 | +0 | +0 | +0 | +0 |
+| m5 / off / cache | 84,952 | -128 | +8 | +0 | +0 | -16 |
+| gcp / fat / default | 308,301 | -240 | -16 | +0 | +256 | -256 |
+| gcp / fat / cache | 303,885 | -64 | +16 | +0 | +48 | -48 |
+| gcp / off / default | 332,931 | -320 | -20 | +0 | +320 | -320 |
+| gcp / off / cache | 324,819 | -208 | +132 | -72 | +152 | -152 |
+
+The [size summary](https://github.com/elichai/faster-base58/blob/9a5b13e6c6ec7ec44618d3b5d6376b8157fb166b/assets/graphs/data/power-copy-20261112-sizes.csv) retains all baseline
+and fixed values.
+
+### First-call decode and validation
+
+A separate first-call cohort uses 15 fresh processes × 2 copies per label,
+rotating call order, for `"2"` repeated 2,816 or 32,768 times. Each result is
+checked against an independent Python integer oracle. Input/output buffers,
+oracle construction and library loading are outside timing; first codec setup
+and internal allocation are included. The [cold summary](https://github.com/elichai/faster-base58/blob/9a5b13e6c6ec7ec44618d3b5d6376b8157fb166b/assets/graphs/data/power-copy-20261112-cold.csv)
+retains both sizes and identical-baseline controls. These short measurements
+have wide process ranges and do not establish a cold-call speedup.
+
+Default/cache correctness suites with `check,__internals` pass in debug and
+release on M5 with 512 property cases. Formatting and all-target/all-feature
+Clippy pass. The owner and full-stack Linux inlining manifests pass in all six
+x86-64/AArch64 × default/cache/compact configurations without expectation edits.
+No new Wasm, alloc-disabled, checked-conversion, owned-output, native-CPU or
+alternate-toolchain performance claim is made.
+
+Derived data and [raw-input hashes](https://github.com/elichai/faster-base58/blob/9a5b13e6c6ec7ec44618d3b5d6376b8157fb166b/assets/graphs/data/power-copy-20261112-sources.json)
+are frozen with the figures. Raw measurements, metadata, commands and assembly
+remain in ignored `target/measurements/power-copy` locally and
+`/mnt/bench/power-copy` on GCP. From a repository checkout with the pinned plotting
+requirements, regenerate into a new directory with:
+
+```sh
+python3 assets/graphs/render_power_copy.py --output target/measurements/power-copy-regenerated
+```
+
 ## Native refresh — 2026-11-11
 
 Two independently timed native comparisons are reported here. Do not compare
@@ -299,9 +484,9 @@ The [cold summary CSV](https://github.com/elichai/faster-base58/blob/18de968a9ba
 
 The linked native public paths were reviewed on both hosts for default/cache and
 fat/no LTO, including setup, tails and cold/error branches. The fixed carry loops
-retain four explicit chains. However, the published code still has a 2 KiB local
-Power-array return copy and larger stack frame, no-LTO quarter/NEON/matrix/shift
-setup, and encoder register-pressure tradeoffs. The M5 generic no-LTO invalid-input
+retain four explicit chains. The then-published code had a 2 KiB local
+Power-array return copy and larger stack frame, removed by the dated follow-up
+above. Other retained tradeoffs include no-LTO quarter/NEON/matrix/shift setup, and encoder register-pressure tradeoffs. The M5 generic no-LTO invalid-input
 scan also adds work. AVX-512 fixed twiddles retain direct loads without an array
 copy; all twelve IFMA convolution streams match after relocation normalization
 in each of the four GCP configurations. These facts do not prove latency for

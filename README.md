@@ -168,6 +168,16 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Performance
 
+The **2026-11-12 Power-array follow-up** removes the extra 2 KiB return copy
+without new Power-index bounds guards in the inspected optimized M5/GCP builds.
+It measures the full fixed stack against the previously published stack, with
+default/cache and fat/no LTO. Public latency varies, including measured slowdowns
+in small cached-encode cases. The
+[separate results, figures and linked sizes](docs/performance.md#power-array-copy-follow-up--2026-11-12)
+retain those differences and the emitted-code limits. The tables and figures
+below keep the **2026-11-11** main-comparison values; they are not relabeled as
+measurements of the new power builder.
+
 The **2026-11-11 native refresh** compares the complete #53 → #55 → #57 → #59
 stack with `main` containing merged #58. The large encoder regression was removed
 in the measured configurations. Results are mixed at smaller sizes: M5 cached
