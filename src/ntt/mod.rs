@@ -1198,7 +1198,8 @@ mod tests {
                     let a: Vec<_> = (0..na).map(|_| rng.next_u64()).collect();
                     let b: Vec<_> = (0..nb).map(|_| rng.next_u64()).collect();
                     for (a, b) in [(&a[..], &b[..]), (&b[..], &b[..])] {
-                        let mut want = vec![0; a.len() + b.len()];
+                        let (na, nb) = (a.len(), b.len());
+                        let mut want = vec![0; na + nb];
                         mul::mul(&mut want, a, b, &mut vec![0; mul::scratch_len(nb)]);
                         let mut got = vec![0; want.len()];
                         // Exercise the reduced envelope even with cache-enabled owned tables.
@@ -1206,20 +1207,14 @@ mod tests {
                         let mut scratch = vec![0x5a5a5a5a5a5a5a5a; budget + 8];
                         for skip in 0..8 {
                             ntt.mul(&mut got, a, b, &mut scratch[skip..][..budget]);
-                            assert_eq!(got, want, "log {log}, a {}, b {}", a.len(), b.len());
+                            assert_eq!(got, want, "log {log}, a {na}, b {nb}");
                             assert_eq!(scratch[skip + budget], 0x5a5a5a5a5a5a5a5a);
-                            if a.len() + b.len() <= 2 * cap {
-                                ntt.prepare_power(0, b, a.len() + b.len());
+                            if na + nb <= 2 * cap {
+                                ntt.prepare_power(0, b, na + nb);
                                 assert!(ntt.powers[0].is_some());
                                 got.fill(0);
                                 ntt.mul_power(&mut got, a, 0, b, &mut scratch[skip..][..budget]);
-                                assert_eq!(
-                                    got,
-                                    want,
-                                    "prepared log {log}, a {}, b {}",
-                                    a.len(),
-                                    b.len()
-                                );
+                                assert_eq!(got, want, "prepared log {log}, a {na}, b {nb}");
                                 assert_eq!(scratch[skip + budget], 0x5a5a5a5a5a5a5a5a);
                             }
                         }
