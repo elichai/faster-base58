@@ -44,13 +44,6 @@ class DocumentationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'README.*gcp-public'):
             check(self.root)
 
-    def test_explicitly_withdrawn_figure_needs_no_embed(self):
-        guide = self.root / 'README.md'
-        guide.write_text(guide.read_text().replace(
-            '![figure](assets/graphs/gcp-public.svg)',
-            'Figure withdrawn pending remeasurement: gcp-public.svg.'))
-        self.assertEqual(check(self.root)['svg_figures'], 3)
-
     def test_reference_and_encoded_links_are_checked(self):
         (self.root / 'DESIGN.md').write_text('[reference][target]\n\n[target]: docs/missing%20file.md')
         with self.assertRaisesRegex(ValueError, 'missing file.md'):

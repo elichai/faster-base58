@@ -139,9 +139,8 @@ def check(root):
         documents[name] = text
     guide = documents['README.md']
     for name in ['m5-public.svg', 'gcp-public.svg', 'wasm-public.svg']:
-        embedded = re.search(r'!\[[^\]]*\]\(assets/graphs/' + re.escape(name) + r'\)', guide)
-        withdrawn = f'Figure withdrawn pending remeasurement: {name}.' in guide
-        require(embedded or withdrawn, f'README is missing selected figure or withdrawal: {name}')
+        require(re.search(r'!\[[^\]]*\]\(assets/graphs/' + re.escape(name) + r'\)', guide),
+                f'README is missing selected figure: {name}')
     figures = list((root / 'assets/graphs').glob('*.svg'))
     for path in figures:
         try:
@@ -151,4 +150,4 @@ def check(root):
         require(svg.tag == '{http://www.w3.org/2000/svg}svg', f'Invalid SVG root: {path.name}')
         require(not svg.findall('.//{http://www.w3.org/2000/svg}script'), f'Executable SVG: {path.name}')
     return dict(status='pass', documents=len(documents), svg_figures=len(figures),
-                validation='local documentation links, selected figure references or withdrawals and SVG syntax; no measurement, numeric-table or pixel verification')
+                validation='local documentation links, selected figure references and SVG syntax; no measurement, numeric-table or pixel verification')
