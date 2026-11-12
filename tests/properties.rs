@@ -129,6 +129,21 @@ fn recursive_and_ntt_boundaries_match_reference() {
 }
 
 #[test]
+fn large_ntt_decode_matches_independent_reference() {
+    // This exceeds the retained log18 tables and exercises the owned-table budget.
+    let len = (1 << 20) + 1;
+    let data: Vec<u8> = (0..len).map(|i| (i * 73 + 1) as u8).collect();
+    let text = support::reference::encode(&data);
+    let text = std::str::from_utf8(&text).unwrap();
+    for decode in [internals::decode_ntt, internals::decode_ntt_cached] {
+        let mut output = vec![0xa5; len + 1];
+        assert_eq!(decode(text, &mut output[..len]), Ok(len));
+        assert_eq!(&output[..len], &data);
+        assert_eq!(output[len], 0xa5);
+    }
+}
+
+#[test]
 fn radix_hooks_fall_back_above_the_transform_limit() {
     let input = vec![1; (1 << 24) + 1];
     for encode in [

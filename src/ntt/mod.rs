@@ -335,21 +335,16 @@ impl Multiplier for Ntt {
         self.powers.clear();
     }
 
+    #[inline]
     fn scratch_len(&self, n: usize) -> usize {
-        match self.log {
-            Some(log) => {
-                // A later cache lookup may return any larger retained table, including
-                // one initialized concurrently after this scratch is allocated.
-                #[cfg(feature = "cache")]
-                let log = if log <= CACHE_MAX_LOG {
-                    CACHE_MAX_LOG
-                } else {
-                    log
-                };
-                scratch_len(n).min(capped_scratch_len(n, log))
-            }
-            None => scratch_len(n),
-        }
+        let ordinary = scratch_len(n);
+        self.log.map_or(ordinary, |log| {
+            // A later cache lookup may return any larger retained table, including
+            // one initialized concurrently after this scratch is allocated.
+            #[cfg(feature = "cache")]
+            let log = log.max(CACHE_MAX_LOG);
+            ordinary.min(capped_scratch_len(n, log))
+        })
     }
 
     fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
@@ -584,6 +579,7 @@ impl Kernels {
 ///   (`a + b > 16`, because the tables serve at least 32 points).
 /// - DC: `n / 2 + scratch_len(n / 2) <= 6.5 n + 128 <= 8 n + 128`.
 /// - Below the threshold: [`mul::scratch_len`], which the result is never below.
+#[inline]
 pub(crate) fn scratch_len(n: usize) -> usize {
     let linear = 12 * n + 128;
     let bound = if n != 0 && n <= (1usize << (MAX_LOG - 2)) {
@@ -1161,43 +1157,71 @@ mod tests {
     }
 
     #[test]
+    fn prepared_scratch_preserves_fallback_and_reduces_large_budget() {
+        let mut ntt = Ntt::new(Kernels::portable());
+        for n in [0, 1, 257, 286_720, 1 << (MAX_LOG - 2)] {
+            assert_eq!(ntt.scratch_len(n), scratch_len(n));
+        }
+        for log in 19..=MAX_LOG {
+            let cap = 1usize << (log - 2);
+            ntt.prepare(2 * cap);
+            assert_eq!(ntt.log, Some(log));
+            let n = cap + cap / 8;
+            assert!(ntt.scratch_len(n) < scratch_len(n));
+            assert!(n / 2 + ntt.scratch_len(n / 2) <= ntt.scratch_len(n));
+        }
+    }
+
+    #[test]
     fn capped_scratch_covers_split_products() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(39);
         for log in 5..=10 {
             let cap = 1usize << (log - 2);
             let mut ntt = scalar_ntt(Kernels::portable());
             ntt.threshold = 1;
+            ntt.prepared_threshold = 1;
             ntt.max_log = log;
             ntt.prepare(2 * cap);
             for n in 1..=4 * cap {
-                let budget = ntt.scratch_len(n);
+                let budget = scratch_len(n).min(capped_scratch_len(n, log));
+                assert!(ntt.scratch_len(n) >= budget);
                 assert!(budget >= mul::scratch_len(n));
-                assert!(n / 2 + ntt.scratch_len(n / 2) <= budget);
+                let child = |n| scratch_len(n).min(capped_scratch_len(n, log));
+                assert!(n / 2 + child(n / 2) <= budget);
                 if n >= 9 {
-                    assert!(n + 1 + ntt.scratch_len(n.div_ceil(2)) <= budget);
+                    assert!(n + 1 + child(n.div_ceil(2)) <= budget);
                 }
             }
             for nb in [cap - 1, cap, cap + 1, 2 * cap - 1, 2 * cap + 1, 4 * cap - 1] {
                 for na in [nb / 3, nb.div_ceil(2), nb - 1, nb] {
                     let a: Vec<_> = (0..na).map(|_| rng.next_u64()).collect();
                     let b: Vec<_> = (0..nb).map(|_| rng.next_u64()).collect();
-                    let mut want = vec![0; na + nb];
-                    mul::mul(&mut want, &a, &b, &mut vec![0; mul::scratch_len(nb)]);
-                    let mut got = vec![0; na + nb];
-                    let budget = ntt.scratch_len(nb);
-                    let mut scratch = vec![0x5a5a5a5a5a5a5a5a; budget + 1];
-                    ntt.mul(&mut got, &a, &b, &mut scratch[..budget]);
-                    assert_eq!(got, want, "log {log}, a {na}, b {nb}");
-                    assert_eq!(scratch[budget], 0x5a5a5a5a5a5a5a5a);
-                    if na + nb <= 2 * cap
-                        && na >= ntt.prepared_threshold
-                        && nb >= ntt.prepared_threshold
-                    {
-                        ntt.prepare_power(0, &b, na + nb);
-                        got.fill(0);
-                        ntt.mul_power(&mut got, &a, 0, &b, &mut scratch[..budget]);
-                        assert_eq!(got, want, "prepared log {log}, a {na}, b {nb}");
-                        assert_eq!(scratch[budget], 0x5a5a5a5a5a5a5a5a);
+                    for (a, b) in [(&a[..], &b[..]), (&b[..], &b[..])] {
+                        let mut want = vec![0; a.len() + b.len()];
+                        mul::mul(&mut want, a, b, &mut vec![0; mul::scratch_len(nb)]);
+                        let mut got = vec![0; want.len()];
+                        // Exercise the reduced envelope even with cache-enabled owned tables.
+                        let budget = scratch_len(nb).min(capped_scratch_len(nb, log));
+                        let mut scratch = vec![0x5a5a5a5a5a5a5a5a; budget + 8];
+                        for skip in 0..8 {
+                            ntt.mul(&mut got, a, b, &mut scratch[skip..][..budget]);
+                            assert_eq!(got, want, "log {log}, a {}, b {}", a.len(), b.len());
+                            assert_eq!(scratch[skip + budget], 0x5a5a5a5a5a5a5a5a);
+                            if a.len() + b.len() <= 2 * cap {
+                                ntt.prepare_power(0, b, a.len() + b.len());
+                                assert!(ntt.powers[0].is_some());
+                                got.fill(0);
+                                ntt.mul_power(&mut got, a, 0, b, &mut scratch[skip..][..budget]);
+                                assert_eq!(
+                                    got,
+                                    want,
+                                    "prepared log {log}, a {}, b {}",
+                                    a.len(),
+                                    b.len()
+                                );
+                                assert_eq!(scratch[skip + budget], 0x5a5a5a5a5a5a5a5a);
+                            }
+                        }
                     }
                 }
             }
