@@ -1,0 +1,182 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0](https://github.com/elichai/faster-base58/releases/tag/v0.1.0) - 2026-11-12
+
+### Other
+
+- Include omitted test suites in Codecov coverage ([#61](https://github.com/elichai/faster-base58/pull/61))
+- Fuzz zero-digit blocks of the encoders' division tree ([#54](https://github.com/elichai/faster-base58/pull/54))
+- Use fixed stores for short matrix leaf heads ([#58](https://github.com/elichai/faster-base58/pull/58))
+- Skip duplicate quadratic work in the fuzz harness ([#52](https://github.com/elichai/faster-base58/pull/52))
+- Use the base-58^3 radix encoder on Wasm ([#45](https://github.com/elichai/faster-base58/pull/45))
+- Reduce CI jobs and runner time ([#50](https://github.com/elichai/faster-base58/pull/50))
+- Replace the quadratic fuzz oracle on large inputs ([#49](https://github.com/elichai/faster-base58/pull/49))
+- Select decoders by length first so bounded inputs drop the tree backends ([#48](https://github.com/elichai/faster-base58/pull/48))
+- Minimize the shared fuzz corpus before replay and publish ([#44](https://github.com/elichai/faster-base58/pull/44))
+- Retune the backend thresholds and refresh the performance results ([#46](https://github.com/elichai/faster-base58/pull/46))
+- Parse Matrix decode input with AVX2 on x86 ([#25](https://github.com/elichai/faster-base58/pull/25))
+- Unroll the paired multiply-add loops ([#33](https://github.com/elichai/faster-base58/pull/33))
+- Load whole limbs in encode::dc::load ([#38](https://github.com/elichai/faster-base58/pull/38))
+- Halve the inverse NTT's reductions and drop two Garner normalizations ([#24](https://github.com/elichai/faster-base58/pull/24))
+- Time fresh copies of each library in public_bench.py ([#35](https://github.com/elichai/faster-base58/pull/35))
+- Add CI.md and correct CI facts in the guides ([#34](https://github.com/elichai/faster-base58/pull/34))
+- Test encoder leaves at their size bounds; record prefix zeroing as neutral ([#40](https://github.com/elichai/faster-base58/pull/40))
+- Parse each decoder leaf in one loop ([#31](https://github.com/elichai/faster-base58/pull/31))
+- Remove needless libc calls from the batched small-input paths ([#39](https://github.com/elichai/faster-base58/pull/39))
+- Store full limbs as fixed-size chunks in dc::write_bytes ([#37](https://github.com/elichai/faster-base58/pull/37))
+- Remove inline(never) where measurements do not need it ([#32](https://github.com/elichai/faster-base58/pull/32))
+- Keep SIMD helpers inline and gate out-of-line SIMD in CI ([#29](https://github.com/elichai/faster-base58/pull/29))
+- Prepare crate metadata for publishing ([#28](https://github.com/elichai/faster-base58/pull/28))
+- Merge pull request #23 from elichai/elichai/radix-utilization-rule
+- Run CI on pinned Ubuntu 26.04 runners ([#21](https://github.com/elichai/faster-base58/pull/21))
+- Remove the Toom-3 multiplier ([#20](https://github.com/elichai/faster-base58/pull/20))
+- Document the radix utilization rule and its measurements
+- Take the radix route from 5/8 of the root transform, 3/4 with cache
+- Add a same-binary radix vs division-tree tuning bench
+- Run Wasm SIMD128 tests in CI and withdraw stale x86 encode results
+- Merge branch 'refs/heads/worktree-agent-a0394cb1b3a70be2e' into elichai/simd-algorithm-optimization-bd4565
+- Add Wasm SIMD128 kernels for NTT, Matrix panels/parsing and 64-byte encoding
+- Start the x86 radix encoder at 48 KiB and document it
+- Enable the base-58^3 radix encoder on x86-64 with AVX-512
+- Review main, speed up large M5 encodes and NTT decodes, refresh benchmarks ([#19](https://github.com/elichai/faster-base58/pull/19))
+- Store batched decode tails with fixed-width writes ([#18](https://github.com/elichai/faster-base58/pull/18))
+- Add optional Base58Check ([#15](https://github.com/elichai/faster-base58/pull/15))
+- Introduce configurable codecs and allocation feature ([#16](https://github.com/elichai/faster-base58/pull/16))
+- Cache Cargo sources and benchmark Miri Nextest ([#11](https://github.com/elichai/faster-base58/pull/11))
+- Reduce NTT twiddle storage and scratch heap usage ([#7](https://github.com/elichai/faster-base58/pull/7))
+- Streamline verification and split coverage reporting ([#6](https://github.com/elichai/faster-base58/pull/6))
+- Make cache heap retention explicit in README
+- Reconcile resource documentation with final measurements
+- Qualify completed hosted platform and fuzz checks
+- Isolate coverage tool installation from target flags
+- Refresh combined public benchmarks and linked-size documentation
+- Include published radix follow-up merge
+- Integrate current main before final radix publication
+- Align fixed tables and document final scratch measurements
+- Pool radix powers and spectra to reduce temporary allocations
+- Pool radix powers and spectra and avoid one-use transform storage
+- Integrate radix followup and preserve corpus coverage automation
+- Merge formatter followup into local integration
+- Remove raw radix benchmark bundles and retain useful summaries
+- Remove raw formatter benchmark bundles and retain useful summaries
+- Refresh public benchmarks and linked sizes for radix source
+- Refresh public benchmarks and linked sizes for formatter source
+- Retire historical tools and document basexx comparisons
+- Add big-endian PowerPC64 CI tests
+- Fuzz large radix inputs against Malachite
+- Merge pull request #4 from elichai/elichai/clippy-lints
+- Remove redundant dead-code allowance from competitor adapters
+- Exercise radix backends in differential tests and fuzzing
+- Consolidate living docs and remove historical measurement bundles
+- Record controlled allocation and latency measurements
+- Enable selected Clippy lints and fix their findings
+- Use typed chunks for fixed-width digit pairs
+- Add generic x86 linked sizes and simplify README benchmarks
+- Format ten-digit limbs with independent pair quotients
+- Restore x86-64 benchmark tables and graphs in README
+- Reduce temporary allocations in large radix encoding
+- Speed up large NEON Base58 encoding with a multiplication tree
+- Speed up small Base58 encoding with pair-table formatting
+- Record final local verification and remaining platform gaps
+- Publish complete GCP backend and resource measurements
+- Measure compact mode with a controlled observer
+- Document compact linked-size measurements
+- Record backend tradeoffs and scoped verification results
+- Keep IFMA tuning internal and add compact kernels
+- Strengthen backend proofs, SIMD verification and local CI
+- Bound owned decoding capacity and keep empty results fast
+- Record Bitcoin Core reference and regression vectors
+- Centralize backend selection and preserve portable x86 builds
+- Curate documentation and expand correctness verification
+- Use the standard CPU detector when std is enabled
+- Fix cross-platform verification and retain fuzz and Miri evidence
+- Prepare faster-base58 with no_std defaults and production verification
+- Reduce encoder allocation churn and make NTT setup explicit
+- Rework Base58 APIs, verification and backend cost reports
+- describe consolidated cfg boundaries
+- record fixed-table reuse tradeoffs
+- describe internal namespace and target modules
+- link AC-qualified benchmark evidence
+- mark Toom-3 as an experimental comparison
+- describe public modes and optional caches
+- document base58 backend design and resource costs
+- Zen 5 results of main with fat LTO (run 9b), and what fat LTO changed
+- the merged NTT against the tree before it (M5 Pro A/B)
+- Merge main (decoder NTT small pieces, aligned scratch, fat LTO) into the encoders
+- NTT small-pieces fix, aligned scratch, fat LTO (work from 2026-10-15..19)
+- hand off above 3584 bytes on IFMA CPUs (was 4096)
+- cap mode, the matrix without its cap against ntt-cached
+- Zen 5 results of the merged tree, default and native flags (run 8)
+- final M5 encoder results of the merged tree (eb66fd3)
+- take the reciprocal-from-square path only when the power is the square below
+- Merge branch 'refs/heads/elichai/sad-mayer-7bd0f0' into elichai/encode-functionality-research-0002a9
+- Merge branch 'refs/heads/elichai/cool-solomon-7c542e' into elichai/encode-functionality-research-0002a9
+- Merge branch 'refs/heads/elichai/loving-roentgen-e1bb5a' into elichai/encode-functionality-research-0002a9
+- Merge branch 'refs/heads/elichai/modest-brattain-1141cf' into elichai/encode-functionality-research-0002a9
+- the paired inverse was tried and not kept
+- Revert "ntt: the AVX-512 inverse transform on pairs too"
+- Zen 5 results for folding into the cyclic rest
+- reciprocals from squares on Zen 5
+- the AVX-512 inverse transform on pairs too
+- the forward transform on pairs closes the default-vs-native gap
+- reciprocals from squares
+- assert that table powers take the square path; exact scratch in its test
+- fold long operands into the cyclic rest once for all primes
+- start each reciprocal from the square of the one below
+- interleave pairs of independent forward butterflies
+- the default-flag forward gap is not loop placement
+- AVX-512 NTT kernels on Zen 5
+- Zen 5 run 7 of the 64-byte VBMI path through encode_matrix
+- spell out the stages of the AVX-512 blocks
+- AVX-512 VBMI path for 64 bytes on x86_64
+- hand-written AVX-512F transform and pointwise kernels
+- split carry for 64 bytes on aarch64 (NEON)
+- Zen 5 sweep of AVX-512 choices and stack offsets at 64 bytes
+- M5 sweep of the split carry for 32 and 64 bytes on NEON
+- Zen 5 run 5 of the 64-byte path through encode_matrix
+- split carry and register digits for 64 bytes on x86_64
+- second Zen 5 sweep for 64 bytes (native flags)
+- split carry chain and AVX2 digits for 64 bytes; Zen 5 sweep
+- AVX2 sums with plain-Rust characters for 64 bytes on x86_64
+- plain-Rust kernels for 32 bytes on x86_64; Zen 5 sweep
+- fixed-size path for 32 and 64 bytes
+- encoder results with native CPU flags on Zen 5
+- no transform runs up to 48 KiB on IFMA CPUs; fix the Zen 5 dc-vs-NTT note
+- encoder results on Zen 5 and comparison with other crates
+- final M5 encoder results and comparison with other crates
+- x86 leaf and IFMA thresholds from the second Zen 5 run
+- correct two Zen 5 run-1 figures
+- IFMA-gated thresholds and NTT leaf (provisional); README matrix leaves
+- x86 choices from the Zen 5 run; one matrix leaf for small inputs
+- bench encode: 12, 16 and 24 KiB; flat sampling from 12 KiB
+- matrix leaves up to 1024 chunks; 768 for the NTT encoders
+- encode_matrix as a baseline column
+- matrix leaves for the divide-and-conquer encoders
+- Merge the encode_matrix 8 KiB cap (through cfe304e)
+- encode_ntt_portable, the NTT encoder with portable kernels
+- encode_matrix layout checks with loops aligned to 64 bytes
+- all encoders after the matrix merge; NTT code placement
+- cap at 8 KiB, aligned scratch, ntt-cached above
+- Merge the matrix encoder (encode_matrix, through 0859892)
+- wrapped q·pn design, A/B, and results on the final code
+- matrix encoder (encode_matrix) with the decoder's panel kernels
+- wrapped NTT product for q·pn in Barrett division
+- encoder results, tuning, and next steps
+- per-backend D&C threshold and leaf, tuning harness
+- split without a shift; README encoding section
+- quadratic and divide-and-conquer encoders
+- Merge the AVX-512 IFMA basecase and its thresholds (through 4d50d04)
+- toom3, ntt: IFMA thresholds from the Zen 5 sweep
+- toom3, ntt: separate thresholds when mul has the IFMA leaf
+- Use the matrix leaf in the cached NTT decoders
+- IFMA threshold 384 (second Zen 5 run)
+- IFMA leaf from 12 limbs, threshold 192 (first Zen 5 run)
+- AVX-512 IFMA schoolbook leaf with runtime detection
+- Base58 decoders: batched, divide-and-conquer, NTT and matrix
