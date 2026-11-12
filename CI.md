@@ -470,6 +470,18 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | `candidate_smoke` | Replays the seeds and the union of the four merged sets with ASan | Same rows as `fuzz_coverage` | Schedule; dispatch with `run_nightly` |
 | `publish` | Replaces `corpora/` with that union, which holds every stored input, and adds the provenance to `fuzz-corpus`; needs `fuzz_coverage`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
 
+Nightly mutation starts from all deterministic seeds plus at most 16 stored
+inputs per target. Selection ranks SHA-256 hashes of the run ID, target and
+content digest, so another run samples different stored inputs reproducibly.
+The full store still participates in coverage replay, merging and candidate
+replay. This bounds mutation startup as the store grows: libFuzzer checks
+`max_total_time` only after initial corpus loading. Each target's log must pass
+`check_mutations.py`; a run that only loads inputs fails instead of publishing
+an empty campaign. Counts appear in the Actions log. Provenance records the
+stored-input limit, selection method and oracle instrumentation setting.
+Nightly builds also use the oracle wrapper described below; the crate and
+harness keep their fuzz instrumentation and debug checks, and ASan stays on.
+
 `fuzz_coverage` runs `cargo fuzz coverage --sanitizer address` with
 `--debug-assertions` and the careful `RUSTFLAGS` of the `fuzz` job, on prebuilt
 std. A crash, ASan report or oracle mismatch fails the job. `RUSTC_WRAPPER` is
@@ -578,10 +590,10 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | — |
 | [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | — | `measurement_tools` |
 | [`fuzz/seed_corpus.py`](fuzz/seed_corpus.py) | Writes the deterministic seeds; fails if an existing seed differs | `--output DIR` (default `fuzz/corpus`) | Fuzz jobs |
-| [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates a content-addressed corpus, adds inputs to it, or replaces it with the union of input roots | `validate CORPUS`, `stage INCOMING CORPUS`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
+| [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates, samples, adds inputs, or replaces a corpus with a union | `validate CORPUS`, `sample INCOMING CORPUS --limit N --seed SEED`, `stage INCOMING CORPUS`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
 | [`fuzz/provenance.py`](fuzz/provenance.py) | Writes the JSON provenance of one campaign | `--output`, `--field KEY=VALUE`, `--digest KEY=PATH` | `nightly` |
-| [`fuzz/check_mutations.py`](fuzz/check_mutations.py) | Requires a nonzero mutation-attempt count in a libFuzzer log | `--self-test`; `LOG --seconds N` | `fuzz` |
-| [`fuzz/oracle_rustc.py`](fuzz/oracle_rustc.py) | `RUSTC_WRAPPER` that builds the Malachite and bs58 oracles without coverage, sanitizer-coverage or debug checks | Called by Cargo | `fuzz_coverage` |
+| [`fuzz/check_mutations.py`](fuzz/check_mutations.py) | Requires a nonzero mutation-attempt count in a libFuzzer log | `--self-test`; `LOG --seconds N` | `fuzz`, `nightly` |
+| [`fuzz/oracle_rustc.py`](fuzz/oracle_rustc.py) | `RUSTC_WRAPPER` that builds the Malachite and bs58 oracles without coverage, sanitizer-coverage or debug checks | Called by Cargo | `fuzz_coverage`, `nightly` |
 | `fuzz/test_*.py` | Tests the seed generator, the corpus store, the provenance writer and the oracle wrapper | — | `fuzz`, `fuzz_coverage` |
 | [`tools/code-size/`](tools/code-size/README.md) | Probe sources that `code_size.py` copies into a standalone package | — | Through `code_size.py` |
 | [`tools/resource-profile/`](tools/resource-profile/Cargo.toml) | Worker of `resource_report.py`; features `count-allocations`, `cache`, `compact` | `self-check` | `measurement_tools` |

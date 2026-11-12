@@ -149,7 +149,10 @@ The shared corpus is not committed to `main`. The protected orphan
 `corpora/<target>/<sha256>` and per-run metadata under `runs/`. Main/PR CI
 only validates and replays a pinned revision. The optional Verification dispatch
 with `run_fuzz` runs bounded campaigns on its selected ref but never publishes
-the corpus. Nightly workers upload artifacts; every replay build adds the
+the corpus. Nightly workers start from all deterministic seeds and a reproducible
+sample of at most 16 stored inputs per target, and require actual mutations.
+Their oracle wrapper keeps ASan but omits oracle fuzz instrumentation and debug
+checks. Workers upload artifacts; every replay build adds the
 artifacts that bring new coverage to the pinned corpus by libFuzzer merge, and
 after an ASan replay of the combined result the separate trusted publisher
 replaces the stored corpus with it. CI never removes a stored input
