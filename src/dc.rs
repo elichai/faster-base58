@@ -443,7 +443,10 @@ pub(crate) fn powers<'a>(
     });
     let mut last = Power::new(unit, &p[..len], 0);
     powers[0] = last;
-    for (i, slot) in powers[..levels].iter_mut().enumerate().skip(1) {
+    // Indexed writes avoid a return copy; this extent bounds every loop index.
+    let levels = powers[..levels].len();
+    #[allow(clippy::needless_range_loop, reason = "avoid a 2 KiB return copy")]
+    for i in 1..levels {
         if prepare {
             m.prepare_power(i - 1, last.limbs, product_len(last.exp, last.limbs.len()));
         }
@@ -454,8 +457,8 @@ pub(crate) fn powers<'a>(
         } else {
             m.mul(sq, last.limbs, last.limbs, scratch);
         }
-        *slot = Power::new(2 * last.exp, sq, 2 * last.shift);
-        last = *slot;
+        last = Power::new(2 * last.exp, sq, 2 * last.shift);
+        powers[i] = last;
     }
     powers
 }
