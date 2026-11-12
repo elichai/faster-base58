@@ -575,7 +575,6 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/test_custom_miri.py`](scripts/test_custom_miri.py) | Tests the coverage guards of `run_custom_miri.py`; runs no Rust | — | `lint` |
 | [`assets/graphs/render.py`](assets/graphs/render.py) | Checks local links in the maintained guides, the README figure references and SVG syntax; checks no numbers | `--check` (required) | `measurement_tools` |
 | [`assets/graphs/render_current.py`](assets/graphs/render_current.py) | Renders the README figures and tables from measurement CSVs into a new directory; needs Matplotlib | `--data`, `--sizes`, `--output` | — |
-| [`assets/graphs/render_stack_pr67.py`](assets/graphs/render_stack_pr67.py) | Renders the current whole-stack native ratios and tables from ignored study exports, preserving focused controls; needs Matplotlib | `--data`, `--output` (new directory) | — |
 | [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | — |
 | [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | — | `measurement_tools` |
 | [`fuzz/seed_corpus.py`](fuzz/seed_corpus.py) | Writes the deterministic seeds; fails if an existing seed differs | `--output DIR` (default `fuzz/corpus`) | Fuzz jobs |

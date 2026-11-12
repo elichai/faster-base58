@@ -442,17 +442,19 @@ checked 64 actual artifact hashes, parsed the 32 stripped images' sections, and
 compared 136 frozen input files with Git blobs. This validates arithmetic and
 recorded provenance, not an independent rebuild or absent individual batch data.
 
-With pinned `assets/graphs/requirements.txt` installed, render retained exports
+The study-specific renderer is retained with the ignored measurements, rather
+than maintained as a PR-specific repository tool. With pinned
+`assets/graphs/requirements.txt` installed, render the retained local exports
 into a **new** directory:
 
 ```sh
-python3 -B assets/graphs/render_stack_pr67.py --data target/measurements/pr67-stack-gcp/published-data --output target/measurements/pr67-stack-gcp/NEW_FIGURES
+python3 -B target/measurements/pr67-stack-gcp/render_stack_pr67.py --data target/measurements/pr67-stack-gcp/published-data --output target/measurements/pr67-stack-gcp/NEW_FIGURES
 python3 -B assets/graphs/render.py --check
 python3 -B -m unittest discover -s assets/graphs -p test_render.py
 ```
 
 The figure/link check validates local links and SVG syntax. It does not verify
-numbers or reproduce pixels. The native renderer validates dataset keys/source
+numbers or reproduce pixels. The retained local renderer validates dataset keys/source
 bindings, preserves primary and supplemental cohorts separately, and emits the
 27-size tables with the figures. The Wasm figure marks the current measurement gap.
 
