@@ -261,7 +261,7 @@ Rust 1.99.1 / LLVM 23.1.1, `aarch64-apple-darwin`, five processes.
 | 1 MiB | **44.4 ms** / 26.4 ms | 44.6 ms / **25.6 ms** | — / — | — / — | — / — |
 | 4 MiB | 212 ms / 129 ms | **210 ms** / **129 ms** | — / — | — / — | — / — |
 
-![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public-20261109.svg)
+![Native public API conversion time on Apple M5 Pro](https://raw.githubusercontent.com/elichai/faster-base58/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/m5-public-20261109.svg)
 
 ### AMD EPYC 9B45 (GCP, generic x86-64)
 
@@ -279,7 +279,7 @@ of each library ([protocol](docs/performance.md#measure-and-update)).
 | 1 MiB | 49 ms / 24.2 ms | **48.8 ms** / **22.7 ms** | — / — | — / — | — / — |
 | 4 MiB | **227 ms** / 119 ms | 227 ms / **116 ms** | — / — | — / — | — / — |
 
-![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public-20261109.svg)
+![Native public API conversion time on AMD EPYC 9B45](https://raw.githubusercontent.com/elichai/faster-base58/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/gcp-public-20261109.svg)
 
 ### WebAssembly on Apple M5 Pro (Node/V8)
 

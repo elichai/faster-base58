@@ -292,7 +292,7 @@ At 2,816 characters:
 | gcp / off / default | 1.021 [0.861, 1.090] | 1.020 [0.884, 1.153] |
 | gcp / off / cache | 1.000 [0.959, 1.012] | 1.002 [0.957, 1.044] |
 
-The [cold summary CSV](../assets/graphs/data/native-20261111-cold.csv) also retains
+The [cold summary CSV](https://github.com/elichai/faster-base58/blob/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/data/native-20261111-cold.csv) also retains
 1,408- and 5,632-character cells. Wide ranges remain part of the result.
 
 ### Assembly findings and limits
@@ -328,9 +328,9 @@ LTO; cached 256-byte encode is 0.949× versus 1.055×. M5 results are mixed and 
 ranges are wide. Large conversions are mostly near parity. Do not use the
 full-stack cohort's absolute times as this study's baseline.
 
-![Isolated PR 58 M5 paired latency ratios](../assets/graphs/m5-pr58.svg)
+![Isolated PR 58 M5 paired latency ratios](https://raw.githubusercontent.com/elichai/faster-base58/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/m5-pr58.svg)
 
-![Isolated PR 58 GCP paired latency ratios](../assets/graphs/gcp-pr58.svg)
+![Isolated PR 58 GCP paired latency ratios](https://raw.githubusercontent.com/elichai/faster-base58/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/gcp-pr58.svg)
 
 Original-boundary assembly shows direct short-head stores with fat LTO. Without
 LTO, width dispatch and fixed-copy helpers remain. The inline hint also moves
@@ -518,13 +518,18 @@ Absolute values below are **main → candidate**.
 
 ### Reproduce this documentation refresh
 
-The committed [warm summary CSV](../assets/graphs/data/native-20261111.csv),
-[linked-size CSV](../assets/graphs/data/native-20261111-sizes.csv), and
-[input-hash manifest](../assets/graphs/data/native-20261111-sources.json) identify
+The committed [warm summary CSV](https://github.com/elichai/faster-base58/blob/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/data/native-20261111.csv),
+[linked-size CSV](https://github.com/elichai/faster-base58/blob/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/data/native-20261111-sizes.csv), and
+[input-hash manifest](https://github.com/elichai/faster-base58/blob/18de968a9ba6bf1f712104041621f0f0d6a9a58f/assets/graphs/data/native-20261111-sources.json) identify
 the two studies, policies, LTO settings and revisions. Raw records, source/harness
 hashes and commands remain under ignored `target/measurements/pr-vetting` and
 `pr-stack-refresh` locally, with their corresponding `/mnt/bench` directories on
 GCP. Perf data remain on GCP.
+
+The summary data, renderer, historical figures and PR-specific figures are
+repository-only assets. Reproduce the figures from a repository checkout; the
+published crate includes the three primary README figures. Links to the other
+assets use the frozen repository revision so they also work from the crate docs.
 
 With the pinned `assets/graphs/requirements.txt` installed, regenerate all four
 native SVGs and their tables into a new directory:
