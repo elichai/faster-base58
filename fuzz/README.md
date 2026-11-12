@@ -40,6 +40,9 @@ version. Inputs are capped at 8,193 bytes for the quadratic oracle.
 
 Radix seeds include binary powers and sparse values around leaf/tree boundaries,
 so zero subtrees and sparse carry paths do not depend on random mutations.
+`zero-run-*` seeds are `encode_all` inputs whose text contains 2,000–30,000-digit
+runs of `1`, so that zero leaves and subtrees of the division tree are covered from
+the start.
 
 `encode_radix_full_width` repeats each raw input to 256 KiB or 1 MiB, selected
 by its first byte's high bit, then sets the expanded first byte's high bit.
@@ -131,6 +134,15 @@ It supplies invalid ASCII and UTF-8 boundaries; structured 64-byte
 the fixed encoder's split carry use its serial fallback. These inputs belong in
 the deterministic generator because the relationship is arithmetic, not a
 useful byte token for a dictionary.
+
+`encode_all` has a custom mutator. One call in eight builds such a split-carry
+input. Two in eight, for inputs of at least 256 bytes, mutate the input's base-58
+digits instead of its bytes: they write a run of up to 20,480 zero digits, or apply
+libFuzzer's mutations to the digit values, and decode the result back to bytes.
+A changed byte rewrites every digit below it, so byte mutations almost never make
+the zero-digit runs that zero whole leaves and subtrees of the division tree. The
+other calls use libFuzzer's mutations. Replay, merge and coverage do not run the
+mutator; the corpus keeps its byte results.
 
 The shared corpus is not committed to `main`. The protected orphan
 `fuzz-corpus` branch stores content-addressed inputs under

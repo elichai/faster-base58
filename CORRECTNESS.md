@@ -158,7 +158,10 @@ because Wasm panics abort. [CI.md](CI.md#test-jobs) gives the local commands.
 The [two general differential targets](fuzz/README.md) compare all backend
 wrappers and both allocation policies: values, capacities, suffixes, canaries, owned
 helpers and malformed input. Decode also maps bytes to valid digits and inserts
-invalid ASCII or multibyte characters, including late positions. The shared
+invalid ASCII or multibyte characters, including late positions. Encode's mutator
+also mutates base-58 digits, and `zero-run-*` seeds start it with long runs of the
+zero digit; this reaches zero leaves and subtrees of the encoders' division tree,
+which random bytes almost never do. The shared
 oracle switches from bs58 to Malachite above 2,048 bytes, so large inputs do not
 pay for a quadratic oracle. The quadratic `batched` and `no-alloc` hooks run only
 up to 8,193 bytes or characters; `large_inputs_round_trip` and
@@ -310,7 +313,9 @@ not refresh a prior result. For performance and memory work, use the separate
 3. Complete the default full-width native ASan stages. Repair or
    replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
-   are finite.
+   are finite. Runtime dispatch selects the best x86 kernels, so fuzzing on an
+   AVX-512 host never runs the AVX2 NTT kernels, the AVX2 fixed-width encoder or the
+   SSE4.1 matrix panel; only unit tests compare them with the portable code.
 4. Run the native AVX-512 kernel tests on AVX-512 hardware in every CI run.
    `mul_ifma::tests::avx512_matches_reference` needs AVX-512F and IFMA;
    `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F. Without the

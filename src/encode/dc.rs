@@ -960,6 +960,20 @@ mod tests {
         );
     }
 
+    /// Knuth D's add-back, which the reciprocals of the powers of 58 that the fuzz targets
+    /// reach never take: for `u = β^3` and `v = 2^63 β^2 + β - 1`, the top limbs give
+    /// `qhat = 2`, the second limb of `v` is zero so the estimate stays, and the quotient is 1.
+    #[test]
+    fn div_schoolbook_adds_back() {
+        let v = [u64::MAX, 0, 1 << 63];
+        let mut u = [0, 0, 0, 1, 0];
+        let mut q = [0xA5; 2];
+        div_schoolbook(&mut q, &mut u, &v);
+        assert_eq!(q, [1, 0]);
+        // β^3 - v = (2^63 - 1) β^2 + (β - 1) β + 1.
+        assert_eq!(u, [1, u64::MAX, (1 << 63) - 1, 0, 0]);
+    }
+
     /// The divisors of a table, each from the one below with exactly the scratch it needs,
     /// with the bounds of their reciprocals checked.
     fn divisors<'a>(
