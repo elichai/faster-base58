@@ -107,7 +107,7 @@ jobs:
       - run: env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: |
           cd fuzz
-          python3 -m unittest test_seed_corpus.py test_corpus_store.py test_provenance.py test_oracle_rustc.py
+          python3 -m unittest test_seed_corpus.py test_corpus_store.py test_sample_corpus.py test_provenance.py test_oracle_rustc.py
           python3 seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
@@ -172,6 +172,7 @@ jobs:
       FUZZ_SECONDS: ${{ inputs.fuzz_seconds || '300' }}
       FUZZ_SEED: ${{ github.run_id }}
       RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+      RUSTC_WRAPPER: ${{ github.workspace }}/fuzz/oracle_rustc.py
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Corpus inputs come from a mutable branch; do not expose an Actions cache token.
@@ -193,13 +194,23 @@ jobs:
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
-      - run: mkdir -p fuzz/campaign
+      # libFuzzer does not check max_total_time while loading its initial corpus.
+      # Full-store replay stays in fuzz_coverage, minimize and candidate_smoke.
+      - run: python3 fuzz/corpus_store.py sample .fuzz-corpus/corpora fuzz/campaign --limit 16 --seed "$FUZZ_SEED"
       - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/campaign/
-      - run: cp -a .fuzz-corpus/corpora/. fuzz/campaign/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: mkdir -p fuzz/logs
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/encode_all.log
+          python3 fuzz/check_mutations.py fuzz/logs/encode_all.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/decode_all.log
+          python3 fuzz/check_mutations.py fuzz/logs/decode_all.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/encode_full_width.log
+          python3 fuzz/check_mutations.py fuzz/logs/encode_full_width.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/encode_radix_full_width.log
+          python3 fuzz/check_mutations.py fuzz/logs/encode_radix_full_width.log --seconds "$FUZZ_SECONDS"
       - run: mkdir -p fuzz/publish
       - run: >-
           python3 fuzz/provenance.py --output fuzz/publish/provenance.json
@@ -207,6 +218,8 @@ jobs:
           --field run_id=${{ github.run_id }} --field arch=${{ matrix.arch }} --field target_cpu=${{ matrix.cpu }}
           --field features=${{ matrix.label }} --field sanitizer=address --field debug_assertions=true --field value_profile=${{ matrix.profile != '' }} --field seed="$FUZZ_SEED"
           --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=${{ env.RUST_NIGHTLY }}
+          --field stored_seed_limit=16 --field stored_seed_selection=sha256-rank-v1
+          --field oracle_instrumentation=false
           --field cargo_fuzz=${{ env.CARGO_FUZZ_VERSION }} --field rustflags="$RUSTFLAGS" --field exit=0
           --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width --digest dictionary=fuzz/base58.dict
       - run: mv fuzz/campaign fuzz/publish/campaign
