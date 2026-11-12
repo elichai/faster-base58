@@ -7,10 +7,10 @@ library when `std` is enabled, and `cpufeatures` otherwise.
 
 ```toml
 [dependencies]
-faster-base58 = { git = "https://github.com/elichai/faster-base58" }
+faster-base58 = "0.1.0"
 ```
 
-Requires Rust 1.95 or newer. This crate has not been published to crates.io yet.
+Requires Rust 1.95 or newer.
 
 ## Encode and decode
 
@@ -126,7 +126,7 @@ Enabling the feature does not select checking for plain configurations.
 Disable default features to exclude allocating backends and owned output methods:
 
 ```toml
-faster-base58 = { git = "https://github.com/elichai/faster-base58", default-features = false }
+faster-base58 = { version = "0.1.0", default-features = false }
 ```
 
 The same `Encoder` / `Decoder` buffer and array methods then make no heap

@@ -64,7 +64,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! faster-base58 = { git = "https://github.com/elichai/faster-base58", default-features = false }
+//! faster-base58 = { version = "0.1.0", default-features = false }
 //! ```
 //!
 //! The buffer example above works with this configuration. General large inputs
@@ -79,7 +79,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! faster-base58 = { git = "https://github.com/elichai/faster-base58", features = ["check"] }
+//! faster-base58 = { version = "0.1.0", features = ["check"] }
 //! ```
 //!
 //! Checking is selected on each configuration. This example uses a one-byte version
