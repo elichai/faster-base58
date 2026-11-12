@@ -273,10 +273,9 @@ fn encode_value(
             spectrum,
         });
         if i + 1 < levels {
-            let p = &powers[i];
             let slot;
-            (slot, remaining) = remaining.split_at_mut(2 * p.digits.len());
-            let len = arithmetic.multiply_add(p.digits, p.digits, slot, 0, p.spectrum);
+            (slot, remaining) = remaining.split_at_mut(2 * digits.len());
+            let len = arithmetic.multiply_add(digits, digits, slot, 0, spectrum);
             digits = &slot[..len];
         } else {
             break;
@@ -327,9 +326,11 @@ impl Arithmetic<'_, '_> {
     fn prepare<'a>(&self, b: &[u32], storage: &'a mut [i32]) -> [&'a [i32]; 2] {
         let n = (2 * b.len()).max(8).next_power_of_two();
         assert_eq!(storage.len(), 2 * n);
-        for (j, f) in storage.chunks_exact_mut(n).enumerate() {
+        let tw = self.tw.first_chunk::<2>().expect("two transform primes");
+        let (a, b_storage) = storage.split_at_mut(n);
+        for ((f, p), tw) in [a, b_storage].into_iter().zip(PRIMES).zip(tw) {
             load(f, b);
-            (self.kernels.forward)(f, PRIMES[j], self.tw[j].fw());
+            (self.kernels.forward)(f, p, tw.fw());
         }
         let (a, b) = storage.split_at(n);
         [a, b]
@@ -374,28 +375,29 @@ impl Arithmetic<'_, '_> {
                     *s += a as u64 * b as u64;
                 }
             }
-            let sums = &self.sums;
+            let sums = &self.sums[..len];
             carry(out, |i| sums[i], add_len);
         } else {
             let n = len.max(8).next_power_of_two();
             let r = &mut self.residues[..2 * n];
             let tmp = &mut self.tmp[..n];
             let square = core::ptr::eq(a, b);
-            for (j, r) in r.chunks_exact_mut(n).enumerate() {
-                let p = PRIMES[j];
-                let tw = &self.tw[j];
-                if square && let Some(f) = fb {
-                    r.copy_from_slice(&f[j][..n]);
+            let tw = self.tw.first_chunk::<2>().expect("two transform primes");
+            let (r1, r2) = r.split_at_mut(n);
+            let spectra = fb.map_or([None; 2], |f| f.map(Some));
+            for (((r, p), tw), f) in [r1, r2].into_iter().zip(PRIMES).zip(tw).zip(spectra) {
+                if square && let Some(f) = f {
+                    r.copy_from_slice(&f[..n]);
                 } else {
                     load(r, a);
                     (self.kernels.forward)(r, p, tw.fw());
                 }
                 if square {
                     (self.kernels.square)(r, p);
-                } else if let Some(f) = fb {
+                } else if let Some(f) = f {
                     // The bit-reversed spectrum's first n entries are the smaller
                     // cyclic transform. Here b.len() <= n, so no input folds.
-                    (self.kernels.pointwise)(r, &f[j][..n], p);
+                    (self.kernels.pointwise)(r, &f[..n], p);
                 } else {
                     load(tmp, b);
                     (self.kernels.forward)(tmp, p, tw.fw());
@@ -409,6 +411,7 @@ impl Arithmetic<'_, '_> {
                 &mut r2[..len.next_multiple_of(4)],
             );
             let q1 = PRIMES[0].q as u64;
+            let (r1, r2) = (&r1[..len], &r2[..len]);
             carry(out, |i| r1[i] as u64 + q1 * r2[i] as u64, add_len);
         }
         out.iter().rposition(|&d| d != 0).map_or(0, |i| i + 1)
@@ -489,10 +492,17 @@ fn carry(out: &mut [u32], coef: impl Fn(usize) -> u64, add_len: usize) {
     };
     let s = out.len() / K;
     let mut carries = [0; K];
-    for j in 0..s {
-        for (k, c) in carries.iter_mut().enumerate() {
-            *c = step(&mut out[k * s + j], k * s + j, *c);
-        }
+    let (quarters, _) = out.as_chunks_mut::<K>();
+    let quarters = quarters.as_flattened_mut();
+    let (ab, cd) = quarters.split_at_mut(quarters.len() / 2);
+    let (a, b) = ab.split_at_mut(ab.len() / 2);
+    let (c, d) = cd.split_at_mut(cd.len() / 2);
+    for (j, (((a, b), c), d)) in a.iter_mut().zip(b).zip(c).zip(d).enumerate() {
+        // Keep the four chains explicit: an inner reference iterator left them in memory.
+        carries[0] = step(a, j, carries[0]);
+        carries[1] = step(b, s + j, carries[1]);
+        carries[2] = step(c, 2 * s + j, carries[2]);
+        carries[3] = step(d, 3 * s + j, carries[3]);
     }
     for (i, digit) in (K * s..).zip(&mut out[K * s..]) {
         carries[K - 1] = step(digit, i, carries[K - 1]);
@@ -672,6 +682,81 @@ mod tests {
             }
         }
         assert!(MAX_COEFFICIENT < PRIMES[0].q as u64 * PRIMES[1].q as u64);
+    }
+
+    #[test]
+    fn quarter_carries_match_serial_with_addends_and_tails() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(5817);
+        for len in 0usize..=65 {
+            for pattern in 0..3 {
+                let coefficients: Vec<u64> = (0..len)
+                    .map(|i| {
+                        if len <= 4 {
+                            u64::from(BASE / 2 - 1)
+                        } else if i >= len.saturating_sub(4) {
+                            0
+                        } else if pattern == 0 {
+                            MAX_COEFFICIENT
+                        } else {
+                            rng.next_u64() % (MAX_COEFFICIENT + 1)
+                        }
+                    })
+                    .collect();
+                let digits: Vec<u32> = (0..len)
+                    .map(|i| {
+                        if len <= 4 {
+                            BASE / 2 - 1
+                        } else if i >= len.saturating_sub(4) {
+                            0
+                        } else if pattern == 2 {
+                            rng.next_u32() % BASE
+                        } else {
+                            BASE - 1
+                        }
+                    })
+                    .collect();
+                for add_len in 0..=len {
+                    let mut expected = Vec::with_capacity(len);
+                    let mut c = 0;
+                    for i in 0..len {
+                        let value = coefficients[i]
+                            + c
+                            + if i < add_len { u64::from(digits[i]) } else { 0 };
+                        expected.push((value % u64::from(BASE)) as u32);
+                        c = value / u64::from(BASE);
+                    }
+                    assert_eq!(c, 0);
+                    let mut guarded = vec![0xa5a5_a5a5; len + 2];
+                    guarded[1..1 + len].copy_from_slice(&digits);
+                    carry(&mut guarded[1..1 + len], |i| coefficients[i], add_len);
+                    assert_eq!(&guarded[1..1 + len], expected, "len {len}, add {add_len}");
+                    assert_eq!((guarded[0], guarded[len + 1]), (0xa5a5_a5a5, 0xa5a5_a5a5));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn quarter_carries_reach_nonzero_tails_and_cross_quarters() {
+        for len in 5..=7 {
+            let mut coefficients = vec![1; len];
+            coefficients[..3].fill(0);
+            coefficients[3] = u64::from(BASE);
+            let mut digits = vec![1; len];
+            digits[..4].fill(0);
+            carry(&mut digits, |i| coefficients[i], len);
+            assert_eq!(&digits[..4], &[0; 4]);
+            assert_eq!(digits[4], 3);
+            assert!(digits[5..].iter().all(|&d| d == 2));
+        }
+        let mut coefficients = [u64::from(BASE - 1); 17];
+        coefficients[..3].fill(0);
+        coefficients[3] = u64::from(BASE);
+        coefficients[16] = 0;
+        let mut digits = [0; 17];
+        carry(&mut digits, |i| coefficients[i], 0);
+        assert_eq!(&digits[..16], &[0; 16]);
+        assert_eq!(digits[16], 1);
     }
 
     #[test]

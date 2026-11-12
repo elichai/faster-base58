@@ -114,12 +114,12 @@ const CACHED_LEAF: usize = match Leaves::BEST {
 #[inline(never)]
 #[cfg(feature = "alloc")]
 pub(crate) fn decode(
-    input: &[u8],
+    digits: &[u8],
     zeros: usize,
     output: &mut [u8],
 ) -> Result<usize, crate::common::DecodeError> {
     dc::decode_parts(
-        input,
+        digits,
         zeros,
         output,
         &mut Ntt::new(Kernels::best()),
@@ -130,12 +130,12 @@ pub(crate) fn decode(
 /// [`crate::dc::decode_value`] with the NTT multiplier of [`decode`].
 #[cfg(all(feature = "check", feature = "alloc"))]
 pub(crate) fn decode_value(
-    input: &[u8],
+    digits: &[u8],
     zeros: usize,
     capacity: usize,
 ) -> Result<alloc::vec::Vec<u64>, crate::common::DecodeError> {
     dc::decode_value(
-        input,
+        digits,
         zeros,
         capacity,
         &mut Ntt::new(Kernels::best()),
@@ -675,8 +675,9 @@ fn transform(
     let tmp = &mut rest[..n];
     let rs = [&mut *r1, &mut *r2, &mut *r3];
     for (j, ((r, p), tw)) in rs.into_iter().zip(PRIMES).zip(&t.tw).enumerate() {
-        match fb {
-            Some(f) if ptr::eq(a, b) => r.copy_from_slice(&f.prime(j)[..n]),
+        let f = fb.map(|f| &f.prime(j)[..n]);
+        match f {
+            Some(f) if ptr::eq(a, b) => r.copy_from_slice(f),
             _ => {
                 (k.load)(r, a, p);
                 (k.forward)(r, p, tw.fw());
@@ -684,8 +685,8 @@ fn transform(
         }
         if ptr::eq(a, b) {
             (k.square)(r, p);
-        } else if let Some(f) = fb {
-            (k.pointwise)(r, &f.prime(j)[..n], p);
+        } else if let Some(f) = f {
+            (k.pointwise)(r, f, p);
         } else {
             (k.load)(tmp, b, p);
             (k.forward)(tmp, p, tw.fw());
@@ -803,8 +804,10 @@ fn pieces(
             };
             let d = x.len();
             let at = if w.is_some() { d..2 * d } else { 0..d };
+            let f = f.map(|f| &f[at]);
+            let tmp = &mut tmp[..d];
             match f {
-                Some(f) if ptr::eq(a, b) => x.copy_from_slice(&f[at.clone()]),
+                Some(f) if ptr::eq(a, b) => x.copy_from_slice(f),
                 _ => {
                     load(x, a, sa);
                     (k.forward)(x, p, tw.fw());
@@ -813,14 +816,14 @@ fn pieces(
             if ptr::eq(a, b) {
                 (k.square)(x, p);
             } else if let Some(f) = f {
-                (k.pointwise)(x, &f[at], p);
+                (k.pointwise)(x, f, p);
             } else {
-                let y = &mut tmp[..x.len()];
+                let y = &mut *tmp;
                 load(y, b, sb);
                 (k.forward)(y, p, tw.fw());
                 (k.pointwise)(x, y, p);
             }
-            let iw = tw.inverse(&mut tmp[..d]);
+            let iw = tw.inverse(tmp);
             (k.inverse)(x, p, iw);
             // With one piece, `pair` undoes the twist after the cyclic rest is ready.
             if plan.k > 1

@@ -25,6 +25,7 @@
 core::ptr::drop_glue::<[faster_base58::ntt::tables::Twiddles; 2]>
 core::ptr::drop_glue::<core::array::Guard<faster_base58::ntt::tables::Twiddles>>
 core::ptr::drop_glue::<faster_base58::ntt::Ntt>
+faster_base58::common::invalid
 faster_base58::dc::dc::<faster_base58::ntt::Ntt>
 faster_base58::dc::decode_value::<faster_base58::ntt::Ntt>
 faster_base58::dc::powers::<faster_base58::ntt::Ntt>
@@ -75,7 +76,6 @@ faster_base58::matrix::entry::decode_parts
 [x86_64]
 <faster_base58::ntt::Ntt as faster_base58::dc::Multiplier>::scratch_len
 <faster_base58::ntt::tables::Tables>::twiddles::<2>
-faster_base58::encode::split_zeros
 # CPU detection reads XCR0 once, outside any `xsave` function.
 core::core_arch::x86::xsave::_xgetbv
 # NTT kernel tables: entries are called through pointers. The closures adapt the
@@ -160,6 +160,7 @@ faster_base58::matrix::x86::avx2
 faster_base58::matrix::x86::sse41
 
 [x86_64 !cache]
+faster_base58::mul::fold_wrapped
 # Karatsuba decoding, which NEON builds do not reach.
 faster_base58::common::values
 faster_base58::dc::dc::<faster_base58::dc::Karatsuba>
@@ -169,6 +170,7 @@ faster_base58::cpu::detect_avx512f::init_get::init_inner
 faster_base58::cpu::detect_ifma::init_get::init_inner
 faster_base58::cpu::detect_vbmi::init_get::init_inner
 faster_base58::encode::dc::div_schoolbook
+faster_base58::encode::dc::encode_parts::<faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::encode_limbs::<faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::newton::<faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::node::<faster_base58::dc::Karatsuba>
@@ -212,10 +214,8 @@ faster_base58::encode::matrix::neon::carry_cold
 
 [aarch64 !cache]
 faster_base58::mul::fold_wrapped
-faster_base58::mul::sum
 
 [aarch64 cache]
 <faster_base58::ntt::tables::Tables>::twiddles::<2>
-faster_base58::encode::split_zeros
 faster_base58::matrix::convert
 faster_base58::matrix::leaf

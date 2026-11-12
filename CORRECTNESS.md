@@ -71,6 +71,11 @@ rejects the removed free functions and `no_alloc` module.
 | [Public API](tests/api.rs) and [tiny inputs](tests/tiny_inputs.rs) | Borrowed/owned agreement, exact arrays, zero prefixes and capacities at dispatch boundaries, standard error traits; every byte and short text against bs58 with byte offsets |
 | [Cold Matrix tables](tests/matrix_cold.rs) and [Miri entry points](tests/miri.rs) | First decodes from several threads in a fresh process; buffer cases split for the custom Miri runner |
 
+Divide-and-conquer decoding validates the whole input before arithmetic. Its
+Horner leaf parser relies on that invariant; tests that pass invalid input
+directly to this internal helper check its debug assertion only when debug
+assertions are enabled. Public malformed-input tests run in both profiles.
+
 Radix allocation tests bound allocation requests and peak requested live bytes at
 1/4 MiB and guard both ends of the output. A forced owned-NTT case checks one allocation
 per prime plus the packed conversion arena, without prepared spectra or reallocations.
@@ -84,6 +89,14 @@ Matrix leaf tests check mixed-digit heads of widths one through four without
 padding and widths two and four with padding, including leading padding digits,
 exact/short buffers, guard bytes and the unwritten output tail.
 
+Paired batched encoding is checked against two sequential updates for stored-limb
+lengths 0–9, zero and maximal carries, and untouched spare slots. Schoolbook
+division tests recover a constructed quotient and remainder for normalized
+divisors of 2–16 limbs, zero/maximal/random quotients, and remainder `v - 1`.
+Radix quarter-carry tests compare a serial oracle for lengths 0–65 and every
+addend-prefix length, including maximal coefficients and guarded output. Separate
+cases pass a carry into nonzero tails and propagate correction across all quarters.
+
 The whole-limb formatter's `ten_digits_matches_division` test compares serial
 division at both domain ends, radix boundaries and 10,000 seeded values; that is
 not exhaustive coverage of the `58^10` domain.
@@ -95,6 +108,8 @@ first-invalid indices; Malachite replaces it above that length. Canary checks su
 unspecified error-buffer contents. Unit tests also cover MiB conversions, all-one
 carry patterns, powers, small exhaustive inputs, all legal NTT scale lengths and the
 partial-word store at every length from 0 to 8 bytes, with guard bytes.
+The `tests` coverage flag includes unit and property suites. Direct unit tests
+cover supported ISA kernels that runtime dispatch may bypass on a given runner.
 
 CI selects 512 cases per property in debug and release, cache off/on, on x86-64
 and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian

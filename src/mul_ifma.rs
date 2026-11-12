@@ -157,8 +157,9 @@ unsafe fn mul_v<V: V8>(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64
         for k in 0..s.chunks {
             let (g0, g1) = (k * s.gb, gtot.min((k + 1) * s.gb));
             let end = if k + 1 < s.chunks { at(k + 1) } else { s.blen };
-            to_digits::<V>(&mut bd[at(k)..end], b, g0, g1);
-            bd[at(k) + 8 * (g1 - g0)..end].fill(0);
+            let chunk = &mut bd[at(k)..end];
+            to_digits::<V>(chunk, b, g0, g1);
+            chunk[8 * (g1 - g0)..].fill(0);
         }
         c.fill(0);
         for k in 0..s.chunks {

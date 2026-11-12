@@ -185,7 +185,7 @@ pub(crate) fn decode_with_leaf(
     let result = if digits.len() <= min_digits() {
         crate::batched::decode_parts(input, digits, output)
     } else {
-        decode_parts(input, zeros, output, m, leaf)
+        decode_parts(digits, zeros, output, m, leaf)
     };
     Ok(result?)
 }
@@ -193,17 +193,17 @@ pub(crate) fn decode_with_leaf(
 /// Divide-and-conquer conversion after stripping leading `'1'` bytes.
 /// Requires more than [`min_digits`] significant characters.
 pub(crate) fn decode_parts(
-    input: &[u8],
+    digits: &[u8],
     zeros: usize,
     output: &mut [u8],
     m: &mut impl Multiplier,
     leaf: Leaf,
 ) -> Result<usize, DecodeError> {
-    let limbs = decode_value(input, zeros, output.len(), m, leaf)?;
+    let limbs = decode_value(digits, zeros, output.len(), m, leaf)?;
     Ok(write_bytes(zeros, &limbs, output)?)
 }
 
-/// The trimmed little-endian value of `input[zeros..]`, in the conversion arena.
+/// The trimmed little-endian value of `digits`, in the conversion arena.
 /// `capacity` bounds the decoded length for the early capacity check. Plain and
 /// checked decoding share this arena and arithmetic.
 // Not inlined natively: Karatsuba decoding inlined this into the dispatcher, whose 4 KiB
@@ -211,13 +211,12 @@ pub(crate) fn decode_parts(
 // inlining made 8-32 byte decodes 5-12% faster there (V8).
 #[cfg_attr(not(target_family = "wasm"), inline(never))]
 pub(crate) fn decode_value(
-    input: &[u8],
+    digits: &[u8],
     zeros: usize,
     capacity: usize,
     m: &mut impl Multiplier,
     leaf: Leaf,
 ) -> Result<Vec<u64>, DecodeError> {
-    let digits = &input[zeros..];
     assert!(
         digits.len() > min_digits(),
         "value is too short for divide and conquer"
@@ -231,7 +230,7 @@ pub(crate) fn decode_value(
         return Err(DecodeError::BufferTooSmall);
     }
     if !all_valid(digits) {
-        return Err(invalid(input));
+        return Err(invalid(digits, zeros));
     }
     let max_leaf = max_leaf();
     let (unit, levels) = split_unit_leaf(n, max_leaf);
@@ -271,47 +270,55 @@ fn mul_add_base(limbs: &mut [u64], len: usize, c: u64) -> usize {
 /// The second pass runs one limb behind the first, so the CPU overlaps their carry
 /// chains: about twice the throughput of two [`mul_add_base`] calls.
 fn mul_add_base2(limbs: &mut [u64], len: usize, c1: u64, c2: u64) -> usize {
-    let l = &mut limbs[..len];
-    let Some(&first) = l.first() else {
+    // Keep the unused limbs available for the two possible carry limbs.
+    let (active, spare) = limbs.split_at_mut(len);
+    let Some((first, mut rest)) = active.split_first_mut() else {
         let len = mul_add_base(limbs, 0, c1);
         return mul_add_base(limbs, len, c2);
     };
-    // `p` is the previous limb after the first pass only.
-    let (p, k1) = first.carrying_mul(BASE, c1);
-    // The first pass reads limb `i`; the second writes limb `i - 1`.
-    let step = |l: &mut [u64], i: usize, (p, k1, k2): (u64, u64, u64)| {
-        let (a, h1) = l[i].carrying_mul(BASE, k1);
-        let (b, h2) = p.carrying_mul(BASE, k2);
-        l[i - 1] = b;
-        (a, h1, h2)
+    // `p` is one limb ahead of `previous`, after the first pass only.
+    let (mut p, mut k1) = first.carrying_mul(BASE, c1);
+    let mut k2 = c2;
+    let mut previous = first;
+    let step = |current: &mut u64, previous: &mut u64, p: &mut u64, k1: &mut u64, k2: &mut u64| {
+        let (next, carry1) = current.carrying_mul(BASE, *k1);
+        (*previous, *k2) = p.carrying_mul(BASE, *k2);
+        *p = next;
+        *k1 = carry1;
     };
-    let mut s = (p, k1, c2);
-    let mut i = 1;
     if UNROLL_PAIRED {
-        while let Some(w) = l[i - 1..].first_chunk_mut::<5>() {
-            s = step(w, 1, s);
-            s = step(w, 2, s);
-            s = step(w, 3, s);
-            s = step(w, 4, s);
-            i += 4;
+        while let [a, b, c, d, tail @ ..] = rest {
+            step(a, previous, &mut p, &mut k1, &mut k2);
+            step(b, a, &mut p, &mut k1, &mut k2);
+            step(c, b, &mut p, &mut k1, &mut k2);
+            step(d, c, &mut p, &mut k1, &mut k2);
+            previous = d;
+            rest = tail;
         }
     }
-    for i in i..len {
-        s = step(l, i, s);
+    for current in rest {
+        step(current, previous, &mut p, &mut k1, &mut k2);
+        previous = current;
     }
-    let (p, k1, mut k2) = s;
-    (l[len - 1], k2) = p.carrying_mul(BASE, k2);
+    (*previous, k2) = p.carrying_mul(BASE, k2);
     // The first pass's carry, if non-zero, is its new top limb.
-    let mut len = len;
-    if k1 != 0 {
-        (limbs[len], k2) = k1.carrying_mul(BASE, k2);
-        len += 1;
+    let (carry, extra) = if k1 != 0 {
+        let (lo, hi) = k1.carrying_mul(BASE, k2);
+        ([lo, hi], 1 + usize::from(hi != 0))
+    } else {
+        ([k2, 0], usize::from(k2 != 0))
+    };
+    // Check space once, then use fixed stores instead of a variable-length copy.
+    match &mut spare[..extra] {
+        [] => {}
+        [first] => *first = carry[0],
+        [first, second] => {
+            *first = carry[0];
+            *second = carry[1];
+        }
+        _ => unreachable!(),
     }
-    if k2 != 0 {
-        limbs[len] = k2;
-        len += 1;
-    }
-    len
+    len + extra
 }
 
 /// Folds `chunks` (most significant first) into `limbs[..len]`. Returns the new length.
@@ -357,11 +364,18 @@ pub(crate) struct Power<'a> {
 
 impl<'a> Power<'a> {
     fn new(exp: usize, limbs: &'a [u64], shift: usize) -> Self {
-        let limbs = &limbs[..trimmed_len(limbs)];
-        let zeros = limbs.iter().take_while(|&&x| x == 0).count();
+        let mut limbs = limbs;
+        while let [rest @ .., 0] = limbs {
+            limbs = rest;
+        }
+        let mut zeros = 0;
+        while let [0, rest @ ..] = limbs {
+            limbs = rest;
+            zeros += 1;
+        }
         Power {
             exp,
-            limbs: &limbs[zeros..],
+            limbs,
             shift: shift + zeros,
         }
     }
@@ -427,9 +441,12 @@ pub(crate) fn powers<'a>(
     let len = (0..unit).step_by(LEAF).fold(1, |len, i| {
         mul_add_chunks(p, len, &zeros[..LEAF.min(unit - i)])
     });
-    powers[0] = Power::new(unit, &p[..len], 0);
+    let mut last = Power::new(unit, &p[..len], 0);
+    powers[0] = last;
+    // Indexed writes avoid a return copy; this extent bounds every loop index.
+    let levels = powers[..levels].len();
+    #[allow(clippy::needless_range_loop, reason = "avoid a 2 KiB return copy")]
     for i in 1..levels {
-        let last = powers[i - 1];
         if prepare {
             m.prepare_power(i - 1, last.limbs, product_len(last.exp, last.limbs.len()));
         }
@@ -440,7 +457,8 @@ pub(crate) fn powers<'a>(
         } else {
             m.mul(sq, last.limbs, last.limbs, scratch);
         }
-        powers[i] = Power::new(2 * last.exp, sq, 2 * last.shift);
+        last = Power::new(2 * last.exp, sq, 2 * last.shift);
+        powers[i] = last;
     }
     powers
 }
@@ -480,20 +498,23 @@ fn dc(
     }
     // value = hi * BASE^p.exp + lo. `powers[0].exp <= max_leaf`, so `p` exists,
     // and the next power is at least `n`, so `hi` is no longer than `lo`.
-    let i = powers.partition_point(|p| p.exp < n) - 1;
-    let p = &powers[i];
+    let end = powers.partition_point(|p| p.exp < n);
+    let (p, _) = powers[..end].split_last().expect("a power below n");
+    let i = end - 1;
     let (hi, lo) = digits.split_at(digits.len() - p.exp * CHUNK);
     // `t` holds `hi`, then `lo`. `BASE^p.exp < 2^(64 * p.exp)`, so `end <= n`.
     let (t, scratch) = scratch.split_at_mut(p.exp);
     let hn = dc(&mut t[..n - p.exp], hi, powers, scratch, m, leaf, max_leaf);
     let end = p.shift + p.limbs.len() + hn;
-    out[..p.shift].fill(0);
-    m.mul_power(&mut out[p.shift..end], &t[..hn], i, p.limbs, scratch);
+    let out = &mut out[..end];
+    let (prefix, product) = out.split_at_mut(p.shift);
+    prefix.fill(0);
+    m.mul_power(product, &t[..hn], i, p.limbs, scratch);
     let ln = dc(t, lo, powers, scratch, m, leaf, max_leaf);
     // lo < BASE^p.exp, so it fits below `end` and the sum does not overflow.
-    let carry = mul::add_assign(&mut out[..end], &t[..ln]);
+    let carry = mul::add_assign(out, &t[..ln]);
     debug_assert!(!carry);
-    trimmed_len(&out[..end])
+    trimmed_len(out)
 }
 
 /// Length of `limbs` without its high zero limbs.
@@ -546,6 +567,30 @@ mod tests {
     #[should_panic(expected = "value is too short for divide and conquer")]
     fn normalized_decoder_rejects_short_values() {
         decode_parts(b"2", 0, &mut [0; 1], &mut Karatsuba, Leaf::Horner).unwrap();
+    }
+
+    #[test]
+    fn invalid_index_includes_zero_prefix() {
+        let mut digits = vec![b'2'; min_digits() + 20];
+        for index in [0, 7, digits.len() - 1] {
+            digits[index] = b'0';
+            for zeros in [0, 1, 17] {
+                let error = decode_value(
+                    &digits,
+                    zeros,
+                    zeros + digits.len(),
+                    &mut Karatsuba,
+                    Leaf::Horner,
+                );
+                assert_eq!(
+                    error,
+                    Err(DecodeError::InvalidCharacter {
+                        index: zeros + index
+                    })
+                );
+            }
+            digits[index] = b'2';
+        }
     }
 
     /// The interleaved passes must match two sequential passes, including new top limbs,

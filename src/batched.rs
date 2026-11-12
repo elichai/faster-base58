@@ -27,7 +27,7 @@ pub(crate) fn decode_parts(
     let zeros = input.len() - digits.len();
     debug_assert_ne!(digits.first(), Some(&b'1'));
     let (zero_bytes, buf) = output.split_at_mut_checked(zeros).ok_or(BufferTooSmall)?;
-    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input)));
+    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input, 0)));
     // The first chunk is the starting value; the rest come in pairs.
     let top = chunks.next().transpose()?.unwrap_or(0);
     let mut value = Value {
@@ -61,7 +61,7 @@ pub(crate) fn decode_short(input: &[u8], output: &mut [u8]) -> Result<usize, Dec
     let first = DIGITS[first as usize];
     let second = input.get(1).map(|&b| DIGITS[b as usize]);
     if first == 0xFF || second == Some(0xFF) {
-        return Err(invalid(input));
+        return Err(invalid(input, 0));
     }
     let Some(second) = second else {
         *output.first_mut().ok_or(BufferTooSmall)? = first;
@@ -108,7 +108,7 @@ pub(crate) fn decode_checked_parts(
         low = product as u32;
         (product >> 32) as u64
     };
-    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input)));
+    let mut chunks = chunks(digits).map(|c| c.ok_or_else(|| invalid(input, 0)));
     while let Some(c1) = chunks.next() {
         let carry1 = next(c1?);
         match chunks.next() {
@@ -160,36 +160,40 @@ impl Value<'_> {
     /// chains: about twice the throughput of two [`Value::mul_add`] calls.
     fn mul_add2(&mut self, c1: u64, c2: u64) -> Result<(), BufferTooSmall> {
         let l = &mut self.limbs[..self.len];
-        let Some(first) = l.first() else {
+        let Some((first, mut rest)) = l.split_first_mut() else {
             self.mul_add(c1)?;
             return self.mul_add(c2);
         };
-        // `p` is the previous limb after the first pass only.
-        let (p, k1) = u64::from_le_bytes(*first).carrying_mul(BASE, c1);
-        // The first pass reads limb `i`; the second writes limb `i - 1`.
-        let step = |l: &mut [[u8; 8]], i: usize, (p, k1, k2): (u64, u64, u64)| {
-            let (a, h1) = u64::from_le_bytes(l[i]).carrying_mul(BASE, k1);
-            let (b, h2) = p.carrying_mul(BASE, k2);
-            l[i - 1] = b.to_le_bytes();
-            (a, h1, h2)
+        // `p` is one limb ahead of `previous`, after the first pass only.
+        let (mut p, mut k1) = u64::from_le_bytes(*first).carrying_mul(BASE, c1);
+        let mut k2 = c2;
+        let mut previous = first;
+        let step = |current: &mut [u8; 8],
+                    previous: &mut [u8; 8],
+                    p: &mut u64,
+                    k1: &mut u64,
+                    k2: &mut u64| {
+            let (next, carry1) = u64::from_le_bytes(*current).carrying_mul(BASE, *k1);
+            let (b, carry2) = p.carrying_mul(BASE, *k2);
+            *previous = b.to_le_bytes();
+            (*p, *k1, *k2) = (next, carry1, carry2);
         };
-        let mut s = (p, k1, c2);
-        let mut i = 1;
         if UNROLL_PAIRED {
-            while let Some(w) = l[i - 1..].first_chunk_mut::<5>() {
-                s = step(w, 1, s);
-                s = step(w, 2, s);
-                s = step(w, 3, s);
-                s = step(w, 4, s);
-                i += 4;
+            while let [a, b, c, d, tail @ ..] = rest {
+                step(a, previous, &mut p, &mut k1, &mut k2);
+                step(b, a, &mut p, &mut k1, &mut k2);
+                step(c, b, &mut p, &mut k1, &mut k2);
+                step(d, c, &mut p, &mut k1, &mut k2);
+                previous = d;
+                rest = tail;
             }
         }
-        for i in i..l.len() {
-            s = step(l, i, s);
+        for current in rest {
+            step(current, previous, &mut p, &mut k1, &mut k2);
+            previous = current;
         }
-        let (p, k1, mut k2) = s;
         let (b, h2) = p.carrying_mul(BASE, k2);
-        l[l.len() - 1] = b.to_le_bytes();
+        *previous = b.to_le_bytes();
         k2 = h2;
         // The first pass on `top`. If it pushes a limb, the second pass handles it too.
         let (t, h1) = self.top.carrying_mul(BASE, k1);

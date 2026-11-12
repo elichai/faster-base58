@@ -297,6 +297,7 @@ fn convert_with<'a>(
     let panels = x.len().div_ceil(PANEL_BYTES);
     let words = zeroed(&mut scratch.words, ROWS * panels);
     let (head, body) = x.as_rchunks::<WORD>();
+    // Keep the complete words separate: chaining the head inhibited vectorization.
     for (w, c) in words.iter_mut().zip(body.iter().rev()) {
         *w = u32::from_be_bytes(*c);
     }
@@ -305,6 +306,7 @@ fn convert_with<'a>(
     }
     let table = table::get(x.len());
     let cols = zeroed(&mut scratch.cols, table.cols(panels));
+    // Zip setup was measurable on small cached calls with LTO disabled.
     for (p, d) in words.as_chunks::<ROWS>().0.iter().enumerate() {
         let end = 4 * table.panels[p].nb;
         panel(&mut cols[..end], table.words(p), d);

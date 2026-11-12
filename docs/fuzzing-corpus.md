@@ -58,7 +58,9 @@ and the pinned corpus with ASan, without mutation, and exports LCOV, so the same
 replay checks correctness and measures coverage. The Malachite and bs58 oracles
 are built without coverage or debug instrumentation. In the
 [verification workflow](../.github/workflows/verification.yml), each
-`proptest_coverage` configuration runs the property suites and exports LCOV.
+`proptest_coverage` configuration runs the unit and property suites and exports LCOV.
+Direct unit tests exercise supported ISA kernels even when runtime dispatch
+selects a different kernel on the runner.
 They upload to Codecov under the shared `fuzz` or `tests` flag; see
 `codecov.yml`.
 

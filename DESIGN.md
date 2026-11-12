@@ -95,8 +95,11 @@ form `58 a + b` pairs and `58^2 p + q` groups with multiply-adds. The
 largest pair, 3363, fits a signed 16-bit lane. AVX2 maps each byte through two
 nibble-indexed class tables and one offset table, without a range compare per
 alphabet segment. Validation only sets a flag; the scalar scan still reports the
-first invalid byte. Batched decoding and Horner leaves keep their scalar
-ten-character chunk parse on every target.
+first invalid byte. The first-invalid-byte scan is a shared cold error handler.
+Batched decoding and Horner leaves keep their scalar ten-character chunk parse
+on every target. Divide-and-conquer decoding validates the whole input before
+allocation and arithmetic; its Horner leaves check that invariant only in debug
+builds.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
 local sums. Their table type keeps rows first and 16-byte aligned for NEON
@@ -275,8 +278,10 @@ Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
 24.75 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64,
 x86 and Wasm radix route uses two prime tables instead of three, pools its digit and
-prepared-spectrum scratch, and retains nothing under either cache policy. Measured
-4 MiB peaks are in the [performance guide](docs/performance.md#cache-and-memory).
+prepared-spectrum scratch, and retains nothing under either cache policy. The
+[performance guide](docs/performance.md#cache-and-memory) explains how to measure
+requested-layout peaks separately from timing; no current-source allocation
+cohort accompanies the native timing refresh.
 
 Precomputing every general cache table would embed roughly 26.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the
@@ -291,8 +296,9 @@ source size from a consumer. Auto links more code than conversion without `alloc
 a smaller general path. Fixed-only five8 has a narrower contract.
 
 The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to
-eight vector groups. It removes four large unrolled kernel bodies (about 93 KiB of
-code) and increases the chunk count for some operand shapes; the
-[performance guide](docs/performance.md#linked-size-and-compact) has the measured
-tradeoff. Format, API and the no-allocation contract are unchanged; wide12 remains
+eight vector groups. It removes four large unrolled kernel bodies
+and increases the chunk count for some operand shapes. The current
+[performance guide](docs/performance.md#linked-size-and-compact) measures the
+default twelve-width policy; compact needs a separate size/timing cohort. Format,
+API and the no-allocation contract are unchanged; wide12 remains
 the default. Other production architectures do not use these IFMA kernels.

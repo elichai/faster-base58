@@ -55,8 +55,11 @@ pub(crate) fn bits(x: &[u8]) -> u64 {
 
 /// Splits off the leading zero bytes, each of which encodes to a '1'.
 pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
-    let zeros = input.iter().take_while(|&&b| b == 0).count();
-    (zeros, &input[zeros..])
+    let mut digits = input;
+    while let [0, rest @ ..] = digits {
+        digits = rest;
+    }
+    (input.len() - digits.len(), digits)
 }
 
 /// The ten characters of a limb below [`BASE`], most significant first.
