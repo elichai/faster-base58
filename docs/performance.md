@@ -304,6 +304,25 @@ same flags, five processes; Zen 5 `--cpu 0`): cells that change route take
 keep their route, and all decode cells, stay within 0.978–1.014. Power-of-two sizes,
 which the README tables use, keep their route.
 
+### AVX2 route (provisional)
+
+Exploratory same-binary measurements on 2026-11-11 compared public Auto with the
+forced radix tree and an Auto A/A control, using `benches/radix_tune.rs` modified
+locally for those arms. A Zen 5 EPYC 9V74 VM was pinned to vCPU 2; AVX-512F,
+IFMA and VBMI dispatch were disabled in the test binary to exercise AVX2, while the
+CPU itself still supports those instructions. Rust 1.99.1 / LLVM 23.1.1, generic
+flags, `__internals`, default and `cache`, wall clock, 13 interleaved rounds with
+15 ms minimum blocks. One process was measured; some A/A ranges were wide.
+
+In the focused sweep at 32 and 64 KiB, the median per-round radix/Auto ratio was
+0.76–0.79 without
+`cache` and 0.81–0.82 with it. At 24 and 48 KiB, it took 0.99–1.03 and
+1.02–1.05 respectively. The provisional 7/8 utilization and 16 KiB rule is
+conservative on this VM, but has not been validated on an AVX2-only CPU or across
+multiple processes. These figures do not establish a performance guarantee;
+measure the public dispatch and retune or withdraw this rule on actual AVX2-only
+hardware before treating it as validated.
+
 ### Wasm
 
 Measured **2026-11-09** on the M5 Pro (AC power), Rust 1.99.1, Node 26.13.0 /

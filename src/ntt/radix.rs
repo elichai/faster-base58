@@ -76,8 +76,7 @@ pub(super) fn try_encode_staged(
     Some(digits.and_then(|digits| write(zeros, &digits, output)))
 }
 
-/// Whether this CPU runs the route. x86 needs the AVX-512 transforms; AVX2-only hosts
-/// keep the division tree because no such host has been measured.
+/// Whether this CPU runs the route. On x86 it requires AVX2 or AVX-512F.
 #[cfg(any(
     test,
     all(
@@ -90,7 +89,9 @@ pub(super) fn try_encode_staged(
 ))]
 fn supported() -> bool {
     core::cfg_select! {
-        all(target_arch = "x86_64", target_feature = "sse2") => crate::cpu::avx512f(),
+        all(target_arch = "x86_64", target_feature = "sse2") => {
+            crate::cpu::avx512f() || crate::cpu::avx2()
+        },
         _ => true,
     }
 }
@@ -106,10 +107,19 @@ fn supported() -> bool {
     target_arch = "wasm32"
 ))]
 fn preferred(bytes: usize) -> bool {
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    if !crate::cpu::avx512f() {
+        return preferred_with(bytes, 16 << 10, 14);
+    }
+    preferred_with(bytes, MIN_BYTES, MIN_USED)
+}
+
+/// Select an input by its minimum size and root-transform utilization in sixteenths.
+fn preferred_with(bytes: usize, min_bytes: usize, min_used: usize) -> bool {
     let Some((_, _, points)) = layout(bytes) else {
         return false;
     };
-    bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 16 >= points * MIN_USED
+    bytes > min_bytes && crate::encode::max_encoded_len(bytes).div_ceil(3) * 16 >= points * min_used
 }
 
 /// The used fraction of the root transform that the route needs, in sixteenths. Full
@@ -714,13 +724,51 @@ mod tests {
             let (_, _, points) = layout(bytes).unwrap();
             let digits = crate::encode::max_encoded_len(bytes).div_ceil(3);
             assert_eq!(digits * 16 / points, used, "{bytes} bytes");
-            let selected = supported() && bytes > MIN_BYTES && used >= MIN_USED;
+            #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+            let (minimum, utilization) = if !crate::cpu::avx512f() {
+                (16 << 10, 14)
+            } else {
+                (MIN_BYTES, MIN_USED)
+            };
+            #[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
+            let (minimum, utilization) = (MIN_BYTES, MIN_USED);
+            let selected = supported() && bytes > minimum && used >= utilization;
             assert_eq!(
                 try_encode(0, &vec![255; bytes], &mut []),
                 selected.then_some(Err(BufferTooSmall)),
                 "{bytes} bytes"
             );
         }
+    }
+
+    #[test]
+    fn avx2_policy_avoids_padding_and_small_inputs() {
+        let policy = |bytes| preferred_with(bytes, 16 << 10, 14);
+        assert!(!policy(16 << 10));
+        assert!(policy(32 << 10));
+        assert!(!policy((17 << 10) + 1));
+        assert!(!policy((34 << 10) + 1));
+        assert!(!policy(24 << 10));
+        assert!(!policy(31_490));
+        assert!(policy(31_491));
+        assert!(policy(64 << 10));
+        assert!(!policy(usize::MAX));
+    }
+
+    #[test]
+    fn selected_radix_matches_division_tree() {
+        if !supported() || !preferred(32 << 10) {
+            return;
+        }
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(0x5802);
+        let mut input = vec![0u8; 32 << 10];
+        rng.fill_bytes(&mut input);
+        input[0] |= 1;
+        let mut want = vec![0; crate::encode::max_encoded_len(input.len())];
+        let n = super::super::internals::owned::encode_ntt(&input, &mut want).unwrap();
+        let mut actual = vec![0; want.len()];
+        assert_eq!(try_encode(0, &input, &mut actual), Some(Ok(n)));
+        assert_eq!(&actual[..n], &want[..n]);
     }
 
     #[test]
