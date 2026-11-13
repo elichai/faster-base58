@@ -4,7 +4,6 @@
 import argparse
 import hashlib
 import json
-import re
 import shutil
 import stat
 import tempfile
@@ -14,7 +13,6 @@ TARGETS = ("encode_all", "decode_all", "encode_full_width", "encode_radix_full_w
 MAX_BYTES = 89_502
 MAX_ITEMS = 50_000
 MAX_TOTAL_BYTES = 512 * 1024 * 1024
-SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def digest(data):

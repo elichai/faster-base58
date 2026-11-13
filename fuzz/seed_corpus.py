@@ -17,9 +17,8 @@ LENGTHS = [
     32767, 32768, 32769, ENCODE_MAX_BYTES - 2, ENCODE_MAX_BYTES - 1, ENCODE_MAX_BYTES,
 ]
 DECODE_CARRY_LENGTHS = [
-    # Keep seeds from the earlier campaign, including its old 89,493-byte cap.
     44_760, 44_761, 89_492, 89_493,
-    # All-z inputs cross 8192 u64 limbs at 89,500 characters, then reach the new cap.
+    # All-z inputs cross 8192 u64 limbs at 89,500 characters, through the input cap.
     89_499, 89_500, DECODE_MAX_BYTES - 1, DECODE_MAX_BYTES,
 ]
 UNICODE_LENGTHS = [23, 64, 769, 8193]
@@ -147,7 +146,7 @@ def main():
                 write_seed("decode_all", name, data)
                 if length <= SMALL_MAX_BYTES:
                     write_seed("decode_small", name, data)
-    # The old first-byte selector could never choose a malformed position >255.
+    # Exercise malformed positions above 255.
     late = bytearray(1024)
     late[1021] = 1
     for target in ["encode_all", "decode_all", "encode_small", "decode_small"]:

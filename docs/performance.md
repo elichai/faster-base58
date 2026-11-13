@@ -31,12 +31,9 @@ empty consumer. LTO is selected with `CARGO_PROFILE_RELEASE_LTO=fat` or `off`;
 the generated metadata's profile text alone says fat and does not record this
 effective environment override.
 
-GCP work uses `/mnt/bench/pr67-stack-gcp-20261112`, waits for the shared VM lock,
-and pins timing to vCPU 1. GCP timing was launched first; M5 timing followed the
-user's later local authorization. M5 starts and finishes each warm/cold cohort on
-AC with no reported thermal warning. Our timing phases contain no builds/tests.
-The retained launch scripts use the shared lock; the primary archive alone is
-not an independent attestation that no unrelated VM work occurred.
+GCP timing uses a shared VM lock and vCPU 1. M5 starts and finishes each warm/cold
+cohort on AC with no reported thermal warning. Timing phases contain no builds or
+tests. Background VM load was not independently measured.
 
 ### Warm measurement contract
 
@@ -258,14 +255,14 @@ and 3 copies. Each fresh copy visits every loader rank in that supplement.
 
 | Bytes / operation | Primary stack | Primary control | 7-process stack | 7-process control | Full-rotation stack | Full-rotation control |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 512 / encode | 0.981 [0.962, 0.987] | 1.001 [0.970, 1.016] | 0.984 [0.980, 0.990] | 1.000 [0.995, 1.013] | — | — |
-| 512 / decode | 1.027 [1.022, 1.029] | 1.002 [0.996, 1.004] | 1.016 [1.011, 1.020] | 0.999 [0.997, 1.004] | — | — |
-| 1,024 / encode | 1.004 [1.001, 1.007] | 1.000 [0.991, 1.002] | 1.002 [0.999, 1.010] | 0.999 [0.996, 1.006] | — | — |
-| 1,024 / decode | 0.999 [0.996, 1.003] | 1.000 [0.994, 1.005] | 0.997 [0.995, 1.005] | 1.003 [0.996, 1.006] | — | — |
-| 2,048 / encode | 1.001 [0.995, 1.029] | 1.002 [0.994, 1.029] | 1.001 [0.993, 1.006] | 0.998 [0.995, 1.005] | — | — |
-| 2,048 / decode | 0.991 [0.940, 1.010] | 0.991 [0.978, 1.009] | 0.999 [0.997, 1.005] | 1.000 [0.996, 1.006] | — | — |
-| 32,768 / encode | 1.005 [0.996, 1.008] | 0.999 [0.991, 1.002] | 1.003 [1.001, 1.006] | 1.000 [0.999, 1.002] | — | — |
-| 32,768 / decode | 1.009 [1.006, 1.015] | 0.999 [0.997, 1.006] | 1.008 [1.007, 1.011] | 1.000 [0.999, 1.001] | — | — |
+| 512 / encode | 0.981 [0.962, 0.987] | 1.001 [0.970, 1.016] | 0.984 [0.980, 0.990] | 1.000 [0.995, 1.013] | - | - |
+| 512 / decode | 1.027 [1.022, 1.029] | 1.002 [0.996, 1.004] | 1.016 [1.011, 1.020] | 0.999 [0.997, 1.004] | - | - |
+| 1,024 / encode | 1.004 [1.001, 1.007] | 1.000 [0.991, 1.002] | 1.002 [0.999, 1.010] | 0.999 [0.996, 1.006] | - | - |
+| 1,024 / decode | 0.999 [0.996, 1.003] | 1.000 [0.994, 1.005] | 0.997 [0.995, 1.005] | 1.003 [0.996, 1.006] | - | - |
+| 2,048 / encode | 1.001 [0.995, 1.029] | 1.002 [0.994, 1.029] | 1.001 [0.993, 1.006] | 0.998 [0.995, 1.005] | - | - |
+| 2,048 / decode | 0.991 [0.940, 1.010] | 0.991 [0.978, 1.009] | 0.999 [0.997, 1.005] | 1.000 [0.996, 1.006] | - | - |
+| 32,768 / encode | 1.005 [0.996, 1.008] | 0.999 [0.991, 1.002] | 1.003 [1.001, 1.006] | 1.000 [0.999, 1.002] | - | - |
+| 32,768 / decode | 1.009 [1.006, 1.015] | 0.999 [0.997, 1.006] | 1.008 [1.007, 1.011] | 1.000 [0.999, 1.001] | - | - |
 
 #### gcp / off / default
 

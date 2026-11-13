@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the README figures and tables from measurement CSVs; never run benchmarks.
+"""Render public latency figures and tables from measurement CSVs; never run benchmarks.
 
 --data takes scripts/public_bench.py CSVs. --sizes takes PLATFORM[+cache]=sizes.csv
 from scripts/code_size.py cohorts that include the empty probe. Requires the pinned
