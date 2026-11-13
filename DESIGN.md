@@ -241,10 +241,14 @@ share one arena, which would save little peak memory.
 Skipped prepared powers do not grow metadata, but still clear an existing slot.
 Karatsuba scratch is `5*n + 64` limbs. Within the transform domain, NTT scratch
 uses the nondecreasing workspace envelope of every plan through a product of
-`2*n` limbs, plus 128 spare limbs and clipped at `12*n + 128`. It lies between
-`8*n + 128` and `12*n + 128`; larger inputs keep the linear bound. The envelope
+`2*n` limbs, plus 128 spare limbs and clipped at `12*n + 128`. The envelope
 retains the previous one-piece maximum when a two-piece plan needs less space.
-It is never below Karatsuba and preserves the DC, block and split inequalities.
+After preparation it is also capped using the maximum supported transform length:
+direct products fit the envelope at that limit, while larger products split and
+use a temporary plus the ordinary envelope of their half-sized children. A cacheable
+request uses the largest cacheable log for this bound: another thread may install a
+larger table before the first product. Both
+bounds cover Karatsuba and preserve the DC, block and split inequalities.
 These are operand bounds in `u64` limbs, not total conversion memory.
 
 The two-prime radix encoder batches spectra and child workspace in one `i32`

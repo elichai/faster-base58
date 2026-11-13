@@ -139,9 +139,9 @@ all consumers of that crate instance. Dropping an owned input can still call its
 allocator; borrow inputs when counting all allocator operations.
 
 Auto trades workspace for large-input speed. At 4 MiB on the M5 Pro, default
-encoding peaks at about 66 MiB of extra requested heap in 7 allocations and
-decoding at about 54 MiB in 18, excluding caller buffers (2026-11-05; [allocation
-details](docs/performance.md#cache-and-memory)).
+encoding peaks at about 66 MiB of extra requested heap and decoding at about
+51 MiB, excluding caller buffers. They issue 7 and 18 allocation/reallocation
+requests, respectively (2026-11-12; [allocation details](docs/performance.md#cache-and-memory)).
 
 ## Optional caching
 
@@ -168,77 +168,85 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Performance
 
-Measured **2026-11-12**: the complete #53 → #55 → #57 → #59 → #67 stack,
-[`3fcfbaff62f3`](https://github.com/elichai/faster-base58/commit/3fcfbaff62f3257ddc6de357f4856cf6225eabf8),
-against main [`65ea1581aae4`](https://github.com/elichai/faster-base58/commit/65ea1581aae4d5da128abd70dcac3ead50cb7f65).
-These are whole-stack results; they do not isolate #67's contribution.
+Measured **2026-11-12–2026-11-13** (host-local dates): PR #68 with the prepared NTT scratch bound,
+[`75144d578689`](https://github.com/elichai/faster-base58/commit/75144d578689c4ff699c8096fa39e9b0ee294c9e),
+against frozen main [`9127267513c5`](https://github.com/elichai/faster-base58/commit/9127267513c55bdb7300b6618fa053fbc56ead89).
+The baseline includes the changes already merged into main; the source difference
+is this PR. The PR is rebased onto
+[`d6da5c29d170`](https://github.com/elichai/faster-base58/commit/d6da5c29d170a84cbcff2c2e3c7480825eefb9d9);
+public-build inputs on both sides are byte-identical to the frozen pair
+([source verification](docs/performance.md#current-native-results)).
 
 Ordinary public Auto with caller buffers, generic CPU flags, release opt-level 3,
-16 codegen units, default/cache and fat/off LTO. Tables give **stack warm
-encode / decode medians with fat LTO**. Figures show paired stack/main ratios;
+16 codegen units, default/cache and fat/off LTO. Tables give **PR68 warm
+encode / decode medians with fat LTO**. Figures show paired PR68/main ratios;
 below 1 is faster. Bars span observed process ratios, not confidence intervals.
 The [performance guide](docs/performance.md#current-native-results) gives both
 LTO settings, all 27 sizes, first calls, linked sizes, controls and limitations.
+The separate [heap measurements](docs/performance.md#cache-and-memory) use
+instrumented internal workers.
 
-The large encoder slowdown is absent from this matrix. Results are mixed:
-M5 cached 512-byte decode is 2.7% slower in the primary fat-LTO run and 1.6%
-slower in a focused repeat. GCP no-LTO 32-byte encode shifts in both stack and
-identical-main controls, then returns to about 1.000× in a fully rotated repeat.
-This is not evidence that every changed path is neutral or faster.
+M5 fat-LTO 1 MiB/4 MiB median ratios span **0.994–1.009×** across encode/decode and default/cache; duplicate-main control medians span **0.998–1.004×**.
+GCP fat-LTO 1 MiB/4 MiB median ratios span **0.980–1.001×** across encode/decode and default/cache; duplicate-main control medians span **0.981–1.000×**.
+
+Small-input slowdowns remain: M5 no-LTO/cache 512-byte encode is **1.046 [1.043, 1.048]×**, with identical-main control **1.000 [0.999, 1.005]×**. GCP no-LTO/cache 32-byte encode shifts in both PR68 and control (median **1.036× / 1.034×**). The process ranges and build/order limitations matter for these small effects.
+These results do not establish a universal latency improvement.
 
 ### Apple M5 Pro
 
 | Payload | Default encode / decode | Cache encode / decode |
 | --- | ---: | ---: |
-| 32 B | 11.8 ns / 13.7 ns | 11.9 ns / 13.6 ns |
-| 64 B | 24.1 ns / 26 ns | 23.9 ns / 25.8 ns |
-| 512 B | 1.83 µs / 519 ns | 582 ns / 505 ns |
-| 4 KiB | 73.9 µs / 26.1 µs | 29.1 µs / 24.6 µs |
-| 1 MiB | 43.6 ms / 25.8 ms | 43.5 ms / 25.3 ms |
-| 4 MiB | 206 ms / 126 ms | 206 ms / 126 ms |
+| 32 B | 11.9 ns / 13.8 ns | 12 ns / 13.6 ns |
+| 64 B | 24.2 ns / 25.9 ns | 24 ns / 26 ns |
+| 512 B | 1.83 µs / 520 ns | 577 ns / 502 ns |
+| 4 KiB | 73.6 µs / 25.9 µs | 29.3 µs / 24.8 µs |
+| 1 MiB | 43.9 ms / 26.2 ms | 43.7 ms / 25.3 ms |
+| 4 MiB | 215 ms / 133 ms | 207 ms / 126 ms |
 
-![Current whole-stack paired latency ratios on Apple M5 Pro](assets/graphs/m5-public.svg)
+![Current PR68 paired latency ratios on Apple M5 Pro](assets/graphs/m5-public.svg)
 
 ### AMD EPYC 9B45 (GCP)
 
 | Payload | Default encode / decode | Cache encode / decode |
 | --- | ---: | ---: |
-| 32 B | 30.1 ns / 24.4 ns | 30 ns / 23.2 ns |
-| 64 B | 31.1 ns / 44.8 ns | 31.5 ns / 45.1 ns |
-| 512 B | 3.18 µs / 854 ns | 1.08 µs / 857 ns |
-| 4 KiB | 47.5 µs / 15.7 µs | 39.6 µs / 15.8 µs |
-| 1 MiB | 47.5 ms / 24 ms | 47.6 ms / 22.6 ms |
-| 4 MiB | 221 ms / 120 ms | 220 ms / 116 ms |
+| 32 B | 30 ns / 24.3 ns | 30 ns / 23 ns |
+| 64 B | 31 ns / 44.7 ns | 31.4 ns / 45 ns |
+| 512 B | 3.19 µs / 848 ns | 1.08 µs / 856 ns |
+| 4 KiB | 47.3 µs / 15.5 µs | 40 µs / 15.8 µs |
+| 1 MiB | 47.2 ms / 23.9 ms | 47.9 ms / 22.7 ms |
+| 4 MiB | 220 ms / 118 ms | 222 ms / 117 ms |
 
-![Current whole-stack paired latency ratios on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
+![Current PR68 paired latency ratios on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
 
 ### WebAssembly
 
-Current-stack Wasm timings and linked sizes have not been measured. The figure
+Current-source Wasm timings and linked sizes have not been measured. The figure
 marks that gap. No-allocation, comparator, Base58Check, owned-output, native-CPU
-and counted-allocation performance are outside this native cohort.
+and counted-allocation performance are outside this native timing cohort.
 
 ![Wasm performance awaits current-source measurements](assets/graphs/wasm-public.svg)
 
 ## Linked size
 
 The **same native timing artifacts**, with both directions reachable, link the
-following bytes above a matching empty consumer. Δ compares stack with main.
+following bytes above a matching empty consumer. Δ compares PR68 with main.
 Code and readonly data are separate cdylib section differences. They are not
 crate-only instruction counts. File layout, BSS, stack and heap are separate costs.
 The [complete size table](docs/performance.md#linked-size-and-compact) includes
 initialized data, signed BSS and stripped-file differences.
+Code grows by 832–2,016 bytes across this matrix. The largest stripped-file
+increase is 16,528 bytes (M5 / off / cache); section growth and file growth differ.
 
-| Host / LTO / policy | Stack code B | Stack readonly B | Code Δ B | Readonly Δ B |
+| Host / LTO / policy | PR68 code B | PR68 readonly B | Code Δ B | Readonly Δ B |
 | --- |  ---: | ---: | ---: | ---: |
-| m5 / fat / default | 67,760 | 24,950 | -1,664 | -961 |
-| m5 / fat / cache | 76,232 | 27,768 | -1,600 | -985 |
-| m5 / off / default | 80,728 | 50,006 | +0 | -569 |
-| m5 / off / cache | 84,760 | 58,019 | +0 | -465 |
-| gcp / fat / default | 308,157 | 38,444 | -1,120 | -536 |
-| gcp / fat / cache | 303,789 | 39,280 | -1,056 | -584 |
-| gcp / off / default | 332,787 | 75,964 | -8,848 | -696 |
-| gcp / off / cache | 324,707 | 72,072 | -8,240 | -296 |
+| m5 / fat / default | 68,592 | 25,552 | +832 | +80 |
+| m5 / fat / cache | 77,000 | 28,449 | +832 | +80 |
+| m5 / off / default | 81,752 | 50,698 | +1,024 | +104 |
+| m5 / off / cache | 85,784 | 58,732 | +1,024 | +104 |
+| gcp / fat / default | 310,109 | 38,216 | +1,952 | +60 |
+| gcp / fat / cache | 305,805 | 39,036 | +2,016 | +76 |
+| gcp / off / default | 333,971 | 75,820 | +1,184 | +112 |
+| gcp / off / cache | 325,859 | 71,608 | +1,152 | -208 |
 
 ## Development and license
 
