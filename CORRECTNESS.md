@@ -235,9 +235,13 @@ the argument is recorded beside `divide`. Wrapped multiplication remains tested
 even where a public conversion uses the prepared-power variant instead.
 
 Campaign callback counts include initial corpus processing and possible repeats;
-they are not distinct mutations or seed-file counts. Full-width stages require
+they are not distinct mutations or seed-file counts. Full-width stages and all
+nightly corpus targets require
 a positive post-initialization mutation-attempt count from libFuzzer's corpus
 statistics. Keep bounded mutation campaigns separate from large boundary replay.
+Nightly corpus campaigns use all deterministic seeds and at most 16 stored inputs
+per target, selected reproducibly by run ID. The complete stored corpus remains
+in the coverage replay, merge and candidate replay checks.
 
 The shared corpus on the `fuzz-corpus` branch is minimized by libFuzzer merge
 in each of the four generic-CPU replay builds without ASan, then combined

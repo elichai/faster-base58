@@ -116,7 +116,7 @@ def sample(incoming, corpus, *, limit, seed):
     for target in TARGETS:
         (corpus / target).mkdir()
     for directory in _target_directories(incoming):
-        # Hash ranking rotates the selection reproducibly with the run ID.
+        # Hash ranking makes selection reproducible and rotates it with the run ID.
         inputs = sorted(directory.iterdir(), key=lambda path:
                         digest(f"{seed}/{directory.name}/{path.name}".encode()))
         for path in inputs[:limit]:

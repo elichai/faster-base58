@@ -14,8 +14,17 @@ matrix. Profile data is never merged across those configurations.
 
 The branch holds a coverage-selected corpus, not every input that a campaign
 found. Nightly fuzzing writes artifacts only; its campaigns check debug
-assertions and overflow, and the cache rows add libFuzzer's value profile. Each
-of the four `minimize` builds validates names, file type, size and SHA-256, forms
+assertions and overflow, and the cache rows add libFuzzer's value profile.
+Campaigns start from all deterministic seeds plus at most 16 stored inputs per
+target. Selection ranks SHA-256 hashes of the run ID, target and content digest,
+so it is reproducible and varies with the run ID. Loading the entire store
+can exhaust the nightly job timeout before mutation: libFuzzer checks
+`max_total_time` only after initial corpus loading. Every campaign must report
+actual post-initialization mutations. Counts appear in the Actions log.
+Nightly builds use the same oracle wrapper as coverage replay to avoid
+instrumenting the reference oracles; ASan remains enabled.
+
+Each of the four `minimize` builds validates names, file type, size and SHA-256, forms
 the union of the campaign artifacts that are not stored yet, and runs
 libFuzzer's `-merge=1` with the seeds and the stored corpus as the initial
 corpus, which the merge keeps whole. A new input stays when it adds a coverage
@@ -27,12 +36,6 @@ candidate is the union of the four results. `candidate_smoke` replays all of it
 with ASan in the three `fuzz_coverage` configurations: x86-64 with cache off and
 on, and AArch64 with cache. SIMD paths are chosen at run time, and the code that
 differs without cache does not depend on the architecture.
-
-Nightly initialization uses the deterministic seeds plus at most 16 stored inputs
-per target. SHA-256 ranking keyed by the run ID rotates that sample reproducibly.
-The full pinned corpus stays in coverage, merge and candidate replay; it is never
-replaced by the sample. A lane must report post-initialization mutation attempts,
-because libFuzzer does not enforce its time budget while loading the corpus.
 
 CI never drops a stored input. Coverage depends on the CPU that runs the build:
 runtime dispatch selects AVX-512, IFMA or NEON kernels and thresholds, and a

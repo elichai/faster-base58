@@ -223,8 +223,9 @@ jobs:
           --field run_id=${{ github.run_id }} --field arch=${{ matrix.arch }} --field target_cpu=${{ matrix.cpu }}
           --field features=${{ matrix.label }} --field sanitizer=address --field debug_assertions=true --field value_profile=${{ matrix.profile != '' }} --field seed="$FUZZ_SEED"
           --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=${{ env.RUST_NIGHTLY }}
-          --field cargo_fuzz=${{ env.CARGO_FUZZ_VERSION }} --field rustflags="$RUSTFLAGS" --field exit=0
           --field stored_seed_limit=16 --field stored_seed_selection=sha256-rank-v1
+          --field oracle_instrumentation=false
+          --field cargo_fuzz=${{ env.CARGO_FUZZ_VERSION }} --field rustflags="$RUSTFLAGS" --field exit=0
           --field check=true --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width,check_all,decode_full_width --digest dictionary=fuzz/base58.dict
       - run: mv fuzz/campaign fuzz/publish/campaign
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
