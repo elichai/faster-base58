@@ -79,7 +79,7 @@ refuse optimized mode.
 
 | Limit | Effect |
 | --- | --- |
-| AVX-512 kernel tests (`mul_ifma::tests::avx512_matches_reference` needs AVX-512F and IFMA; `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F) | Compile only for x86-64. Print `skipped:` and pass on CPUs without the feature. `BASE58_REQUIRE_IFMA=1` changes the skip into a failure. No CI job sets the variable, and GitHub-hosted x86-64 runners do not guarantee AVX-512, so a CI pass does not show that the kernels ran. |
+| AVX-512 kernel tests (`mul_ifma::tests::avx512_matches_reference` needs AVX-512F and IFMA; `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F) | Compile only for x86-64. Print `skipped:` and pass on CPUs without the feature. `BASE58_REQUIRE_IFMA=1` changes the skip into a failure. No native-execution CI job sets the variable, and GitHub-hosted x86-64 runners do not guarantee AVX-512, so a CI pass does not show that the kernels ran. |
 | AVX2 and VBMI kernel tests | Print `no AVX2 on this CPU` or `no AVX-512 VBMI on this CPU` and pass without the feature. On Apple silicon, Rosetta 2 reports no AVX or AVX2 to x86-64 processes, so these kernels do not run under Rosetta. |
 | NEON kernels | Run natively only on arm64 hosts. x86-64 runs do not establish NEON coverage. The Miri jobs interpret selected NEON paths. |
 | `compact` | Changes only the x86-64 IFMA kernels. |
@@ -279,8 +279,13 @@ code or update the list in the same commit. On x86-64 or arm64 Linux, with
 python3 scripts/check_simd_inlining.py --build target/measurements/simd
 ```
 
-[CORRECTNESS.md](CORRECTNESS.md#tests-and-independent-references) gives the
-container command for Apple silicon Macs. `check_simd_inlining.py CONFIG=LIBRARY`
+On Apple silicon Macs, use an arm64 Linux container that cross-compiles x86-64:
+
+```sh
+docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
+```
+
+`check_simd_inlining.py CONFIG=LIBRARY`
 checks libraries built elsewhere (`--nm` selects the `nm`).
 `check_simd_inlining.py --list LIBRARY` prints the out-of-line crate functions with
 their sizes, and `--compare OLD NEW` lists what a change inlined, outlined or
@@ -318,7 +323,7 @@ cargo +"$nightly" miri setup --target x86_64-unknown-linux-gnu
 cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --features __internals --test miri
 cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --test tiny_inputs
 cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
-cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --lib matrix::x86::tests::kernels_match_portable -- --exact
+cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --lib -- matrix::x86::tests::kernels_match_portable matrix::x86::tests::parse_matches_portable --exact
 MIRIFLAGS='-Zmiri-strict-provenance -Zmiri-tree-borrows -Zmiri-seed=1' cargo +"$nightly" miri test --target x86_64-unknown-linux-gnu --locked --lib miri_tests::
 ```
 
@@ -538,7 +543,7 @@ the campaigns and leave the stored inputs out of `MINIMIZED`, in every build tha
 | Workflow | Job | Trigger | Platforms | What it does |
 | --- | --- | --- | --- | --- |
 | [cache-cargo-sources.yml](.github/workflows/cache-cargo-sources.yml) | `warm` | Push to `main` | x86-64 and arm64 Linux | Fetches the sources of all three lockfiles and saves them in the Actions cache |
-| [miri-nextest-benchmark.yml](.github/workflows/miri-nextest-benchmark.yml) | `stock_miri` | Dispatch | x86-64 Linux | Times the `miri_supported` selection under `cargo miri test` and Nextest with two and four workers |
+| [miri-nextest-benchmark.yml](.github/workflows/miri-nextest-benchmark.yml) | `stock_miri` | Dispatch | x86-64 Linux | Times selected stock-Miri groups under `cargo miri test` and Nextest with two and four workers |
 | [release-plz.yml](.github/workflows/release-plz.yml) | `release-plz-pr` | Push to `main`; dispatch | x86-64 Linux | Opens or updates the release pull request with `release-plz release-pr` |
 
 Other jobs restore the source cache with the
@@ -552,8 +557,8 @@ cargo fetch --locked --manifest-path fuzz/Cargo.toml
 cargo fetch --locked --manifest-path tools/resource-profile/Cargo.toml
 ```
 
-For the Nextest comparison, run the `miri_supported` commands with
-`nextest run -j2` or `nextest run -j4` in place of `test`. The
+The Nextest benchmark uses the stock-Miri groups selected in its workflow,
+with `nextest run -j2` and `nextest run -j4` in place of `test`. The
 [development Miri guide](ci/miri/README.md#nextest-comparison) explains how to
 read the result.
 
@@ -572,7 +577,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools`, `simd_inlining` |
 | [`scripts/code_size_wasm.mjs`](scripts/code_size_wasm.mjs) | Checks the Wasm probe ABI: allocator, pointers, UTF-8 and outputs | Wasm module paths | `portability` |
 | [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted `empty`, `auto` and `no-alloc` Wasm modules: allocator counts and ABI | `--self-test DIR` only | `portability` |
-| [`scripts/public_bench.py`](scripts/public_bench.py) | Times `code_size.py` probes and writes the README timing CSV; `--baseline` prints paired ratios | `--wasm` | `portability` (refusal check), `measurement_tools` (compile) |
+| [`scripts/public_bench.py`](scripts/public_bench.py) | Times `code_size.py` probes and writes a public timing CSV; `--baseline` prints paired ratios | `--wasm`, `--self-test` | `portability` (refusal check), `measurement_tools` (self-test) |
 | [`scripts/public_bench_wasm.mjs`](scripts/public_bench_wasm.mjs) | Wasm worker of `public_bench.py`; refuses counted modules | Started by `public_bench.py --wasm` | `measurement_tools` (syntax) |
 | [`scripts/resource_report.py`](scripts/resource_report.py) | Builds and runs the internal heap and CPU workers of `tools/resource-profile` | `build`, `run`, `fingerprint`, `self-test` | `measurement_tools` |
 | [`scripts/run_native_sanitizer.py`](scripts/run_native_sanitizer.py) | MemorySanitizer and ThreadSanitizer driver | `--self-test` | `native_sanitizers` |
@@ -583,21 +588,21 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/kani-production.sh`](scripts/kani-production.sh) | Required tiny-path and alphabet harnesses | Extra `cargo kani` arguments | `proofs` |
 | [`scripts/kani-open.sh`](scripts/kani-open.sh) | Open obligations; exits nonzero | None | `proofs_open` |
 | [`scripts/kani-z3-polynomial.sh`](scripts/kani-z3-polynomial.sh) | Z3 wrapper with rewriter options for the polynomial lemmas | Called by CBMC | `proofs` |
-| [`scripts/process_supervisor.py`](scripts/process_supervisor.py) | Process-group ownership and signal handling for the drivers | Imported only | — |
-| [`scripts/test_process_supervisor.py`](scripts/test_process_supervisor.py) | Tests `process_supervisor.py` with real child processes | — | `lint` |
-| [`scripts/test_kani_guard.py`](scripts/test_kani_guard.py) | Tests `kani_guard.py` with a fake Z3 | — | `lint` |
-| [`scripts/test_custom_miri.py`](scripts/test_custom_miri.py) | Tests the coverage guards of `run_custom_miri.py`; runs no Rust | — | `lint` |
+| [`scripts/process_supervisor.py`](scripts/process_supervisor.py) | Process-group ownership and signal handling for the drivers | Imported only | - |
+| [`scripts/test_process_supervisor.py`](scripts/test_process_supervisor.py) | Tests `process_supervisor.py` with real child processes | - | `lint` |
+| [`scripts/test_kani_guard.py`](scripts/test_kani_guard.py) | Tests `kani_guard.py` with a fake Z3 | - | `lint` |
+| [`scripts/test_custom_miri.py`](scripts/test_custom_miri.py) | Tests the coverage guards of `run_custom_miri.py`; runs no Rust | - | `lint` |
 | [`assets/graphs/render.py`](assets/graphs/render.py) | Checks local links in the maintained guides, the README figure references and SVG syntax; checks no numbers | `--check` (required) | `measurement_tools` |
-| [`assets/graphs/render_current.py`](assets/graphs/render_current.py) | Renders the README figures and tables from measurement CSVs into a new directory; needs Matplotlib | `--data`, `--sizes`, `--output` | — |
-| [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | — |
-| [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | — | `measurement_tools` |
+| [`assets/graphs/render_current.py`](assets/graphs/render_current.py) | Renders public latency figures and tables from measurement CSVs into a new directory; needs Matplotlib | `--data`, `--sizes`, `--output` | - |
+| [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | - |
+| [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | - | `measurement_tools` |
 | [`fuzz/seed_corpus.py`](fuzz/seed_corpus.py) | Writes the deterministic seeds; fails if an existing seed differs | `--output DIR` (default `fuzz/corpus`) | Fuzz jobs |
 | [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates, samples, adds inputs, or replaces a corpus with a union | `validate CORPUS`, `sample INCOMING CORPUS --limit N --seed SEED`, `stage INCOMING CORPUS`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
 | [`fuzz/provenance.py`](fuzz/provenance.py) | Writes the JSON provenance of one campaign | `--output`, `--field KEY=VALUE`, `--digest KEY=PATH` | `nightly` |
 | [`fuzz/check_mutations.py`](fuzz/check_mutations.py) | Requires a nonzero mutation-attempt count in a libFuzzer log | `--self-test`; `LOG --seconds N` | `fuzz`, `nightly` |
 | [`fuzz/oracle_rustc.py`](fuzz/oracle_rustc.py) | `RUSTC_WRAPPER` that builds the Malachite and bs58 oracles without coverage, sanitizer-coverage or debug checks | Called by Cargo | `fuzz_coverage`, `nightly` |
-| `fuzz/test_*.py` | Tests the seed generator, the corpus store, the provenance writer and the oracle wrapper | — | `fuzz`, `fuzz_coverage` |
-| [`tools/code-size/`](tools/code-size/README.md) | Probe sources that `code_size.py` copies into a standalone package | — | Through `code_size.py` |
+| `fuzz/test_*.py` | Tests the seed generator, the corpus store, the provenance writer and the oracle wrapper | - | `fuzz`, `fuzz_coverage` |
+| [`tools/code-size/`](tools/code-size/README.md) | Probe sources that `code_size.py` copies into a standalone package | - | Through `code_size.py` |
 | [`tools/resource-profile/`](tools/resource-profile/Cargo.toml) | Worker of `resource_report.py`; features `count-allocations`, `cache`, `compact` | `self-check` | `measurement_tools` |
 | [`ci/miri/`](ci/miri/README.md) | Pins (`pins.json`), exact selection (`coverage.json`) and patch (`shims.patch`) of the development Miri | Read by the custom-Miri scripts | `miri_custom` |
 
@@ -627,7 +632,7 @@ python3 -B -m unittest discover -s assets/graphs -p test_render.py
 python3 -B assets/graphs/render.py --check
 python3 -B -m unittest discover -s fuzz -p 'test_*.py'
 python3 -B fuzz/check_mutations.py --self-test
-python3 -B -m py_compile scripts/public_bench.py
+python3 -B scripts/public_bench.py --self-test
 node --check scripts/public_bench_wasm.mjs
 node --check scripts/code_size_wasm.mjs
 node --check scripts/wasm_allocations.mjs

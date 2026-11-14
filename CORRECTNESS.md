@@ -1,12 +1,9 @@
 # Correctness and verification
 
-Verification combines independent conversion oracles, property tests, arithmetic
-tests, native sanitizers, Miri and scoped Kani proofs. Each checks different
-properties. Passing these checks does not prove arbitrary-length conversion or
-the semantics of every SIMD instruction. The implementation map is in
-[DESIGN.md](DESIGN.md); repeatable jobs are in
-[the workflow](.github/workflows/verification.yml), and [CI.md](CI.md) gives
-their local commands.
+The checks use independent conversion oracles, property tests, native sanitizers,
+Miri and Kani. They do not prove arbitrary-length conversion or every SIMD
+instruction. See [DESIGN.md](DESIGN.md) for the implementation and [CI.md](CI.md)
+for CI jobs and local commands.
 
 ## Recorded check scope
 
@@ -111,27 +108,14 @@ partial-word store at every length from 0 to 8 bytes, with guard bytes.
 The `tests` coverage flag includes unit and property suites. Direct unit tests
 cover supported ISA kernels that runtime dispatch may bypass on a given runner.
 
-CI selects 512 cases per property in debug and release, cache off/on, on x86-64
-and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian
-PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
-including unit, integration and documentation tests, with 128 cases per property.
-In the `tests` job, the x86-64 Linux debug rows (cache off and on) run the unit,
-API and property suite with `cargo test`, so the tests of one binary share a
-process. All other unit and integration lists in `tests`, `compact`, `msrv` and
-`pointer_width_32` use Nextest, including the
-arm64 Linux debug rows. Documentation examples and the two ignored boundary tests
-(16 MiB radix and `2^23`-point transform) use `cargo test`. The cross revision
-and container image digest are pinned, and so are the toolchains: stable in
-[rust-toolchain.toml](rust-toolchain.toml), which also applies to local builds in
-the repository, and the nightly in
-[ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml). Dependabot
-proposes toolchain updates. Other jobs cover 32-bit Linux, bare-metal no_std
-builds, Wasm/AArch64 builds, Rust 1.95, API namespace
-boundaries, Clippy, formatting and package contents. Build checks alone
-do not execute kernels. The maximum `2^23`-point transform test runs separately;
-two expensive Matrix sweeps execute with `cache` rather than rebuilding the
-same owned tables for every size. [CI.md](CI.md#test-jobs) gives the local
-commands for these rows.
+CI runs native x86-64 and arm64 Linux tests, compact variants, big-endian
+PowerPC64 under QEMU, 32-bit tests, Wasm SIMD128 and MSRV checks. Native properties
+use 512 cases; PowerPC64 uses 128. The x86-64 debug rows use `cargo test` to exercise
+shared process state; most other unit/integration rows use Nextest. Documentation
+and ignored large-boundary tests use `cargo test`. Toolchains are pinned in
+[rust-toolchain.toml](rust-toolchain.toml) and
+[ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml).
+[CI.md](CI.md#test-jobs) lists the complete matrix and commands.
 
 The `proptest_coverage` job uploads all library unit and integration suites,
 including direct SIMD kernel comparisons, builder/error contracts and cold-cache
@@ -142,23 +126,11 @@ compile-time evaluation. A generic CPU build still performs runtime dispatch;
 it does not force every dispatch branch. [CI.md](CI.md#fuzzing-and-coverage-jobs)
 gives the report commands and file filters.
 
-The SIMD inlining job builds the Auto consumer library with generic CPU flags for
-x86-64 and arm64 Linux, each default, `cache` and `compact`, on one x86-64 runner
-(arm64 is cross-compiled). [check_simd_inlining.py](scripts/check_simd_inlining.py)
-compares every out-of-line function whose name mentions the crate or a `core::arch`
-intrinsic with [check_simd_inlining.txt](scripts/check_simd_inlining.txt), per
-configuration. It fails on an unlisted function and on a listed function that is no
-longer out of line, so the list records LLVM's inlining decisions for the pinned
-toolchain; a code or toolchain change that moves a function updates the list. The
-list comments the SIMD functions kept apart on purpose: dispatch-table entries,
-target-feature entry points, kernels selected by pointer and cold paths. The check
-reads symbols only: it does not see slow code inside an inlined body. `--build`
-needs x86-64 or arm64 Linux. On an Apple silicon Mac, run it in an arm64 container,
-which cross-compiles x86-64:
-
-```sh
-docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
-```
+The SIMD inlining job compares out-of-line crate and `core::arch` functions with
+[check_simd_inlining.txt](scripts/check_simd_inlining.txt) for generic x86-64 and
+arm64 Linux, under default, cache and compact policies. Both additions and missing
+entries fail the check. It reads symbols, not the work inside inlined bodies.
+See [CI.md](CI.md#test-jobs) for build prerequisites and commands.
 
 The x86 AVX2 Matrix parser has unit tests against the portable parser: random,
 all-`'z'` and one-invalid-byte strings at lengths 0–100 and around the 32-byte
@@ -281,10 +253,9 @@ all 15 probes confirmed these failures; the other three permutation probes pass.
 | x86 | `llvm.x86.avx512.vpermi2var.d.512` |
 | x86 | `llvm.x86.avx512.vpermi2var.qi.256` |
 
-[Minimal probes](tests/miri_intrinsics.rs) isolate them;
-[the runner](scripts/miri-extended.sh) retains every probe. The workflow's
-`extended_miri` input intentionally exposes those failures rather than marking
-unsupported instructions as passes. It is off for normal CI.
+[Minimal probes](tests/miri_intrinsics.rs) isolate them. The workflow's
+`extended_miri` input runs [all probes](scripts/miri-extended.sh) and reports the
+unsupported-intrinsic failures. It is off for normal CI.
 
 The [pinned development interpreter](ci/miri/README.md) supplies these shims
 without changing library dependencies. Its reviewed patch preserves the
@@ -383,5 +354,3 @@ not refresh a prior result. For performance and memory work, use the separate
    using [the measurement guide](docs/performance.md).
 6. Resolve any confirmed source-adaptation notice obligations described in
    [REFERENCES.md](REFERENCES.md), and make an explicit release decision after CI.
-
-A passing job establishes only the checks and platforms it actually executes.

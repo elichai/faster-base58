@@ -270,7 +270,7 @@ mod tests {
 mod proofs {
     use super::*;
 
-    // Open obligation: SAT timed out; Z3 hit a CBMC SMT-lowering error (see review).
+    // Unproved: SAT timed out; Z3 hit a CBMC SMT-lowering error.
     #[kani::proof]
     #[kani::unwind(5)]
     fn paired_update_matches_sequential() {

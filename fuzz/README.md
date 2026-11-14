@@ -19,14 +19,11 @@ they see malformed UTF-8 only after lossy conversion. The encode targets then
 decode the expected text with every decoder and expect the original input, so
 they need no decode oracle.
 
-The forced `radix` and `radix-portable` encoders bypass production CPU/size
-selection and participate in the shared differential checks on every target.
-Thus x86 fuzz CI reaches the multiplication tree even though production selects
-it only on little-endian AArch64 with NEON. Native ARM runs exercise NEON;
-x86 runs do not establish NEON coverage. Both hooks fall back to the division
-tree above the radix transform limit. The general targets' 65,537-byte binary
-cap stays below the 262,144-byte cached production threshold; public dispatch and the 16 MiB limit
-are covered separately by `radix_boundaries` tests.
+The forced `radix` and `radix-portable` encoders bypass production CPU and size
+selection, so differential checks exercise them on every target. Both fall back
+to the division tree above the radix transform limit. Production dispatch depends
+on the target, input size and utilization; see [DESIGN.md](../DESIGN.md#automatic-selection).
+The `radix_boundaries` tests cover public dispatch and the 16 MiB boundary.
 
 `check_all` (feature `check`) compares Base58Check encoding and decoding with
 bs58, with and without a version byte selected from the input. It encodes the
@@ -146,8 +143,8 @@ requires a nonzero sum and retains callback counts separately. Campaign logs,
 statistics and corpora are uploaded with the existing fuzz artifacts.
 
 The generator preserves existing seeds and fails if a named seed was edited,
-including under `python3 -O`. New
-coverage seeds and crash artifacts are ignored by Git. Replay any crash with
+including under `python3 -O`. Coverage seeds and crash artifacts are ignored by
+Git. Replay any crash with
 `cargo +"$nightly" fuzz run --careful TARGET PATH_TO_ARTIFACT`.
 
 `base58.dict` is versioned on `main` and is passed to the mutating decode lane.
@@ -166,20 +163,12 @@ the zero-digit runs that zero whole leaves and subtrees of the division tree. Th
 other calls use libFuzzer's mutations. Replay, merge and coverage do not run the
 mutator; the corpus keeps its byte results.
 
-The shared corpus is not committed to `main`. The protected orphan
-`fuzz-corpus` branch stores content-addressed inputs under
-`corpora/<target>/<sha256>` and per-run metadata under `runs/`. Main/PR CI
-only validates and replays a pinned revision. The optional Verification dispatch
-with `run_fuzz` runs bounded campaigns on its selected ref but never publishes
-the corpus. Nightly workers start from all deterministic seeds and a reproducible
-sample of at most 16 stored inputs per target, and require actual mutations.
-Their oracle wrapper keeps ASan but omits oracle fuzz instrumentation and debug
-checks. Workers upload artifacts; every replay build adds the
-artifacts that bring new coverage to the pinned corpus by libFuzzer merge, and
-after an ASan replay of the combined result the separate trusted publisher
-replaces the stored corpus with it. CI never removes a stored input
-([details](../docs/fuzzing-corpus.md)).
-Use `python3 fuzz/corpus_store.py validate CORPUS_ROOT` before any replay.
+The shared corpus lives on the protected orphan `fuzz-corpus` branch. PR CI
+replays a pinned revision. Manual Verification campaigns never publish; nightly
+workers sample at most 16 stored inputs per target and must report actual mutations.
+The trusted publisher adds coverage-producing inputs after ASan replay and keeps
+every stored input. See [corpus storage and publishing](../docs/fuzzing-corpus.md).
+Run `python3 fuzz/corpus_store.py validate CORPUS_ROOT` before replay.
 
 Initialization consumes `max_total_time`, but libFuzzer checks that limit only
 afterward. Full-store replays and merges remain separate from mutation sampling.

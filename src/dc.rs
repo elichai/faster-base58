@@ -771,7 +771,7 @@ mod tests {
 mod proofs {
     use super::*;
 
-    // Open obligation: Z3 hit a CBMC SMT-lowering error (see review).
+    // Unproved: Z3 hit a CBMC SMT-lowering error.
     #[kani::proof]
     #[kani::unwind(6)]
     #[kani::solver(z3)]

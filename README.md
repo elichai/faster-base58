@@ -1,9 +1,8 @@
 # faster-base58
 
-Bitcoin Base58 encoding and decoding in Rust. The default API selects algorithms
-by input size and CPU support. It is `no_std` by default, using `alloc` for its
-faster general conversions. On x86-64, runtime SIMD detection uses the standard
-library when `std` is enabled, and `cpufeatures` otherwise.
+Bitcoin Base58 encoding and decoding in Rust, with automatic algorithm and CPU
+selection. The crate is `no_std` by default. Disable the default `alloc` feature
+for heap-free conversion.
 
 ```toml
 [dependencies]
@@ -14,7 +13,7 @@ Requires Rust 1.95 or newer.
 
 ## Encode and decode
 
-Reusable configurations can be constants. Conversion starts at the terminal method:
+Configure an encoder or decoder, then choose owned or borrowed output:
 
 ```rust
 # #[cfg(feature = "alloc")]
@@ -33,9 +32,7 @@ assert_eq!(ENCODER.encode(&data).onto(&mut buffer)?, text);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`Encoder` and `Decoder` are small `Copy` values without type parameters.
-Constructors, setters, `.encode()` and `.decode()` are `const fn` and always inlined,
-so constant configurations fold away; runtime-selected settings still dispatch.
+`Encoder` and `Decoder` are small `Copy` values and can be constants.
 
 Encoding provides `.into_string()`, `.into_vec()` (ASCII bytes), and `.onto()`
 (borrowed `&str`). Decoding provides `.into_vec()`, `.into_array::<N>()`, and
@@ -138,22 +135,13 @@ Cargo features are additive: any dependency that enables `alloc` enables it for
 all consumers of that crate instance. Dropping an owned input can still call its
 allocator; borrow inputs when counting all allocator operations.
 
-Auto trades workspace for large-input speed. At 4 MiB on the M5 Pro, default
-encoding peaks at about 66 MiB of extra requested heap in 7 allocations and
-decoding at about 54 MiB in 18, excluding caller buffers (2026-11-05; [allocation
-details](docs/performance.md#cache-and-memory)).
-
 ## Optional caching
 
-Add `features = ["cache"]` to the dependency to retain reusable tables. This
-feature enables `std`. Caching is off by default; it changes dispatch as well as
-retention. First use builds tables; the warm timings below exclude that setup.
-[Cache and memory costs](docs/performance.md#cache-and-memory) help assess
-whether reuse repays the setup and memory cost for your workload.
-
-Enabling `cache` alone allocates **zero heap bytes**. Conversions allocate tables
-on first use and retain them for the process lifetime. Only needed table classes
-are initialized; retained heap depends on input sizes, CPU and call history.
+Add `features = ["cache"]` to retain reusable tables and enable `std`. Caching is
+off by default and changes algorithm selection. Enabling it allocates no heap
+storage until a conversion needs tables. Those tables remain for the process
+lifetime; retention depends on input sizes, CPU and call history. Warm timings
+exclude first-use setup. See [cache and memory costs](docs/performance.md#cache-and-memory).
 
 | Cache family | Maximum retained heap payload across production classes |
 | --- | ---: |
@@ -168,10 +156,10 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Performance
 
-Measured **2026-11-12**: the complete #53 → #55 → #57 → #59 → #67 stack,
+Measured **2026-11-12**: source
 [`3fcfbaff62f3`](https://github.com/elichai/faster-base58/commit/3fcfbaff62f3257ddc6de357f4856cf6225eabf8),
 against main [`65ea1581aae4`](https://github.com/elichai/faster-base58/commit/65ea1581aae4d5da128abd70dcac3ead50cb7f65).
-These are whole-stack results; they do not isolate #67's contribution.
+These compare whole binaries; they do not isolate individual changes.
 
 Ordinary public Auto with caller buffers, generic CPU flags, release opt-level 3,
 16 codegen units, default/cache and fat/off LTO. Tables give **stack warm
@@ -184,7 +172,6 @@ The large encoder slowdown is absent from this matrix. Results are mixed:
 M5 cached 512-byte decode is 2.7% slower in the primary fat-LTO run and 1.6%
 slower in a focused repeat. GCP no-LTO 32-byte encode shifts in both stack and
 identical-main controls, then returns to about 1.000× in a fully rotated repeat.
-This is not evidence that every changed path is neutral or faster.
 
 ### Apple M5 Pro
 

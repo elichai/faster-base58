@@ -131,13 +131,11 @@ supports the coefficient bounds; larger products split. It is not an input limit
 
 ## Automatic selection
 
-These are tuned crossovers, not format limits or guarantees of optimality for
-every input. After the tiny and fixed routes, Auto strips leading zeros once and
-selects by significant length in [`src/api.rs`](src/api.rs). The selected kernels
-accept that normalized input and do not dispatch to another backend. Their size
-preconditions are checked; small inputs never enter the large stack frames or
-construct multipliers. Internal comparison/tuning wrappers still accept every
-length so differential tests can exercise their fallbacks.
+Crossovers are tuning choices, not input limits. After the tiny and fixed routes,
+Auto strips leading zeros once and selects by significant length in
+[`src/api.rs`](src/api.rs). Selected kernels check their size preconditions and
+do not dispatch again. Small inputs avoid large stack frames and multiplier
+construction. Internal comparison wrappers accept every length to test fallbacks.
 
 Leading zeros affect the selected backend and allocation behavior. With `cache`,
 a short significant suffix can select Matrix even when the total input is large.
@@ -159,10 +157,8 @@ The short-leaf decode limits are four leaves (`2 * dc::min_digits()`): with two
 leaves the tree lost to batched decoding on Zen 5 and under V8, with four it won.
 On NEON the NTT decoder overtakes batched decoding before Karatsuba does.
 
-The `cache` feature is an implementation policy, not a runtime API parameter.
-`Ntt::new` owns optional per-call tables and initializes them through mutable
-access once the transform size is known. Only cache-enabled builds contain the
-shared `OnceLock` stores. `__internals` does not enable them.
+`Ntt` builds owned tables lazily when a product needs transforms. Only
+`cache` builds contain shared `OnceLock` stores; `__internals` does not enable them.
 
 ## Architecture-specific work
 
@@ -207,9 +203,8 @@ intrinsic into a call. CI checks every out-of-line crate function against
 `scripts/check_simd_inlining.txt`
 ([CORRECTNESS.md](CORRECTNESS.md#tests-and-independent-references)).
 
-The IFMA leaf threshold is a constant. Generic x86 builds still read cached CPU
-feature flags in the NTT short-product fallback; passing threshold state through
-multipliers had no established overall benefit.
+The IFMA leaf threshold is a constant. Generic x86 builds read cached CPU
+feature flags in the NTT short-product fallback.
 
 ## Heap, stack and cache costs
 
@@ -224,8 +219,8 @@ Encoding `.into_string()` reserves `max_encoded_len(input.len())` bytes and trun
 length after conversion; it retains that capacity, including for zero-heavy input.
 Decoding `.into_vec()` reserves one byte per leading `'1'`, then `d - d/4 - d/64` bytes
 for the remaining `d` text bytes. The integer bound follows from `58^64 < 256^47`
-and cannot overflow. It asymptotically saves 26.6% of the significant-text output
-capacity against allocating the full text length; backend scratch is additional. The
+and cannot overflow. It saves about 26.6% of output capacity for long significant
+text; backend scratch is additional. The
 prefix scan is shared with dispatch, and truncation does not reallocate. Tiny
 inputs of at most two bytes retain the short route. Empty input returns before
 entering the nonempty decoder. See [performance](docs/performance.md) for measured

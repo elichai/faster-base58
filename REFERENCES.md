@@ -1,17 +1,15 @@
 # References and provenance
 
-Sources consulted during development, algorithm references, and measurement
-comparators have different roles. No wholesale copy of upstream runtime source
-files was identified in the development-source review. That review does not
-establish independent authorship of every routine.
-The consulted [five8 license](docs/references/five8-LICENSE.txt),
+Implementation influences, algorithm references and test/benchmark dependencies
+are listed below. Some source provenance remains unresolved; see the final section.
+The [five8 license](docs/references/five8-LICENSE.txt),
 [Bitcoin Core license](docs/references/bitcoin-core-LICENSE.txt) and Firedancer
 [license](docs/references/firedancer-LICENSE.txt) /
 [notice](docs/references/firedancer-NOTICE.txt) are retained with these credits.
 
 ## Implementation and arithmetic references
 
-- **Firedancer Base58:** the matrix conversion design explicitly generalizes
+- **Firedancer Base58:** the matrix conversion design generalizes
   Firedancer's fixed-width method. Our implementation uses base `58^4`,
   generated tables, variable-length panels and different carry handling.
   The AVX2 alphabet map also uses the same digit-gap comparison technique.
@@ -44,7 +42,7 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
   Its bytewise Horner conversion is a simpler form of our batched recurrence.
   The 21 upstream vectors are copied into [regression tests](tests/bitcoin_core.rs),
   with local zero extensions for fixed 32/64-byte paths. No runtime code was copied.
-  Core accepts surrounding ASCII whitespace; our decoder deliberately rejects it.
+  Core accepts surrounding ASCII whitespace; our decoder rejects it.
   The later review does not rule out earlier consultation.
 - **Richard Brent and Paul Zimmermann, _Modern Computer Arithmetic_
   (Cambridge University Press, 2010):** `encode/dc.rs` implements Algorithm
@@ -60,8 +58,7 @@ The consulted [five8 license](docs/references/five8-LICENSE.txt),
   [binary-to-radix conversion](https://gmplib.org/manual/Binary-to-Radix) and
   [Karatsuba](https://gmplib.org/manual/Karatsuba-Multiplication).
   GMP is not a runtime dependency. Its library has
-  [LGPLv3-or-later / GPLv2-or-later terms](https://gmplib.org/manual/Copying);
-  a manual link does not establish copied GMP code.
+  [LGPLv3-or-later / GPLv2-or-later terms](https://gmplib.org/manual/Copying).
 
 ## Dependencies, oracles and comparators
 
@@ -84,8 +81,7 @@ and were checked against their upstream Git repositories.
 
 The Malachite adapter calls its public API. Its divide-and-conquer conversion
 and preinverted division in `general_digits.rs` were consulted before writing
-the local reciprocal code.
-That establishes design consultation, not whether a routine was translated.
+the local reciprocal code; whether any routine was translated remains unresolved.
 The inspected Malachite source itself credits GMP code and FLINT techniques.
 Development and benchmark binaries can link these libraries; the
 crate's MIT OR Apache-2.0 declaration does not replace upstream terms.
