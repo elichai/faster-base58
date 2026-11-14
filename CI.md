@@ -401,7 +401,7 @@ cargo llvm-cov --locked --no-default-features --features check --test no_alloc -
 Keep both reports outside the coverage target directory: the second command
 cleans the first command's build artifacts. Both LCOV files are uploaded together
 with the `tests` flag. The fuzz reports use the `fuzz` flag.
-[codecov.yml](codecov.yml) waits for five `tests` uploads and twelve `fuzz` uploads.
+[codecov.yml](codecov.yml) waits for five `tests` uploads and eighteen `fuzz` uploads.
 
 Runtime feature detection still selects instructions supported by the host;
 `target-cpu=generic` does not force a scalar or SSE4.1 fallback. Direct kernel
@@ -442,7 +442,9 @@ python3 scripts/kani_guard.py -- sh scripts/kani-production.sh
 ```
 
 `kani-production.sh` covers only the tiny public conversion and alphabet
-obligations. The workflow runs five more `cargo kani` selections. They use
+obligations. The workflow runs six more `cargo kani` selections, including the
+one-limb Barrett estimate and reciprocal lower-bound domains in
+[CORRECTNESS.md](CORRECTNESS.md#kani-proofs). They use
 different solvers, timeouts and `CARGO_PROFILE_DEV_OPT_LEVEL` values; the dev
 profile otherwise uses opt-level 3. Copy each command with its step `env:`. One
 step passes `--cbmc-args --external-smt2-solver scripts/kani-z3-polynomial.sh`.
@@ -464,7 +466,7 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | Job | Checks | Platforms | Trigger |
 | --- | --- | --- | --- |
 | `corpus_snapshot` | Validates the head of `fuzz-corpus` and pins its revision | x86-64 Linux | All |
-| `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, cache off and on; arm64 Linux, generic CPU, cache on; each of the four targets | All |
+| `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, cache off and on; arm64 Linux, generic CPU, cache on; each of the six targets | All |
 | `nightly` | Mutation campaigns seeded by the run ID, with debug assertions and overflow checks, and value profile in the cache rows; writes provenance and uploads the campaign | x86-64 and arm64 Linux, generic CPU, cache off and on | Schedule; dispatch with `run_nightly` |
 | `minimize` | Keeps the seeds and the pinned corpus, and merges in the campaign inputs that add coverage beyond them in its build | Same as `nightly` | Schedule; dispatch with `run_nightly` |
 | `candidate_smoke` | Replays the seeds and the union of the four merged sets with ASan | Same rows as `fuzz_coverage` | Schedule; dispatch with `run_nightly` |

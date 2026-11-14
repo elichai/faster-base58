@@ -8,6 +8,19 @@ import corpus_store
 
 
 class CorpusStoreTests(unittest.TestCase):
+    def test_checked_and_large_decode_targets_can_be_persisted(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for target in ["check_all", "decode_full_width"]:
+                incoming = root / "incoming" / target
+                incoming.mkdir(parents=True)
+                (incoming / "seed").write_bytes(b"\x40\x01")
+            corpus_store.stage(root / "incoming", root / "corpora")
+            corpus_store.validate(root / "corpora")
+            counts = corpus_store.replace([root / "corpora"], root / "copy")
+            self.assertEqual(counts["check_all"], 1)
+            self.assertEqual(counts["decode_full_width"], 1)
+
     def test_stage_canonicalizes_duplicate_bytes_by_sha256(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -97,7 +110,8 @@ class CorpusStoreTests(unittest.TestCase):
             counts = corpus_store.replace([root / "first", root / "second"], corpus)
 
             self.assertEqual(counts, {"encode_all": 2, "decode_all": 0,
-                                      "encode_full_width": 0, "encode_radix_full_width": 0})
+                                      "encode_full_width": 0, "encode_radix_full_width": 0,
+                                      "check_all": 0, "decode_full_width": 0})
             self.assertEqual(sorted(path.name for path in (corpus / "encode_all").iterdir()),
                              sorted(corpus_store.digest(data) for data in [b"kept", b"also kept"]))
             self.assertEqual(list((corpus / "decode_all").iterdir()), [])

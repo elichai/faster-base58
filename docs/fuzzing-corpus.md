@@ -4,8 +4,8 @@
 validator. The orphan `fuzz-corpus` branch owns only validated, content-addressed
 inputs under `corpora/<target>/<sha256>` and run provenance under `runs/`.
 
-The four supported targets are `encode_all`, `decode_all`,
-`encode_full_width`, and `encode_radix_full_width`. A corpus item is shared by
+The six supported targets are `encode_all`, `decode_all`, `check_all`,
+`encode_full_width`, `encode_radix_full_width`, and `decode_full_width`. A corpus item is shared by
 input format, not by machine.
 Its provenance records the architecture, target CPU, feature set, toolchain,
 sanitizer, duration, and source commit that found it. CI replays one pinned
@@ -30,8 +30,8 @@ libFuzzer's `-merge=1` with the seeds and the stored corpus as the initial
 corpus, which the merge keeps whole. A new input stays when it adds a coverage
 feature, an edge-counter bucket, that the initial corpus and smaller inputs do
 not reach in that build. The nightly and `minimize` builds are x86-64 and
-AArch64, generic CPU, cache off and on; the two full-width targets use the
-`full-width` feature. Inputs are architecture-independent bytes, so the
+AArch64, generic CPU, cache off and on; the three full-width targets use the
+`full-width` feature and `check_all` requires `check`. Inputs are architecture-independent bytes, so the
 candidate is the union of the four results. `candidate_smoke` replays all of it
 with ASan in the three `fuzz_coverage` configurations: x86-64 with cache off and
 on, and AArch64 with cache. SIMD paths are chosen at run time, and the code that

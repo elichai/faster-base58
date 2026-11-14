@@ -198,7 +198,9 @@ bs58's checksum validation plus an independent version rule, with and without a
 version, for valid, changed and arbitrary text. It checks exact/short/oversized
 slices, tails and canaries. Payloads up to 8,193 bytes encode to about 11,200
 characters, so decoding the encoded frame can reach every checked encode and decode
-backend; changed frames and arbitrary text share that budget. CI runs it for default and cache policies in the manual fuzz dispatch.
+backend; changed frames and arbitrary text share that budget. It participates in
+the stored corpus, nightly mutation and merge, ASan replay and source coverage,
+as well as the manual fuzz dispatch, with the `check` feature enabled.
 
 General target budgets are 65,537 binary bytes and
 `max_encoded_len(65_537) = 89,502` decode bytes. Lossy UTF-8 and inserted
@@ -206,17 +208,31 @@ characters can expand text. These budgets are not format limits or coverage of
 every transform size. The 8,193-byte native mutation cap does not reach real NTT
 thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
 
-`encode_radix_full_width` uses an independent Malachite oracle on periodic
+`encode_radix_full_width` uses an independent Malachite oracle on structured
 256 KiB / 1 MiB values, reaching owned large twiddles. Arbitrary large values
 remain outside this structured domain.
 
 The optional `encode_full_width` target expands every raw mutation into a
-periodic 65,537-byte value with its first bit set. It checks encoding and
+65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
 audit places those values above the native NTT thresholds. Its default-policy
 native careful-ASan stage is **unverified**. It uses the Malachite oracle and
 skips the quadratic hooks, as above. This structured domain does not include every
 value at that width.
+
+The structured expander retains periodic cases and adds deterministic pseudorandom
+tails, seeded from and overlaid with the raw input. This broadens the data shapes
+without claiming full entropy or exhaustive large-value coverage.
+`decode_full_width` checks 128 KiB and 2 MiB of text, including quarter-width
+leading-zero runs, against the independent Malachite and residue oracles. It
+skips quadratic kernels and checks malformed raw bytes separately. `decode_all`
+also checks fixed-capacity `into_array` results on bounded prefixes.
+
+Direct arithmetic tests cover the all-ones zero representative, the CRT second
+end-around carry, and reciprocal/division boundaries. The zero-estimate arm after
+a nonzero high dividend is impossible under the reciprocal bound and is removed;
+the argument is recorded beside `divide`. Wrapped multiplication remains tested
+even where a public conversion uses the prepared-power variant instead.
 
 Campaign callback counts include initial corpus processing and possible repeats;
 they are not distinct mutations or seed-file counts. Full-width stages and all
@@ -230,9 +246,9 @@ in the coverage replay, merge and candidate replay checks.
 The shared corpus on the `fuzz-corpus` branch is minimized by libFuzzer merge
 in each of the four generic-CPU replay builds without ASan, then combined
 ([corpus guide](docs/fuzzing-corpus.md)). It preserves each build's
-edge-counter coverage of the inputs it saw, not each input. Value-profile
-features, ASan-only behavior and inputs that reach the same coverage with
-different values are not preserved; removed inputs remain only in Git history.
+edge-counter coverage of the inputs it saw and retains every stored input.
+Value-profile-only additions can be omitted by the merge, which does not use
+the value profile; the candidate still has to pass the ASan replay.
 
 Passing Rust/std MSan tests does not close the full libFuzzer/MSan campaign gap.
 No sanitizer runtime was patched to obtain the passes. TSan does not fully model
@@ -297,6 +313,7 @@ loops have explicit bounds. Required harnesses use 60/180/360-second budgets.
 | Generic batched decoding | All `58^2` valid two-digit strings and capacities 0–3; numeric value, leading zeros, errors and output canaries |
 | Parsing | All 256 lookup entries; validity through four bytes, zero split through eight, partial chunks through nine; full ten-byte numeric value and invalid rejection by verified composition |
 | Limb arithmetic | Full-width two-limb carry/borrow; one-limb multiplication; single radix updates; three limbs folded into one modulo `2^64 - 1` |
+| Barrett estimate and reciprocal lower bound | Scalar production multiplication/extraction gives a positive estimate for every nonzero one-limb high dividend and every two-limb reciprocal at least `β = 2^64` (`qn = 1`). Actual `reciprocal` returns at least `β` for every normalized one-limb divisor. These are separate obligations, not a proof of general divisor construction or division. |
 | NTT scalar operations | Reduction for every `i32`, normalization in `(-q,q)`, loading for every `u32`, all three primes; plan bounds and scale at every power-of-two length 1 through `2^23`; both inverse butterfly kinds for every input in their ranges and every balanced twiddle (outputs below `1.25 q` and `1.9 q`) |
 | Matrix / IFMA models | Two-column carries; eight-column radix-52 carry; 13 limbs ↔ 16 radix-52 digits through a scalar vector model |
 | Capacity | Actual encoded-bound safety, coverage of input count, endpoint saturation and full adjacent monotonicity; owned decoded-bound arithmetic and safe prefix addition for every 64-bit `usize` |
@@ -313,8 +330,15 @@ assertions in the portable kernel, not by Kani.
 
 Wider paired numeric equality, encoder split/step and fixed carries, actual
 Barrett division and the public borrowed-array wrapper remain unresolved.
+The positive-estimate query with exactly two significant high limbs and the
+`Divisor::new` inverse bound for any normalized one-limb value with zero shift
+are also open: each exceeds its 60-second budget with its selected solver; the
+construction query additionally hits CBMC's SMT-lowering failure with Z3. That
+query supplies the normalized value directly, not through the power table.
+Newton/from-square reciprocal construction and arbitrary-length estimate
+positivity remain outside the completed domains.
 Timed-out or untranslated queries are neither counterexamples nor proofs.
-[The open runner](scripts/kani-open.sh) selects eight distinct unresolved queries.
+[The open runner](scripts/kani-open.sh) selects ten distinct unresolved queries.
 Direct parser/capacity formulations also remain in source; their properties are
 closed by verified composition.
 

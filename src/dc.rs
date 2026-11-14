@@ -599,7 +599,7 @@ mod tests {
     fn paired_limb_update_matches_sequential() {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(72);
         for len in 0..=9 {
-            for top in [1, BASE - 1, u64::MAX] {
+            for top in [0, 1, BASE - 1, u64::MAX] {
                 for c1 in [0, 1, BASE - 1, rng.next_u64() % BASE] {
                     for c2 in [0, 1, BASE - 1, rng.next_u64() % BASE] {
                         let mut paired: [u64; 11] = core::array::from_fn(|_| rng.next_u64());

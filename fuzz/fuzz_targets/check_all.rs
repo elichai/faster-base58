@@ -40,6 +40,15 @@ fuzz_target!(|raw: &[u8]| {
 
     // The valid frame, one changed character, `raw` as text, and `raw` mapped to digits.
     check_decode(decoder, version, &text, selector);
+    // A valid checksum must reach the version check, including a missing version.
+    let actual = version.or_else(|| raw.first().copied());
+    let wrong_version = actual.unwrap_or(0).wrapping_add(1);
+    check_decode(
+        Decoder::bitcoin().with_check_version(wrong_version),
+        Some(wrong_version),
+        &text,
+        selector,
+    );
     let mut changed = text.clone();
     let at = selector % changed.len();
     let digit = support::ALPHABET

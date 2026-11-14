@@ -96,9 +96,21 @@ def base58_value(text):
 
 
 def main():
-    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width", "encode_radix_full_width"]:
+    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width", "encode_radix_full_width", "check_all", "decode_full_width"]:
         (ROOT / target).mkdir(parents=True, exist_ok=True)
     write_seed("encode_full_width", "dense", b"\xa5")
+    # These decode to exactly 32/64 bytes and select the matching into_array arm.
+    write_seed("decode_all", "array-exact-32", b"1" * 29 + b"3111")
+    write_seed("decode_all", "array-exact-64", b"1" * 61 + b"2111")
+    for target in ["encode_full_width", "encode_radix_full_width", "decode_full_width"]:
+        write_seed(target, "nonperiodic", b"\x40\x01\x02")
+    write_seed("encode_radix_full_width", "nonperiodic-owned", b"\xc0\x01\x02")
+    for control in [*range(8), 0x20, *range(0x80, 0x88), 0xA0, *range(0xC0, 0xC8), 0xE0]:
+        write_seed("decode_full_width", f"mode-{control}", bytes([control, 1, 2]))
+    for length in [0, 1, 2, 4, 21, 28, 32, 60, 64, 512, 1536, 8193]:
+        for label, raw in [("zeros", bytes(length)),
+                           ("pattern", bytes((i * 73 + 1) % 256 for i in range(length)))]:
+            write_seed("check_all", f"{label}-{length}", raw)
     for k in range(2, 7):
         for segment in range(1, k):
             write_seed("encode_all", f"split-fallback-k{k}-s{segment}", split_fallback_seed(k, segment))
@@ -160,7 +172,7 @@ def main():
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + 2 * (len(RADIX_LENGTHS) + sum(n <= SMALL_MAX_BYTES for n in RADIX_LENGTHS))
-        + 12 + len(SPLIT_FALLBACKS)
+        + 69 + len(SPLIT_FALLBACKS)
     )
     print(f"Prepared {count} deterministic seeds in {ROOT}")
 

@@ -56,6 +56,12 @@ use blocks. Decoding leaves hold at most 256 chunks, 128 on Wasm and 64 on x86
 with IFMA Karatsuba products, which are cheap relative to the quadratic leaves.
 The tree needs at least two leaves.
 
+Without IFMA, the public encoder enters NTT before the standalone Karatsuba
+encoder's 5,120-byte crossover. Its public Karatsuba band is therefore empty;
+the internal comparison hook still uses that independently tuned crossover.
+With IFMA, the public Karatsuba band starts above 448 bytes. These thresholds
+serve different comparisons and need not be ordered to make every band nonempty.
+
 On little-endian AArch64 with NEON, on x86-64 with AVX-512F and on Wasm, large
 encoding can instead use a
 [multiplication tree in base `58^3`](src/ntt/radix.rs). It splits at byte

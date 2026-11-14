@@ -281,6 +281,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo fmt --manifest-path tools/resource-profile/Cargo.toml --all -- --check
       - run: cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check
+      - run: cargo test --locked --manifest-path fuzz/Cargo.toml --tests
       - run: cargo hack clippy --locked --all-targets --feature-powerset -- -D warnings
       - run: cargo hack clippy --locked --all-targets --feature-powerset --manifest-path tools/resource-profile/Cargo.toml -- -D warnings
       - run: cargo hack clippy --locked --all-targets --feature-powerset --manifest-path fuzz/Cargo.toml -- -D warnings
@@ -615,6 +616,13 @@ jobs:
           mkdir -p fuzz/artifacts/encode_radix_full_width
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --careful --sanitizer address --no-default-features --features full-width${{ matrix.label == 'cache' && ',cache' || '' }} encode_radix_full_width fuzz/corpus/encode_radix_full_width -- -max_len=8193 -len_control=0 -max_total_time=180 -print_corpus_stats=1 -print_final_stats=1 -seed=1 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/artifacts/encode_radix_full_width/campaign.log
           python3 fuzz/check_mutations.py fuzz/artifacts/encode_radix_full_width/campaign.log > fuzz/artifacts/encode_radix_full_width/mutation-stats.json
+      - name: Full-width decode mutations with independent Malachite oracle
+        if: matrix.sanitizer == 'address' && (matrix.label == 'default' || matrix.label == 'cache')
+        run: |
+          set -e -o pipefail
+          mkdir -p fuzz/artifacts/decode_full_width
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --careful --sanitizer address --no-default-features --features full-width${{ matrix.label == 'cache' && ',cache' || '' }} decode_full_width fuzz/corpus/decode_full_width -- -max_len=8193 -len_control=0 -max_total_time=180 -print_corpus_stats=1 -print_final_stats=1 -seed=1 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/artifacts/decode_full_width/campaign.log
+          python3 fuzz/check_mutations.py fuzz/artifacts/decode_full_width/campaign.log > fuzz/artifacts/decode_full_width/mutation-stats.json
       - name: Retain corpus and failures
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -725,6 +733,12 @@ jobs:
       - run: sudo apt-get install -y z3
       - name: Tiny production paths and alphabet domains
         run: python3 scripts/kani_guard.py -- sh scripts/kani-production.sh
+      - name: One-limb Barrett estimate and reciprocal lower bound
+        run: >-
+          python3 scripts/kani_guard.py -- cargo kani --lib --solver z3
+          --harness nonzero_high_limb_has_positive_estimate
+          --harness one_limb_reciprocal_has_lower_bound
+          -Z unstable-options --harness-timeout 60s --jobs 2 --output-format terse
       - name: Two-digit batched decoder
         # SAT avoids Kani 0.68's SMT-lowering failure for this harness.
         # The four-limb paired loop (UNROLL_PAIRED) is unreachable here but CBMC still

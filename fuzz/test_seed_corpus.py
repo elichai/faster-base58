@@ -12,6 +12,42 @@ import seed_corpus
 
 
 class SeedCorpusTests(unittest.TestCase):
+    def test_check_and_large_decode_seeds_and_nonperiodic_modes(self):
+        with TemporaryDirectory() as directory:
+            previous = seed_corpus.ROOT
+            seed_corpus.ROOT = root = Path(directory)
+            try:
+                with redirect_stdout(StringIO()):
+                    seed_corpus.main()
+            finally:
+                seed_corpus.ROOT = previous
+            check = list((root / "check_all").iterdir())
+            self.assertTrue(any(path.read_bytes() == b"" for path in check))
+            self.assertTrue(any(len(path.read_bytes()) == 8193 for path in check))
+            # Without a version, these payloads plus the checksum form fixed-size frames.
+            for frame in [32, 64]:
+                self.assertTrue(any(path.read_bytes() == bytes(frame - 4) for path in check))
+            # Exercise x86 checked decoding's medium Karatsuba/Matrix dispatch band.
+            medium = (root / "check_all" / "pattern-1536").read_bytes()
+            self.assertEqual(len(medium), 1536)
+            self.assertNotEqual(medium[0], 0)
+            for target in ["encode_full_width", "encode_radix_full_width", "decode_full_width"]:
+                raw = (root / target / "nonperiodic").read_bytes()
+                self.assertGreater(len(raw), 1)
+                self.assertTrue(raw[0] & 0x40)
+            decode = [path.read_bytes() for path in (root / "decode_full_width").iterdir()]
+            self.assertTrue(any(raw and raw[0] & 0x80 for raw in decode))
+            self.assertTrue(any(raw and not raw[0] & 0x80 for raw in decode))
+            for control in range(0x80, 0x88):
+                self.assertIn(bytes([control, 1, 2]), decode)
+            owned = (root / "encode_radix_full_width" / "nonperiodic-owned").read_bytes()
+            self.assertEqual(owned[0] & 0xC0, 0xC0)
+            for width in [32, 64]:
+                text = (root / "decode_all" / f"array-exact-{width}").read_bytes()
+                zeros = len(text) - len(text.lstrip(b"1"))
+                value = seed_corpus.base58_value(text)
+                self.assertEqual(zeros + (value.bit_length() + 7) // 8, width)
+
     def test_radix_seeds_cover_zero_subtrees_and_sparse_carries(self):
         with TemporaryDirectory() as directory:
             previous = seed_corpus.ROOT
