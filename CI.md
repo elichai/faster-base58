@@ -22,7 +22,8 @@ builds in the repository. [ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolc
 pins the nightly; jobs install it with the
 [nightly-toolchain](.github/actions/nightly-toolchain/action.yml) action, which
 exports its name as `RUST_NIGHTLY`. [Dependabot](.github/dependabot.yml) proposes
-weekly updates to both files. The custom Miri job takes its Cargo toolchain from
+weekly updates to both files, the Cargo manifests, and GitHub Actions. The custom
+Miri job takes its Cargo toolchain from
 [ci/miri/pins.json](ci/miri/pins.json) instead. The `env:` block of
 [verification.yml](.github/workflows/verification.yml) pins the other versions.
 [fuzz-corpus.yml](.github/workflows/fuzz-corpus.yml) and

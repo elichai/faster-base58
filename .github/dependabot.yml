@@ -5,3 +5,13 @@ updates:
     directories: ["/", "/ci/nightly"]
     schedule:
       interval: weekly
+
+  - package-ecosystem: cargo
+    directories: ["/", "/fuzz", "/tools/resource-profile"]
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
