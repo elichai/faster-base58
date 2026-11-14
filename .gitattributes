@@ -1,7 +1,7 @@
 * text=auto eol=lf
 
 # Preserve upstream notices and published SVG bytes.
-docs/references/** -text
+licenses/** -text
 assets/graphs/*.svg -text
 
 # Preserve literal context lines and generated SVG path whitespace.
