@@ -10,7 +10,8 @@ import stat
 import tempfile
 from pathlib import Path
 
-TARGETS = ("encode_all", "decode_all", "encode_full_width", "encode_radix_full_width")
+TARGETS = ("encode_all", "decode_all", "encode_full_width", "encode_radix_full_width",
+           "check_all", "decode_full_width")
 MAX_BYTES = 89_502
 MAX_ITEMS = 50_000
 MAX_TOTAL_BYTES = 512 * 1024 * 1024
@@ -105,6 +106,25 @@ def stage(incoming, corpus, max_bytes=MAX_BYTES):
     return added
 
 
+def sample(incoming, corpus, *, limit, seed):
+    """Copy at most limit stored inputs per target to a fresh mutation corpus."""
+    if limit <= 0:
+        raise ValueError("sample limit must be positive")
+    validate(incoming)
+    corpus.mkdir(parents=True)
+    counts = dict.fromkeys(TARGETS, 0)
+    for target in TARGETS:
+        (corpus / target).mkdir()
+    for directory in _target_directories(incoming):
+        # Hash ranking rotates the selection reproducibly with the run ID.
+        inputs = sorted(directory.iterdir(), key=lambda path:
+                        digest(f"{seed}/{directory.name}/{path.name}".encode()))
+        for path in inputs[:limit]:
+            shutil.copyfile(path, corpus / directory.name / path.name)
+            counts[directory.name] += 1
+    return counts
+
+
 def replace(incoming, corpus, exclude=None, max_bytes=MAX_BYTES):
     """Replace corpus with the union of the incoming roots.
 
@@ -139,6 +159,11 @@ def main():
     stage_parser = commands.add_parser("stage", help="add artifact inputs to a corpus")
     stage_parser.add_argument("incoming", type=Path)
     stage_parser.add_argument("corpus", type=Path)
+    sample_parser = commands.add_parser("sample", help="seed a bounded mutation corpus")
+    sample_parser.add_argument("incoming", type=Path)
+    sample_parser.add_argument("corpus", type=Path)
+    sample_parser.add_argument("--limit", type=int, required=True)
+    sample_parser.add_argument("--seed", required=True)
     replace_parser = commands.add_parser("replace", help="replace a corpus with the union of inputs")
     replace_parser.add_argument("incoming", type=Path, nargs="+")
     replace_parser.add_argument("corpus", type=Path)
@@ -149,6 +174,9 @@ def main():
     args = parser.parse_args()
     if args.command == "stage":
         print(json.dumps(stage(args.incoming, args.corpus), sort_keys=True))
+    elif args.command == "sample":
+        print(json.dumps(sample(args.incoming, args.corpus, limit=args.limit, seed=args.seed),
+                         sort_keys=True))
     elif args.command == "replace":
         counts = replace(args.incoming, args.corpus, exclude=args.exclude)
         print(json.dumps(counts, sort_keys=True))

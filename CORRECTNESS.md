@@ -198,7 +198,9 @@ bs58's checksum validation plus an independent version rule, with and without a
 version, for valid, changed and arbitrary text. It checks exact/short/oversized
 slices, tails and canaries. Payloads up to 8,193 bytes encode to about 11,200
 characters, so decoding the encoded frame can reach every checked encode and decode
-backend; changed frames and arbitrary text share that budget. CI runs it for default and cache policies in the manual fuzz dispatch.
+backend; changed frames and arbitrary text share that budget. It participates in
+the stored corpus, nightly mutation and merge, ASan replay and source coverage,
+as well as the manual fuzz dispatch, with the `check` feature enabled.
 
 General target budgets are 65,537 binary bytes and
 `max_encoded_len(65_537) = 89,502` decode bytes. Lossy UTF-8 and inserted
@@ -206,17 +208,31 @@ characters can expand text. These budgets are not format limits or coverage of
 every transform size. The 8,193-byte native mutation cap does not reach real NTT
 thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
 
-`encode_radix_full_width` uses an independent Malachite oracle on periodic
+`encode_radix_full_width` uses an independent Malachite oracle on structured
 256 KiB / 1 MiB values, reaching owned large twiddles. Arbitrary large values
 remain outside this structured domain.
 
 The optional `encode_full_width` target expands every raw mutation into a
-periodic 65,537-byte value with its first bit set. It checks encoding and
+65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
 audit places those values above the native NTT thresholds. Its default-policy
 native careful-ASan stage is **unverified**. It uses the Malachite oracle and
 skips the quadratic hooks, as above. This structured domain does not include every
 value at that width.
+
+The structured expander retains periodic cases and adds deterministic pseudorandom
+tails, seeded from and overlaid with the raw input. This broadens the data shapes
+without claiming full entropy or exhaustive large-value coverage.
+`decode_full_width` checks 128 KiB and 2 MiB of text, including quarter-width
+leading-zero runs, against the independent Malachite and residue oracles. It
+skips quadratic kernels and checks malformed raw bytes separately. `decode_all`
+also checks fixed-capacity `into_array` results on bounded prefixes.
+
+Direct arithmetic tests cover the all-ones zero representative, the CRT second
+end-around carry, and reciprocal/division boundaries. The zero-estimate arm after
+a nonzero high dividend is impossible under the reciprocal bound and is removed;
+the argument is recorded beside `divide`. Wrapped multiplication remains tested
+even where a public conversion uses the prepared-power variant instead.
 
 Campaign callback counts include initial corpus processing and possible repeats;
 they are not distinct mutations or seed-file counts. Full-width stages require
@@ -226,9 +242,9 @@ statistics. Keep bounded mutation campaigns separate from large boundary replay.
 The shared corpus on the `fuzz-corpus` branch is minimized by libFuzzer merge
 in each of the four generic-CPU replay builds without ASan, then combined
 ([corpus guide](docs/fuzzing-corpus.md)). It preserves each build's
-edge-counter coverage of the inputs it saw, not each input. Value-profile
-features, ASan-only behavior and inputs that reach the same coverage with
-different values are not preserved; removed inputs remain only in Git history.
+edge-counter coverage of the inputs it saw and retains every stored input.
+Value-profile-only additions can be omitted by the merge, which does not use
+the value profile; the candidate still has to pass the ASan replay.
 
 Passing Rust/std MSan tests does not close the full libFuzzer/MSan campaign gap.
 No sanitizer runtime was patched to obtain the passes. TSan does not fully model

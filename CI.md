@@ -401,7 +401,7 @@ cargo llvm-cov --locked --no-default-features --features check --test no_alloc -
 Keep both reports outside the coverage target directory: the second command
 cleans the first command's build artifacts. Both LCOV files are uploaded together
 with the `tests` flag. The fuzz reports use the `fuzz` flag.
-[codecov.yml](codecov.yml) waits for five `tests` uploads and twelve `fuzz` uploads.
+[codecov.yml](codecov.yml) waits for five `tests` uploads and eighteen `fuzz` uploads.
 
 Runtime feature detection still selects instructions supported by the host;
 `target-cpu=generic` does not force a scalar or SSE4.1 fallback. Direct kernel
@@ -464,7 +464,7 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | Job | Checks | Platforms | Trigger |
 | --- | --- | --- | --- |
 | `corpus_snapshot` | Validates the head of `fuzz-corpus` and pins its revision | x86-64 Linux | All |
-| `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, cache off and on; arm64 Linux, generic CPU, cache on; each of the four targets | All |
+| `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, cache off and on; arm64 Linux, generic CPU, cache on; each of the six targets | All |
 | `nightly` | Mutation campaigns seeded by the run ID, with debug assertions and overflow checks, and value profile in the cache rows; writes provenance and uploads the campaign | x86-64 and arm64 Linux, generic CPU, cache off and on | Schedule; dispatch with `run_nightly` |
 | `minimize` | Keeps the seeds and the pinned corpus, and merges in the campaign inputs that add coverage beyond them in its build | Same as `nightly` | Schedule; dispatch with `run_nightly` |
 | `candidate_smoke` | Replays the seeds and the union of the four merged sets with ASan | Same rows as `fuzz_coverage` | Schedule; dispatch with `run_nightly` |
@@ -518,6 +518,15 @@ holds just the seeds: after a replay copy, it would also exclude the copied
 corpus inputs. To shrink the store instead, form `UNION` from `CORPUS_ROOT` and
 the campaigns and leave the stored inputs out of `MINIMIZED`, in every build that
 [fuzz/README.md](fuzz/README.md) lists.
+
+The six targets include persistent `check_all` coverage with `check` enabled and
+large decoding through `decode_full_width`. Nightly mutation uses deterministic
+seeds plus at most 16 stored inputs per target, selected reproducibly by run ID.
+This bounds initialization, which consumes `max_total_time` even though libFuzzer
+checks that limit only after replaying the seed corpus.
+Every lane must pass `check_mutations.py`; a successful initialization with no
+post-initialization mutation attempts fails. Full-store coverage and merges
+remain separate from this sampled mutation corpus.
 
 ## Other workflows
 
@@ -578,7 +587,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | — |
 | [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | — | `measurement_tools` |
 | [`fuzz/seed_corpus.py`](fuzz/seed_corpus.py) | Writes the deterministic seeds; fails if an existing seed differs | `--output DIR` (default `fuzz/corpus`) | Fuzz jobs |
-| [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates a content-addressed corpus, adds inputs to it, or replaces it with the union of input roots | `validate CORPUS`, `stage INCOMING CORPUS`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
+| [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates, stages, samples or unions content-addressed inputs | `validate CORPUS`, `stage INCOMING CORPUS`, `sample INCOMING CORPUS --limit N --seed SEED`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
 | [`fuzz/provenance.py`](fuzz/provenance.py) | Writes the JSON provenance of one campaign | `--output`, `--field KEY=VALUE`, `--digest KEY=PATH` | `nightly` |
 | [`fuzz/check_mutations.py`](fuzz/check_mutations.py) | Requires a nonzero mutation-attempt count in a libFuzzer log | `--self-test`; `LOG --seconds N` | `fuzz` |
 | [`fuzz/oracle_rustc.py`](fuzz/oracle_rustc.py) | `RUSTC_WRAPPER` that builds the Malachite and bs58 oracles without coverage, sanitizer-coverage or debug checks | Called by Cargo | `fuzz_coverage` |

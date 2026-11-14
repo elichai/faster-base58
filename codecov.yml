@@ -1,6 +1,6 @@
 codecov:
   notify:
-    after_n_builds: 17
+    after_n_builds: 23
 
 coverage:
   status:
@@ -21,7 +21,7 @@ coverage:
 
 flags:
   fuzz:
-    after_n_builds: 12
+    after_n_builds: 18
   tests:
     after_n_builds: 5
 

@@ -386,12 +386,15 @@ fn divide(
         let q = &p[qn..];
         hi[..q.len()].copy_from_slice(q);
         let ql = trimmed_len(hi);
+        // `D = pn β^shift <= β^qn - 1`, so `β^(2 qn) / D > β^qn + 1`.
+        // Even one below its floor gives `inv >= β^qn`; `a1 >= 1` then makes q positive.
+        debug_assert!(ql > 0, "a nonzero high dividend gives a positive estimate");
         let quotient = &hi[..ql];
         // The remainder `A - q pn` is below `7 pn < β^(dn + 1)`, so it is also its own
         // residue modulo `β^L - 1` for `L >= dn + 2`. Same arguments as in
         // `divide_scratch_len`.
         match m.wrap_len(dn + 2, qn + dn) {
-            Some(l) if ql > 0 => {
+            Some(l) => {
                 let (w, s) = s.split_at_mut(l);
                 let (r, s) = s.split_at_mut(l);
                 m.mul_power_wrapped(w, quotient, 2 * i, d.pn, s);
@@ -403,13 +406,12 @@ fn divide(
                 a.fill(0);
                 a[..keep.len()].copy_from_slice(keep);
             }
-            None if ql > 0 => {
+            None => {
                 let (qp, s) = s.split_at_mut(ql + dn);
                 m.mul_power(qp, quotient, 2 * i, d.pn, s);
                 let borrow = sub_assign(a, qp);
                 debug_assert!(!borrow, "the quotient estimate is too large");
             }
-            _ => {}
         }
     }
     let mut fixes = 0;
@@ -907,6 +909,22 @@ mod tests {
         out
     }
 
+    #[test]
+    fn canonical_preserves_nonzero_residues() {
+        for len in [1, 2, 7] {
+            let mut zero = vec![u64::MAX; len];
+            canonical(&mut zero);
+            assert_eq!(zero, vec![0; len]);
+            for at in 0..len {
+                let mut near = vec![u64::MAX; len];
+                near[at] -= 1;
+                let want = near.clone();
+                canonical(&mut near);
+                assert_eq!(near, want);
+            }
+        }
+    }
+
     /// Every division window must preserve the exact quotient and remainder.
     #[test]
     fn schoolbook_recovers_quotient_and_remainder() {
@@ -979,6 +997,22 @@ mod tests {
         lens.extend([127, 128, 129, 255, 256, 500, 1000, 2049]);
         check_reciprocals(&lens, &mut Karatsuba);
         check_reciprocals(&lens, &mut ntt(8192));
+    }
+
+    /// The largest normalized divisor gives the smallest reciprocal: either
+    /// `β^n` or `β^n + 1` satisfies its two-unit approximation bound.
+    #[test]
+    fn reciprocal_lower_boundary() {
+        for n in [1, 2, RECIP_BASECASE, RECIP_BASECASE + 1, 33] {
+            let a = vec![u64::MAX; n];
+            let mut x = vec![0; n + 1];
+            let mut s = vec![0; recip_scratch_len(n, &Karatsuba)];
+            reciprocal(&mut x, &a, &mut s, &mut Karatsuba);
+            assert_eq!(x[n], 1, "n {n}");
+            assert!(x[1..n].iter().all(|&v| v == 0), "n {n}");
+            assert!(x[0] <= 1, "n {n}");
+            assert_reciprocal(&a, &x, &format!("lower boundary n {n}"));
+        }
     }
 
     fn check_reciprocals(lens: &[usize], m: &mut impl Multiplier) {
@@ -1224,6 +1258,49 @@ mod tests {
         check_divisions(&mut Wrap(0));
         check_divisions(&mut Wrap(3));
         check_divisions(&mut ntt(1 << 15));
+    }
+
+    /// At `A = β^dn`, `a1` first becomes nonempty. The normalized divisor is
+    /// strictly between `β^dn / 2` and `β^dn`, so these nearby values have quotient 1.
+    #[test]
+    fn divide_at_first_high_limb() {
+        check_first_high_limb(&mut Karatsuba);
+        check_first_high_limb(&mut Wrap(0));
+    }
+
+    fn check_first_high_limb(m: &mut impl Multiplier) {
+        let mut storage = Vec::new();
+        for unit in [1, 7, 16] {
+            let divs = divisors(unit, 3, &mut storage, m);
+            for (i, d) in divs.iter().enumerate() {
+                assert!(d.inv()[d.qn()] >= 1);
+                let mut power = vec![0; d.shift];
+                power.extend_from_slice(d.pn);
+                let mut unshifted = vec![0; power.len()];
+                shr(&mut unshifted, &power, d.bits);
+                let mut boundary = vec![0; d.qn() + 1];
+                if d.bits == 0 {
+                    boundary[d.qn()] = 1;
+                } else {
+                    boundary[d.qn() - 1] = 1 << (64 - d.bits);
+                }
+                for offset in [-1, 0, 1] {
+                    let mut x = boundary.clone();
+                    match offset {
+                        -1 => assert!(!sub_assign(&mut x, &[1])),
+                        1 => assert!(!add_assign(&mut x, &[1])),
+                        _ => {}
+                    }
+                    let mut want_lo = x.clone();
+                    assert!(!sub_assign(&mut want_lo, &unshifted));
+                    let (mut hi, mut lo) = (vec![0; d.qn() + 1], vec![0; d.qn()]);
+                    let mut s = vec![0; divide_scratch_len(d, m)];
+                    let (hn, ln) = divide(&x, d, i, &mut hi, &mut lo, &mut s, m);
+                    assert_eq!(&hi[..hn], &[1], "unit {unit}, level {i}, offset {offset}");
+                    assert_eq!(&lo[..ln], &want_lo[..trimmed_len(&want_lo)]);
+                }
+            }
+        }
     }
 
     fn check_divisions(m: &mut impl Multiplier) {

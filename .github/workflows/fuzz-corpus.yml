@@ -74,11 +74,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fuzz_target: [encode_all, decode_all, encode_full_width, encode_radix_full_width]
+        fuzz_target: [encode_all, decode_all, encode_full_width, encode_radix_full_width, check_all, decode_full_width]
         row:
-          - { runner: ubuntu-26.04, triple: x86_64-unknown-linux-gnu, cpu: generic, label: default, features: full-width }
-          - { runner: ubuntu-26.04, triple: x86_64-unknown-linux-gnu, cpu: generic, label: cache, features: 'full-width,cache' }
-          - { runner: ubuntu-26.04-arm, triple: aarch64-unknown-linux-gnu, cpu: generic, label: cache, features: 'full-width,cache' }
+          - { runner: ubuntu-26.04, triple: x86_64-unknown-linux-gnu, cpu: generic, label: default, features: 'full-width,check' }
+          - { runner: ubuntu-26.04, triple: x86_64-unknown-linux-gnu, cpu: generic, label: cache, features: 'full-width,cache,check' }
+          - { runner: ubuntu-26.04-arm, triple: aarch64-unknown-linux-gnu, cpu: generic, label: cache, features: 'full-width,cache,check' }
     runs-on: ${{ matrix.row.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -107,7 +107,7 @@ jobs:
       - run: env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: |
           cd fuzz
-          python3 -m unittest test_seed_corpus.py test_corpus_store.py test_provenance.py test_oracle_rustc.py
+          python3 -m unittest test_seed_corpus.py test_corpus_store.py test_sample_corpus.py test_provenance.py test_oracle_rustc.py
           python3 seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
       - run: cp -a .fuzz-corpus/corpora/. fuzz/corpus/
@@ -127,7 +127,7 @@ jobs:
           ignore='-ignore-filename-regex=/(registry|rustc|rustlib)/|/fuzz/|/tests/|/ntt/internals/diagnostics\.rs$'
           cargo +${{ env.RUST_NIGHTLY }} fuzz coverage --verbose --sanitizer address --no-trace-compares --debug-assertions --strip-dead-code=false --target ${{ matrix.row.triple }} --target-dir target/coverage --no-default-features --features "${{ matrix.row.features }}" "$TARGET" "fuzz/corpus/$TARGET" -- -timeout=120 -rss_limit_mb=4096
           "$llvm_dir/llvm-cov" report "$binary" -instr-profile="$profile" "$ignore" > "fuzz/coverage/$TARGET/report.txt"
-          if [ "$TARGET" != decode_all ]; then
+          if [[ "$TARGET" == encode* ]]; then
             "$llvm_dir/llvm-cov" report "$binary" -instr-profile="$profile" src/ntt/radix.rs > "fuzz/coverage/$TARGET/radix.txt"
           fi
           "$llvm_dir/llvm-cov" export -format=lcov "$binary" -instr-profile="$profile" "$ignore" > "fuzz/coverage/$TARGET/lcov.info"
@@ -161,10 +161,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width', profile: '' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache', profile: '-use_value_profile=1' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width', profile: '' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache', profile: '-use_value_profile=1' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width,check', profile: '' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache,check', profile: '-use_value_profile=1' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width,check', profile: '' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache,check', profile: '-use_value_profile=1' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -172,6 +172,7 @@ jobs:
       FUZZ_SECONDS: ${{ inputs.fuzz_seconds || '300' }}
       FUZZ_SEED: ${{ github.run_id }}
       RUSTFLAGS: -C target-cpu=${{ matrix.cpu }}
+      RUSTC_WRAPPER: ${{ github.workspace }}/fuzz/oracle_rustc.py
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Corpus inputs come from a mutable branch; do not expose an Actions cache token.
@@ -193,13 +194,28 @@ jobs:
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: python3 fuzz/seed_corpus.py
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
-      - run: mkdir -p fuzz/campaign
-      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/campaign/
-      - run: cp -a .fuzz-corpus/corpora/. fuzz/campaign/
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
-      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: mkdir -p fuzz/logs
+      # Initialization consumes max_total_time, but libFuzzer only checks it afterward.
+      - run: python3 fuzz/corpus_store.py sample .fuzz-corpus/corpora fuzz/campaign --limit 16 --seed "$FUZZ_SEED"
+      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/corpus/check_all fuzz/corpus/decode_full_width fuzz/campaign/
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} encode_all fuzz/campaign/encode_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=65537 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/encode_all.log
+          python3 fuzz/check_mutations.py fuzz/logs/encode_all.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.args }} decode_all fuzz/campaign/decode_all -- -dict=fuzz/base58.dict ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=89502 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/decode_all.log
+          python3 fuzz/check_mutations.py fuzz/logs/decode_all.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width fuzz/campaign/encode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/encode_full_width.log
+          python3 fuzz/check_mutations.py fuzz/logs/encode_full_width.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/campaign/encode_radix_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/encode_radix_full_width.log
+          python3 fuzz/check_mutations.py fuzz/logs/encode_radix_full_width.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} check_all fuzz/campaign/check_all -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/check_all.log
+          python3 fuzz/check_mutations.py fuzz/logs/check_all.log --seconds "$FUZZ_SECONDS"
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --debug-assertions --no-default-features ${{ matrix.full_width_args }} decode_full_width fuzz/campaign/decode_full_width -- ${{ matrix.profile }} -seed="$FUZZ_SEED" -max_total_time="$FUZZ_SECONDS" -max_len=8193 -timeout=120 -rss_limit_mb=4096 -print_corpus_stats=1 -print_final_stats=1 2>&1 | tee fuzz/logs/decode_full_width.log
+          python3 fuzz/check_mutations.py fuzz/logs/decode_full_width.log --seconds "$FUZZ_SECONDS"
       - run: mkdir -p fuzz/publish
       - run: >-
           python3 fuzz/provenance.py --output fuzz/publish/provenance.json
@@ -208,7 +224,8 @@ jobs:
           --field features=${{ matrix.label }} --field sanitizer=address --field debug_assertions=true --field value_profile=${{ matrix.profile != '' }} --field seed="$FUZZ_SEED"
           --field seconds_per_target="$FUZZ_SECONDS" --field rust_toolchain=${{ env.RUST_NIGHTLY }}
           --field cargo_fuzz=${{ env.CARGO_FUZZ_VERSION }} --field rustflags="$RUSTFLAGS" --field exit=0
-          --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width --digest dictionary=fuzz/base58.dict
+          --field stored_seed_limit=16 --field stored_seed_selection=sha256-rank-v1
+          --field check=true --field targets=encode_all,decode_all,encode_full_width,encode_radix_full_width,check_all,decode_full_width --digest dictionary=fuzz/base58.dict
       - run: mv fuzz/campaign fuzz/publish/campaign
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -237,10 +254,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: default, args: '', full_width_args: '--features full-width,check' }
+          - { runner: ubuntu-26.04, arch: x86_64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache,check' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: default, args: '', full_width_args: '--features full-width,check' }
+          - { runner: ubuntu-26.04-arm, arch: aarch64, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache,check' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -275,7 +292,7 @@ jobs:
         uses: ./.github/actions/setup-clang23
       - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
       - run: mkdir -p fuzz/minimized fuzz/logs
-      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/minimized/
+      - run: cp -a fuzz/corpus/encode_all fuzz/corpus/decode_all fuzz/corpus/encode_full_width fuzz/corpus/encode_radix_full_width fuzz/corpus/check_all fuzz/corpus/decode_full_width fuzz/minimized/
       # libFuzzer's merge keeps every input of its first directory.
       - run: cp -a .fuzz-corpus/corpora/. fuzz/minimized/
       - run: |
@@ -290,6 +307,12 @@ jobs:
       - run: |
           cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer none --no-trace-compares --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width fuzz/minimized/encode_radix_full_width fuzz/union/encode_radix_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/encode_radix_full_width.log
           grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/encode_radix_full_width.log
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer none --no-trace-compares --no-default-features ${{ matrix.full_width_args }} check_all fuzz/minimized/check_all fuzz/union/check_all -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/check_all.log
+          grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/check_all.log
+      - run: |
+          cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer none --no-trace-compares --no-default-features ${{ matrix.full_width_args }} decode_full_width fuzz/minimized/decode_full_width fuzz/union/decode_full_width -- -merge=1 -max_len=8193 -timeout=120 -rss_limit_mb=4096 2>&1 | tee fuzz/logs/decode_full_width.log
+          grep -F 'MERGE-OUTER: successful in 1 attempt(s)' fuzz/logs/decode_full_width.log
       # The seeds in each result are removed again when the union is formed.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -307,9 +330,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-26.04, cpu: generic, label: default, args: '', full_width_args: '--features full-width' }
-          - { runner: ubuntu-26.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
-          - { runner: ubuntu-26.04-arm, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache' }
+          - { runner: ubuntu-26.04, cpu: generic, label: default, args: '', full_width_args: '--features full-width,check' }
+          - { runner: ubuntu-26.04, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache,check' }
+          - { runner: ubuntu-26.04-arm, cpu: generic, label: cache, args: '--features cache', full_width_args: '--features full-width,cache,check' }
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: '0'
@@ -339,6 +362,8 @@ jobs:
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.args }} decode_all -- -runs=0 -max_len=89502 -timeout=120 -rss_limit_mb=4096
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
       - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} encode_radix_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} check_all -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
+      - run: cargo +${{ env.RUST_NIGHTLY }} fuzz run --verbose --sanitizer address --no-trace-compares --debug-assertions --no-default-features ${{ matrix.full_width_args }} decode_full_width -- -runs=0 -max_len=8193 -timeout=120 -rss_limit_mb=4096
 
   # Publishing replaces corpora/ with the candidate union, which holds every stored
   # input, so it only adds inputs. Merging skips an input that fails, which fails
