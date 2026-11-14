@@ -2,10 +2,10 @@
 
 Implementation influences, algorithm references and test/benchmark dependencies
 are listed below. Some source provenance remains unresolved; see the final section.
-The [five8 license](docs/references/five8-LICENSE.txt),
-[Bitcoin Core license](docs/references/bitcoin-core-LICENSE.txt) and Firedancer
-[license](docs/references/firedancer-LICENSE.txt) /
-[notice](docs/references/firedancer-NOTICE.txt) are retained with these credits.
+The [five8 license](licenses/five8-LICENSE.txt),
+[Bitcoin Core license](licenses/bitcoin-core-LICENSE.txt) and Firedancer
+[license](licenses/firedancer-LICENSE.txt) /
+[notice](licenses/firedancer-NOTICE.txt) are retained with these credits.
 
 ## Implementation and arithmetic references
 

@@ -14,7 +14,7 @@ include = [
     "/README.md", "/DESIGN.md", "/CORRECTNESS.md", "/REFERENCES.md", "/LICENSE-*",
     "/assets/graphs/m5-public.svg", "/assets/graphs/gcp-public.svg",
     "/assets/graphs/wasm-public.svg", "/docs/README.md", "/docs/performance.md",
-    "/docs/references/*.txt",
+    "/licenses/*.txt",
 ]
 
 [features]

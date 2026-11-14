@@ -3,7 +3,7 @@
 //! Vectors copied from bitcoin/bitcoin at 2b5b6fe231ff45a09d9e24411e4420d51ed45cab:
 //! `src/test/data/base58_encode_decode.json`. Copyright (c) 2009-2026 The Bitcoin
 //! Core developers and Bitcoin Developers. Distributed under the MIT license;
-//! see docs/references/bitcoin-core-LICENSE.txt. Runtime code was not copied.
+//! see licenses/bitcoin-core-LICENSE.txt. Runtime code was not copied.
 
 #[cfg(feature = "__internals")]
 mod support;
