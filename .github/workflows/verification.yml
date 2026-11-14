@@ -733,6 +733,12 @@ jobs:
       - run: sudo apt-get install -y z3
       - name: Tiny production paths and alphabet domains
         run: python3 scripts/kani_guard.py -- sh scripts/kani-production.sh
+      - name: One-limb Barrett estimate and reciprocal lower bound
+        run: >-
+          python3 scripts/kani_guard.py -- cargo kani --lib --solver z3
+          --harness nonzero_high_limb_has_positive_estimate
+          --harness one_limb_reciprocal_has_lower_bound
+          -Z unstable-options --harness-timeout 60s --jobs 2 --output-format terse
       - name: Two-digit batched decoder
         # SAT avoids Kani 0.68's SMT-lowering failure for this harness.
         # The four-limb paired loop (UNROLL_PAIRED) is unreachable here but CBMC still

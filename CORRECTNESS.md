@@ -313,6 +313,7 @@ loops have explicit bounds. Required harnesses use 60/180/360-second budgets.
 | Generic batched decoding | All `58^2` valid two-digit strings and capacities 0–3; numeric value, leading zeros, errors and output canaries |
 | Parsing | All 256 lookup entries; validity through four bytes, zero split through eight, partial chunks through nine; full ten-byte numeric value and invalid rejection by verified composition |
 | Limb arithmetic | Full-width two-limb carry/borrow; one-limb multiplication; single radix updates; three limbs folded into one modulo `2^64 - 1` |
+| Barrett estimate and reciprocal lower bound | Scalar production multiplication/extraction gives a positive estimate for every nonzero one-limb high dividend and every two-limb reciprocal at least `β = 2^64` (`qn = 1`). Actual `reciprocal` returns at least `β` for every normalized one-limb divisor. These are separate obligations, not a proof of general divisor construction or division. |
 | NTT scalar operations | Reduction for every `i32`, normalization in `(-q,q)`, loading for every `u32`, all three primes; plan bounds and scale at every power-of-two length 1 through `2^23`; both inverse butterfly kinds for every input in their ranges and every balanced twiddle (outputs below `1.25 q` and `1.9 q`) |
 | Matrix / IFMA models | Two-column carries; eight-column radix-52 carry; 13 limbs ↔ 16 radix-52 digits through a scalar vector model |
 | Capacity | Actual encoded-bound safety, coverage of input count, endpoint saturation and full adjacent monotonicity; owned decoded-bound arithmetic and safe prefix addition for every 64-bit `usize` |
@@ -329,8 +330,15 @@ assertions in the portable kernel, not by Kani.
 
 Wider paired numeric equality, encoder split/step and fixed carries, actual
 Barrett division and the public borrowed-array wrapper remain unresolved.
+The positive-estimate query with exactly two significant high limbs and the
+`Divisor::new` inverse bound for any normalized one-limb value with zero shift
+are also open: each exceeds its 60-second budget with its selected solver; the
+construction query additionally hits CBMC's SMT-lowering failure with Z3. That
+query supplies the normalized value directly, not through the power table.
+Newton/from-square reciprocal construction and arbitrary-length estimate
+positivity remain outside the completed domains.
 Timed-out or untranslated queries are neither counterexamples nor proofs.
-[The open runner](scripts/kani-open.sh) selects eight distinct unresolved queries.
+[The open runner](scripts/kani-open.sh) selects ten distinct unresolved queries.
 Direct parser/capacity formulations also remain in source; their properties are
 closed by verified composition.
 

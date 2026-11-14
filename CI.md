@@ -442,7 +442,9 @@ python3 scripts/kani_guard.py -- sh scripts/kani-production.sh
 ```
 
 `kani-production.sh` covers only the tiny public conversion and alphabet
-obligations. The workflow runs five more `cargo kani` selections. They use
+obligations. The workflow runs six more `cargo kani` selections, including the
+one-limb Barrett estimate and reciprocal lower-bound domains in
+[CORRECTNESS.md](CORRECTNESS.md#kani-proofs). They use
 different solvers, timeouts and `CARGO_PROFILE_DEV_OPT_LEVEL` values; the dev
 profile otherwise uses opt-level 3. Copy each command with its step `env:`. One
 step passes `--cbmc-args --external-smt2-solver scripts/kani-z3-polynomial.sh`.

@@ -837,6 +837,71 @@ mod verification {
         }
     }
 
+    /// Conditional estimate lemma: one full-width high limb and a two-limb
+    /// reciprocal at least β. This does not prove reciprocal construction.
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn nonzero_high_limb_has_positive_estimate() {
+        let a1: [u64; 1] = kani::any();
+        let inv: [u64; 2] = kani::any();
+        kani::assume(a1[0] != 0 && inv[1] != 0);
+        let mut product = [0; 3];
+        let mut scratch = [0; 74];
+        Scalar.mul_power(&mut product, &a1, 0, &inv, &mut scratch);
+        let mut hi = [0; 2];
+        hi.copy_from_slice(&product[1..]);
+        assert!(trimmed_len(&hi) > 0);
+    }
+
+    /// Exactly two significant high limbs, with a three-limb reciprocal at least β².
+    // Open obligation: the full-width Z3 query exceeds its 60-second budget.
+    #[kani::proof]
+    #[kani::unwind(6)]
+    #[kani::solver(z3)]
+    fn two_high_limbs_have_positive_estimate() {
+        let a1: [u64; 2] = kani::any();
+        let inv: [u64; 3] = kani::any();
+        kani::assume(a1[1] != 0 && inv[2] != 0);
+        let mut product = [0; 5];
+        let mut scratch = [0; 79];
+        Scalar.mul_power(&mut product, &a1, 0, &inv, &mut scratch);
+        let mut hi = [0; 3];
+        hi.copy_from_slice(&product[2..]);
+        assert!(trimmed_len(&hi) > 0);
+    }
+
+    /// Actual reciprocal base case for every normalized, full-width one-limb divisor.
+    #[kani::proof]
+    #[kani::unwind(3)]
+    fn one_limb_reciprocal_has_lower_bound() {
+        let a: [u64; 1] = kani::any();
+        kani::assume(a[0] >> 63 == 1);
+        let mut inv = [0; 2];
+        let mut scratch = [0; 3];
+        reciprocal(&mut inv, &a, &mut scratch, &mut Scalar);
+        assert!(inv[1] >= 1);
+    }
+
+    /// Schoolbook reciprocal and inv slicing for any normalized one-limb value
+    /// with no zero-limb shift, not only a literal power of BASE; no prior square.
+    // Open obligation: SMT lowering fails; the SAT query exceeds 60 seconds.
+    #[kani::proof]
+    #[kani::unwind(8)]
+    #[kani::solver(cadical)]
+    fn one_limb_divisor_inverse_has_lower_bound() {
+        let limbs: [u64; 1] = kani::any();
+        kani::assume(limbs[0] >> 63 == 1);
+        let p = Power {
+            exp: 1,
+            limbs: &limbs,
+            shift: 0,
+        };
+        let mut scratch = [0; 96];
+        let mut data = [0; 4];
+        let d = Divisor::new(&p, None, &mut data, &mut scratch, &mut Scalar);
+        assert!(d.inv()[d.qn()] >= 1);
+    }
+
     #[kani::proof]
     #[kani::unwind(8)]
     fn barrett_divide_one_base_power_is_exact() {

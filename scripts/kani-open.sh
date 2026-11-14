@@ -20,4 +20,11 @@ cargo kani --lib \
 cargo kani --lib --harness one_byte_borrowed_api_preserves_exact_array_contracts \
     -Z function-contracts -Z stubbing -Z unstable-options \
     --harness-timeout 60s || status=1
+# Full-width estimate and schoolbook reciprocal construction remain open.
+# The harness attributes select Z3 and SAT respectively; SMT lowering fails for
+# the construction query. Keep overflow, memory and unwinding checks enabled.
+cargo kani --lib \
+    --harness two_high_limbs_have_positive_estimate \
+    --harness one_limb_divisor_inverse_has_lower_bound \
+    -Z unstable-options --harness-timeout 60s --jobs 2 --output-format terse || status=1
 exit "$status"
