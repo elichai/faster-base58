@@ -125,7 +125,7 @@ pub(crate) fn decode_parts(
             ))
         ))]
         DecodeBackend::Karatsuba => crate::dc::decode_parts(
-            input,
+            digits,
             zeros,
             output,
             &mut crate::dc::Karatsuba,
@@ -133,7 +133,7 @@ pub(crate) fn decode_parts(
         ),
         #[cfg(feature = "cache")]
         DecodeBackend::Matrix => crate::matrix::entry::decode(input, zeros, output),
-        DecodeBackend::Ntt => crate::ntt::decode(input, zeros, output),
+        DecodeBackend::Ntt => crate::ntt::decode(digits, zeros, output),
     }
 }
 

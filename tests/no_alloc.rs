@@ -519,7 +519,12 @@ fn checked_encoding_uses_only_output_and_normal_codec_workspace() {
         let encoder = version.map_or(Encoder::bitcoin().with_check(), |v| {
             Encoder::bitcoin().with_check_version(v)
         });
-        for len in [0, 1, 16, 17, 27, 28, 59, 60, 4096, 8193, 16379] {
+        // Check staged radix encoding against the same significant frame passed
+        // to the plain codec, across the AVX2 size and padding boundaries.
+        for len in [
+            0, 1, 16, 17, 27, 28, 59, 60, 4096, 8193, 16379, 16380, 16381, 31485, 31486, 31487,
+            34811, 34812, 34813,
+        ] {
             let input = vec![0xff; len];
             let expected = match version {
                 Some(v) => bs58::encode(&input).with_check_version(v).into_string(),

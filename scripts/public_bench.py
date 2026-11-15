@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Time public conversions of code_size.py probes and write the README timing CSV.
+"""Time public conversions of code_size.py probes and write a public timing CSV.
 
 Pass LABEL=PATH for each `both`-direction cdylib (or Wasm module with --wasm).
 LABEL is BACKEND or BACKEND+cache; no-alloc and bs58 stop at 64 KiB, five8 covers

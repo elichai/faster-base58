@@ -1,12 +1,9 @@
 # Correctness and verification
 
-Verification combines independent conversion oracles, property tests, arithmetic
-tests, native sanitizers, Miri and scoped Kani proofs. Each checks different
-properties. Passing these checks does not prove arbitrary-length conversion or
-the semantics of every SIMD instruction. The implementation map is in
-[DESIGN.md](DESIGN.md); repeatable jobs are in
-[the workflow](.github/workflows/verification.yml), and [CI.md](CI.md) gives
-their local commands.
+The checks use independent conversion oracles, property tests, native sanitizers,
+Miri and Kani. They do not prove arbitrary-length conversion or every SIMD
+instruction. See [DESIGN.md](DESIGN.md) for the implementation and [CI.md](CI.md)
+for CI jobs and local commands.
 
 ## Recorded check scope
 
@@ -25,6 +22,8 @@ The default-on `alloc` feature enables allocating backends and owned results.
 `--no-default-features --features check`.
 The downstream API checker also checks owned/check method availability and
 rejects the removed free functions and `no_alloc` module.
+README examples run as doctests with `alloc` and `check` enabled; they are not
+doctested without those features.
 
 - The alphabet is Bitcoin Base58. Leading zero bytes become leading `'1'`s.
 - Exact output capacity suffices. Successful calls leave the unused tail intact.
@@ -55,7 +54,7 @@ rejects the removed free functions and `no_alloc` module.
 
 | Check | What it exercises |
 | --- | --- |
-| [Configurable codec](tests/builders.rs) | Const configuration, owned/borrowed inputs, plain codec agreement, known Base58Check answers, bs58 differential properties, version insertion/validation/retention, empty/truncated/corrupted frames, large-frame checksum-before-version errors across shared backends, exact data capacity with a separate checksum segment, and untouched guards/tails |
+| [Configurable codec](tests/builders.rs) | Const configuration, owned/borrowed inputs, plain codec agreement, known Base58Check answers, bs58 differential properties, version insertion/validation/retention, empty/truncated/corrupted frames, large-frame checksum-before-version errors across shared backends, exact data capacity with a separate checksum segment, staged encoding across AVX2 radix boundaries, and untouched guards/tails |
 | [Public properties](tests/public_properties.rs) | Independent integer/radix conversion, zero prefixes, exact/short/oversized buffers, Unicode error indices, repeated output and dispatch history |
 | [Bitcoin Core vectors](tests/bitcoin_core.rs) | 21 pinned known-answer vectors, zero extensions to 32/64 bytes, short output, preserved tails, and explicit strict whitespace/NUL rules; internal wrappers run when enabled |
 | [Owned decoding](tests/owned_output.rs) | Maximum digits at capacity and dispatch boundaries, arbitrary digits, long zero prefixes, independent scalar values and byte offsets of late invalid characters |
@@ -71,6 +70,11 @@ rejects the removed free functions and `no_alloc` module.
 | [Public API](tests/api.rs) and [tiny inputs](tests/tiny_inputs.rs) | Borrowed/owned agreement, exact arrays, zero prefixes and capacities at dispatch boundaries, standard error traits; every byte and short text against bs58 with byte offsets |
 | [Cold Matrix tables](tests/matrix_cold.rs) and [Miri entry points](tests/miri.rs) | First decodes from several threads in a fresh process; buffer cases split for the custom Miri runner |
 
+Divide-and-conquer decoding validates the whole input before arithmetic. Its
+Horner leaf parser relies on that invariant; tests that pass invalid input
+directly to this internal helper check its debug assertion only when debug
+assertions are enabled. Public malformed-input tests run in both profiles.
+
 Radix allocation tests bound allocation requests and peak requested live bytes at
 1/4 MiB and guard both ends of the output. A forced owned-NTT case checks one allocation
 per prime plus the packed conversion arena, without prepared spectra or reallocations.
@@ -84,6 +88,14 @@ Matrix leaf tests check mixed-digit heads of widths one through four without
 padding and widths two and four with padding, including leading padding digits,
 exact/short buffers, guard bytes and the unwritten output tail.
 
+Paired batched encoding is checked against two sequential updates for stored-limb
+lengths 0–9, zero and maximal carries, and untouched spare slots. Schoolbook
+division tests recover a constructed quotient and remainder for normalized
+divisors of 2–16 limbs, zero/maximal/random quotients, and remainder `v - 1`.
+Radix quarter-carry tests compare a serial oracle for lengths 0–65 and every
+addend-prefix length, including maximal coefficients and guarded output. Separate
+cases pass a carry into nonzero tails and propagate correction across all quarters.
+
 The whole-limb formatter's `ten_digits_matches_division` test compares serial
 division at both domain ends, radix boundaries and 10,000 seeded values; that is
 not exhaustive coverage of the `58^10` domain.
@@ -95,46 +107,32 @@ first-invalid indices; Malachite replaces it above that length. Canary checks su
 unspecified error-buffer contents. Unit tests also cover MiB conversions, all-one
 carry patterns, powers, small exhaustive inputs, all legal NTT scale lengths and the
 partial-word store at every length from 0 to 8 bytes, with guard bytes.
+The `tests` coverage flag includes unit and property suites. Direct unit tests
+cover supported ISA kernels that runtime dispatch may bypass on a given runner.
 
-CI selects 512 cases per property in debug and release, cache off/on, on x86-64
-and arm64 Linux. Compact builds have additional x86-64 Linux rows. Big-endian
-PowerPC64 tests run under cross/QEMU in optimized debug builds, cache off/on,
-including unit, integration and documentation tests, with 128 cases per property.
-In the `tests` job, the x86-64 Linux debug rows (cache off and on) run the unit,
-API and property suite with `cargo test`, so the tests of one binary share a
-process. All other unit and integration lists in `tests`, `compact`, `msrv` and
-`pointer_width_32` use Nextest, including the
-arm64 Linux debug rows. Documentation examples and the two ignored boundary tests
-(16 MiB radix and `2^23`-point transform) use `cargo test`. The cross revision
-and container image digest are pinned, and so are the toolchains: stable in
-[rust-toolchain.toml](rust-toolchain.toml), which also applies to local builds in
-the repository, and the nightly in
-[ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml). Dependabot
-proposes toolchain updates. Other jobs cover 32-bit Linux, bare-metal no_std
-builds, Wasm/AArch64 builds, Rust 1.95, API namespace
-boundaries, Clippy, formatting and package contents. Build checks alone
-do not execute kernels. The maximum `2^23`-point transform test runs separately;
-two expensive Matrix sweeps execute with `cache` rather than rebuilding the
-same owned tables for every size. [CI.md](CI.md#test-jobs) gives the local
-commands for these rows.
+CI runs native x86-64 and arm64 Linux tests, compact variants, big-endian
+PowerPC64 under QEMU, 32-bit tests, Wasm SIMD128 and MSRV checks. Native properties
+use 512 cases; PowerPC64 uses 128. The x86-64 debug rows use `cargo test` to exercise
+shared process state; most other unit/integration rows use Nextest. Documentation
+and ignored large-boundary tests use `cargo test`. Toolchains are pinned in
+[rust-toolchain.toml](rust-toolchain.toml) and
+[ci/nightly/rust-toolchain.toml](ci/nightly/rust-toolchain.toml).
+[CI.md](CI.md#test-jobs) lists the complete matrix and commands.
 
-The SIMD inlining job builds the Auto consumer library with generic CPU flags for
-x86-64 and arm64 Linux, each default, `cache` and `compact`, on one x86-64 runner
-(arm64 is cross-compiled). [check_simd_inlining.py](scripts/check_simd_inlining.py)
-compares every out-of-line function whose name mentions the crate or a `core::arch`
-intrinsic with [check_simd_inlining.txt](scripts/check_simd_inlining.txt), per
-configuration. It fails on an unlisted function and on a listed function that is no
-longer out of line, so the list records LLVM's inlining decisions for the pinned
-toolchain; a code or toolchain change that moves a function updates the list. The
-list comments the SIMD functions kept apart on purpose: dispatch-table entries,
-target-feature entry points, kernels selected by pointer and cold paths. The check
-reads symbols only: it does not see slow code inside an inlined body. `--build`
-needs x86-64 or arm64 Linux. On an Apple silicon Mac, run it in an arm64 container,
-which cross-compiles x86-64:
+The `proptest_coverage` job uploads all library unit and integration suites,
+including direct SIMD kernel comparisons, builder/error contracts and cold-cache
+preflight tests, with `check` and both cache policies. The native x86 row also
+enables `compact`. Each row uploads a separate no-allocation public-suite report.
+Coverage does not include ignored large-boundary tests, unsupported ISA paths or
+compile-time evaluation. A generic CPU build still performs runtime dispatch;
+it does not force every dispatch branch. [CI.md](CI.md#fuzzing-and-coverage-jobs)
+gives the report commands and file filters.
 
-```sh
-docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
-```
+The SIMD inlining job compares out-of-line crate and `core::arch` functions with
+[check_simd_inlining.txt](scripts/check_simd_inlining.txt) for generic x86-64 and
+arm64 Linux, under default, cache and compact policies. Both additions and missing
+entries fail the check. It reads symbols, not the work inside inlined bodies.
+See [CI.md](CI.md#test-jobs) for build prerequisites and commands.
 
 The x86 AVX2 Matrix parser has unit tests against the portable parser: random,
 all-`'z'` and one-invalid-byte strings at lengths 0–100 and around the 32-byte
@@ -158,7 +156,10 @@ because Wasm panics abort. [CI.md](CI.md#test-jobs) gives the local commands.
 The [two general differential targets](fuzz/README.md) compare all backend
 wrappers and both allocation policies: values, capacities, suffixes, canaries, owned
 helpers and malformed input. Decode also maps bytes to valid digits and inserts
-invalid ASCII or multibyte characters, including late positions. The shared
+invalid ASCII or multibyte characters, including late positions. Encode's mutator
+also mutates base-58 digits, and `zero-run-*` seeds start it with long runs of the
+zero digit; this reaches zero leaves and subtrees of the encoders' division tree,
+which random bytes almost never do. The shared
 oracle switches from bs58 to Malachite above 2,048 bytes, so large inputs do not
 pay for a quadratic oracle. The quadratic `batched` and `no-alloc` hooks run only
 up to 8,193 bytes or characters; `large_inputs_round_trip` and
@@ -171,7 +172,9 @@ bs58's checksum validation plus an independent version rule, with and without a
 version, for valid, changed and arbitrary text. It checks exact/short/oversized
 slices, tails and canaries. Payloads up to 8,193 bytes encode to about 11,200
 characters, so decoding the encoded frame can reach every checked encode and decode
-backend; changed frames and arbitrary text share that budget. CI runs it for default and cache policies in the manual fuzz dispatch.
+backend; changed frames and arbitrary text share that budget. It participates in
+the stored corpus, nightly mutation and merge, ASan replay and source coverage,
+as well as the manual fuzz dispatch, with the `check` feature enabled.
 
 General target budgets are 65,537 binary bytes and
 `max_encoded_len(65_537) = 89,502` decode bytes. Lossy UTF-8 and inserted
@@ -179,29 +182,47 @@ characters can expand text. These budgets are not format limits or coverage of
 every transform size. The 8,193-byte native mutation cap does not reach real NTT
 thresholds on the IFMA host; large boundary replay, MSan and Miri do exercise NTT.
 
-`encode_radix_full_width` uses an independent Malachite oracle on periodic
+`encode_radix_full_width` uses an independent Malachite oracle on structured
 256 KiB / 1 MiB values, reaching owned large twiddles. Arbitrary large values
 remain outside this structured domain.
 
 The optional `encode_full_width` target expands every raw mutation into a
-periodic 65,537-byte value with its first bit set. It checks encoding and
+65,537-byte value with its first bit set. It checks encoding and
 generated-text decoding against independent oracles. The pinned-source geometry
 audit places those values above the native NTT thresholds. Its default-policy
 native careful-ASan stage is **unverified**. It uses the Malachite oracle and
 skips the quadratic hooks, as above. This structured domain does not include every
 value at that width.
 
+The structured expander retains periodic cases and adds deterministic pseudorandom
+tails, seeded from and overlaid with the raw input. This broadens the data shapes
+without claiming full entropy or exhaustive large-value coverage.
+`decode_full_width` checks 128 KiB and 2 MiB of text, including quarter-width
+leading-zero runs, against the independent Malachite and residue oracles. It
+skips quadratic kernels and checks malformed raw bytes separately. `decode_all`
+also checks fixed-capacity `into_array` results on bounded prefixes.
+
+Direct arithmetic tests cover the all-ones zero representative, the CRT second
+end-around carry, and reciprocal/division boundaries. The zero-estimate arm after
+a nonzero high dividend is impossible under the reciprocal bound and is removed;
+the argument is recorded beside `divide`. Wrapped multiplication remains tested
+even where a public conversion uses the prepared-power variant instead.
+
 Campaign callback counts include initial corpus processing and possible repeats;
-they are not distinct mutations or seed-file counts. Full-width stages require
+they are not distinct mutations or seed-file counts. Full-width stages and all
+nightly corpus targets require
 a positive post-initialization mutation-attempt count from libFuzzer's corpus
 statistics. Keep bounded mutation campaigns separate from large boundary replay.
+Nightly corpus campaigns use all deterministic seeds and at most 16 stored inputs
+per target, selected reproducibly by run ID. The complete stored corpus remains
+in the coverage replay, merge and candidate replay checks.
 
 The shared corpus on the `fuzz-corpus` branch is minimized by libFuzzer merge
 in each of the four generic-CPU replay builds without ASan, then combined
 ([corpus guide](docs/fuzzing-corpus.md)). It preserves each build's
-edge-counter coverage of the inputs it saw, not each input. Value-profile
-features, ASan-only behavior and inputs that reach the same coverage with
-different values are not preserved; removed inputs remain only in Git history.
+edge-counter coverage of the inputs it saw and retains every stored input.
+Value-profile-only additions can be omitted by the merge, which does not use
+the value profile; the candidate still has to pass the ASan replay.
 
 Passing Rust/std MSan tests does not close the full libFuzzer/MSan campaign gap.
 No sanitizer runtime was patched to obtain the passes. TSan does not fully model
@@ -234,10 +255,9 @@ all 15 probes confirmed these failures; the other three permutation probes pass.
 | x86 | `llvm.x86.avx512.vpermi2var.d.512` |
 | x86 | `llvm.x86.avx512.vpermi2var.qi.256` |
 
-[Minimal probes](tests/miri_intrinsics.rs) isolate them;
-[the runner](scripts/miri-extended.sh) retains every probe. The workflow's
-`extended_miri` input intentionally exposes those failures rather than marking
-unsupported instructions as passes. It is off for normal CI.
+[Minimal probes](tests/miri_intrinsics.rs) isolate them. The workflow's
+`extended_miri` input runs [all probes](scripts/miri-extended.sh) and reports the
+unsupported-intrinsic failures. It is off for normal CI.
 
 The [pinned development interpreter](ci/miri/README.md) supplies these shims
 without changing library dependencies. Its reviewed patch preserves the
@@ -266,6 +286,7 @@ loops have explicit bounds. Required harnesses use 60/180/360-second budgets.
 | Generic batched decoding | All `58^2` valid two-digit strings and capacities 0–3; numeric value, leading zeros, errors and output canaries |
 | Parsing | All 256 lookup entries; validity through four bytes, zero split through eight, partial chunks through nine; full ten-byte numeric value and invalid rejection by verified composition |
 | Limb arithmetic | Full-width two-limb carry/borrow; one-limb multiplication; single radix updates; three limbs folded into one modulo `2^64 - 1` |
+| Barrett estimate and reciprocal lower bound | Scalar production multiplication/extraction gives a positive estimate for every nonzero one-limb high dividend and every two-limb reciprocal at least `β = 2^64` (`qn = 1`). Actual `reciprocal` returns at least `β` for every normalized one-limb divisor. These are separate obligations, not a proof of general divisor construction or division. |
 | NTT scalar operations | Reduction for every `i32`, normalization in `(-q,q)`, loading for every `u32`, all three primes; plan bounds and scale at every power-of-two length 1 through `2^23`; both inverse butterfly kinds for every input in their ranges and every balanced twiddle (outputs below `1.25 q` and `1.9 q`) |
 | Matrix / IFMA models | Two-column carries; eight-column radix-52 carry; 13 limbs ↔ 16 radix-52 digits through a scalar vector model |
 | Capacity | Actual encoded-bound safety, coverage of input count, endpoint saturation and full adjacent monotonicity; owned decoded-bound arithmetic and safe prefix addition for every 64-bit `usize` |
@@ -282,8 +303,15 @@ assertions in the portable kernel, not by Kani.
 
 Wider paired numeric equality, encoder split/step and fixed carries, actual
 Barrett division and the public borrowed-array wrapper remain unresolved.
+The positive-estimate query with exactly two significant high limbs and the
+`Divisor::new` inverse bound for any normalized one-limb value with zero shift
+are also open: each exceeds its 60-second budget with its selected solver; the
+construction query additionally hits CBMC's SMT-lowering failure with Z3. That
+query supplies the normalized value directly, not through the power table.
+Newton/from-square reciprocal construction and arbitrary-length estimate
+positivity remain outside the completed domains.
 Timed-out or untranslated queries are neither counterexamples nor proofs.
-[The open runner](scripts/kani-open.sh) selects eight distinct unresolved queries.
+[The open runner](scripts/kani-open.sh) selects ten distinct unresolved queries.
 Direct parser/capacity formulations also remain in source; their properties are
 closed by verified composition.
 
@@ -310,7 +338,9 @@ not refresh a prior result. For performance and memory work, use the separate
 3. Complete the default full-width native ASan stages. Repair or
    replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
-   are finite.
+   are finite. Runtime dispatch selects the best x86 kernels, so fuzzing on an
+   AVX-512 host never runs the AVX2 NTT kernels, the AVX2 fixed-width encoder or the
+   SSE4.1 matrix panel; only unit tests compare them with the portable code.
 4. Run the native AVX-512 kernel tests on AVX-512 hardware in every CI run.
    `mul_ifma::tests::avx512_matches_reference` needs AVX-512F and IFMA;
    `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F. Without the
@@ -326,5 +356,3 @@ not refresh a prior result. For performance and memory work, use the separate
    using [the measurement guide](docs/performance.md).
 6. Resolve any confirmed source-adaptation notice obligations described in
    [REFERENCES.md](REFERENCES.md), and make an explicit release decision after CI.
-
-A passing job establishes only the checks and platforms it actually executes.

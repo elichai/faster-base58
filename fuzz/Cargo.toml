@@ -60,6 +60,14 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "decode_full_width"
+path = "fuzz_targets/decode_full_width.rs"
+required-features = ["full-width"]
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]
 

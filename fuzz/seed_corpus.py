@@ -17,9 +17,8 @@ LENGTHS = [
     32767, 32768, 32769, ENCODE_MAX_BYTES - 2, ENCODE_MAX_BYTES - 1, ENCODE_MAX_BYTES,
 ]
 DECODE_CARRY_LENGTHS = [
-    # Keep seeds from the earlier campaign, including its old 89,493-byte cap.
     44_760, 44_761, 89_492, 89_493,
-    # All-z inputs cross 8192 u64 limbs at 89,500 characters, then reach the new cap.
+    # All-z inputs cross 8192 u64 limbs at 89,500 characters, through the input cap.
     89_499, 89_500, DECODE_MAX_BYTES - 1, DECODE_MAX_BYTES,
 ]
 UNICODE_LENGTHS = [23, 64, 769, 8193]
@@ -32,6 +31,19 @@ SPLIT_FALLBACKS = tuple(
 )
 RADIX_LENGTHS = [33, 64, 65, 127, 128, 129, 255, 256, 257, 511, 512, 513,
                  8191, 8192, 8193, ENCODE_MAX_BYTES]
+ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+# Encoder inputs whose text has runs of the zero digit `1` that cover whole leaves of the
+# division tree (up to 2,560 digits for Horner leaves, 10,240 for matrix leaves), as text
+# length and (start, run) pairs. Random bytes almost never encode to such runs;
+# `encode_all`'s digit mutation moves and resizes them.
+ZERO_RUNS = {
+    "trailing-12000": (12_000, [(10_000, 2_000)]),
+    "trailing-60000": (60_000, [(30_000, 30_000)]),
+    "middle-15000": (15_000, [(6_000, 3_000)]),
+    "middle-80000": (80_000, [(24_000, 25_000)]),
+    "high-40000": (40_000, [(4, 20_000)]),
+    "many-89000": (89_000, [(start, 4_000) for start in range(8_900, 89_000, 17_800)]),
+}
 
 
 def write_seed(target, name, data):
@@ -60,10 +72,44 @@ def split_fallback_seed(k, segment):
     return sum(digit * COL_BASE ** index for index, digit in enumerate(digits)).to_bytes(64, "big")
 
 
+def zero_run_text(length, runs):
+    """Pseudo-random nonzero digits with the given runs of `1`."""
+    state, text = length, bytearray()
+    for _ in range(length):
+        state = (state * 6364136223846793005 + 1) & ((1 << 64) - 1)
+        text.append(ALPHABET[1 + (state >> 58) % 57])
+    for start, run in runs:
+        text[start:start + run] = b"1" * run
+    return bytes(text)
+
+
+def base58_value(text):
+    """Divide and conquer, so Python's subquadratic multiplication does the work."""
+    if len(text) <= 64:
+        value = 0
+        for char in text:
+            value = value * 58 + ALPHABET.index(char)
+        return value
+    half = len(text) // 2
+    return base58_value(text[:half]) * 58 ** (len(text) - half) + base58_value(text[half:])
+
+
 def main():
-    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width", "encode_radix_full_width"]:
+    for target in ["encode_all", "decode_all", "encode_small", "decode_small", "encode_full_width", "encode_radix_full_width", "check_all", "decode_full_width"]:
         (ROOT / target).mkdir(parents=True, exist_ok=True)
     write_seed("encode_full_width", "dense", b"\xa5")
+    # These decode to exactly 32/64 bytes and select the matching into_array arm.
+    write_seed("decode_all", "array-exact-32", b"1" * 29 + b"3111")
+    write_seed("decode_all", "array-exact-64", b"1" * 61 + b"2111")
+    for target in ["encode_full_width", "encode_radix_full_width", "decode_full_width"]:
+        write_seed(target, "nonperiodic", b"\x40\x01\x02")
+    write_seed("encode_radix_full_width", "nonperiodic-owned", b"\xc0\x01\x02")
+    for control in [*range(8), 0x20, *range(0x80, 0x88), 0xA0, *range(0xC0, 0xC8), 0xE0]:
+        write_seed("decode_full_width", f"mode-{control}", bytes([control, 1, 2]))
+    for length in [0, 1, 2, 4, 21, 28, 32, 60, 64, 512, 1536, 8193]:
+        for label, raw in [("zeros", bytes(length)),
+                           ("pattern", bytes((i * 73 + 1) % 256 for i in range(length)))]:
+            write_seed("check_all", f"{label}-{length}", raw)
     for k in range(2, 7):
         for segment in range(1, k):
             write_seed("encode_all", f"split-fallback-k{k}-s{segment}", split_fallback_seed(k, segment))
@@ -99,6 +145,9 @@ def main():
                 write_seed("decode_small", f"{label}-{length}", data)
     for length in DECODE_CARRY_LENGTHS:
         write_seed("decode_all", f"ntt-carry-{length}", b"z" * length)
+    for name, (length, runs) in ZERO_RUNS.items():
+        value = base58_value(zero_run_text(length, runs))
+        write_seed("encode_all", f"zero-run-{name}", value.to_bytes((value.bit_length() + 7) // 8, "big"))
     for length in UNICODE_LENGTHS:
         for label, char in INVALID_UNICODE:
             bad = char.encode("utf-8")
@@ -109,7 +158,7 @@ def main():
                 write_seed("decode_all", name, data)
                 if length <= SMALL_MAX_BYTES:
                     write_seed("decode_small", name, data)
-    # The old first-byte selector could never choose a malformed position >255.
+    # Exercise malformed positions above 255.
     late = bytearray(1024)
     late[1021] = 1
     for target in ["encode_all", "decode_all", "encode_small", "decode_small"]:
@@ -117,11 +166,12 @@ def main():
     count = (
         len(LENGTHS) * 6
         + len(DECODE_CARRY_LENGTHS)
+        + len(ZERO_RUNS)
         + sum(n <= SMALL_MAX_BYTES for n in LENGTHS) * 6
         + len(UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + sum(n <= SMALL_MAX_BYTES for n in UNICODE_LENGTHS) * len(INVALID_UNICODE) * 2
         + 2 * (len(RADIX_LENGTHS) + sum(n <= SMALL_MAX_BYTES for n in RADIX_LENGTHS))
-        + 12 + len(SPLIT_FALLBACKS)
+        + 69 + len(SPLIT_FALLBACKS)
     )
     print(f"Prepared {count} deterministic seeds in {ROOT}")
 

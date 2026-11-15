@@ -72,6 +72,34 @@ fn byte_input_needs_no_utf8_and_reports_byte_offsets() {
     assert_eq!(Error::from(BufferTooSmall), Error::BufferTooSmall);
 }
 
+#[test]
+fn long_input_reports_invalid_offsets_after_zero_prefix() {
+    for digits in [5_500, 10_000] {
+        let mut input = vec![b'1'; 17];
+        input.extend(core::iter::repeat_n(b'2', digits));
+        for offset in [0, 42, digits - 1] {
+            let index = 17 + offset;
+            input[index] = 0xff;
+            let expected = Err(Error::InvalidCharacter { index });
+            let mut output = vec![0; input.len()];
+            assert_eq!(
+                DECODER.decode(&input).onto(&mut output).map(|v| v.len()),
+                expected
+            );
+            #[cfg(feature = "check")]
+            assert_eq!(
+                DECODER
+                    .with_check()
+                    .decode(&input)
+                    .onto(&mut output)
+                    .map(|v| v.len()),
+                expected
+            );
+            input[index] = b'2';
+        }
+    }
+}
+
 #[cfg(feature = "check")]
 mod checked {
     use super::*;
@@ -337,7 +365,12 @@ mod checked {
     fn checked_encoding_uses_exact_buffers_across_fast_routes() {
         for version in [None, Some(0), Some(42)] {
             let encoder = version.map_or(ENCODER, |v| Encoder::bitcoin().with_check_version(v));
-            for len in [17, 28, 60, 512, 5120, 8188, 8193, 16379] {
+            // The checksum and optional version cross the AVX2 radix minimum,
+            // utilization cutoff and next transform-padding step.
+            for len in [
+                17, 28, 60, 512, 5120, 8188, 8193, 16379, 16380, 16381, 31485, 31486, 31487, 34811,
+                34812, 34813,
+            ] {
                 for zeros in [0, len] {
                     let mut data = vec![0; zeros];
                     data.resize(len, 0xa5);

@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = [f'{direction}_{backend}' for direction in ['encode', 'decode']
@@ -135,6 +136,13 @@ def build_environment():
 def self_test(source, output):
     from unittest.mock import patch
 
+    optimized_output = output / 'optimized'
+    optimized = subprocess.run([sys.executable, '-O', __file__,
+        '--source', str(output / 'missing-source'), '--output', str(optimized_output)],
+        capture_output=True, text=True)
+    assert optimized.returncode != 0 and 'do not use Python -O' in optimized.stderr
+    assert not optimized_output.exists()
+
     stdout = '{"reason":"compiler-artifact"}\n'
     stderr = '{"level":"error","code":{"code":"E0432"},"message":"unresolved import"}\n'
     command = ['rustc', '--error-format=json']
@@ -156,7 +164,7 @@ def self_test(source, output):
     assert environment['RUSTUP_TOOLCHAIN'] == 'retained-toolchain'
     (output / 'self-test.json').write_text(json.dumps(dict(status='pass',
         checks=['direct subprocess without RTK', 'optional RTK prefix', 'JSON diagnostics unchanged',
-                'host target/output environment isolated', 'user toolchain retained']), indent=2) + '\n')
+                'host target/output environment isolated', 'user toolchain retained', 'optimized Python rejected']), indent=2) + '\n')
     print('PASS public-API checker self-test; no compiler or worker ran')
 
 
@@ -186,7 +194,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='new scratch directory')
     parser.add_argument('--self-test', action='store_true', help='check process/JSON/environment handling without compiling')
     args = parser.parse_args()
-    assert __debug__, 'do not use Python -O: checks use assertions'
+    if not __debug__:
+        raise SystemExit('do not use Python -O: checks use assertions')
     source, output = args.source.resolve(), args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     if args.self_test:

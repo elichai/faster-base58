@@ -386,14 +386,18 @@ fn divide(
         let q = &p[qn..];
         hi[..q.len()].copy_from_slice(q);
         let ql = trimmed_len(hi);
+        // `D = pn β^shift <= β^qn - 1`, so `β^(2 qn) / D > β^qn + 1`.
+        // Even one below its floor gives `inv >= β^qn`; `a1 >= 1` then makes q positive.
+        debug_assert!(ql > 0, "a nonzero high dividend gives a positive estimate");
+        let quotient = &hi[..ql];
         // The remainder `A - q pn` is below `7 pn < β^(dn + 1)`, so it is also its own
         // residue modulo `β^L - 1` for `L >= dn + 2`. Same arguments as in
         // `divide_scratch_len`.
         match m.wrap_len(dn + 2, qn + dn) {
-            Some(l) if ql > 0 => {
+            Some(l) => {
                 let (w, s) = s.split_at_mut(l);
                 let (r, s) = s.split_at_mut(l);
-                m.mul_power_wrapped(w, &hi[..ql], 2 * i, d.pn, s);
+                m.mul_power_wrapped(w, quotient, 2 * i, d.pn, s);
                 fold_wrapped(r, a);
                 sub_wrapped(r, w);
                 canonical(r);
@@ -402,13 +406,12 @@ fn divide(
                 a.fill(0);
                 a[..keep.len()].copy_from_slice(keep);
             }
-            None if ql > 0 => {
+            None => {
                 let (qp, s) = s.split_at_mut(ql + dn);
-                m.mul_power(qp, &hi[..ql], 2 * i, d.pn, s);
+                m.mul_power(qp, quotient, 2 * i, d.pn, s);
                 let borrow = sub_assign(a, qp);
                 debug_assert!(!borrow, "the quotient estimate is too large");
             }
-            _ => {}
         }
     }
     let mut fixes = 0;
@@ -420,9 +423,11 @@ fn divide(
     }
     // lo = (A >> bits) β^shift + x mod β^shift. The remainder is below `pn`.
     let low = &x[..sh.min(x.len())];
-    lo[..low.len()].copy_from_slice(low);
-    lo[low.len()..sh].fill(0);
-    shr(&mut lo[sh..], &a[..dn], d.bits);
+    let (low_out, high_out) = lo.split_at_mut(sh);
+    let (copy_out, zero_out) = low_out.split_at_mut(low.len());
+    copy_out.copy_from_slice(low);
+    zero_out.fill(0);
+    shr(high_out, &a[..dn], d.bits);
     (trimmed_len(hi), trimmed_len(lo))
 }
 
@@ -502,17 +507,19 @@ fn node(
     }
     // `divs[0].exp <= leaf < n`, so `i` exists, and the next power is at least `n`, so
     // `x < BASE^(2 exp)`.
-    let i = t.divs.partition_point(|d| d.exp < n) - 1;
-    let d = &t.divs[i];
+    let end = t.divs.partition_point(|d| d.exp < n);
+    let (d, _) = t.divs[..end].split_last().expect("a divisor below n");
+    let i = end - 1;
     let qn = d.qn();
     let (hi, s) = s.split_at_mut(qn + 1);
     let (lo, s) = s.split_at_mut(qn);
     let (hn, ln) = divide(x, d, i, hi, lo, s, m);
+    let lo = &lo[..ln];
     if !pad && hn == 0 {
-        return node(&lo[..ln], d.exp, false, t, out, s, m);
+        return node(lo, d.exp, false, t, out, s, m);
     }
     node(&hi[..hn], n - d.exp, pad, t, out, s, m)?;
-    node(&lo[..ln], d.exp, true, t, out, s, m)
+    node(lo, d.exp, true, t, out, s, m)
 }
 
 /// Scratch limbs [`node`] needs for any node, by induction on the levels: a node at level
@@ -721,38 +728,50 @@ fn recip_scratch_len(n: usize, m: &impl Multiplier) -> usize {
 /// top bit set, `u` of `k + n + 1` limbs whose top limb is zero, and `q` of `k + 1` limbs.
 fn div_schoolbook(q: &mut [u64], u: &mut [u64], v: &[u64]) {
     let n = v.len();
-    let (v1, v0) = (v[n - 1] as u128, v[n - 2] as u128);
-    for j in (0..u.len() - n).rev() {
-        let top = ((u[j + n] as u128) << 64) | u[j + n - 1] as u128;
-        let (mut qhat, mut rhat) = (top / v1, top % v1);
+    let [.., v0, v1] = v else {
+        panic!("schoolbook division needs at least two divisor limbs");
+    };
+    let (v1, v0) = (*v1 as u128, *v0 as u128);
+    let q = &mut q[..u.len() - n];
+    for (j, quotient) in q.iter_mut().enumerate().rev() {
+        let window = &mut u[j..=j + n];
+        let (high, low) = window.split_last_mut().expect("one high dividend limb");
+        let [.., u0, u1] = low else {
+            unreachable!("the window has as many limbs as the divisor");
+        };
+        let top = ((*high as u128) << 64) | *u1 as u128;
+        let next = *u0 as u128;
+        let mut qhat = top / v1;
+        // qhat * v1 <= top, so the product fits and subtraction gives the exact remainder.
+        let mut rhat = top - qhat * v1;
         // At most two steps make `qhat` exact or one too large.
-        while qhat >> 64 != 0 || qhat * v0 > ((rhat << 64) | u[j + n - 2] as u128) {
+        while qhat >> 64 != 0 || qhat * v0 > ((rhat << 64) | next) {
             qhat -= 1;
             rhat += v1;
             if rhat >> 64 != 0 {
                 break;
             }
         }
-        // u[j..=j+n] -= qhat v.
+        // Subtract qhat v from this n + 1 limb window.
         let (mut carry, mut borrow) = (0u64, false);
-        for i in 0..n {
-            let (lo, hi) = (qhat as u64).carrying_mul(v[i], carry);
-            (u[j + i], borrow) = u[j + i].borrowing_sub(lo, borrow);
+        for (u, &v) in low.iter_mut().zip(v) {
+            let (lo, hi) = (qhat as u64).carrying_mul(v, carry);
+            (*u, borrow) = u.borrowing_sub(lo, borrow);
             carry = hi;
         }
-        let (top, b1) = u[j + n].overflowing_sub(carry);
+        let (top, b1) = high.overflowing_sub(carry);
         let (top, b2) = top.overflowing_sub(borrow as u64);
-        u[j + n] = top;
+        *high = top;
         if b1 | b2 {
             // One too large: add `v` back.
             qhat -= 1;
             let mut c = false;
-            for i in 0..n {
-                (u[j + i], c) = u[j + i].carrying_add(v[i], c);
+            for (u, &v) in low.iter_mut().zip(v) {
+                (*u, c) = u.carrying_add(v, c);
             }
-            u[j + n] = u[j + n].wrapping_add(c as u64);
+            *high = high.wrapping_add(c as u64);
         }
-        q[j] = qhat as u64;
+        *quotient = qhat as u64;
     }
 }
 
@@ -777,12 +796,13 @@ fn shl(dst: &mut [u64], src: &[u64], bits: u32) {
 
 /// `dst = src >> bits` for `bits < 64`, cut to `dst.len() <= src.len()` limbs.
 fn shr(dst: &mut [u64], src: &[u64], bits: u32) {
-    for (j, d) in dst.iter_mut().enumerate() {
+    let low = &src[..dst.len()];
+    for (j, (d, &v)) in dst.iter_mut().zip(low).enumerate() {
         let up = match (bits, src.get(j + 1)) {
             (0, _) | (_, None) => 0,
             (_, Some(&v)) => v << (64 - bits),
         };
-        *d = (src[j] >> bits) | up;
+        *d = (v >> bits) | up;
     }
 }
 
@@ -815,6 +835,71 @@ mod verification {
         fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
             crate::mul::mul_with(out, a, b, scratch, 0);
         }
+    }
+
+    /// Conditional estimate lemma: one full-width high limb and a two-limb
+    /// reciprocal at least β. This does not prove reciprocal construction.
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn nonzero_high_limb_has_positive_estimate() {
+        let a1: [u64; 1] = kani::any();
+        let inv: [u64; 2] = kani::any();
+        kani::assume(a1[0] != 0 && inv[1] != 0);
+        let mut product = [0; 3];
+        let mut scratch = [0; 74];
+        Scalar.mul_power(&mut product, &a1, 0, &inv, &mut scratch);
+        let mut hi = [0; 2];
+        hi.copy_from_slice(&product[1..]);
+        assert!(trimmed_len(&hi) > 0);
+    }
+
+    /// Exactly two significant high limbs, with a three-limb reciprocal at least β².
+    // Open obligation: the full-width Z3 query exceeds its 60-second budget.
+    #[kani::proof]
+    #[kani::unwind(6)]
+    #[kani::solver(z3)]
+    fn two_high_limbs_have_positive_estimate() {
+        let a1: [u64; 2] = kani::any();
+        let inv: [u64; 3] = kani::any();
+        kani::assume(a1[1] != 0 && inv[2] != 0);
+        let mut product = [0; 5];
+        let mut scratch = [0; 79];
+        Scalar.mul_power(&mut product, &a1, 0, &inv, &mut scratch);
+        let mut hi = [0; 3];
+        hi.copy_from_slice(&product[2..]);
+        assert!(trimmed_len(&hi) > 0);
+    }
+
+    /// Actual reciprocal base case for every normalized, full-width one-limb divisor.
+    #[kani::proof]
+    #[kani::unwind(3)]
+    fn one_limb_reciprocal_has_lower_bound() {
+        let a: [u64; 1] = kani::any();
+        kani::assume(a[0] >> 63 == 1);
+        let mut inv = [0; 2];
+        let mut scratch = [0; 3];
+        reciprocal(&mut inv, &a, &mut scratch, &mut Scalar);
+        assert!(inv[1] >= 1);
+    }
+
+    /// Schoolbook reciprocal and inv slicing for any normalized one-limb value
+    /// with no zero-limb shift, not only a literal power of BASE; no prior square.
+    // Open obligation: SMT lowering fails; the SAT query exceeds 60 seconds.
+    #[kani::proof]
+    #[kani::unwind(8)]
+    #[kani::solver(cadical)]
+    fn one_limb_divisor_inverse_has_lower_bound() {
+        let limbs: [u64; 1] = kani::any();
+        kani::assume(limbs[0] >> 63 == 1);
+        let p = Power {
+            exp: 1,
+            limbs: &limbs,
+            shift: 0,
+        };
+        let mut scratch = [0; 96];
+        let mut data = [0; 4];
+        let d = Divisor::new(&p, None, &mut data, &mut scratch, &mut Scalar);
+        assert!(d.inv()[d.qn()] >= 1);
     }
 
     #[kani::proof]
@@ -889,6 +974,59 @@ mod tests {
         out
     }
 
+    #[test]
+    fn canonical_preserves_nonzero_residues() {
+        for len in [1, 2, 7] {
+            let mut zero = vec![u64::MAX; len];
+            canonical(&mut zero);
+            assert_eq!(zero, vec![0; len]);
+            for at in 0..len {
+                let mut near = vec![u64::MAX; len];
+                near[at] -= 1;
+                let want = near.clone();
+                canonical(&mut near);
+                assert_eq!(near, want);
+            }
+        }
+    }
+
+    /// Every division window must preserve the exact quotient and remainder.
+    #[test]
+    fn schoolbook_recovers_quotient_and_remainder() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(39);
+        for n in 2..=RECIP_BASECASE {
+            for qn in [1, 2, 5] {
+                for pattern in 0..3 {
+                    let mut v: Vec<u64> = (0..n).map(|_| rng.next_u64()).collect();
+                    let mut want_q: Vec<u64> = (0..qn).map(|_| rng.next_u64()).collect();
+                    match pattern {
+                        0 => {
+                            v.fill(0);
+                            v[n - 1] = 1 << 63;
+                            want_q.fill(0);
+                        }
+                        1 => {
+                            v.fill(u64::MAX);
+                            want_q.fill(u64::MAX);
+                        }
+                        _ => v[n - 1] |= 1 << 63,
+                    }
+                    let mut want_r = v.clone();
+                    sub_assign(&mut want_r, &[1]);
+                    let mut u = product(&v, &want_q);
+                    assert!(!add_assign(&mut u, &want_r));
+                    u.push(0);
+                    let mut q = vec![0; u.len() - n];
+                    div_schoolbook(&mut q, &mut u, &v);
+                    want_q.push(0);
+                    assert_eq!(q, want_q, "n {n}, qn {qn}, pattern {pattern}");
+                    assert_eq!(&u[..n], want_r, "n {n}, qn {qn}, pattern {pattern}");
+                    assert!(u[n..].iter().all(|&limb| limb == 0));
+                }
+            }
+        }
+    }
+
     /// Karatsuba, with every product that may wrap wrapped modulo `β^(n + extra) - 1` by
     /// the default `mul_wrapped` (the full product, folded): lengths that are not powers
     /// of two, down to the least the callers allow.
@@ -926,6 +1064,22 @@ mod tests {
         check_reciprocals(&lens, &mut ntt(8192));
     }
 
+    /// The largest normalized divisor gives the smallest reciprocal: either
+    /// `β^n` or `β^n + 1` satisfies its two-unit approximation bound.
+    #[test]
+    fn reciprocal_lower_boundary() {
+        for n in [1, 2, RECIP_BASECASE, RECIP_BASECASE + 1, 33] {
+            let a = vec![u64::MAX; n];
+            let mut x = vec![0; n + 1];
+            let mut s = vec![0; recip_scratch_len(n, &Karatsuba)];
+            reciprocal(&mut x, &a, &mut s, &mut Karatsuba);
+            assert_eq!(x[n], 1, "n {n}");
+            assert!(x[1..n].iter().all(|&v| v == 0), "n {n}");
+            assert!(x[0] <= 1, "n {n}");
+            assert_reciprocal(&a, &x, &format!("lower boundary n {n}"));
+        }
+    }
+
     fn check_reciprocals(lens: &[usize], m: &mut impl Multiplier) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(30);
         for &n in lens {
@@ -958,6 +1112,20 @@ mod tests {
             ax2[2 * n..].iter().any(|&v| v != 0),
             "{what}: a (x + 2) < β^(2n)"
         );
+    }
+
+    /// Knuth D's add-back, which the reciprocals of the powers of 58 that the fuzz targets
+    /// reach never take: for `u = β^3` and `v = 2^63 β^2 + β - 1`, the top limbs give
+    /// `qhat = 2`, the second limb of `v` is zero so the estimate stays, and the quotient is 1.
+    #[test]
+    fn div_schoolbook_adds_back() {
+        let v = [u64::MAX, 0, 1 << 63];
+        let mut u = [0, 0, 0, 1, 0];
+        let mut q = [0xA5; 2];
+        div_schoolbook(&mut q, &mut u, &v);
+        assert_eq!(q, [1, 0]);
+        // β^3 - v = (2^63 - 1) β^2 + (β - 1) β + 1.
+        assert_eq!(u, [1, u64::MAX, (1 << 63) - 1, 0, 0]);
     }
 
     /// The divisors of a table, each from the one below with exactly the scratch it needs,
@@ -1155,6 +1323,49 @@ mod tests {
         check_divisions(&mut Wrap(0));
         check_divisions(&mut Wrap(3));
         check_divisions(&mut ntt(1 << 15));
+    }
+
+    /// At `A = β^dn`, `a1` first becomes nonempty. The normalized divisor is
+    /// strictly between `β^dn / 2` and `β^dn`, so these nearby values have quotient 1.
+    #[test]
+    fn divide_at_first_high_limb() {
+        check_first_high_limb(&mut Karatsuba);
+        check_first_high_limb(&mut Wrap(0));
+    }
+
+    fn check_first_high_limb(m: &mut impl Multiplier) {
+        let mut storage = Vec::new();
+        for unit in [1, 7, 16] {
+            let divs = divisors(unit, 3, &mut storage, m);
+            for (i, d) in divs.iter().enumerate() {
+                assert!(d.inv()[d.qn()] >= 1);
+                let mut power = vec![0; d.shift];
+                power.extend_from_slice(d.pn);
+                let mut unshifted = vec![0; power.len()];
+                shr(&mut unshifted, &power, d.bits);
+                let mut boundary = vec![0; d.qn() + 1];
+                if d.bits == 0 {
+                    boundary[d.qn()] = 1;
+                } else {
+                    boundary[d.qn() - 1] = 1 << (64 - d.bits);
+                }
+                for offset in [-1, 0, 1] {
+                    let mut x = boundary.clone();
+                    match offset {
+                        -1 => assert!(!sub_assign(&mut x, &[1])),
+                        1 => assert!(!add_assign(&mut x, &[1])),
+                        _ => {}
+                    }
+                    let mut want_lo = x.clone();
+                    assert!(!sub_assign(&mut want_lo, &unshifted));
+                    let (mut hi, mut lo) = (vec![0; d.qn() + 1], vec![0; d.qn()]);
+                    let mut s = vec![0; divide_scratch_len(d, m)];
+                    let (hn, ln) = divide(&x, d, i, &mut hi, &mut lo, &mut s, m);
+                    assert_eq!(&hi[..hn], &[1], "unit {unit}, level {i}, offset {offset}");
+                    assert_eq!(&lo[..ln], &want_lo[..trimmed_len(&want_lo)]);
+                }
+            }
+        }
     }
 
     fn check_divisions(m: &mut impl Multiplier) {

@@ -150,4 +150,27 @@ mod tests {
         assert_eq!(got[..], want[..got.len()]);
         assert!(want[got.len()..].iter().all(|&w| w == 0));
     }
+
+    /// Actual coefficients, reconstructed by Garner, whose totals cross the
+    /// end-around-carry boundaries for one output limb (`β = 2^64`).
+    #[test]
+    fn wrapped_carry_boundaries() {
+        let beta = 1u128 << 64;
+        for total in [0, beta - 1, beta, 2 * beta - 2, 2 * beta - 1] {
+            // Put the whole total in coefficient zero. It is below 2^65,
+            // within the documented coefficient bound of 2^87.
+            let mut r: [Vec<i32>; 3] =
+                core::array::from_fn(|i| vec![(total % PRIMES[i].q as u128) as i32, 0]);
+            let [r1, r2, r3] = &mut r;
+            portable::garner([r1, r2, r3]);
+            let mut got = [0];
+            carry_wrapped(&mut got, [&r[0], &r[1], &r[2]]);
+            // The carry pass permits both zero representatives.
+            assert_eq!(got[0] as u128 % (beta - 1), total % (beta - 1));
+            if total == 2 * beta - 1 {
+                // Low β-1 plus carry 1 overflows; its carry must wrap again.
+                assert_eq!(got, [1]);
+            }
+        }
+    }
 }

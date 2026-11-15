@@ -119,7 +119,7 @@ pub(crate) mod entry {
     ) -> Result<usize, DecodeError> {
         let digits = preflight(input, zeros, output.len())?;
         let mut scratch = Scratch::new();
-        let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input))?;
+        let limbs = convert(k, digits, &mut scratch).ok_or_else(|| invalid(input, 0))?;
         Ok(write_bytes(zeros, limbs, output)?)
     }
 
@@ -134,7 +134,7 @@ pub(crate) mod entry {
     ) -> Result<(usize, [u8; 4]), DecodeError> {
         let digits = preflight(input, zeros, output.len().saturating_add(4))?;
         let mut scratch = Scratch::new();
-        let limbs = convert(&BEST, digits, &mut scratch).ok_or_else(|| invalid(input))?;
+        let limbs = convert(&BEST, digits, &mut scratch).ok_or_else(|| invalid(input, 0))?;
         Ok(crate::check::split(zeros, limbs, output)?)
     }
 
@@ -193,7 +193,7 @@ pub(crate) mod internals {
             crate::batched::decode_parts(input, digits, output)
         } else if digits.len() > table::MAX_CHARS {
             crate::dc::decode_parts(
-                input,
+                digits,
                 zeros,
                 output,
                 &mut crate::dc::Karatsuba,
@@ -307,11 +307,18 @@ fn convert_with<'a>(
     // After `parse`, so invalid input builds no table.
     let table = table::get(digits.len());
     let cols = zeroed(&mut scratch.cols, table.cols(panels));
+    let metadata = &table.panels[..panels];
     // Columns below `from` get no more products: later panels start further up.
     let mut from = 0;
-    for (p, d) in groups.as_chunks::<ROWS>().0.iter().enumerate() {
-        let end = p + 4 * table.panels[p].nb;
-        panel(&mut cols[p..end], table.words(p), d);
+    for (p, (d, &meta)) in groups
+        .as_chunks::<ROWS>()
+        .0
+        .iter()
+        .zip(metadata)
+        .enumerate()
+    {
+        let end = p + 4 * meta.nb;
+        panel(&mut cols[p..end], table.words(meta), d);
         if (p + 1).is_multiple_of(CARRY_EVERY) {
             carry32(&mut cols[from..=end]);
             from = p + 1;

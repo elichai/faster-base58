@@ -83,9 +83,9 @@ class ExternalInputTests(unittest.TestCase):
         self.assertIn('### WebAssembly on Apple M5 Pro (Node/V8)', output)
         self.assertNotIn('AMD EPYC', output)
         self.assertIn('| 32 B | 100 ns / **100 ns** | 100 ns / **100 ns** | 100 ns / **100 ns** | **50 ns** / **100 ns** | 100 ns / **100 ns** |', output)
-        self.assertIn('| 512 B | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | — / — |', output)
+        self.assertIn('| 512 B | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | - / - |', output)
         self.assertIn('| Auto | 1.0 KiB / 2.0 KiB | 3.0 KiB / 4.0 KiB |', output)
-        self.assertIn('| bs58 | — | — |', output)
+        self.assertIn('| bs58 | - | - |', output)
 
     def test_size_cohorts_need_one_empty_probe(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -99,7 +99,8 @@ class ExternalInputTests(unittest.TestCase):
     def test_invalid_rows_are_rejected(self):
         for changes in [dict(warm_ns='nan'), dict(process_max_ns='80'), dict(warm_ns=''),
                         dict(platform='unknown'), dict(clock='elapsed'),
-                        dict(measurement_date='2026-10-29'), dict(source_commit='b' * 40)]:
+                        dict(measurement_date='2026-10-29'), dict(source_commit='b' * 40),
+                        dict(lto='off'), dict(wasm_isa='SIMD128')]:
             with self.subTest(changes=changes):
                 rows = self.rows()
                 rows[0].update(changes)

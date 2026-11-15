@@ -137,24 +137,24 @@ pub(crate) fn pair(r: &mut [i32], m: usize, iw: &[i32], p: Prime) {
 fn load_neon(dst: &mut [i32], limbs: &[u64], p: Prime) {
     let m = 2 * limbs.len();
     assert!(dst.len() >= m);
-    let full = m / 4 * 4;
+    let (dst, tail) = dst.split_at_mut(m);
+    let (full, rest) = dst.as_chunks_mut::<4>();
+    let (pairs, last) = limbs.as_chunks::<2>();
     let (qv, vv, r32) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.r32));
-    let src = limbs.as_ptr().cast::<u32>();
-    for i in (0..full).step_by(4) {
-        // SAFETY: `i + 4 <= full <= m`: the `u32` halves of `limbs` (little-endian, so
-        // low half first) and the start of `dst`.
+    for (dst, src) in full.iter_mut().zip(pairs) {
+        // SAFETY: two limbs hold four `u32` halves (little-endian, so low half first),
+        // and the output chunk holds four lanes.
         unsafe {
-            let x = vreinterpretq_s32_u32(vld1q_u32(src.add(i)));
+            let x = vreinterpretq_s32_u32(vld1q_u32(src.as_ptr().cast()));
             let x = vaddq_s32(x, vandq_s32(vshrq_n_s32::<31>(x), r32));
-            vst1q_s32(dst.as_mut_ptr().add(i), reduce(x, qv, vv));
+            vst1q_s32(dst.as_mut_ptr(), reduce(x, qv, vv));
         }
     }
-    if full < m {
-        let l = limbs[limbs.len() - 1];
-        dst[full] = portable::load_one(l as u32, p);
-        dst[full + 1] = portable::load_one((l >> 32) as u32, p);
+    if let ([lo, hi], [l]) = (rest, last) {
+        *lo = portable::load_one(*l as u32, p);
+        *hi = portable::load_one((*l >> 32) as u32, p);
     }
-    dst[m..].fill(0);
+    tail.fill(0);
 }
 
 #[target_feature(enable = "neon")]
@@ -378,44 +378,48 @@ unsafe fn lift4(src: *const u32, i: usize, r32: int32x4_t) -> int32x4_t {
 fn load_twist_neon(dst: &mut [i32], limbs: &[u64], p: Prime, w: &[i32]) {
     let m = 2 * limbs.len();
     assert!(dst.len() >= m && w.len() >= m);
-    let full = m / 4 * 4;
+    let (dst, tail) = dst.split_at_mut(m);
+    let (full, rest) = dst.as_chunks_mut::<4>();
+    let (pairs, last) = limbs.as_chunks::<2>();
+    let (twiddles, last_w) = w[..m].as_chunks::<4>();
     let (qv, r32, qinv) = (vdupq_n_s32(p.q), vdupq_n_s32(p.r32), vdupq_n_s32(p.qinv));
-    let src = limbs.as_ptr().cast::<u32>();
-    for i in (0..full).step_by(4) {
-        // SAFETY: `i + 4 <= full <= m`, within the halves of `limbs`, `dst`, `w`.
+    for ((dst, src), w) in full.iter_mut().zip(pairs).zip(twiddles) {
+        // SAFETY: two limbs hold four `u32` halves; output and twiddle chunks hold
+        // four lanes each.
         unsafe {
-            let w = vld1q_s32(w.as_ptr().add(i));
+            let w = vld1q_s32(w.as_ptr());
             let wq = vmulq_s32(w, qinv);
-            vst1q_s32(dst.as_mut_ptr().add(i), mont(lift4(src, i, r32), w, wq, qv));
+            vst1q_s32(
+                dst.as_mut_ptr(),
+                mont(lift4(src.as_ptr().cast(), 0, r32), w, wq, qv),
+            );
         }
     }
-    if full < m {
-        let mut tail = [0; 2];
-        portable::load_twist(&mut tail, &limbs[limbs.len() - 1..], p, &w[full..]);
-        dst[full..m].copy_from_slice(&tail);
+    if let ([_, _], [_], [_, _]) = (&*rest, last, last_w) {
+        portable::load_twist(rest, last, p, last_w);
     }
-    dst[m..].fill(0);
+    tail.fill(0);
 }
 
 #[target_feature(enable = "neon")]
 fn load_add_neon(dst: &mut [i32], limbs: &[u64], p: Prime, sub: bool) {
     let m = 2 * limbs.len();
     assert!(dst.len() >= m);
-    let full = m / 4 * 4;
+    let (full, rest) = dst[..m].as_chunks_mut::<4>();
+    let (pairs, last) = limbs.as_chunks::<2>();
     let (qv, vv, r32) = (vdupq_n_s32(p.q), vdupq_n_s32(p.v), vdupq_n_s32(p.r32));
     // `x * s` is `x` or `-x`.
     let s = vdupq_n_s32(if sub { -1 } else { 1 });
-    let src = limbs.as_ptr().cast::<u32>();
-    for i in (0..full).step_by(4) {
-        // SAFETY: `i + 4 <= full <= m`, within the halves of `limbs` and `dst`.
+    for (dst, src) in full.iter_mut().zip(pairs) {
+        // SAFETY: two limbs hold four `u32` halves, and the output chunk holds four lanes.
         unsafe {
-            let d = dst.as_mut_ptr().add(i);
-            let x = vmulq_s32(reduce(lift4(src, i, r32), qv, vv), s);
+            let d = dst.as_mut_ptr();
+            let x = vmulq_s32(reduce(lift4(src.as_ptr().cast(), 0, r32), qv, vv), s);
             vst1q_s32(d, reduce(vaddq_s32(vld1q_s32(d), x), qv, vv));
         }
     }
-    if full < m {
-        portable::load_add(&mut dst[full..m], &limbs[limbs.len() - 1..], p, sub);
+    if let ([_, _], [_]) = (&*rest, last) {
+        portable::load_add(rest, last, p, sub);
     }
 }
 

@@ -1,9 +1,7 @@
 # Repository instructions
 
-Keep changes small and complete. Read the affected code and its callers before
-editing. Review current diffs first, preserve manual edits, and stage only the
-changes intended for the task. Review new files individually; never stage
-unrelated work.
+Read the affected code and its callers before editing. Review current diffs,
+preserve manual edits, and stage only work intended for the task.
 
 ## What belongs in commits
 
@@ -15,15 +13,10 @@ unrelated work.
 - Living documentation, selected result tables, useful published SVGs, references
   and required third-party licenses/notices.
 
-Do not commit generated benchmark CSV/JSON, run receipts, raw logs, coverage
-exports, compiled binaries, source snapshots, bulk corpora, intermediate experiment
-reports, or agent plans/review transcripts. Do not recreate dated benchmark
-directories. Put local measurement output under ignored `target/measurements/`;
-use temporary directories, CI artifacts or the configured storage for other
-generated output. Retaining raw output is not a documentation requirement.
-
-Do not ignore all CSV/JSON or binary files globally: deliberately maintained
-configuration and regression fixtures are different from generated run output.
+Keep generated measurements, logs, coverage, binaries, source snapshots and agent
+reports out of commits. Use ignored `target/measurements/`, temporary directories
+or CI artifacts. Do not ignore CSV/JSON or binary files globally; configuration
+and regression fixtures may use those formats.
 
 ## Documentation to update with code
 
@@ -53,14 +46,23 @@ across several reports.
 Published results need their measurement date, source, host/ISA, compiler, flags,
 features, harness, clock and sampling scope. Keep material limitations beside
 the result. When replacing a measurement cohort, update its tables, figures and
-scope together. Code or documentation edits do not refresh old measurements;
-withdraw affected results until they are remeasured.
+scope together. Never relabel existing measurements as a new run on changed code.
+The measurement date and source commit identify the measured version; do not add
+boilerplate warnings that the library may have changed or that results need a refresh.
 
-Keep ordinary public consumers separate from internal backend workers, timing
-separate from counted allocations, and native execution separate from translated
-execution or cross-builds. Never report an unsupported, skipped, incomplete or
-compiled-only check as a passing runtime test or proof. Preserve unresolved
-verification gaps when shortening documentation.
+README and performance-guide benchmarks must stand alone: show absolute latency
+or throughput, linked sizes, and measured comparisons with other libraries. Keep
+PR/branch/stack comparisons, before/after ratios and size deltas against older
+revisions, investigation chronology and merge advice in PR descriptions or ignored
+measurement records. Inspect SVG titles, axes, legends and captions as well as
+Markdown; published figures must make sense without PR context. Keep a concise
+performance overview near the top of the README, with methods and limits in the
+guide. Retain study-specific renderers with their ignored measurement inputs;
+committed rendering tools must be reusable.
+
+Separate public-consumer and internal-worker results, timing and allocation
+counting, and native and translated execution. Builds, skips and incomplete runs
+are not passing tests. Preserve unresolved verification gaps in the guides.
 
 The README prioritizes M5, generic x86-64 and Wasm results. Keep
 `-C target-cpu=native` comparisons in the performance guide.
@@ -76,6 +78,5 @@ run `python3 -B assets/graphs/render.py --check`; for graph tooling, also run
 examples are included in rustdoc, so changed examples need `cargo test --locked --doc`.
 Package-content changes also need the checks in `scripts/check_package.py`.
 
-Use short, reviewable commands and prefix shell commands with `rtk` as configured
-for this repository. Never run `rm` without asking the user first. Check the final
-diff and staged paths, and report what actually ran and any remaining limits.
+Use short commands prefixed with `rtk`. Never run `rm` without asking the user.
+Review the final diff and staged paths. Report checks run and remaining limits.

@@ -301,6 +301,7 @@ impl<V: V16> Block<V> {
     /// points. Safety: `V` values may be created.
     #[inline(always)]
     unsafe fn new(w: &[i32], qinv: V, idx: &[[[i32; 16]; 2]; 5]) -> Self {
+        let w = w.first_chunk::<32>().expect("32-entry block twiddles");
         // SAFETY: the caller permits V creation.
         unsafe {
             Block {
@@ -327,7 +328,7 @@ impl<V: V16> Block<V> {
 ///
 /// Safety: `V` values may be created.
 #[inline(always)]
-unsafe fn layout_twiddles<V: V16>(w: &[i32], h: usize, qinv: V) -> (V, V) {
+unsafe fn layout_twiddles<V: V16>(w: &[i32; 32], h: usize, qinv: V) -> (V, V) {
     let mut lanes = [0; 16];
     for (i, lane) in lanes.iter_mut().enumerate() {
         *lane = w[h + (i & (h - 1))];

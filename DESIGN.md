@@ -56,6 +56,12 @@ use blocks. Decoding leaves hold at most 256 chunks, 128 on Wasm and 64 on x86
 with IFMA Karatsuba products, which are cheap relative to the quadratic leaves.
 The tree needs at least two leaves.
 
+Without IFMA, the public encoder enters NTT before the standalone Karatsuba
+encoder's 5,120-byte crossover. Its public Karatsuba band is therefore empty;
+the internal comparison hook still uses that independently tuned crossover.
+With IFMA, the public Karatsuba band starts above 448 bytes. These thresholds
+serve different comparisons and need not be ordered to make every band nonempty.
+
 On little-endian AArch64 with NEON, on x86-64 with AVX2 or AVX-512F and on Wasm, large
 encoding can instead use a
 [multiplication tree in base `58^3`](src/ntt/radix.rs). It splits at byte
@@ -74,8 +80,9 @@ This route requires
 more than 3072 significant bytes (on AVX-512F, 27 KiB; on AVX2 without
 AVX-512F, 16 KiB; on Wasm with `simd128`, 768) and at least 5/8 utilization
 of its root transform, or 3/4 with `cache`. AVX2 without AVX-512F requires 7/8
-under both cache policies; this provisional rule needs measurement on AVX2-only
-hardware. Utilization grows linearly with the
+under both cache policies. Its tuning uses AVX2 dispatch on an AVX-512-capable
+host and translated x86 execution; older AVX2-only CPUs remain unmeasured.
+Utilization grows linearly with the
 input from 0.48 just above each transform-length step (`17 * 2^k + 1` bytes) to 0.97.
 With `cache`, cached Matrix leaves speed up only the division tree, so its crossover
 is higher. Wasm division trees keep Horner leaves under both policies: scalar Wasm
@@ -97,8 +104,11 @@ form `58 a + b` pairs and `58^2 p + q` groups with multiply-adds. The
 largest pair, 3363, fits a signed 16-bit lane. AVX2 maps each byte through two
 nibble-indexed class tables and one offset table, without a range compare per
 alphabet segment. Validation only sets a flag; the scalar scan still reports the
-first invalid byte. Batched decoding and Horner leaves keep their scalar
-ten-character chunk parse on every target.
+first invalid byte. The first-invalid-byte scan is a shared cold error handler.
+Batched decoding and Horner leaves keep their scalar ten-character chunk parse
+on every target. Divide-and-conquer decoding validates the whole input before
+allocation and arithmetic; its Horner leaves check that invariant only in debug
+builds.
 
 Fixed 32/64-byte encoders use the same matrix idea with compile-time tables and
 local sums. Their table type keeps rows first and 16-byte aligned for NEON
@@ -124,13 +134,11 @@ supports the coefficient bounds; larger products split. It is not an input limit
 
 ## Automatic selection
 
-These are tuned crossovers, not format limits or guarantees of optimality for
-every input. After the tiny and fixed routes, Auto strips leading zeros once and
-selects by significant length in [`src/api.rs`](src/api.rs). The selected kernels
-accept that normalized input and do not dispatch to another backend. Their size
-preconditions are checked; small inputs never enter the large stack frames or
-construct multipliers. Internal comparison/tuning wrappers still accept every
-length so differential tests can exercise their fallbacks.
+Crossovers are tuning choices, not input limits. After the tiny and fixed routes,
+Auto strips leading zeros once and selects by significant length in
+[`src/api.rs`](src/api.rs). Selected kernels check their size preconditions and
+do not dispatch again. Small inputs avoid large stack frames and multiplier
+construction. Internal comparison wrappers accept every length to test fallbacks.
 
 Leading zeros affect the selected backend and allocation behavior. With `cache`,
 a short significant suffix can select Matrix even when the total input is large.
@@ -152,10 +160,8 @@ The short-leaf decode limits are four leaves (`2 * dc::min_digits()`): with two
 leaves the tree lost to batched decoding on Zen 5 and under V8, with four it won.
 On NEON the NTT decoder overtakes batched decoding before Karatsuba does.
 
-The `cache` feature is an implementation policy, not a runtime API parameter.
-`Ntt::new` owns optional per-call tables and initializes them through mutable
-access once the transform size is known. Only cache-enabled builds contain the
-shared `OnceLock` stores. `__internals` does not enable them.
+`Ntt` builds owned tables lazily when a product needs transforms. Only
+`cache` builds contain shared `OnceLock` stores; `__internals` does not enable them.
 
 ## Architecture-specific work
 
@@ -200,9 +206,8 @@ intrinsic into a call. CI checks every out-of-line crate function against
 `scripts/check_simd_inlining.txt`
 ([CORRECTNESS.md](CORRECTNESS.md#tests-and-independent-references)).
 
-The IFMA leaf threshold is a constant. Generic x86 builds still read cached CPU
-feature flags in the NTT short-product fallback; passing threshold state through
-multipliers had no established overall benefit.
+The IFMA leaf threshold is a constant. Generic x86 builds read cached CPU
+feature flags in the NTT short-product fallback.
 
 ## Heap, stack and cache costs
 
@@ -217,8 +222,8 @@ Encoding `.into_string()` reserves `max_encoded_len(input.len())` bytes and trun
 length after conversion; it retains that capacity, including for zero-heavy input.
 Decoding `.into_vec()` reserves one byte per leading `'1'`, then `d - d/4 - d/64` bytes
 for the remaining `d` text bytes. The integer bound follows from `58^64 < 256^47`
-and cannot overflow. It asymptotically saves 26.6% of the significant-text output
-capacity against allocating the full text length; backend scratch is additional. The
+and cannot overflow. It saves about 26.6% of output capacity for long significant
+text; backend scratch is additional. The
 prefix scan is shared with dispatch, and truncation does not reallocate. Tiny
 inputs of at most two bytes retain the short route. Empty input returns before
 entering the nonempty decoder. See [performance](docs/performance.md) for measured
@@ -277,8 +282,10 @@ Retained capacities exclude allocator overhead, construction scratch, prepared
 powers, stack and concurrent conversions. The division-tree route can require
 24.75 MiB of owned twiddles for a 4 MiB significant encode. The selected AArch64,
 x86 and Wasm radix route uses two prime tables instead of three, pools its digit and
-prepared-spectrum scratch, and retains nothing under either cache policy. Measured
-4 MiB peaks are in the [performance guide](docs/performance.md#cache-and-memory).
+prepared-spectrum scratch, and retains nothing under either cache policy. The
+[performance guide](docs/performance.md#cache-and-memory) explains how to measure
+requested-layout peaks separately from timing; no current-source allocation
+cohort accompanies the native timing refresh.
 
 Precomputing every general cache table would embed roughly 26.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the
@@ -293,8 +300,9 @@ source size from a consumer. Auto links more code than conversion without `alloc
 a smaller general path. Fixed-only five8 has a narrower contract.
 
 The opt-in `compact` feature reduces the maximum x86 IFMA window from twelve to
-eight vector groups. It removes four large unrolled kernel bodies (about 93 KiB of
-code) and increases the chunk count for some operand shapes; the
-[performance guide](docs/performance.md#linked-size-and-compact) has the measured
-tradeoff. Format, API and the no-allocation contract are unchanged; wide12 remains
+eight vector groups. It removes four large unrolled kernel bodies
+and increases the chunk count for some operand shapes. The current
+[performance guide](docs/performance.md#linked-size-and-compact) measures the
+default twelve-width policy; compact needs a separate size/timing cohort. Format,
+API and the no-allocation contract are unchanged; wide12 remains
 the default. Other production architectures do not use these IFMA kernels.

@@ -4,8 +4,8 @@
 validator. The orphan `fuzz-corpus` branch owns only validated, content-addressed
 inputs under `corpora/<target>/<sha256>` and run provenance under `runs/`.
 
-The four supported targets are `encode_all`, `decode_all`,
-`encode_full_width`, and `encode_radix_full_width`. A corpus item is shared by
+The six supported targets are `encode_all`, `decode_all`, `check_all`,
+`encode_full_width`, `encode_radix_full_width`, and `decode_full_width`. A corpus item is shared by
 input format, not by machine.
 Its provenance records the architecture, target CPU, feature set, toolchain,
 sanitizer, duration, and source commit that found it. CI replays one pinned
@@ -14,15 +14,24 @@ matrix. Profile data is never merged across those configurations.
 
 The branch holds a coverage-selected corpus, not every input that a campaign
 found. Nightly fuzzing writes artifacts only; its campaigns check debug
-assertions and overflow, and the cache rows add libFuzzer's value profile. Each
-of the four `minimize` builds validates names, file type, size and SHA-256, forms
+assertions and overflow, and the cache rows add libFuzzer's value profile.
+Campaigns start from all deterministic seeds plus at most 16 stored inputs per
+target. Selection ranks SHA-256 hashes of the run ID, target and content digest,
+so it is reproducible and varies with the run ID. Loading the entire store
+can exhaust the nightly job timeout before mutation: libFuzzer checks
+`max_total_time` only after initial corpus loading. Every campaign must report
+actual post-initialization mutations. Counts appear in the Actions log.
+Nightly builds use the same oracle wrapper as coverage replay to avoid
+instrumenting the reference oracles; ASan remains enabled.
+
+Each of the four `minimize` builds validates names, file type, size and SHA-256, forms
 the union of the campaign artifacts that are not stored yet, and runs
 libFuzzer's `-merge=1` with the seeds and the stored corpus as the initial
 corpus, which the merge keeps whole. A new input stays when it adds a coverage
 feature, an edge-counter bucket, that the initial corpus and smaller inputs do
 not reach in that build. The nightly and `minimize` builds are x86-64 and
-AArch64, generic CPU, cache off and on; the two full-width targets use the
-`full-width` feature. Inputs are architecture-independent bytes, so the
+AArch64, generic CPU, cache off and on; the three full-width targets use the
+`full-width` feature and `check_all` requires `check`. Inputs are architecture-independent bytes, so the
 candidate is the union of the four results. `candidate_smoke` replays all of it
 with ASan in the three `fuzz_coverage` configurations: x86-64 with cache off and
 on, and AArch64 with cache. SIMD paths are chosen at run time, and the code that
@@ -58,7 +67,9 @@ and the pinned corpus with ASan, without mutation, and exports LCOV, so the same
 replay checks correctness and measures coverage. The Malachite and bs58 oracles
 are built without coverage or debug instrumentation. In the
 [verification workflow](../.github/workflows/verification.yml), each
-`proptest_coverage` configuration runs the property suites and exports LCOV.
+`proptest_coverage` configuration runs the unit and property suites and exports LCOV.
+Direct unit tests exercise supported ISA kernels even when runtime dispatch
+selects a different kernel on the runner.
 They upload to Codecov under the shared `fuzz` or `tests` flag; see
 `codecov.yml`.
 

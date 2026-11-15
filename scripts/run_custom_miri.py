@@ -130,7 +130,7 @@ def main():
         commands += [(name, base + ['--test', 'miri', name, '--', '--exact'], 'one') for name in selected['integration_tests']]
     if args.suite in ['all', 'buffers']:
         cases = coverage['buffer_cases']
-        require(len(cases) == len(set(cases)) == 14, 'expected all 14 original buffer cases')
+        require(len(cases) == len(set(cases)) == 14, 'expected all 14 named buffer cases')
         commands.append(('discover-buffers', base + ['--test', 'miri', '--', '--list'], 'discover'))
         commands += [(name, base + ['--test', 'miri', name, '--', '--ignored', '--exact'], 'one') for name in cases]
     require(any(expected == 'one' for _, _, expected in commands), 'requested suite selected no tests')

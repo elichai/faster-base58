@@ -19,7 +19,7 @@ The patch combines:
   execution agrees, and native assembly contains `shsub.4s`.
 
 Miri and the patch are available under `MIT OR Apache-2.0`; copies of the Miri
-licenses are included here. No upstream Miri submission is part of this change.
+licenses are included here.
 
 The builder accepts a clean checkout at the pinned revision, the exact compiler
 sysroot, and the pinned Cargo executable. It copies only tracked source into a

@@ -1,5 +1,7 @@
 #![no_main]
 
+#[path = "../full_width.rs"]
+mod full_width;
 #[path = "../../tests/support/mod.rs"]
 mod support;
 
@@ -12,13 +14,7 @@ fuzz_target!(|raw: &[u8]| {
     } else {
         1 << 18
     };
-    let mut input = vec![0xA5; width];
-    if !raw.is_empty() {
-        for chunk in input.chunks_mut(raw.len()) {
-            chunk.copy_from_slice(&raw[..chunk.len()]);
-        }
-    }
-    input[0] |= 0x80;
+    let input = full_width::expand_to(raw, width);
     let want = support::reference::encode(&input);
     let selector = support::scalar::selector(raw);
     let encoders = [

@@ -149,7 +149,7 @@ fn decode_frame(
         ))]
         DecodeBackend::Karatsuba => {
             let limbs = crate::dc::decode_value(
-                input,
+                digits,
                 zeros,
                 output.len().saturating_add(4),
                 &mut crate::dc::Karatsuba,
@@ -161,7 +161,7 @@ fn decode_frame(
         DecodeBackend::Matrix => crate::matrix::entry::decode_checked(input, zeros, output),
         #[cfg(feature = "alloc")]
         DecodeBackend::Ntt => {
-            let limbs = crate::ntt::decode_value(input, zeros, output.len().saturating_add(4))?;
+            let limbs = crate::ntt::decode_value(digits, zeros, output.len().saturating_add(4))?;
             Ok(split(zeros, &limbs, output)?)
         }
     }
