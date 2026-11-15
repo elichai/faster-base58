@@ -33,7 +33,7 @@ commands and compiler identity. It never reports an `.rlib` as a deployed progra
 
 For heap accounting, build `empty,auto,no-alloc` with `--count-allocations`,
 `--directions both` and `--kinds cdylib`, then run
-`python3 -B scripts/public_heap.py --build BUILD_DIR --output NEW_REPORT_DIR`.
+`python3 -B scripts/resource_report.py public-heap --build BUILD_DIR --output NEW_REPORT_DIR`.
 Native targets must match the host; Wasm runs through Node and the counted ABI in
 `scripts/wasm_allocations.mjs`. Repeat the build with `--cache` for an independent
 cache cohort. The report stores raw cold/warm counts, exact input/output fixtures,

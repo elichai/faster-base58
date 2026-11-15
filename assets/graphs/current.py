@@ -99,7 +99,7 @@ def tables(timing_rows, deltas):
                        if (platform, cache, backend, operation, size) in cells else None
                        for operation in ['encode', 'decode']] for backend, cache, _ in SERIES]
             minima = [min((pair[index] for pair in values if pair[index] is not None), default=None) for index in [0, 1]]
-            formatted = [' / '.join('**' + duration(value) + '**' if value is not None and value == minima[index] else duration(value)
+            formatted = ['<br>'.join(['Encode: ', 'Decode: '][index] + ('**' + duration(value) + '**' if value is not None and value == minima[index] else duration(value))
                                    for index, value in enumerate(pair)) for pair in values]
             result.append('| ' + payload(size) + ' | ' + ' | '.join(formatted) + ' |')
         result.append('')
