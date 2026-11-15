@@ -79,6 +79,40 @@ The [README tables](../README.md#performance) list selected absolute encode/deco
 medians from these figures. Native and Wasm clocks are separate measurement
 scopes; their times do not establish a native/Wasm speed ratio.
 
+## Measurement limits
+
+Warm native measurements reuse 64-byte-aligned input and caller-output buffers.
+The timer surrounds repeated public calls inside the cdylib, crossing Python/FFI
+once per batch. Warm decode uses prevalidated UTF-8; Base58 digit validation stays
+inside the public decoder. Loading, fixture construction and caller-buffer setup
+are outside timing. Invalid inputs, zero-prefixed workloads and owned outputs
+need their own measurements.
+
+First-call costs require separate fresh processes. Time the single-call export
+before any conversion initializes its tables, and include codec setup and internal
+allocation. Record whether UTF-8 checking is inside that timer. Construct and
+independently verify the expected bytes outside timing; poison output before each
+call and check the returned length and bytes afterwards. Single-call CPU clocks
+can have coarse resolution, so retain process/copy ranges. The November 9 warm
+cohort supplies no first-call results; current-source first-call measurements are
+pending with the refresh.
+
+For small source changes, use a paired run with byte-identical controls and fresh
+library copies. Retain observed variation and report incomplete loader/call-order
+balancing. Code alignment, dynamic mapping, file-page placement and background
+load can move small cells. A shifted identical control prevents attributing the
+whole observed change to source. Keep repeats separate from the primary cohort;
+do not discard observations or silently normalize them by a control ratio.
+
+Inspect default/cache and fat/off LTO independently. Compare reached hot loops as
+well as symbol lists with `scripts/check_simd_inlining.py --compare OLD NEW`.
+Iterator forms can remove bounds checks while retaining constructor calls or
+changing vectorization, spills and stack frames. Check copies, reloads, helper
+calls and loop layout in the linked consumer. Assembly establishes emitted work;
+latency claims still require measurement. The decoder's validation invariant and
+its test coverage remain documented in [DESIGN.md](../DESIGN.md) and
+[CORRECTNESS.md](../CORRECTNESS.md).
+
 ## Linked size and compact
 
 The [linked-size table](../README.md#linked-size) uses the same November 9 builds
@@ -90,6 +124,13 @@ reachable. Native columns are code and readonly sections; Wasm columns are CODE 
 DATA sections. Initialized data, BSS, file size and linear-memory pages are
 different costs. `CHAR_PAIRS` (3,364 two-byte entries, 6,728 B) is in readonly data
 whenever a reachable path uses it.
+
+Record initialized data, BSS and stripped-file bytes with code and readonly data.
+Mach-O and ELF categories are not directly interchangeable. Subtracting a matching
+empty consumer can produce negative BSS values through layout changes; this does
+not measure retained heap. Stripped-file bytes include metadata and layout, and
+`.rlib` size does not measure deployment size. The November 9 table reports only
+the section categories shown; complete current-source accounting is being refreshed.
 
 On x86-64, `compact` keeps eight IFMA kernel widths instead of twelve: less code,
 more chunks for some multiplications. Other targets do not use these kernels; wide
