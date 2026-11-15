@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/elichai/faster-base58/compare/v0.1.0...v0.1.1) - 2026-11-15
+
+### Other
+
+- Document internal heap usage by payload size ([#87](https://github.com/elichai/faster-base58/pull/87))
+- Restore and refresh public benchmark results near the top of the README ([#86](https://github.com/elichai/faster-base58/pull/86))
+- Fix portability lint and clean up README examples ([#85](https://github.com/elichai/faster-base58/pull/85))
+
 ## [0.1.0](https://github.com/elichai/faster-base58/releases/tag/v0.1.0) - 2026-11-12
 
 Initial release:

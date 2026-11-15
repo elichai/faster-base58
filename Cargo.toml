@@ -1,6 +1,6 @@
 [package]
 name = "faster-base58"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.95"
 description = "Fast Bitcoin Base58 encoding and decoding with automatic CPU dispatch"
