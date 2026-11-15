@@ -152,6 +152,9 @@ cargo build --locked --features __internals,check --benches
 python3 scripts/check_public_api.py --output NEW_DIR
 ```
 
+The README examples run as doctests with `alloc` and `check` enabled. Other
+feature combinations still run the library's own doctests.
+
 Release rows add `--release`. Cache rows use `__internals,cache` and add
 `--features cache` to the public lists and documentation tests; they skip the
 no-allocation lane. On x86-64 debug rows, the first suite uses `cargo test`, so
