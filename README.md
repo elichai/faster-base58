@@ -13,72 +13,68 @@ Requires Rust 1.95 or newer.
 
 ## Performance
 
-This comparison cohort was measured **2026-11-09**, source
-[`8cf24a72ad66`](https://github.com/elichai/faster-base58/commit/8cf24a72ad66435367b226f89a6a7c30ae496567).
-The tables and figures use the same cohort, including the competing crates.
-
-`Auto` is `faster-base58` with default features; `Auto + cache` enables `cache`.
-`No allocation` disables default features.
-
-Ordinary public consumers use no `__internals`, release opt-level 3, fat LTO and
-generic target flags. Each cell is **encode / decode**: the median over fresh
-processes, each timing all libraries
-interleaved in batches of at least 10 ms. Native cells use process CPU time, Wasm V8
-elapsed time. Workspace allocation is included; caller buffers are reused. Bold marks
-the lowest median, without a significance claim. No-allocation and bs58 stop at
-64 KiB; five8 covers 32/64 B. [Method, ranges and limits](docs/performance.md).
+Measured **2026-11-15**, source
+[`8f7e439dcee9`](https://github.com/elichai/faster-base58/commit/8f7e439dcee94ca4e31ae46c5ea1e28c6c81d5d7).
+Warm public-API **encode / decode** times with reused caller output, generic CPU
+flags, release opt-level 3, 16 codegen units and fat LTO. Internal workspace
+allocation is timed.
+`Auto` uses default features, `Auto + cache` enables caching, and `No allocation`
+disables default features. Comparators are bs58 0.5.1 and five8 1.0.0.
+Each process interleaves all libraries in three batches calibrated to at least 10 ms.
+Bold marks the lowest observed median without a significance claim. No-allocation
+and bs58 cover through 64 KiB; five8 covers 32/64 B.
+[Methods, ranges, both LTO settings, first calls and resource costs](docs/performance.md).
 
 ### Apple M5 Pro
 
-Rust 1.99.1 / LLVM 23.1.1, `aarch64-apple-darwin`, five processes.
+Rust 1.99.1 / LLVM 23.1.1, AArch64; process CPU time, 5 processes × 3 file copies.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 12 ns / **13.6 ns** | 12 ns / 13.9 ns | **9.88 ns** / 13.9 ns | 819 ns / 341 ns | 32.7 ns / 32.5 ns |
-| 64 B | 24.1 ns / **26.3 ns** | 24.3 ns / 26.7 ns | **24.1 ns** / 26.6 ns | 3.14 µs / 1.36 µs | 79.9 ns / 96.8 ns |
-| 512 B | 1.92 µs / 538 ns | **603 ns** / **501 ns** | 1.97 µs / 533 ns | 243 µs / 80.9 µs | — / — |
-| 4 KiB | 74.8 µs / 27.7 µs | **29.2 µs** / **25.6 µs** | 114 µs / 27.8 µs | 15.7 ms / 5.41 ms | — / — |
-| 64 KiB | 1.9 ms / 992 µs | **1.86 ms** / **956 µs** | 27.2 ms / 6.52 ms | 4.01 s / 1.37 s | — / — |
-| 1 MiB | **44.4 ms** / 26.4 ms | 44.6 ms / **25.6 ms** | — / — | — / — | — / — |
-| 4 MiB | 212 ms / 129 ms | **210 ms** / **129 ms** | — / — | — / — | — / — |
+| 32 B | 11.9 ns / 13.8 ns | 12.1 ns / **13.8 ns** | **9.93 ns** / 13.9 ns | 836 ns / 342 ns | 34.1 ns / 32.7 ns |
+| 64 B | 24.4 ns / 26.3 ns | 24.3 ns / 26.4 ns | **24.2 ns** / **25.9 ns** | 3.17 µs / 1.38 µs | 80.7 ns / 96.8 ns |
+| 512 B | 1.84 µs / 529 ns | **587 ns** / **518 ns** | 1.95 µs / 529 ns | 248 µs / 82.5 µs | - / - |
+| 4 KiB | 73.6 µs / 26.2 µs | **29.5 µs** / **26.2 µs** | 108 µs / 26.9 µs | 16.1 ms / 5.44 ms | - / - |
+| 64 KiB | 1.88 ms / 994 µs | **1.86 ms** / **969 µs** | 25.9 ms / 6.33 ms | 4 s / 1.36 s | - / - |
+| 1 MiB | **44.4 ms** / 26.2 ms | 44.8 ms / **26 ms** | - / - | - / - | - / - |
+| 4 MiB | **208 ms** / **127 ms** | 210 ms / 128 ms | - / - | - / - | - / - |
 
-![Native public API conversion time on Apple M5 Pro](assets/graphs/m5-public.svg)
+![Public encode and decode times on Apple M5 Pro](assets/graphs/m5-public.svg)
 
-### AMD EPYC 9B45 (GCP, generic x86-64)
+### AMD EPYC 9B45 (generic x86-64)
 
-Rust 1.99.0 / LLVM 23.1.1, generic `x86_64-unknown-linux-gnu` with runtime CPU
-selection, vCPU 1 pinned with its SMT sibling idle, three processes over four copies
-of each library ([protocol](docs/performance.md#measure-and-update)).
+Rust 1.99.0 / LLVM 23.1.1, generic x86-64 with runtime CPU selection.
+Process CPU time, 3 processes × 4 file copies, pinned to CPU 1.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 30 ns / **23.1 ns** | 30.1 ns / 23.9 ns | **29.9 ns** / 23.8 ns | 903 ns / 322 ns | 53 ns / 48.6 ns |
-| 64 B | **31.2 ns** / 46.6 ns | 31.3 ns / **44.1 ns** | 31.4 ns / 44.8 ns | 3.88 µs / 1.25 µs | 115 ns / 123 ns |
-| 512 B | 3.25 µs / 870 ns | **1.08 µs** / **860 ns** | 4.3 µs / 867 ns | 282 µs / 92.3 µs | — / — |
-| 4 KiB | 48.9 µs / **16.1 µs** | **39.7 µs** / 16.1 µs | 257 µs / 43.3 µs | 18.1 ms / 5.85 ms | — / — |
-| 64 KiB | 2.23 ms / 1.03 ms | **2.04 ms** / **832 µs** | 64.8 ms / 10.5 ms | 4.63 s / 1.49 s | — / — |
-| 1 MiB | 49 ms / 24.2 ms | **48.8 ms** / **22.7 ms** | — / — | — / — | — / — |
-| 4 MiB | **227 ms** / 119 ms | 227 ms / **116 ms** | — / — | — / — | — / — |
+| 32 B | 30.3 ns / 24.4 ns | **30.2 ns** / **23.8 ns** | 30.2 ns / 23.9 ns | 911 ns / 327 ns | 55.8 ns / 49.4 ns |
+| 64 B | 31.7 ns / **45.1 ns** | 31.8 ns / 45.2 ns | **31.7 ns** / 45.5 ns | 3.9 µs / 1.25 µs | 116 ns / 129 ns |
+| 512 B | 3.24 µs / **856 ns** | **1.09 µs** / 864 ns | 4.08 µs / 866 ns | 283 µs / 93.3 µs | - / - |
+| 4 KiB | 48.2 µs / 16 µs | **40 µs** / **15.7 µs** | 244 µs / 41.5 µs | 18.2 ms / 5.86 ms | - / - |
+| 64 KiB | 2.23 ms / 1.03 ms | **2.11 ms** / **829 µs** | 61.4 ms / 9.96 ms | 4.64 s / 1.49 s | - / - |
+| 1 MiB | **48.5 ms** / 24.3 ms | 48.8 ms / **22.9 ms** | - / - | - / - | - / - |
+| 4 MiB | **230 ms** / 119 ms | **230 ms** / **116 ms** | - / - | - / - | - / - |
 
-![Native public API conversion time on AMD EPYC 9B45](assets/graphs/gcp-public.svg)
+![Public encode and decode times on AMD EPYC 9B45 (GCP, generic x86-64)](assets/graphs/gcp-public.svg)
 
 ### WebAssembly on Apple M5 Pro (Node/V8)
 
-Scalar Wasm, Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34; five processes. Builds
-with `+simd128` use Wasm SIMD kernels and are a separate cohort; see the
-[performance guide](docs/performance.md#other-measurement-scopes).
+Rust 1.99.1; Node 26.13.1 / V8 14.6.202.34; scalar Wasm, V8 elapsed time, 5 processes.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 26.1 ns / 51.7 ns | **25.6 ns** / 49.8 ns | 26 ns / 51.2 ns | 632 ns / 217 ns | 45.9 ns / **41.5 ns** |
-| 64 B | 101 ns / 140 ns | 101 ns / 130 ns | 102 ns / 139 ns | 2.93 µs / 839 ns | **93.8 ns** / **127 ns** |
-| 512 B | 7.59 µs / 5.53 µs | **2.81 µs** / **2.52 µs** | 7.72 µs / 5.3 µs | 238 µs / 75.9 µs | — / — |
-| 4 KiB | 460 µs / 188 µs | **149 µs** / **124 µs** | 448 µs / 316 µs | 15.6 ms / 5.38 ms | — / — |
-| 64 KiB | 14 ms / 6 ms | **14 ms** / **5.97 ms** | 116 ms / 78.8 ms | 4.05 s / 1.38 s | — / — |
-| 1 MiB | **335 ms** / 157 ms | 336 ms / **156 ms** | — / — | — / — | — / — |
-| 4 MiB | 1.61 s / 773 ms | **1.61 s** / **768 ms** | — / — | — / — | — / — |
+| 32 B | **25.1 ns** / 51.9 ns | 25.2 ns / 50 ns | 25.3 ns / 52.5 ns | 598 ns / 216 ns | 44.5 ns / **40.8 ns** |
+| 64 B | 98.8 ns / 136 ns | 99.3 ns / 131 ns | 100 ns / 136 ns | 2.8 µs / 819 ns | **91.5 ns** / **124 ns** |
+| 512 B | 7.15 µs / 6.06 µs | **2.77 µs** / **2.49 µs** | 7.36 µs / 5.87 µs | 232 µs / 73 µs | - / - |
+| 4 KiB | 286 µs / 189 µs | **146 µs** / **122 µs** | 445 µs / 336 µs | 15.3 ms / 5.18 ms | - / - |
+| 64 KiB | 8.58 ms / 5.98 ms | **8.51 ms** / **5.93 ms** | 111 ms / 81.3 ms | 3.93 s / 1.33 s | - / - |
+| 1 MiB | **220 ms** / **155 ms** | **220 ms** / **155 ms** | - / - | - / - | - / - |
+| 4 MiB | **1.07 s** / 766 ms | 1.07 s / **765 ms** | - / - | - / - | - / - |
 
-![WebAssembly public API conversion time on Apple M5 Pro](assets/graphs/wasm-public.svg)
+![Public encode and decode times on Scalar WebAssembly on Apple M5 Pro (Node/V8)](assets/graphs/wasm-public.svg)
+
+[Wasm SIMD128 results](docs/performance.md#wasm-simd128) use separate builds.
 
 ## Encode and decode
 
@@ -215,20 +211,19 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Linked size
 
-The **2026-11-09** cohort above also supplies these linked sizes.
-
-Code and data linked **above an empty consumer** with the same scaffold, both
-directions reachable, from the same builds as the timing tables. These are cdylib
-section sizes after removing that empty scaffold, including associated code and
-metadata; readonly data, BSS, cache headers, retained heap and Wasm memory pages
-are separate costs.
+Code and readonly/data section bytes **above a matching empty consumer**, from
+the same fat-LTO builds as the timing figures, with both directions reachable.
+These linked-consumer sizes include associated code and metadata. BSS, retained
+heap, stack and Wasm linear memory are separate costs.
+[Full size accounting and LTO-off results](docs/performance.md#linked-size-and-compact).
 
 | Consumer | M5 code / readonly | x86-64 code / readonly | Wasm code / data section |
 |---|---:|---:|---:|
-| Auto | 68.0 KiB / 24.1 KiB | 301.9 KiB / 37.7 KiB | 70.3 KiB / 14.2 KiB |
-| Auto + cache | 76.1 KiB / 26.7 KiB | 297.5 KiB / 38.6 KiB | 76.1 KiB / 15.0 KiB |
-| No allocation | 10.5 KiB / 10.6 KiB | 21.0 KiB / 14.4 KiB | 14.2 KiB / 9.5 KiB |
-| bs58 | 1.3 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.7 KiB |
+| Auto | 66.2 KiB / 24.4 KiB | 300.9 KiB / 37.7 KiB | 84.2 KiB / 15.8 KiB |
+| Auto + cache | 74.6 KiB / 27.2 KiB | 296.9 KiB / 38.6 KiB | 89.9 KiB / 16.7 KiB |
+| No allocation | 10.4 KiB / 10.9 KiB | 21.3 KiB / 14.5 KiB | 14.8 KiB / 9.9 KiB |
+| bs58 | 1.4 KiB / 0.9 KiB | 2.0 KiB / 0.9 KiB | 2.7 KiB / 0.8 KiB |
+| five8 | 11.8 KiB / 2.0 KiB | 11.8 KiB / 1.7 KiB | 10.0 KiB / 1.6 KiB |
 
 On x86-64, `features = ["compact"]` keeps eight IFMA kernel widths instead of
 twelve. This reduces linked code and uses more chunks for some multiplications.

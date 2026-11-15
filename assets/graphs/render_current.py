@@ -75,6 +75,7 @@ def main():
             copies = int(identity.get('copies') or 1)
             figure.text(.5, .022, f"Public API · {identity['measurement_date']} · source {identity['source_commit'][:12]}"
                 + (f" · {identity['lto']} LTO" if identity.get('lto') else '')
+                + (f" · {identity['wasm_isa']} Wasm" if identity.get('wasm_isa') else '')
                 + (f' · medians over {copies} file copies; bars: process range of all copies\n' if copies > 1
                    else ' · warm medians; bars: process range\n')
                 + ('V8 elapsed time' if platform == 'wasm' else 'Native process CPU time')
