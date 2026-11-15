@@ -9,14 +9,10 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 EXACT = {'Cargo.toml', 'Cargo.toml.orig', 'Cargo.lock', '.cargo_vcs_info.json',
          'README.md', 'DESIGN.md', 'CORRECTNESS.md', 'REFERENCES.md',
-         'LICENSE-MIT', 'LICENSE-APACHE', 'docs/README.md', 'docs/performance.md',
-         'licenses/firedancer-LICENSE.txt', 'licenses/firedancer-NOTICE.txt',
-         'licenses/bitcoin-core-LICENSE.txt', 'licenses/five8-LICENSE.txt'}
+         'LICENSE-MIT', 'LICENSE-APACHE', 'docs/README.md', 'docs/performance.md'}
 REQUIRED = {'Cargo.toml', 'src/lib.rs', 'README.md', 'DESIGN.md', 'CORRECTNESS.md',
             'REFERENCES.md', 'LICENSE-MIT', 'LICENSE-APACHE', 'docs/README.md',
-            'docs/performance.md', 'licenses/firedancer-LICENSE.txt',
-            'licenses/firedancer-NOTICE.txt', 'licenses/bitcoin-core-LICENSE.txt',
-            'licenses/five8-LICENSE.txt', 'assets/graphs/m5-public.svg',
+            'docs/performance.md', 'assets/graphs/m5-public.svg',
             'assets/graphs/wasm-public.svg', 'assets/graphs/gcp-public.svg'}
 
 def require(condition, message):
@@ -41,7 +37,7 @@ def self_test():
         require(allowed(name), 'Expected package source: ' + name)
     for name in ['', '../secret.rs', '/src/lib.rs', 'src/key.pem', 'fuzz/corpus/input',
                  'docs/benchmarks/source.tgz', 'docs/verification/run.log',
-                 'docs/verification/proofs.json', 'licenses/consultations.json',
+                 'docs/verification/proofs.json', 'docs/consultations.json',
                  'target/release/lib.rlib', '.git/config']:
         require(not allowed(name), 'Unexpected package input accepted: ' + name)
 
