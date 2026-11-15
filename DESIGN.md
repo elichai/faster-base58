@@ -208,6 +208,10 @@ feature flags in the NTT short-product fallback.
 
 ## Heap, stack and cache costs
 
+Internal heap consists of live conversion workspace and retained tables. Caller
+input and output storage are separate. A warm call can make no new allocations
+while its cached tables still occupy heap; the measured peak includes those tables.
+
 Without `alloc`, conversion makes no allocator calls on cold, warm, success or error paths. Its
 general-size conversion remains quadratic. Fixed tables have a combined
 reference layout of 2208 bytes on 64-bit targets; emitted binary bytes can differ.
@@ -281,8 +285,9 @@ powers, stack and concurrent conversions. The division-tree route can require
 x86 and Wasm radix route uses two prime tables instead of three, pools its digit and
 prepared-spectrum scratch, and retains nothing under either cache policy. The
 [performance guide](docs/performance.md#cache-and-memory) explains how to measure
-requested-layout peaks separately from timing; no current-source allocation
-cohort accompanies the native timing refresh.
+requested-layout peaks separately from timing and gives measured internal heap
+by payload size, including first-call setup and retained tables. Caller input and
+output storage are separate costs.
 
 Precomputing every general cache table would embed roughly 26.8 MiB before dead
 stripping, including classes a process may never use. That is unsuitable as the

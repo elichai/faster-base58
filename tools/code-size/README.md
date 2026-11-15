@@ -30,3 +30,19 @@ The build uses release optimization, fat LTO, 16 codegen units, no debug info, a
 the target's default panic strategy. The script overrides ambient Rust flags with
 the recorded CPU flag, preserves unstripped and stripped artifacts, and records
 commands and compiler identity. It never reports an `.rlib` as a deployed program.
+
+For heap accounting, build `empty,auto,no-alloc` with `--count-allocations`,
+`--directions both` and `--kinds cdylib`, then run
+`python3 -B scripts/resource_report.py public-heap --build BUILD_DIR --output NEW_REPORT_DIR`.
+Native targets must match the host; Wasm runs through Node and the counted ABI in
+`scripts/wasm_allocations.mjs`. Repeat the build with `--cache` for an independent
+cache cohort. The report stores raw cold/warm counts, exact input/output fixtures,
+artifact hashes and build metadata. Each operation and payload starts a fresh
+process/instance; three repeats must be checked for agreement before publication.
+Input/output allocations are outside the conversion window. `peak_internal_bytes`
+includes already retained cache tables; `peak_extra_bytes` is growth above the
+call's initial live heap. `retained_internal_bytes` is what remains after the call,
+excluding caller buffers. Counts use Rust requested layouts, including the net
+size change of a successful reallocation; they exclude allocator overhead and
+transient storage inside the allocator. Never use counted artifacts for timings
+or linked-size claims.

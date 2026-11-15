@@ -13,7 +13,7 @@ Requires Rust 1.95 or newer.
 
 ## Performance
 
-Measured **2026-11-15**, source
+Timings measured **2026-11-15**, source
 [`8f7e439dcee9`](https://github.com/elichai/faster-base58/commit/8f7e439dcee94ca4e31ae46c5ea1e28c6c81d5d7).
 Warm public-API **encode / decode** times with reused caller output, generic CPU
 flags, release opt-level 3, 16 codegen units and fat LTO. Internal workspace
@@ -25,19 +25,29 @@ Bold marks the lowest observed median without a significance claim. No-allocatio
 and bs58 cover through 64 KiB; five8 covers 32/64 B.
 [Methods, ranges, both LTO settings, first calls and resource costs](docs/performance.md).
 
+Each cell labels **Encode** and **Decode**. In the Auto columns, each direction
+also shows **peak internal heap** for a warm call, including retained cache tables.
+**Input and output storage are excluded.** Heap counts use three fresh-process
+repeats and a separate fixture at each payload size; they are requested Rust
+layout bytes, not RSS. The
+no-allocation build uses zero internal heap. Heap measurements are dated
+**2026-11-15**, source
+[`d5c89dfcd675`](https://github.com/elichai/faster-base58/commit/d5c89dfcd67502d6067a5acf9594e565f837ede8).
+[Heap measurement scope and first-call costs](docs/performance.md#cache-and-memory).
+
 ### Apple M5 Pro
 
 Rust 1.99.1 / LLVM 23.1.1, AArch64; process CPU time, 5 processes × 3 file copies.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 11.9 ns / 13.8 ns | 12.1 ns / **13.8 ns** | **9.93 ns** / 13.9 ns | 836 ns / 342 ns | 34.1 ns / 32.7 ns |
-| 64 B | 24.4 ns / 26.3 ns | 24.3 ns / 26.4 ns | **24.2 ns** / **25.9 ns** | 3.17 µs / 1.38 µs | 80.7 ns / 96.8 ns |
-| 512 B | 1.84 µs / 529 ns | **587 ns** / **518 ns** | 1.95 µs / 529 ns | 248 µs / 82.5 µs | - / - |
-| 4 KiB | 73.6 µs / 26.2 µs | **29.5 µs** / **26.2 µs** | 108 µs / 26.9 µs | 16.1 ms / 5.44 ms | - / - |
-| 64 KiB | 1.88 ms / 994 µs | **1.86 ms** / **969 µs** | 25.9 ms / 6.33 ms | 4 s / 1.36 s | - / - |
-| 1 MiB | **44.4 ms** / 26.2 ms | 44.8 ms / **26 ms** | - / - | - / - | - / - |
-| 4 MiB | **208 ms** / **127 ms** | 210 ms / 128 ms | - / - | - / - | - / - |
+| 32 B | Encode: 11.9 ns; heap 0 B<br>Decode: 13.8 ns; heap 0 B | Encode: 12.1 ns; heap 0 B<br>Decode: **13.8 ns**; heap 0 B | Encode: **9.93 ns**<br>Decode: 13.9 ns | Encode: 836 ns<br>Decode: 342 ns | Encode: 34.1 ns<br>Decode: 32.7 ns |
+| 64 B | Encode: 24.4 ns; heap 0 B<br>Decode: 26.3 ns; heap 0 B | Encode: 24.3 ns; heap 0 B<br>Decode: 26.4 ns; heap 0 B | Encode: **24.2 ns**<br>Decode: **25.9 ns** | Encode: 3.17 µs<br>Decode: 1.38 µs | Encode: 80.7 ns<br>Decode: 96.8 ns |
+| 512 B | Encode: 1.84 µs; heap 0 B<br>Decode: 529 ns; heap 0 B | Encode: **587 ns**; heap 47 KiB<br>Decode: **518 ns**; heap 40.2 KiB | Encode: 1.95 µs<br>Decode: 529 ns | Encode: 248 µs<br>Decode: 82.5 µs | Encode: -<br>Decode: - |
+| 4 KiB | Encode: 73.6 µs; heap 82.5 KiB<br>Decode: 26.2 µs; heap 0 B | Encode: **29.5 µs**; heap 2.76 MiB<br>Decode: **26.2 µs**; heap 2.32 MiB | Encode: 108 µs<br>Decode: 26.9 µs | Encode: 16.1 ms<br>Decode: 5.44 ms | Encode: -<br>Decode: - |
+| 64 KiB | Encode: 1.88 ms; heap 1.28 MiB<br>Decode: 994 µs; heap 1.02 MiB | Encode: **1.86 ms**; heap 1.53 MiB<br>Decode: **969 µs**; heap 1.17 MiB | Encode: 25.9 ms<br>Decode: 6.33 ms | Encode: 4 s<br>Decode: 1.36 s | Encode: -<br>Decode: - |
+| 1 MiB | Encode: **44.4 ms**; heap 17 MiB<br>Decode: 26.2 ms; heap 14.1 MiB | Encode: 44.8 ms; heap 17 MiB<br>Decode: **26 ms**; heap 14.2 MiB | Encode: -<br>Decode: - | Encode: -<br>Decode: - | Encode: -<br>Decode: - |
+| 4 MiB | Encode: **208 ms**; heap 66.4 MiB<br>Decode: **127 ms**; heap 54.2 MiB | Encode: 210 ms; heap 66.4 MiB<br>Decode: 128 ms; heap 54.7 MiB | Encode: -<br>Decode: - | Encode: -<br>Decode: - | Encode: -<br>Decode: - |
 
 ![Public encode and decode times on Apple M5 Pro](assets/graphs/m5-public.svg)
 
@@ -48,13 +58,13 @@ Process CPU time, 3 processes × 4 file copies, pinned to CPU 1.
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | 30.3 ns / 24.4 ns | **30.2 ns** / **23.8 ns** | 30.2 ns / 23.9 ns | 911 ns / 327 ns | 55.8 ns / 49.4 ns |
-| 64 B | 31.7 ns / **45.1 ns** | 31.8 ns / 45.2 ns | **31.7 ns** / 45.5 ns | 3.9 µs / 1.25 µs | 116 ns / 129 ns |
-| 512 B | 3.24 µs / **856 ns** | **1.09 µs** / 864 ns | 4.08 µs / 866 ns | 283 µs / 93.3 µs | - / - |
-| 4 KiB | 48.2 µs / 16 µs | **40 µs** / **15.7 µs** | 244 µs / 41.5 µs | 18.2 ms / 5.86 ms | - / - |
-| 64 KiB | 2.23 ms / 1.03 ms | **2.11 ms** / **829 µs** | 61.4 ms / 9.96 ms | 4.64 s / 1.49 s | - / - |
-| 1 MiB | **48.5 ms** / 24.3 ms | 48.8 ms / **22.9 ms** | - / - | - / - | - / - |
-| 4 MiB | **230 ms** / 119 ms | **230 ms** / **116 ms** | - / - | - / - | - / - |
+| 32 B | Encode: 30.3 ns; heap 0 B<br>Decode: 24.4 ns; heap 0 B | Encode: **30.2 ns**; heap 0 B<br>Decode: **23.8 ns**; heap 0 B | Encode: 30.2 ns<br>Decode: 23.9 ns | Encode: 911 ns<br>Decode: 327 ns | Encode: 55.8 ns<br>Decode: 49.4 ns |
+| 64 B | Encode: 31.7 ns; heap 0 B<br>Decode: **45.1 ns**; heap 0 B | Encode: 31.8 ns; heap 0 B<br>Decode: 45.2 ns; heap 0 B | Encode: **31.7 ns**<br>Decode: 45.5 ns | Encode: 3.9 µs<br>Decode: 1.25 µs | Encode: 116 ns<br>Decode: 129 ns |
+| 512 B | Encode: 3.24 µs; heap 5.2 KiB<br>Decode: **856 ns**; heap 0 B | Encode: **1.09 µs**; heap 47 KiB<br>Decode: 864 ns; heap 0 B | Encode: 4.08 µs<br>Decode: 866 ns | Encode: 283 µs<br>Decode: 93.3 µs | Encode: -<br>Decode: - |
+| 4 KiB | Encode: 48.2 µs; heap 38.4 KiB<br>Decode: 16 µs; heap 21.3 KiB | Encode: **40 µs**; heap 91.8 KiB<br>Decode: **15.7 µs**; heap 30.3 KiB | Encode: 244 µs<br>Decode: 41.5 µs | Encode: 18.2 ms<br>Decode: 5.86 ms | Encode: -<br>Decode: - |
+| 64 KiB | Encode: 2.23 ms; heap 1.28 MiB<br>Decode: 1.03 ms; heap 952 KiB | Encode: **2.11 ms**; heap 1.53 MiB<br>Decode: **829 µs**; heap 1000 KiB | Encode: 61.4 ms<br>Decode: 9.96 ms | Encode: 4.64 s<br>Decode: 1.49 s | Encode: -<br>Decode: - |
+| 1 MiB | Encode: **48.5 ms**; heap 17 MiB<br>Decode: 24.3 ms; heap 14 MiB | Encode: 48.8 ms; heap 17 MiB<br>Decode: **22.9 ms**; heap 14.1 MiB | Encode: -<br>Decode: - | Encode: -<br>Decode: - | Encode: -<br>Decode: - |
+| 4 MiB | Encode: **230 ms**; heap 66.4 MiB<br>Decode: 119 ms; heap 54.1 MiB | Encode: **230 ms**; heap 66.4 MiB<br>Decode: **116 ms**; heap 54.1 MiB | Encode: -<br>Decode: - | Encode: -<br>Decode: - | Encode: -<br>Decode: - |
 
 ![Public encode and decode times on AMD EPYC 9B45 (GCP, generic x86-64)](assets/graphs/gcp-public.svg)
 
@@ -64,13 +74,13 @@ Rust 1.99.1; Node 26.13.1 / V8 14.6.202.34; scalar Wasm, V8 elapsed time, 5 proc
 
 | Payload | Auto | Auto + cache | No allocation | bs58 | five8 |
 |---|---:|---:|---:|---:|---:|
-| 32 B | **25.1 ns** / 51.9 ns | 25.2 ns / 50 ns | 25.3 ns / 52.5 ns | 598 ns / 216 ns | 44.5 ns / **40.8 ns** |
-| 64 B | 98.8 ns / 136 ns | 99.3 ns / 131 ns | 100 ns / 136 ns | 2.8 µs / 819 ns | **91.5 ns** / **124 ns** |
-| 512 B | 7.15 µs / 6.06 µs | **2.77 µs** / **2.49 µs** | 7.36 µs / 5.87 µs | 232 µs / 73 µs | - / - |
-| 4 KiB | 286 µs / 189 µs | **146 µs** / **122 µs** | 445 µs / 336 µs | 15.3 ms / 5.18 ms | - / - |
-| 64 KiB | 8.58 ms / 5.98 ms | **8.51 ms** / **5.93 ms** | 111 ms / 81.3 ms | 3.93 s / 1.33 s | - / - |
-| 1 MiB | **220 ms** / **155 ms** | **220 ms** / **155 ms** | - / - | - / - | - / - |
-| 4 MiB | **1.07 s** / 766 ms | 1.07 s / **765 ms** | - / - | - / - | - / - |
+| 32 B | Encode: **25.1 ns**; heap 0 B<br>Decode: 51.9 ns; heap 0 B | Encode: 25.2 ns; heap 0 B<br>Decode: 50 ns; heap 0 B | Encode: 25.3 ns<br>Decode: 52.5 ns | Encode: 598 ns<br>Decode: 216 ns | Encode: 44.5 ns<br>Decode: **40.8 ns** |
+| 64 B | Encode: 98.8 ns; heap 0 B<br>Decode: 136 ns; heap 0 B | Encode: 99.3 ns; heap 0 B<br>Decode: 131 ns; heap 0 B | Encode: 100 ns<br>Decode: 136 ns | Encode: 2.8 µs<br>Decode: 819 ns | Encode: **91.5 ns**<br>Decode: **124 ns** |
+| 512 B | Encode: 7.15 µs; heap 0 B<br>Decode: 6.06 µs; heap 0 B | Encode: **2.77 µs**; heap 46.9 KiB<br>Decode: **2.49 µs**; heap 40 KiB | Encode: 7.36 µs<br>Decode: 5.87 µs | Encode: 232 µs<br>Decode: 73 µs | Encode: -<br>Decode: - |
+| 4 KiB | Encode: 286 µs; heap 82.3 KiB<br>Decode: 189 µs; heap 60.3 KiB | Encode: **146 µs**; heap 2.76 MiB<br>Decode: **122 µs**; heap 2.32 MiB | Encode: 445 µs<br>Decode: 336 µs | Encode: 15.3 ms<br>Decode: 5.18 ms | Encode: -<br>Decode: - |
+| 64 KiB | Encode: 8.58 ms; heap 1.28 MiB<br>Decode: 5.98 ms; heap 1.02 MiB | Encode: **8.51 ms**; heap 1.53 MiB<br>Decode: **5.93 ms**; heap 1.02 MiB | Encode: 111 ms<br>Decode: 81.3 ms | Encode: 3.93 s<br>Decode: 1.33 s | Encode: -<br>Decode: - |
+| 1 MiB | Encode: **220 ms**; heap 17 MiB<br>Decode: **155 ms**; heap 14.1 MiB | Encode: **220 ms**; heap 17 MiB<br>Decode: **155 ms**; heap 14.1 MiB | Encode: -<br>Decode: - | Encode: -<br>Decode: - | Encode: -<br>Decode: - |
+| 4 MiB | Encode: **1.07 s**; heap 66.4 MiB<br>Decode: 766 ms; heap 54.2 MiB | Encode: 1.07 s; heap 66.4 MiB<br>Decode: **765 ms**; heap 54.2 MiB | Encode: -<br>Decode: - | Encode: -<br>Decode: - | Encode: -<br>Decode: - |
 
 ![Public encode and decode times on Scalar WebAssembly on Apple M5 Pro (Node/V8)](assets/graphs/wasm-public.svg)
 

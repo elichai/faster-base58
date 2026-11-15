@@ -82,8 +82,8 @@ class ExternalInputTests(unittest.TestCase):
         output = tables(rows, deltas)
         self.assertIn('### WebAssembly on Apple M5 Pro (Node/V8)', output)
         self.assertNotIn('AMD EPYC', output)
-        self.assertIn('| 32 B | 100 ns / **100 ns** | 100 ns / **100 ns** | 100 ns / **100 ns** | **50 ns** / **100 ns** | 100 ns / **100 ns** |', output)
-        self.assertIn('| 512 B | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | **100 ns** / **100 ns** | - / - |', output)
+        self.assertIn('| 32 B | Encode: 100 ns<br>Decode: **100 ns** | Encode: 100 ns<br>Decode: **100 ns** | Encode: 100 ns<br>Decode: **100 ns** | Encode: **50 ns**<br>Decode: **100 ns** | Encode: 100 ns<br>Decode: **100 ns** |', output)
+        self.assertIn('| 512 B | Encode: **100 ns**<br>Decode: **100 ns** | Encode: **100 ns**<br>Decode: **100 ns** | Encode: **100 ns**<br>Decode: **100 ns** | Encode: **100 ns**<br>Decode: **100 ns** | Encode: -<br>Decode: - |', output)
         self.assertIn('| Auto | 1.0 KiB / 2.0 KiB | 3.0 KiB / 4.0 KiB |', output)
         self.assertIn('| bs58 | - | - |', output)
 
