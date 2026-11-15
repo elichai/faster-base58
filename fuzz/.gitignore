@@ -2,3 +2,5 @@
 /corpus
 /artifacts
 /coverage
+/*-corpus-[0-9]*/
+/fuzz-*.log
