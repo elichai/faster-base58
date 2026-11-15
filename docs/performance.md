@@ -1,282 +1,99 @@
 # Performance and resource tradeoffs
 
-The [README](../README.md#performance) shows a concise performance overview.
-[DESIGN.md](../DESIGN.md) describes algorithms, dispatch and memory ownership;
-[CORRECTNESS.md](../CORRECTNESS.md) describes validation and its limits.
+The [README](../README.md#performance) shows the measured competing-crate
+comparison near the top. [DESIGN.md](../DESIGN.md) describes algorithms,
+dispatch and memory ownership; [CORRECTNESS.md](../CORRECTNESS.md) describes
+validation and its limits.
 
-## Native results
+## Public conversion results
 
-Latest recorded measurements: **2026-11-12**, source
-[`3fcfbaff62f3257ddc6de357f4856cf6225eabf8`](https://github.com/elichai/faster-base58/commit/3fcfbaff62f3257ddc6de357f4856cf6225eabf8).
-These tables and figures show absolute results for that measured library.
-Subsequent encoder changes have not been remeasured. A current-source timing and
-linked-size refresh is pending; these values must not be read as a new run of the
-latest source.
+This comparison cohort was measured **2026-11-09**, source
+[`8cf24a72ad66`](https://github.com/elichai/faster-base58/commit/8cf24a72ad66435367b226f89a6a7c30ae496567).
+The library has changed since this run. These are results for the recorded source;
+fresh timings and linked sizes are being collected on M5 and GCP. The tables and
+figures use the same complete cohort, including the competing crates.
 
-| Host | Target / ISA | OS | Compiler |
-| --- | --- | --- | --- |
-| Apple M5 Pro | aarch64-apple-darwin / AArch64 | macOS 26.7.3 | Rust 1.99.1 (58cf8f9c3), LLVM 23.1.1 |
-| GCP AMD EPYC 9B45, 4 vCPU | x86_64-unknown-linux-gnu / generic x86-64 with runtime SIMD dispatch | Linux | Rust 1.99.0 (b940084d7), LLVM 23.1.1 |
+Ordinary public consumers use
+`code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
+`Decoder::bitcoin().decode(..).onto(..)`, with no `__internals`. Release opt-level
+3, fat LTO, 16 codegen units, generic target flags (`RUSTFLAGS=""`). Default and
+`cache` are separate builds; no-allocation uses `default-features = false`; bs58
+0.5.1 and five8 1.0.0 use their defaults.
 
-Release opt-level 3, 16 codegen units, empty RUSTFLAGS, default `alloc` or `cache`,
-fat LTO or LTO off. No `check`, `__internals`, `compact`, allocation counter or
-target-cpu=native flag is enabled. Public Auto encode and decode are both reachable.
-Effective LTO comes from `CARGO_PROFILE_RELEASE_LTO=fat` or `off`; the generated
-probe manifest text alone says fat and does not capture the environment override.
+| Platform | Compiler / runtime | Clock, processes |
+| --- | --- | --- |
+| Apple M5 Pro, macOS 26.7.2, AC power | Rust 1.99.1 / LLVM 23.1.1 | process CPU, 5 |
+| GCP AMD EPYC 9B45 (Zen 5, 4 vCPU), Linux 6.1, vCPU 1 pinned, [protocol](#measure-and-update) | Rust 1.99.0 / LLVM 23.1.1 | process CPU, 3 × 4 copies |
+| Scalar Wasm on the M5 | Rust 1.99.1; Node 26.13.0 / V8 14.6.202.34 | V8 elapsed, 5 |
 
-GCP uses a shared VM lock and vCPU 1. M5 cohorts start and finish on AC with no
-reported thermal warning. Our timing phases contain no builds/tests. Background
-VM load was not independently measured. The README figures show fat LTO; tables
-below retain both LTO configurations separately.
+Each fresh process times every library, interleaved, in three batches of at least
+10 ms after calibration. A cell is the median of the process medians (on Zen 5, the
+median over copies of each copy's process median); figure bars span the process
+medians. Fixtures are random bytes without leading zeros. Outputs and round trips
+are checked outside timing, decode input is prevalidated UTF-8, and caller buffers
+are reused (decode output is exact). Workspace allocation is inside the timing.
+No-allocation and bs58 stop at 64 KiB; five8 covers 32/64 B. Figure bars show
+observed ranges, not confidence intervals. Warm cache timings exclude first-use
+table setup.
 
-### Warm timing method
+On Zen 5 the copies of one Auto file spread by more than 5% in default decoding from
+1 KiB to 32 KiB (copy max/min 1.05–1.16, largest at 2 KiB): code placement moves the
+IFMA Karatsuba decoder.
 
-Each result summarizes **5 fresh processes × 3 fresh file copies of the library
-× 3 interleaved batches**, calibrated to at least 5 ms per batch. The recorded run
-interleaves three binary groups; only the measured library's group is reported
-here. Loading, calibration and call order are partially balanced, not independently
-counterbalanced. Code/file placement can affect small timings.
+Ranges for 4 MiB Auto (median [min, max] of process medians):
 
-Fixtures are deterministic random bytes with a nonzero leading byte. Input and
-caller output buffers are 64-byte aligned and reused. The recorded runner checks
-each label's encode/decode output before timing and poisons the expected output
-region before each untimed check. Internal workspace allocation is timed. Loading,
-fixtures, caller buffers and output checks are outside the timer.
-
-The clock is process CPU time around repeated public calls inside the cdylib;
-the Python/FFI boundary occurs once per batch. A process/copy cell is the median of
-three batches. The reported absolute time is the median over copies of each copy's
-median over processes. Figure bars span the minimum and maximum retained cell
-medians over all processes and copies. They are observations, **not confidence
-intervals**. Individual timed-batch values are not retained. No observations were
-dropped or adjusted by a control ratio.
-
-Warm repeat-decode uses an already validated UTF-8 fixture, so UTF-8 checking is
-outside that timer. Base58 digit validation stays in the decoder. This run does
-not measure invalid-input latency, owned outputs or Base58Check. Warm cache results
-exclude first-use table setup. A warm median is not a cold-start prediction.
-
-![Base58 encode and decode times on Apple M5 Pro](../assets/graphs/m5-public.svg)
-
-![Base58 encode and decode times on AMD EPYC 9B45](../assets/graphs/gcp-public.svg)
-
-### Complete warm timings
-
-Each cell is an absolute **encode / decode** median. The tables retain all 27
-decoded sizes, including zero and one byte; logarithmic figures omit zero.
-
-<details>
-<summary>Apple M5 Pro / fat LTO: all warm timings</summary>
-
-| Payload | Default encode / decode | Cache encode / decode |
+| Platform / policy | Encode | Decode |
 | --- | ---: | ---: |
-| 0 B | 1.4 ns / 1.41 ns | 1.39 ns / 1.41 ns |
-| 1 B | 1.75 ns / 1.71 ns | 1.75 ns / 1.69 ns |
-| 32 B | 11.8 ns / 13.7 ns | 11.9 ns / 13.6 ns |
-| 52 B | 46.3 ns / 22.9 ns | 47.1 ns / 23 ns |
-| 64 B | 24.1 ns / 26 ns | 23.9 ns / 25.8 ns |
-| 65 B | 59.4 ns / 26.8 ns | 66.7 ns / 26.4 ns |
-| 128 B | 150 ns / 63.4 ns | 111 ns / 64 ns |
-| 256 B | 485 ns / 160 ns | 220 ns / 160 ns |
-| 512 B | 1.83 µs / 519 ns | 582 ns / 505 ns |
-| 1 KiB | 6.89 µs / 1.8 µs | 1.94 µs / 1.65 µs |
-| 1,504 B | 14.5 µs / 3.71 µs | 3.97 µs / 3.43 µs |
-| 1,875 B | 22.3 µs / 5.5 µs | 5.95 µs / 5.1 µs |
-| 2 KiB | 26.4 µs / 6.75 µs | 6.92 µs / 5.98 µs |
-| 4 KiB | 73.9 µs / 26.1 µs | 29.1 µs / 24.6 µs |
-| 8 KiB | 169 µs / 74.9 µs | 120 µs / 69.8 µs |
-| 16 KiB | 379 µs / 180 µs | 370 µs / 171 µs |
-| 24 KiB | 745 µs / 311 µs | 682 µs / 292 µs |
-| 28 KiB | 792 µs / 376 µs | 777 µs / 353 µs |
-| 32 KiB | 841 µs / 424 µs | 826 µs / 408 µs |
-| 36 KiB | 1.39 ms / 533 µs | 1.14 ms / 506 µs |
-| 48 KiB | 1.68 ms / 724 µs | 1.58 ms / 690 µs |
-| 64 KiB | 1.87 ms / 982 µs | 1.83 ms / 951 µs |
-| 128 KiB | 4.13 ms / 2.25 ms | 4.06 ms / 2.19 ms |
-| 144 KiB | 6.79 ms / 2.78 ms | 5.89 ms / 2.68 ms |
-| 256 KiB | 9.09 ms / 5.13 ms | 8.96 ms / 4.99 ms |
-| 1 MiB | 43.6 ms / 25.8 ms | 43.5 ms / 25.3 ms |
-| 4 MiB | 206 ms / 126 ms | 206 ms / 126 ms |
+| M5 / default | 212 ms [210 ms, 215 ms] | 129 ms [128 ms, 134 ms] |
+| M5 / cache | 210 ms [208 ms, 213 ms] | 129 ms [127 ms, 133 ms] |
+| x86-64 / default | 227 ms [226 ms, 228 ms] | 119 ms [119 ms, 122 ms] |
+| x86-64 / cache | 227 ms [226 ms, 228 ms] | 116 ms [116 ms, 117 ms] |
+| Wasm / default | 1.61 s [1.59 s, 1.63 s] | 773 ms [765 ms, 792 ms] |
+| Wasm / cache | 1.61 s [1.59 s, 1.65 s] | 768 ms [766 ms, 774 ms] |
 
-</details>
+Default Auto encoding around the fixed 32/64-byte routes:
 
-<details>
-<summary>Apple M5 Pro / off LTO: all warm timings</summary>
+| Payload | M5 | x86-64 | Wasm |
+| --- | ---: | ---: | ---: |
+| 16 B | 14 ns | 24.8 ns | 21.3 ns |
+| 21 B | 15.4 ns | 28.1 ns | 27.6 ns |
+| 22 B | 17 ns | 29.9 ns | 30.3 ns |
+| 31 B | 24.4 ns | 42.3 ns | 50.9 ns |
+| 32 B | 12 ns | 30 ns | 26.1 ns |
+| 33 B | 23.7 ns | 42 ns | 50.6 ns |
+| 63 B | 59.2 ns | 102 ns | 146 ns |
+| 64 B | 24.1 ns | 31.2 ns | 101 ns |
+| 65 B | 58.2 ns | 105 ns | 160 ns |
+| 128 B | 152 ns | 313 ns | 526 ns |
 
-| Payload | Default encode / decode | Cache encode / decode |
-| --- | ---: | ---: |
-| 0 B | 1.52 ns / 1.83 ns | 1.63 ns / 1.91 ns |
-| 1 B | 1.58 ns / 2.23 ns | 1.86 ns / 2.27 ns |
-| 32 B | 23.3 ns / 38.6 ns | 24.1 ns / 39.4 ns |
-| 52 B | 104 ns / 66.7 ns | 48.6 ns / 67.4 ns |
-| 64 B | 24.8 ns / 72 ns | 25.1 ns / 73.2 ns |
-| 65 B | 121 ns / 72.4 ns | 72.4 ns / 74 ns |
-| 128 B | 286 ns / 156 ns | 125 ns / 160 ns |
-| 256 B | 735 ns / 354 ns | 248 ns / 362 ns |
-| 512 B | 2.3 µs / 901 ns | 584 ns / 522 ns |
-| 1 KiB | 7.76 µs / 2.51 µs | 1.95 µs / 1.67 µs |
-| 1,504 B | 15.8 µs / 4.7 µs | 4.03 µs / 3.44 µs |
-| 1,875 B | 23.9 µs / 6.73 µs | 5.98 µs / 5.11 µs |
-| 2 KiB | 27.8 µs / 7.88 µs | 6.96 µs / 5.94 µs |
-| 4 KiB | 78.2 µs / 27.6 µs | 29.3 µs / 25.1 µs |
-| 8 KiB | 178 µs / 78.9 µs | 121 µs / 71.3 µs |
-| 16 KiB | 392 µs / 188 µs | 397 µs / 173 µs |
-| 24 KiB | 770 µs / 322 µs | 703 µs / 299 µs |
-| 28 KiB | 819 µs / 390 µs | 823 µs / 363 µs |
-| 32 KiB | 868 µs / 440 µs | 882 µs / 411 µs |
-| 36 KiB | 1.43 ms / 553 µs | 1.17 ms / 516 µs |
-| 48 KiB | 1.72 ms / 749 µs | 1.63 ms / 700 µs |
-| 64 KiB | 1.92 ms / 1.02 ms | 1.95 ms / 962 µs |
-| 128 KiB | 4.24 ms / 2.32 ms | 4.31 ms / 2.21 ms |
-| 144 KiB | 6.93 ms / 2.86 ms | 5.98 ms / 2.73 ms |
-| 256 KiB | 9.31 ms / 5.25 ms | 9.47 ms / 5.05 ms |
-| 1 MiB | 44.6 ms / 26.1 ms | 45.7 ms / 25.6 ms |
-| 4 MiB | 210 ms / 128 ms | 215 ms / 128 ms |
+This cohort does not measure cold calls, owned-output helpers, Base58Check,
+native CPU flags or other compilers.
 
-</details>
+![Public conversion times and competing crates on Apple M5 Pro](../assets/graphs/m5-public.svg)
 
-<details>
-<summary>AMD EPYC 9B45 (GCP) / fat LTO: all warm timings</summary>
+![Public conversion times and competing crates on AMD EPYC 9B45](../assets/graphs/gcp-public.svg)
 
-| Payload | Default encode / decode | Cache encode / decode |
-| --- | ---: | ---: |
-| 0 B | 2.65 ns / 1.82 ns | 2.66 ns / 1.94 ns |
-| 1 B | 2.37 ns / 2.18 ns | 2.33 ns / 2.17 ns |
-| 32 B | 30.1 ns / 24.4 ns | 30 ns / 23.2 ns |
-| 52 B | 83.1 ns / 40.4 ns | 76.8 ns / 40.7 ns |
-| 64 B | 31.1 ns / 44.8 ns | 31.5 ns / 45.1 ns |
-| 65 B | 106 ns / 46.1 ns | 101 ns / 46.6 ns |
-| 128 B | 311 ns / 107 ns | 164 ns / 107 ns |
-| 256 B | 1.05 µs / 287 ns | 389 ns / 288 ns |
-| 512 B | 3.18 µs / 854 ns | 1.08 µs / 857 ns |
-| 1 KiB | 7.26 µs / 2.49 µs | 3.33 µs / 2.37 µs |
-| 1,504 B | 12.1 µs / 4.33 µs | 6.79 µs / 5.09 µs |
-| 1,875 B | 15.6 µs / 5.42 µs | 10.1 µs / 7.7 µs |
-| 2 KiB | 17.8 µs / 6.04 µs | 11.7 µs / 8.97 µs |
-| 4 KiB | 47.5 µs / 15.7 µs | 39.6 µs / 15.8 µs |
-| 8 KiB | 142 µs / 44.9 µs | 119 µs / 44.9 µs |
-| 16 KiB | 428 µs / 134 µs | 365 µs / 135 µs |
-| 24 KiB | 813 µs / 262 µs | 693 µs / 266 µs |
-| 28 KiB | 943 µs / 349 µs | 857 µs / 339 µs |
-| 32 KiB | 1.01 ms / 407 µs | 920 µs / 380 µs |
-| 36 KiB | 1.4 ms / 520 µs | 1.36 ms / 490 µs |
-| 48 KiB | 1.97 ms / 786 µs | 2.07 ms / 736 µs |
-| 64 KiB | 2.21 ms / 1.02 ms | 2.1 ms / 820 µs |
-| 128 KiB | 4.82 ms / 2.13 ms | 4.43 ms / 1.92 ms |
-| 144 KiB | 7.47 ms / 3.04 ms | 6.83 ms / 2.41 ms |
-| 256 KiB | 10.3 ms / 5.23 ms | 9.67 ms / 4.43 ms |
-| 1 MiB | 47.5 ms / 24 ms | 47.6 ms / 22.6 ms |
-| 4 MiB | 221 ms / 120 ms | 220 ms / 116 ms |
+![Scalar Wasm conversion times and competing crates on Apple M5 Pro](../assets/graphs/wasm-public.svg)
 
-</details>
-
-<details>
-<summary>AMD EPYC 9B45 (GCP) / off LTO: all warm timings</summary>
-
-| Payload | Default encode / decode | Cache encode / decode |
-| --- | ---: | ---: |
-| 0 B | 2.67 ns / 2.68 ns | 2.43 ns / 2.67 ns |
-| 1 B | 2.92 ns / 2.91 ns | 2.92 ns / 2.79 ns |
-| 32 B | 34.9 ns / 71.2 ns | 34.7 ns / 70.5 ns |
-| 52 B | 157 ns / 116 ns | 85.2 ns / 114 ns |
-| 64 B | 44.6 ns / 134 ns | 45 ns / 132 ns |
-| 65 B | 193 ns / 136 ns | 111 ns / 134 ns |
-| 128 B | 486 ns / 277 ns | 174 ns / 276 ns |
-| 256 B | 1.4 µs / 618 ns | 406 ns / 612 ns |
-| 512 B | 4.4 µs / 1.49 µs | 1.11 µs / 1.49 µs |
-| 1 KiB | 9.64 µs / 4.01 µs | 3.41 µs / 2.43 µs |
-| 1,504 B | 15.5 µs / 6.62 µs | 6.98 µs / 5.26 µs |
-| 1,875 B | 20 µs / 8.31 µs | 10.5 µs / 7.95 µs |
-| 2 KiB | 22.6 µs / 9.11 µs | 12.1 µs / 9.27 µs |
-| 4 KiB | 57.3 µs / 21.9 µs | 41.8 µs / 22 µs |
-| 8 KiB | 159 µs / 57.8 µs | 124 µs / 58 µs |
-| 16 KiB | 461 µs / 160 µs | 370 µs / 160 µs |
-| 24 KiB | 863 µs / 299 µs | 707 µs / 305 µs |
-| 28 KiB | 983 µs / 394 µs | 900 µs / 386 µs |
-| 32 KiB | 1.07 ms / 460 µs | 970 µs / 430 µs |
-| 36 KiB | 1.47 ms / 575 µs | 1.4 ms / 550 µs |
-| 48 KiB | 2.04 ms / 862 µs | 2.1 ms / 813 µs |
-| 64 KiB | 2.31 ms / 1.13 ms | 2.2 ms / 927 µs |
-| 128 KiB | 5.01 ms / 2.34 ms | 4.63 ms / 2.14 ms |
-| 144 KiB | 7.78 ms / 3.28 ms | 7 ms / 2.65 ms |
-| 256 KiB | 10.7 ms / 5.63 ms | 10.1 ms / 4.88 ms |
-| 1 MiB | 49.1 ms / 25.7 ms | 49.4 ms / 24.3 ms |
-| 4 MiB | 226 ms / 126 ms | 227 ms / 124 ms |
-
-</details>
-
-## First-call decode
-
-Separate fresh-process public decode calls use 15 processes and 2 copies of the
-library at 1,408, 2,816, 5,632 and 32,768 Base58 characters. Input is `"2"` repeated
-that many times. An independent Python bigint oracle checks exact returned length
-and bytes. Outputs are poisoned before their clock starts. Loading, oracle
-construction, caller buffers and poison writes are outside timing. First codec
-setup, internal allocation and the single-call export's UTF-8 check stay inside.
-Call order rotates. Absolute time is the median over copies of each copy's median
-over processes. Short calls have coarse clock resolution and wide variation.
-
-| Host / LTO / policy | Input chars | First decode |
-| --- | ---: | ---: |
-| m5 / fat / default | 1,408 | 5.5 µs |
-| m5 / fat / default | 2,816 | 10.5 µs |
-| m5 / fat / default | 5,632 | 30 µs |
-| m5 / fat / default | 32,768 | 322 µs |
-| m5 / fat / cache | 1,408 | 57.5 µs |
-| m5 / fat / cache | 2,816 | 203 µs |
-| m5 / fat / cache | 5,632 | 786 µs |
-| m5 / fat / cache | 32,768 | 522 µs |
-| m5 / off / default | 1,408 | 8.5 µs |
-| m5 / off / default | 2,816 | 15 µs |
-| m5 / off / default | 5,632 | 35 µs |
-| m5 / off / default | 32,768 | 341 µs |
-| m5 / off / cache | 1,408 | 64.5 µs |
-| m5 / off / cache | 2,816 | 220 µs |
-| m5 / off / cache | 5,632 | 886 µs |
-| m5 / off / cache | 32,768 | 549 µs |
-| gcp / fat / default | 1,408 | 28.3 µs |
-| gcp / fat / default | 2,816 | 48.2 µs |
-| gcp / fat / default | 5,632 | 66.3 µs |
-| gcp / fat / default | 32,768 | 321 µs |
-| gcp / fat / cache | 1,408 | 93.2 µs |
-| gcp / fat / cache | 2,816 | 318 µs |
-| gcp / fat / cache | 5,632 | 69.3 µs |
-| gcp / fat / cache | 32,768 | 326 µs |
-| gcp / off / default | 1,408 | 36.3 µs |
-| gcp / off / default | 2,816 | 54.5 µs |
-| gcp / off / default | 5,632 | 76.8 µs |
-| gcp / off / default | 32,768 | 366 µs |
-| gcp / off / cache | 1,408 | 106 µs |
-| gcp / off / cache | 2,816 | 326 µs |
-| gcp / off / cache | 5,632 | 78.6 µs |
-| gcp / off / cache | 32,768 | 360 µs |
+The [README tables](../README.md#performance) list selected absolute encode/decode
+medians from these figures. Native and Wasm clocks are separate measurement
+scopes; their times do not establish a native/Wasm speed ratio.
 
 ## Linked size and compact
 
-The following absolute accounting uses the same artifacts as the timing results.
-Every value is **Auto-both minus its matching empty-both consumer**, which removes
-the probe scaffold.
-Both directions are reachable. Code, readonly, initialized data and BSS are section
-totals; stripped-file bytes include layout and metadata. Mach-O and ELF categories
-are not directly interchangeable. Signed BSS values can be negative after empty
-consumer subtraction. BSS movement is not retained-heap measurement; `.rlib` size
-is not deployment size. Subsequent encoder changes require these sizes to be
-refreshed before they describe the latest build.
+The [linked-size table](../README.md#linked-size) uses the same November 9 builds
+as the figures. Sizes need to be refreshed for the latest source.
 
-| Host / LTO / policy | Code B | Readonly B | Initialized data B | BSS B | Stripped file B |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| m5 / fat / default | 67,760 | 24,950 | 16 | 0 | 82,784 |
-| m5 / fat / cache | 76,232 | 27,768 | 2,192 | 0 | 99,328 |
-| m5 / off / default | 80,728 | 50,006 | 8 | 0 | 132,432 |
-| m5 / off / cache | 84,760 | 58,019 | 2,184 | 0 | 132,464 |
-| gcp / fat / default | 308,157 | 38,444 | 6,248 | -608 | 352,872 |
-| gcp / fat / cache | 303,789 | 39,280 | 9,136 | -1,890 | 352,240 |
-| gcp / off / default | 332,787 | 75,964 | 10,328 | -1,288 | 419,080 |
-| gcp / off / cache | 324,707 | 72,072 | 11,464 | -542 | 408,248 |
+The [README size table](../README.md#linked-size) subtracts each cohort's empty
+consumer (same scaffold, no conversion call) from cdylibs with both directions
+reachable. Native columns are code and readonly sections; Wasm columns are CODE and
+DATA sections. Initialized data, BSS, file size and linear-memory pages are
+different costs. `CHAR_PAIRS` (3,364 two-byte entries, 6,728 B) is in readonly data
+whenever a reachable path uses it.
 
-`compact` selects eight instead of twelve x86 IFMA widths, trading linked code
-for more chunks on some multiplication shapes. This cohort measures the default
-twelve-width policy. Compact, no-allocation and Wasm sizes were not measured here.
+On x86-64, `compact` keeps eight IFMA kernel widths instead of twelve: less code,
+more chunks for some multiplications. Other targets do not use these kernels; wide
+is the default.
 
 ## Cache and memory
 
@@ -303,7 +120,7 @@ buffer ownership/alignment, warm/cold scope and sampling with every published ru
 For example, build an ordinary public consumer, selecting the host's target:
 
 ```sh
-CARGO_PROFILE_RELEASE_LTO=fat python3 -B scripts/code_size.py --source . --output target/measurements/native-default --target aarch64-apple-darwin --cpu generic --backends empty,auto --directions both --kinds cdylib
+CARGO_PROFILE_RELEASE_LTO=fat python3 -B scripts/code_size.py --source . --output target/measurements/native-default --target aarch64-apple-darwin --cpu generic --backends empty,auto,no-alloc,bs58,five8 --directions both --kinds cdylib
 CARGO_PROFILE_RELEASE_LTO=fat python3 -B scripts/code_size.py --source . --output target/measurements/native-cache --target aarch64-apple-darwin --cpu generic --backends empty,auto --directions both --kinds cdylib --cache
 ```
 
@@ -330,9 +147,29 @@ published numbers against raw inputs and inspect rendered titles, axes, legends
 and captions. README figures and this guide present standalone results; branch
 comparisons and merge decisions belong in PR discussions.
 
+The November 9 GCP protocol used the following controls. Apply and record
+them explicitly when reproducing that cohort.
+
+On the GCP Zen 5 VM (`c4d-highcpu-4`: vCPUs 0/2 and 1/3 are SMT siblings), time on
+vCPU 1 and keep vCPU 3 idle:
+
+- before and after each run, the metadata server's `instance/maintenance-event`
+  must read `NONE`;
+- run a 10-second unmeasured busy loop on vCPU 1 first;
+- start `public_bench.py --cpu 1 --copies 4` under `sudo chrt -f 99`, `setarch -R`
+  (no address randomization) and `prctl(PR_SET_THP_DISABLE)`; the workers inherit
+  all three, and no system setting changes;
+- sample `vmstat -t 1` on vCPU 0 and discard a run with any steal above 0.
+
+The guest has no `cpufreq` driver (the host sets the frequency) and already uses the
+`tsc` clocksource. SCHED_FIFO tasks are still throttled to 950 ms per second. Report
+a cell whose process or copy medians spread by more than 3% with its range instead
+of dropping it: on Zen 5 such spread usually comes from code placement, which is
+real variation between builds.
+
 ## Other measurement scopes
 
-Wasm scalar/SIMD128, comparators, internal backends, dispatch thresholds,
+Scalar Wasm is included above. Wasm SIMD128, internal backends, dispatch thresholds,
 allocation counting, Base58Check and compact configurations require separate,
 source-bound cohorts. No current timings are claimed for those scopes here.
 Wasm timing uses Node/V8 elapsed time, not native process CPU time. Build with
