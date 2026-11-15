@@ -60,8 +60,6 @@ performance are not covered by this native run. Missing results are not estimate
 Configure an encoder or decoder, then choose owned or borrowed output:
 
 ```rust
-# #[cfg(feature = "alloc")]
-# {
 use faster_base58::{Encoder, Decoder};
 
 const ENCODER: Encoder = Encoder::bitcoin();
@@ -69,14 +67,13 @@ const DECODER: Decoder = Decoder::bitcoin();
 
 let data = [0u8; 21];
 let text: String = ENCODER.encode(&data).into_string();
-assert_eq!(DECODER.decode(&text).into_array::<21>()?, data);
+assert_eq!(DECODER.decode(&text).into_array::<21>().unwrap(), data);
 let mut buffer = [0; ENCODER.max_encoded_len(21)];
-assert_eq!(ENCODER.encode(&data).onto(&mut buffer)?, text);
-# }
-# Ok::<(), Box<dyn std::error::Error>>(())
+assert_eq!(ENCODER.encode(&data).onto(&mut buffer).unwrap(), text);
 ```
 
 `Encoder` and `Decoder` are small `Copy` values and can be constants.
+These examples use `unwrap()` for brevity; handle errors in application code.
 
 Encoding provides `.into_string()`, `.into_vec()` (ASCII bytes), and `.onto()`
 (borrowed `&str`). Decoding provides `.into_vec()`, `.into_array::<N>()`, and
@@ -93,10 +90,9 @@ const DECODER: Decoder = Decoder::bitcoin();
 let input = [0, 1, 2, 3];
 let mut text_buffer = [0; ENCODER.max_encoded_len(4)];
 let mut byte_buffer = [0; 4];
-let text = ENCODER.encode(input).onto(&mut text_buffer)?;
-assert_eq!(DECODER.decode(text).into_array::<4>()?, input);
-assert_eq!(DECODER.decode(text).onto(&mut byte_buffer)?, input);
-# Ok::<(), Box<dyn std::error::Error>>(())
+let text = ENCODER.encode(input).onto(&mut text_buffer).unwrap();
+assert_eq!(DECODER.decode(text).into_array::<4>().unwrap(), input);
+assert_eq!(DECODER.decode(text).onto(&mut byte_buffer).unwrap(), input);
 ```
 
 `ENCODER.max_encoded_len(n)` bounds encoded output; exact result capacity also
@@ -119,8 +115,6 @@ feature disabled, normal dependencies do not include SHA-256. Select checking
 on a configuration:
 
 ```rust
-# #[cfg(all(feature = "check", feature = "alloc"))]
-# fn main() -> Result<(), faster_base58::Error> {
 use faster_base58::{Encoder, Decoder};
 
 const ENCODER: Encoder = Encoder::bitcoin().with_check();
@@ -129,18 +123,14 @@ const DECODER: Decoder = Decoder::bitcoin().with_check();
 let data = [0u8; 21];
 let text: String = ENCODER.encode(&data).into_string();
 assert_eq!(text, "1111111111111111111114oLvT2");
-assert_eq!(DECODER.decode(&text).into_array::<21>()?, data);
+assert_eq!(DECODER.decode(&text).into_array::<21>().unwrap(), data);
 let mut bytes = [0u8; 21];
-assert_eq!(DECODER.decode(&text).onto(&mut bytes)?, data);
+assert_eq!(DECODER.decode(&text).onto(&mut bytes).unwrap(), data);
 
 const VERSIONED_ENCODER: Encoder = Encoder::bitcoin().with_check_version(0);
 const VERSIONED_DECODER: Decoder = Decoder::bitcoin().with_check_version(0);
 let text = VERSIONED_ENCODER.encode([0u8; 20]).into_string();
-assert_eq!(VERSIONED_DECODER.decode(&text).into_array::<21>()?, data);
-# Ok(())
-# }
-# #[cfg(not(all(feature = "check", feature = "alloc")))]
-# fn main() {}
+assert_eq!(VERSIONED_DECODER.decode(&text).into_array::<21>().unwrap(), data);
 ```
 
 `.with_check()` hashes the input as supplied. `.with_check_version(v)` prepends
