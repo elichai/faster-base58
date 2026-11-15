@@ -134,7 +134,7 @@ jobs:
       # Fork pull requests get no OIDC token; scheduled and dispatched runs would
       # add uploads beyond the count in codecov.yml.
       - if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           use_oidc: true
           files: fuzz/coverage/${{ matrix.fuzz_target }}/lcov.info
