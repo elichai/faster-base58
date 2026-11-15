@@ -5,6 +5,8 @@ mod support;
 
 #[cfg(not(test))]
 use libfuzzer_sys::fuzz_target;
+#[path = "../isa.rs"]
+mod isa;
 
 // Match the encoded-length budget of encode_all: currently 89,502 raw bytes.
 // Lossy UTF-8 conversion and the inserted NUL may produce longer strings.
@@ -56,7 +58,7 @@ fn check_decode_array_prefix(input: &[u8], selector: usize) {
 }
 
 #[cfg(not(test))]
-fuzz_target!(|data: &[u8]| {
+fuzz_target!(init: isa::init(), |data: &[u8]| {
     if data.len() > MAX_INPUT_BYTES {
         return;
     }

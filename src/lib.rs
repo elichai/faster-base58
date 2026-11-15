@@ -166,6 +166,8 @@ mod cpu;
 #[cfg(any(feature = "alloc", test, kani))]
 mod dc;
 mod encode;
+#[cfg(any(test, fuzzing))]
+mod fuzz_isa;
 #[cfg(test)]
 #[path = "../tests/support/malachite.rs"]
 mod malachite;

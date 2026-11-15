@@ -6,8 +6,10 @@ mod full_width;
 mod support;
 
 use libfuzzer_sys::fuzz_target;
+#[path = "../isa.rs"]
+mod isa;
 
-fuzz_target!(|raw: &[u8]| {
+fuzz_target!(init: isa::init(), |raw: &[u8]| {
     let mut text = full_width::decode_input(raw);
     let selector = support::scalar::selector(raw);
     let want = support::oracle_decode_bytes(&text);

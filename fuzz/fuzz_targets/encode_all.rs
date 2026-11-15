@@ -4,6 +4,8 @@
 mod support;
 
 use libfuzzer_sys::fuzz_target;
+#[path = "../isa.rs"]
+mod isa;
 
 // Full-width inputs one byte past 64 KiB need 8193 u64 limbs instead of 8192.
 const MAX_INPUT_BYTES: usize = 64 * 1024 + 1;
@@ -161,7 +163,7 @@ pub unsafe extern "C" fn LLVMFuzzerCustomMutator(
     unsafe { LLVMFuzzerMutate(data, size, max_size) }
 }
 
-fuzz_target!(|data: &[u8]| {
+fuzz_target!(init: isa::init(), |data: &[u8]| {
     if data.len() > MAX_INPUT_BYTES {
         return;
     }

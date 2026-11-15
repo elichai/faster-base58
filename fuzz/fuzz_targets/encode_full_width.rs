@@ -6,8 +6,10 @@ mod full_width;
 mod support;
 
 use libfuzzer_sys::fuzz_target;
+#[path = "../isa.rs"]
+mod isa;
 
-fuzz_target!(|raw: &[u8]| {
+fuzz_target!(init: isa::init(), |raw: &[u8]| {
     let input = full_width::expand(raw);
     let selector = support::scalar::selector(raw);
     support::check_round_trip(&input, selector);

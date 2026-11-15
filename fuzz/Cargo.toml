@@ -76,3 +76,6 @@ overflow-checks = true
 
 [lints.clippy]
 allow_attributes_without_reason = "warn"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }

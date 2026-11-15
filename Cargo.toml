@@ -53,7 +53,7 @@ proptest = "1.9.0"
 proptest = { version = "1.9.0", default-features = false, features = ["std"] }
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(fuzzing)'] }
 
 [lints.clippy]
 allow_attributes_without_reason = "warn"

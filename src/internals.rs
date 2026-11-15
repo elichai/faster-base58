@@ -9,6 +9,19 @@
 /// panel capacity bytes, coefficient count, coefficient capacity bytes.
 pub type MatrixCacheClass = (usize, bool, usize, usize, usize, usize);
 
+/// Effective OS-aware x86 selection after the compile-time fuzz ceiling.
+/// Entries: SSE4.1, AVX2, AVX-512F, IFMA and VBMI.
+#[cfg(all(fuzzing, target_arch = "x86_64", target_feature = "sse2"))]
+pub fn fuzz_cpu_features() -> [bool; 5] {
+    [
+        crate::cpu::sse41(),
+        crate::cpu::avx2(),
+        crate::cpu::avx512f(),
+        crate::cpu::ifma(),
+        crate::cpu::vbmi(),
+    ]
+}
+
 pub use crate::batched::decode_batched;
 pub use crate::dc::{Multiplier, decode as decode_karatsuba, decode_with};
 pub use crate::encode::dc::internals::{encode as encode_karatsuba, encode_karatsuba_with};

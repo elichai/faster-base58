@@ -115,6 +115,35 @@ Linux CI installs `clang-23` and `libclang-rt-23-dev` from the signed
 `apt.llvm.org` LLVM 23 repository. The package revision may advance within LLVM
 23, but the compiler major remains matched to Rust's LLVM runtime.
 
+### x86 ISA ceilings
+
+`FASTER_BASE58_FUZZ_MAX_ISA=host|avx2|sse41` selects a ceiling at **build time**
+for `cargo fuzz`. The default, `host`, uses normal OS-aware runtime detection.
+`avx2` disables AVX-512F, IFMA and VBMI dispatch. `sse41` also disables AVX2.
+Allowed features still require actual hardware support. Each target validates
+the requested mode and prints its effective features before any codec or custom
+mutator can initialize a cache. An unsupported requested ISA fails startup.
+
+Run each mode in a separate process and target directory. Use generic compiler
+flags for capped builds; globally enabled AVX-512, or AVX for `sse41`, is rejected.
+For example, on an AVX-512 host:
+
+```sh
+FASTER_BASE58_FUZZ_MAX_ISA=host RUSTFLAGS='-C target-cpu=generic' cargo +"$nightly" fuzz run --target-dir target/fuzz-host --sanitizer address encode_all -- -runs=0
+FASTER_BASE58_FUZZ_MAX_ISA=avx2 RUSTFLAGS='-C target-cpu=generic' cargo +"$nightly" fuzz run --target-dir target/fuzz-avx2 --sanitizer address encode_all -- -runs=0
+FASTER_BASE58_FUZZ_MAX_ISA=sse41 RUSTFLAGS='-C target-cpu=generic' cargo +"$nightly" fuzz run --target-dir target/fuzz-sse41 --sanitizer address encode_all -- -runs=0
+```
+
+Repeat for the other five targets and both cache policies. These ceilings select
+crate dispatch paths; they do not emulate another microarchitecture. The setting
+and diagnostic hook exist only under `cfg(fuzzing)`. Ordinary consumer builds
+retain their normal feature detection and have no ceiling checks or state.
+
+The corpus workflow uses host, AVX2 and SSE4.1 x86 builds with cache off and on
+for mutation, minimization and replay. ARM mutation and minimization use both
+cache policies; replay uses cache. The host rows use whatever ISA the runner
+supports; they do not guarantee AVX-512 coverage.
+
 `--careful` rebuilds the standard library with extra initialization and UB checks;
 debug assertions and integer overflow checks remain enabled. Repeat with
 `--features cache`; use `--sanitizer leak` for the separate LeakSanitizer campaign.
@@ -177,7 +206,8 @@ To shrink the store, merge it with any new campaigns from the seeds alone, as in
 [CI.md](../CI.md#fuzz-corpus-workflow), in every build that selects different code:
 `-C target-cpu=generic` and `native`, cache off and on (`full-width` for the three
 full-width targets and `check` for `check_all`), on AArch64 and on an x86-64 CPU
-with AVX-512 IFMA and VBMI.
+with AVX-512 IFMA and VBMI. Include the `avx2` and `sse41` ceilings with generic
+flags and both cache policies on x86-64.
 Store the union of the results only after an ASan replay of it on the same hosts.
 
 See [CORRECTNESS.md](../CORRECTNESS.md) for run counts, sanitizer limits,
