@@ -124,8 +124,11 @@ Allowed features still require actual hardware support. Each target validates
 the requested mode and prints its effective features before any codec or custom
 mutator can initialize a cache. An unsupported requested ISA fails startup.
 
-Run each mode in a separate process and target directory. Use generic compiler
-flags for capped builds; globally enabled AVX-512, or AVX for `sse41`, is rejected.
+Build and run each mode in a separate process. Cargo tracks this build setting;
+changing it rebuilds the crate. The examples use separate target directories to
+retain each binary. Sequential builds may share a target directory to reuse
+dependencies. Use generic compiler flags for capped builds; globally enabled
+AVX-512, or AVX for `sse41`, is rejected.
 For example, on an AVX-512 host:
 
 ```sh
@@ -139,10 +142,12 @@ crate dispatch paths; they do not emulate another microarchitecture. The setting
 and diagnostic hook exist only under `cfg(fuzzing)`. Ordinary consumer builds
 retain their normal feature detection and have no ceiling checks or state.
 
-The corpus workflow uses host, AVX2 and SSE4.1 x86 builds with cache off and on
-for mutation, minimization and replay. ARM mutation and minimization use both
-cache policies; replay uses cache. The host rows use whatever ISA the runner
-supports; they do not guarantee AVX-512 coverage.
+The corpus workflow keeps host dispatch and its existing architecture/cache rows.
+Capped campaigns are manual. A hosted x86 job can select AVX2 or AVX-512 depending
+on its runner; a host row does not guarantee either ISA. When retaining inputs
+from capped campaigns, preserve the union of each mode's minimization results.
+
+### Campaigns and corpora
 
 `--careful` rebuilds the standard library with extra initialization and UB checks;
 debug assertions and integer overflow checks remain enabled. Repeat with

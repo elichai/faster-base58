@@ -476,19 +476,15 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | Job | Checks | Platforms | Trigger |
 | --- | --- | --- | --- |
 | `corpus_snapshot` | Validates the head of `fuzz-corpus` and pins its revision | x86-64 Linux | All |
-| `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, host/AVX2/SSE4.1 ceilings, cache off and on; arm64 Linux, generic CPU, cache on; each of the six targets | All |
-| `nightly` | Mutation campaigns seeded by the run ID, with debug assertions and overflow checks, and value profile in the cache rows; writes provenance and uploads the campaign | x86-64 Linux, generic CPU, host/AVX2/SSE4.1 ceilings; arm64 Linux, generic CPU, host dispatch; cache off and on | Schedule; dispatch with `run_nightly` |
+| `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, cache off and on; arm64 Linux, generic CPU, cache on; each of the six targets | All |
+| `nightly` | Mutation campaigns seeded by the run ID, with debug assertions and overflow checks, and value profile in the cache rows; writes provenance and uploads the campaign | x86-64 and arm64 Linux, generic CPU, cache off and on | Schedule; dispatch with `run_nightly` |
 | `minimize` | Keeps the seeds and the pinned corpus, and merges in the campaign inputs that add coverage beyond them in its build | Same as `nightly` | Schedule; dispatch with `run_nightly` |
-| `candidate_smoke` | Replays the seeds and the union of the eight merged sets with ASan | Same rows as `fuzz_coverage` | Schedule; dispatch with `run_nightly` |
+| `candidate_smoke` | Replays the seeds and the union of the four merged sets with ASan | Same rows as `fuzz_coverage` | Schedule; dispatch with `run_nightly` |
 | `publish` | Replaces `corpora/` with that union, which holds every stored input, and adds the provenance to `fuzz-corpus`; needs `fuzz_coverage`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
 
-The x86 corpus jobs use generic compiler flags with `host`, `avx2` and `sse41`
-compile-time ceilings, each with cache off and on. ARM jobs use host dispatch:
-both cache policies for mutation and merge, cache on for replay. This gives
-seven replay rows and eight mutation/merge rows. Each target validates the
-requested ceiling at startup. The 42 fuzz coverage uploads and five test uploads
-match `codecov.yml`; thresholds stay at 1%. Host dispatch does not guarantee
-AVX-512 on hosted runners. See the [ceiling commands](fuzz/README.md#x86-isa-ceilings).
+The corpus workflow uses detected host dispatch. The fuzz-only
+[ISA ceiling commands](fuzz/README.md#x86-isa-ceilings) support separate manual
+AVX2 and SSE4.1 campaigns; these modes do not add CI matrix rows.
 
 Nightly mutation starts from all deterministic seeds plus at most 16 stored
 inputs per target. Selection ranks SHA-256 hashes of the run ID, target and
