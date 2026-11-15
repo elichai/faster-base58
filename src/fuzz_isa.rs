@@ -17,10 +17,6 @@ pub(crate) const LEVEL: u8 = parse(option_env!("FASTER_BASE58_FUZZ_MAX_ISA"));
 
 #[cfg(fuzzing)]
 const _: () = {
-    assert!(
-        cfg!(feature = "__internals"),
-        "ISA fuzzing requires __internals"
-    );
     if LEVEL < 2 {
         assert!(
             cfg!(all(target_arch = "x86_64", target_feature = "sse2")),

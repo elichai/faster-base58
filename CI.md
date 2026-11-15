@@ -259,6 +259,7 @@ python3 scripts/test_process_supervisor.py
 python3 scripts/test_kani_guard.py
 python3 -B -m unittest discover -s scripts -p test_custom_miri.py -v
 cargo fmt --all -- --check
+RUSTFLAGS='--cfg fuzzing' cargo check --locked --lib
 cargo fmt --manifest-path tools/resource-profile/Cargo.toml --all -- --check
 cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check
 cargo hack clippy --locked --all-targets --feature-powerset -- -D warnings
