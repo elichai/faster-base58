@@ -475,6 +475,7 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 
 | Job | Checks | Platforms | Trigger |
 | --- | --- | --- | --- |
+| `isa_smoke` | Replays 24 fixed encode/decode/Base58Check inputs with ASan and debug assertions under AVX2 and SSE4.1 ceilings, cache off/on; checks the selected ceiling; no mutations or coverage uploads | One x86-64 Linux job, generic CPU | All |
 | `corpus_snapshot` | Validates the head of `fuzz-corpus` and pins its revision | x86-64 Linux | All |
 | `fuzz_coverage` | Replays seeds and the pinned corpus with ASan, without mutation, and exports source coverage; one job per row and target; uploads to Codecov on pushes and same-repository pull requests | x86-64 Linux, generic CPU, cache off and on; arm64 Linux, generic CPU, cache on; each of the six targets | All |
 | `nightly` | Mutation campaigns seeded by the run ID, with debug assertions and overflow checks, and value profile in the cache rows; writes provenance and uploads the campaign | x86-64 and arm64 Linux, generic CPU, cache off and on | Schedule; dispatch with `run_nightly` |
@@ -482,9 +483,14 @@ runs cancel a run in progress. Dispatch inputs: `run_nightly` (boolean),
 | `candidate_smoke` | Replays the seeds and the union of the four merged sets with ASan | Same rows as `fuzz_coverage` | Schedule; dispatch with `run_nightly` |
 | `publish` | Replaces `corpora/` with that union, which holds every stored input, and adds the provenance to `fuzz-corpus`; needs `fuzz_coverage`, `minimize` and `candidate_smoke` | x86-64 Linux | Schedule; dispatch with `run_nightly` and `publish` |
 
-The corpus workflow uses detected host dispatch. The fuzz-only
-[ISA ceiling commands](fuzz/README.md#x86-isa-ceilings) support separate manual
-AVX2 and SSE4.1 campaigns; these modes do not add CI matrix rows.
+The full-corpus workflow rows use detected host dispatch. The separate
+`isa_smoke` job runs both [ISA ceilings](fuzz/README.md#x86-isa-ceilings) with both
+cache policies, sharing build dependencies. It uses fixed named seed files and
+does not check out the stored corpus. Run it locally with
+`bash fuzz/smoke-isa.sh "$nightly"`; it needs x86-64 with AVX2 and the pinned
+nightly/C++ compiler setup. Its logs are retained for 14 days. Sustained capped
+campaigns remain manual; the coverage, nightly and minimization matrices and
+Codecov upload counts are unchanged.
 
 Nightly mutation starts from all deterministic seeds plus at most 16 stored
 inputs per target. Selection ranks SHA-256 hashes of the run ID, target and
@@ -606,6 +612,7 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`assets/graphs/current.py`](assets/graphs/current.py) | Shared helpers of the two renderers | Imported only | - |
 | [`assets/graphs/test_render.py`](assets/graphs/test_render.py) | Tests the link check and the table helpers | - | `measurement_tools` |
 | [`fuzz/seed_corpus.py`](fuzz/seed_corpus.py) | Writes the deterministic seeds; fails if an existing seed differs | `--output DIR` (default `fuzz/corpus`) | Fuzz jobs |
+| [`fuzz/smoke-isa.sh`](fuzz/smoke-isa.sh) | Replays fixed encode/decode/Base58Check seeds with ASan under AVX2/SSE4.1 ceilings and both cache policies; checks startup receipts | `NIGHTLY`, from the repository root | `isa_smoke` |
 | [`fuzz/corpus_store.py`](fuzz/corpus_store.py) | Validates, samples, adds inputs, or replaces a corpus with a union | `validate CORPUS`, `sample INCOMING CORPUS --limit N --seed SEED`, `stage INCOMING CORPUS`, `replace INCOMING... CORPUS [--exclude ROOT]` | Fuzz corpus jobs |
 | [`fuzz/provenance.py`](fuzz/provenance.py) | Writes the JSON provenance of one campaign | `--output`, `--field KEY=VALUE`, `--digest KEY=PATH` | `nightly` |
 | [`fuzz/check_mutations.py`](fuzz/check_mutations.py) | Requires a nonzero mutation-attempt count in a libFuzzer log | `--self-test`; `LOG --seconds N` | `fuzz`, `nightly` |

@@ -142,10 +142,27 @@ crate dispatch paths; they do not emulate another microarchitecture. The setting
 and diagnostic hook exist only under `cfg(fuzzing)`. Ordinary consumer builds
 retain their normal feature detection and have no ceiling checks or state.
 
-The corpus workflow keeps host dispatch and its existing architecture/cache rows.
-Capped campaigns are manual. A hosted x86 job can select AVX2 or AVX-512 depending
-on its runner; a host row does not guarantee either ISA. When retaining inputs
-from capped campaigns, preserve the union of each mode's minimization results.
+The corpus workflow adds one `isa_smoke` job on pull requests and its other
+triggers. [smoke-isa.sh](smoke-isa.sh) replays 24 named inputs through `encode_all`,
+`decode_all` and `check_all`, under both ceilings and both cache policies: 96 fixed
+input executions. Cases cover empty/zero inputs, fixed widths and a split-carry
+fallback, Matrix sizes, large inputs through 65,537 bytes, array decoding,
+malformed text, and Base58Check. It uses ASan and debug assertions, disables compare
+tracing, and verifies each binary's ceiling receipt. A mismatch or unsupported
+requested ISA fails. It shares a build directory across the four builds.
+
+Run the same check from the repository root on an x86-64 host with AVX2:
+
+```sh
+bash fuzz/smoke-isa.sh "$nightly"
+```
+
+The smoke passes individual seed files to libFuzzer, which executes each once.
+It loads no stored corpus, performs no mutations, and uploads no coverage.
+The full-corpus coverage and nightly mutation rows retain host dispatch. Sustained
+capped campaigns remain manual. A hosted x86 job can select AVX2 or AVX-512
+depending on its runner; a host row does not guarantee either ISA. When retaining
+inputs from capped campaigns, preserve the union of each mode's minimization results.
 
 ### Campaigns and corpora
 
