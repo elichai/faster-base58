@@ -15,9 +15,7 @@ Requires Rust 1.95 or newer.
 
 This comparison cohort was measured **2026-11-09**, source
 [`8cf24a72ad66`](https://github.com/elichai/faster-base58/commit/8cf24a72ad66435367b226f89a6a7c30ae496567).
-The library has changed since this run. These are results for the recorded source;
-fresh timings and linked sizes are being collected. The tables and figures use
-the same complete cohort, including the competing crates.
+The tables and figures use the same cohort, including the competing crates.
 
 `Auto` is `faster-base58` with default features; `Auto + cache` enables `cache`.
 `No allocation` disables default features.
@@ -217,8 +215,7 @@ these figures measures RSS. [Memory and algorithm details](DESIGN.md#heap-stack-
 
 ## Linked size
 
-The **2026-11-09** cohort above also supplies these linked sizes. A refresh
-for the latest source is in progress.
+The **2026-11-09** cohort above also supplies these linked sizes.
 
 Code and data linked **above an empty consumer** with the same scaffold, both
 directions reachable, from the same builds as the timing tables. These are cdylib

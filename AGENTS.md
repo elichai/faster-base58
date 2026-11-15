@@ -46,8 +46,9 @@ across several reports.
 Published results need their measurement date, source, host/ISA, compiler, flags,
 features, harness, clock and sampling scope. Keep material limitations beside
 the result. When replacing a measurement cohort, update its tables, figures and
-scope together. Code or documentation edits do not refresh old measurements;
-withdraw affected results until they are remeasured.
+scope together. Never relabel existing measurements as a new run on changed code.
+The measurement date and source commit identify the measured version; do not add
+boilerplate warnings that the library may have changed or that results need a refresh.
 
 README and performance-guide benchmarks must stand alone: show absolute latency
 or throughput, linked sizes, and measured comparisons with other libraries. Keep

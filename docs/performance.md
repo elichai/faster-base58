@@ -9,9 +9,7 @@ validation and its limits.
 
 This comparison cohort was measured **2026-11-09**, source
 [`8cf24a72ad66`](https://github.com/elichai/faster-base58/commit/8cf24a72ad66435367b226f89a6a7c30ae496567).
-The library has changed since this run. These are results for the recorded source;
-fresh timings and linked sizes are being collected on M5 and GCP. The tables and
-figures use the same complete cohort, including the competing crates.
+The tables and figures use the same cohort, including the competing crates.
 
 Ordinary public consumers use
 `code_size.py` cdylibs that call `Encoder::bitcoin().encode(..).onto(..)` and
@@ -93,9 +91,8 @@ before any conversion initializes its tables, and include codec setup and intern
 allocation. Record whether UTF-8 checking is inside that timer. Construct and
 independently verify the expected bytes outside timing; poison output before each
 call and check the returned length and bytes afterwards. Single-call CPU clocks
-can have coarse resolution, so retain process/copy ranges. The November 9 warm
-cohort supplies no first-call results; current-source first-call measurements are
-pending with the refresh.
+can have coarse resolution, so retain process/copy ranges. This warm cohort does
+not measure first-call latency.
 
 For small source changes, use a paired run with byte-identical controls and fresh
 library copies. Retain observed variation and report incomplete loader/call-order
@@ -115,8 +112,7 @@ its test coverage remain documented in [DESIGN.md](../DESIGN.md) and
 
 ## Linked size and compact
 
-The [linked-size table](../README.md#linked-size) uses the same November 9 builds
-as the figures. Sizes need to be refreshed for the latest source.
+The [linked-size table](../README.md#linked-size) uses the same builds as the figures.
 
 The [README size table](../README.md#linked-size) subtracts each cohort's empty
 consumer (same scaffold, no conversion call) from cdylibs with both directions
@@ -129,8 +125,8 @@ Record initialized data, BSS and stripped-file bytes with code and readonly data
 Mach-O and ELF categories are not directly interchangeable. Subtracting a matching
 empty consumer can produce negative BSS values through layout changes; this does
 not measure retained heap. Stripped-file bytes include metadata and layout, and
-`.rlib` size does not measure deployment size. The November 9 table reports only
-the section categories shown; complete current-source accounting is being refreshed.
+`.rlib` size does not measure deployment size. The table reports the section
+categories shown.
 
 On x86-64, `compact` keeps eight IFMA kernel widths instead of twelve: less code,
 more chunks for some multiplications. Other targets do not use these kernels; wide
