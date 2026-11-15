@@ -143,7 +143,7 @@ pub(crate) fn decode_value(
     )
 }
 
-/// Large encoding with NTT multiplication. NEON, x86 AVX-512 and Wasm use a multiplication
+/// Large encoding with NTT multiplication. NEON, x86 AVX2/AVX-512 and Wasm use a multiplication
 /// tree in base 58^3 when transform padding and input size favor it. Other cases retain
 /// the division tree and feature-selected leaves. Both routes retain twiddles
 /// through log18 with `cache`; larger twiddles are owned per call. Powers,

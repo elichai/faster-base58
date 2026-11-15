@@ -365,7 +365,12 @@ mod checked {
     fn checked_encoding_uses_exact_buffers_across_fast_routes() {
         for version in [None, Some(0), Some(42)] {
             let encoder = version.map_or(ENCODER, |v| Encoder::bitcoin().with_check_version(v));
-            for len in [17, 28, 60, 512, 5120, 8188, 8193, 16379] {
+            // The checksum and optional version cross the AVX2 radix minimum,
+            // utilization cutoff and next transform-padding step.
+            for len in [
+                17, 28, 60, 512, 5120, 8188, 8193, 16379, 16380, 16381, 31485, 31486, 31487, 34811,
+                34812, 34813,
+            ] {
                 for zeros in [0, len] {
                     let mut data = vec![0; zeros];
                     data.resize(len, 0xa5);

@@ -62,7 +62,7 @@ the internal comparison hook still uses that independently tuned crossover.
 With IFMA, the public Karatsuba band starts above 448 bytes. These thresholds
 serve different comparisons and need not be ordered to make every band nonempty.
 
-On little-endian AArch64 with NEON, on x86-64 with AVX-512F and on Wasm, large
+On little-endian AArch64 with NEON, on x86-64 with AVX2 or AVX-512F and on Wasm, large
 encoding can instead use a
 [multiplication tree in base `58^3`](src/ntt/radix.rs). It splits at byte
 boundaries and combines `hi * 256^k + lo`, avoiding reciprocals and division at
@@ -77,9 +77,12 @@ scratch when used at the root, so it needs no stored spectrum. Seed bytes stay
 on the stack; schoolbook sums reserve their usual capacity once and can grow
 for sparse, unbalanced products. All owners are dropped on return.
 This route requires
-more than 3072 significant bytes (on x86, 27 KiB; on Wasm with `simd128`, 768) and
-at least 5/8 utilization
-of its root transform, or 3/4 with `cache`. Utilization grows linearly with the
+more than 3072 significant bytes (on AVX-512F, 27 KiB; on AVX2 without
+AVX-512F, 16 KiB; on Wasm with `simd128`, 768) and at least 5/8 utilization
+of its root transform, or 3/4 with `cache`. AVX2 without AVX-512F requires 7/8
+under both cache policies. Its tuning uses AVX2 dispatch on an AVX-512-capable
+host and translated x86 execution; older AVX2-only CPUs remain unmeasured.
+Utilization grows linearly with the
 input from 0.48 just above each transform-length step (`17 * 2^k + 1` bytes) to 0.97.
 With `cache`, cached Matrix leaves speed up only the division tree, so its crossover
 is higher. Wasm division trees keep Horner leaves under both policies: scalar Wasm
@@ -87,8 +90,8 @@ needs 9/16 utilization and Wasm `simd128` none. With NEON and on Wasm the defaul
 encoder's NTT threshold equals the route's minimum, so the route replaces batched
 encoding there. On Zen 5 the division tree with
 IFMA Karatsuba products is faster up to about 26 KiB. Heavily padded sizes,
-significant inputs above 16 MiB, x86 CPUs without AVX-512F (not measured) and
-other targets keep the division tree. The carry pass runs four
+significant inputs above 16 MiB, x86 CPUs without AVX2 or AVX-512F and other targets
+keep the division tree. The carry pass runs four
 interleaved chains over quarters of the digits, then adds each quarter's carry
 into the next.
 
