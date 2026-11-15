@@ -180,7 +180,7 @@ def main():
     parser.add_argument("--label", default="current")
     parser.add_argument("--strip-tool", default=shutil.which("llvm-strip") or "/opt/homebrew/opt/llvm/bin/llvm-strip")
     parser.add_argument("--self-test", action="store_true")
-    parser.add_argument("--count-allocations", action="store_true", help="instrument Wasm cdylibs; never use for timing or linked-size comparisons")
+    parser.add_argument("--count-allocations", action="store_true", help="instrument cdylibs; never use for timing or linked-size comparisons")
     parser.add_argument("--wasm-simd128", action="store_true", help="compile Wasm library and probe with +simd128")
     parser.add_argument("--cache", action="store_true", help="enable optional library caches in this cohort")
     parser.add_argument("--compact", action="store_true", help="enable smaller x86 IFMA windows")
@@ -211,8 +211,8 @@ def main():
         return
     if not args.output:
         parser.error("--output is required")
-    if args.count_allocations and (args.target != "wasm32-unknown-unknown" or args.kinds != "cdylib"):
-        parser.error("allocation instrumentation requires Wasm cdylibs")
+    if args.count_allocations and args.kinds != "cdylib":
+        parser.error("allocation instrumentation requires cdylibs")
     if args.wasm_simd128 and args.target != "wasm32-unknown-unknown":
         parser.error("--wasm-simd128 requires wasm32-unknown-unknown")
     source = args.source.resolve()

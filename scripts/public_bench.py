@@ -67,6 +67,7 @@ def native_worker(job):
     functions = {}
     for label, path in job['libraries']:
         library = ctypes.CDLL(str(Path(path).resolve()))
+        assert not hasattr(library, 'size_count_begin'), 'timing requires uninstrumented libraries'
         for operation, export in [('encode', 'size_repeat_encode'), ('decode', 'size_repeat_decode_prevalidated')]:
             function = getattr(library, export)
             function.argtypes, function.restype = signature, ctypes.c_size_t

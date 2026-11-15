@@ -176,7 +176,28 @@ async function selfTest(directory) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-    assert.equal(process.argv[2], "--self-test");
     assert.equal(process.argv.length, 4);
-    await selfTest(process.argv[3]);
+    if (process.argv[2] === "--self-test") {
+        await selfTest(process.argv[3]);
+    } else {
+        assert.equal(process.argv[2], "--worker");
+        const job = JSON.parse(process.argv[3]);
+        const probe = await openCounted(job.artifact);
+        const [data, text] = (await Promise.all([readFile(job.data), readFile(job.text)]))
+            .map(buffer => new Uint8Array(buffer));
+        const [input, expected] = job.operation === "encode" ? [data, text] : [text, data];
+        const capacity = job.backend === "empty" ? Math.max(input.length, expected.length) : expected.length;
+        const buffers = probe.buffers(job.operation, input, capacity);
+        const rows = [];
+        try {
+            for (const phase of ["cold", "warm"]) {
+                const result = buffers.call();
+                assert.equal(result.written, job.backend === "empty" ? input.length : expected.length);
+                if (job.backend !== "empty") assert.deepEqual(result.output, new Uint8Array(expected));
+                const { output, written, ...counts } = result;
+                rows.push({ phase, ...counts });
+            }
+        } finally { buffers.close(); }
+        console.log(JSON.stringify(rows));
+    }
 }

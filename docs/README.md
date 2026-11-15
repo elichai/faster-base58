@@ -9,4 +9,4 @@
 | [References](../REFERENCES.md) | Algorithm references and implementation provenance. |
 | [Fuzzing](../fuzz/README.md) and [corpus store](fuzzing-corpus.md) | Fuzz targets, campaigns, boundary replay and the shared corpus branch. |
 | [Development Miri](../ci/miri/README.md) | The pinned interpreter with the missing SIMD shims. |
-| [Linked size probe](../tools/code-size/README.md) | The consumer probes behind the README timing and size tables. |
+| [Consumer probes](../tools/code-size/README.md) | The public consumers behind the README timing, heap and linked-size tables. |

@@ -121,7 +121,7 @@ Codecov with an OIDC token. Jobs that upload records keep them as artifacts for
 | `pointer_width_32` | Tests on i686 | x86-64 Linux | All |
 | `lint` | Script tests, public test lists, rustfmt, Clippy, rustdoc warnings, package contents | x86-64 Linux | All |
 | `simd_inlining` | Compares every out-of-line crate function of the Auto consumer library with `scripts/check_simd_inlining.txt` | x86-64 Linux; x86-64 and arm64 targets, each default, `cache` and `compact` | All |
-| `measurement_tools` | `resource-profile` tests and self-checks; script self-tests; documentation check | x86-64 Linux; cache off and on | All |
+| `measurement_tools` | `resource-profile` tests and self-checks; native public heap accounting and timing refusal; script self-tests; documentation check | x86-64 Linux; cache off and on | All |
 | `miri_supported` | Stock Miri on portable paths and AVX2 kernels | x86-64 Linux | All |
 | `miri_arm_panel` | Stock Miri on a NEON panel and forced encoder leaves | x86-64 Linux, AArch64 target | All |
 | `miri_custom` | Development Miri on all SIMD probes, kernels and buffer cases | x86-64 Linux, AArch64 and x86-64 targets; cache off and on; separate x86-64 `compact` rows | All |
@@ -245,7 +245,8 @@ python3 scripts/code_size.py --source . --output target/measurements/wasm-counte
 node scripts/wasm_allocations.mjs --self-test target/measurements/wasm-counted
 ```
 
-CI repeats the counted build with `--cache`. It also checks that
+CI repeats the counted build with `--cache` and runs `public_heap.py` on both
+builds at 0, 32, 64, 512, 4096 and 8193 bytes. It also checks that
 `public_bench.py --wasm` refuses a counted module with
 `timing requires uninstrumented modules`. `--strip-tool` defaults to
 `llvm-strip` on `PATH`; CI passes the `llvm-strip` of the pinned stable
@@ -305,7 +306,11 @@ cargo run --locked --release --manifest-path tools/resource-profile/Cargo.toml -
 
 CI repeats both with `--features count-allocations`, `compact` and
 `compact,count-allocations`. A second matrix row adds `--features cache` to each
-command. The cache-off row also runs the self-tests of `resource_report.py`,
+command. Both rows build counted native public consumers and run `public_heap.py`
+at 0, 32, 64, 512, 4096 and 8193 bytes. This checks allocator balance, cold/warm
+retention, input/output guards and exact output against an integer oracle.
+Both rows also check that the timing driver refuses counted native libraries.
+The cache-off row also runs the self-tests of `resource_report.py`, `public_heap.py`,
 `code_size.py`, `check_simd_inlining.py`, `run_native_sanitizer.py`,
 `check_ci_tests.py` and `check_public_api.py`, the graph tests, the documentation
 check and the syntax
@@ -578,10 +583,11 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`scripts/check_package.py`](scripts/check_package.py) | Checks the packaged `.crate`: allowed paths, required files, 2 MiB budget, license and feature metadata | `--self-test`; package directory (default `target/package`) | `lint` |
 | [`scripts/check_public_api.py`](scripts/check_public_api.py) | Compiles downstream fixtures against seven feature profiles: normal API, `internals` namespace, removed paths, owned and checked methods | `--self-test` (needs `--output`, compiles nothing) | `tests`, `measurement_tools` (self-test) |
 | [`scripts/check_simd_inlining.py`](scripts/check_simd_inlining.py) | Fails when the out-of-line crate functions of a library differ from [check_simd_inlining.txt](scripts/check_simd_inlining.txt); reads symbols only | `--build DIR`; `CONFIG=LIBRARY`; `--list LIBRARY`; `--compare OLD NEW`; `--self-test`; `--nm` | `simd_inlining`, `measurement_tools` (self-test) |
-| [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments Wasm | `--self-test` | `portability`, `measurement_tools`, `simd_inlining` |
+| [`scripts/code_size.py`](scripts/code_size.py) | Builds one probe per backend and direction and records linked sizes; `--count-allocations` instruments native/Wasm cdylibs | `--self-test` | `portability`, `measurement_tools`, `simd_inlining` |
 | [`scripts/code_size_wasm.mjs`](scripts/code_size_wasm.mjs) | Checks the Wasm probe ABI: allocator, pointers, UTF-8 and outputs | Wasm module paths | `portability` |
-| [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted `empty`, `auto` and `no-alloc` Wasm modules: allocator counts and ABI | `--self-test DIR` only | `portability` |
+| [`scripts/wasm_allocations.mjs`](scripts/wasm_allocations.mjs) | Checks counted Wasm modules and supplies the heap worker | `--self-test DIR`; worker started by `public_heap.py` | `portability` |
 | [`scripts/public_bench.py`](scripts/public_bench.py) | Times `code_size.py` probes and writes a public timing CSV; `--baseline` prints paired ratios | `--wasm`, `--self-test` | `portability` (refusal check), `measurement_tools` (self-test) |
+| [`scripts/public_heap.py`](scripts/public_heap.py) | Counts cold/warm public borrowed conversions in fresh native processes or Wasm instances; verifies exact output and allocation balance | `--build DIR --output NEW_DIR`, `--self-test` | `portability`, `measurement_tools` |
 | [`scripts/public_bench_wasm.mjs`](scripts/public_bench_wasm.mjs) | Wasm worker of `public_bench.py`; refuses counted modules | Started by `public_bench.py --wasm` | `measurement_tools` (syntax) |
 | [`scripts/resource_report.py`](scripts/resource_report.py) | Builds and runs the internal heap and CPU workers of `tools/resource-profile` | `build`, `run`, `fingerprint`, `self-test` | `measurement_tools` |
 | [`scripts/run_native_sanitizer.py`](scripts/run_native_sanitizer.py) | MemorySanitizer and ThreadSanitizer driver | `--self-test` | `native_sanitizers` |
@@ -610,8 +616,9 @@ that this token opens do not start CI; close and reopen them to run the checks.
 | [`tools/resource-profile/`](tools/resource-profile/Cargo.toml) | Worker of `resource_report.py`; features `count-allocations`, `cache`, `compact` | `self-check` | `measurement_tools` |
 | [`ci/miri/`](ci/miri/README.md) | Pins (`pins.json`), exact selection (`coverage.json`) and patch (`shims.patch`) of the development Miri | Read by the custom-Miri scripts | `miri_custom` |
 
-[docs/performance.md](docs/performance.md) gives the measurement commands for
-`code_size.py`, `public_bench.py`, `render_current.py` and `resource_report.py`.
+[docs/performance.md](docs/performance.md) gives the timing and internal-worker
+measurement commands. [Consumer probes](tools/code-size/README.md) also describes
+public heap accounting with `code_size.py` and `public_heap.py`.
 
 ### Checks without a Rust build
 
@@ -637,6 +644,7 @@ python3 -B assets/graphs/render.py --check
 python3 -B -m unittest discover -s fuzz -p 'test_*.py'
 python3 -B fuzz/check_mutations.py --self-test
 python3 -B scripts/public_bench.py --self-test
+python3 -B scripts/public_heap.py --self-test
 node --check scripts/public_bench_wasm.mjs
 node --check scripts/code_size_wasm.mjs
 node --check scripts/wasm_allocations.mjs
