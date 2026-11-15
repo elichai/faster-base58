@@ -49,6 +49,16 @@ the result. When replacing a measurement cohort, update its tables, figures and
 scope together. Code or documentation edits do not refresh old measurements;
 withdraw affected results until they are remeasured.
 
+README and performance-guide benchmarks must stand alone: show absolute latency
+or throughput, linked sizes, and measured comparisons with other libraries. Keep
+PR/branch/stack comparisons, before/after ratios and size deltas against older
+revisions, investigation chronology and merge advice in PR descriptions or ignored
+measurement records. Inspect SVG titles, axes, legends and captions as well as
+Markdown; published figures must make sense without PR context. Keep a concise
+performance overview near the top of the README, with methods and limits in the
+guide. Retain study-specific renderers with their ignored measurement inputs;
+committed rendering tools must be reusable.
+
 Separate public-consumer and internal-worker results, timing and allocation
 counting, and native and translated execution. Builds, skips and incomplete runs
 are not passing tests. Preserve unresolved verification gaps in the guides.

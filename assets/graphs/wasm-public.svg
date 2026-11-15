@@ -3,6 +3,6 @@
 <rect width="900" height="150" fill="#f8fafc"/>
 <g fill="#18212f" font-family="sans-serif" text-anchor="middle">
 <text x="450" y="49" font-size="22">WebAssembly performance</text>
-<text x="450" y="83" font-size="16">Current-stack timings and linked sizes have not been measured.</text>
-<text x="450" y="114" font-size="14">Native M5 and GCP results do not establish Wasm performance.</text>
+<text x="450" y="83" font-size="16">WebAssembly timings and linked sizes have not been measured.</text>
+<text x="450" y="114" font-size="14">A separate Wasm measurement cohort is required.</text>
 </g></svg>
