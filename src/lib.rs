@@ -202,7 +202,7 @@ pub use config::{DecodeInput, Decoder, EncodeInput, Encoder};
 #[cfg(any(test, feature = "__internals"))]
 pub mod internals;
 
-#[cfg(doctest)]
+#[cfg(all(doctest, feature = "alloc", feature = "check"))]
 #[doc = include_str!("../README.md")]
 mod readme_examples {}
 

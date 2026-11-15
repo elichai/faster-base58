@@ -22,6 +22,8 @@ The default-on `alloc` feature enables allocating backends and owned results.
 `--no-default-features --features check`.
 The downstream API checker also checks owned/check method availability and
 rejects the removed free functions and `no_alloc` module.
+README examples run as doctests with `alloc` and `check` enabled; they are not
+doctested without those features.
 
 - The alphabet is Bitcoin Base58. Leading zero bytes become leading `'1'`s.
 - Exact output capacity suffices. Successful calls leave the unused tail intact.
