@@ -99,7 +99,8 @@ class ExternalInputTests(unittest.TestCase):
     def test_invalid_rows_are_rejected(self):
         for changes in [dict(warm_ns='nan'), dict(process_max_ns='80'), dict(warm_ns=''),
                         dict(platform='unknown'), dict(clock='elapsed'),
-                        dict(measurement_date='2026-10-29'), dict(source_commit='b' * 40)]:
+                        dict(measurement_date='2026-10-29'), dict(source_commit='b' * 40),
+                        dict(lto='off'), dict(wasm_isa='SIMD128')]:
             with self.subTest(changes=changes):
                 rows = self.rows()
                 rows[0].update(changes)

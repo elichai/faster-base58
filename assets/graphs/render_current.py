@@ -50,6 +50,8 @@ def main():
                     selected = sorted([row for row in measured if (row['cache'], row['backend'], row['operation'])
                         == (policy, backend, operation) and int(row['decoded_bytes']) > 0],
                         key=lambda row: int(row['decoded_bytes']))
+                    if not selected:
+                        continue
                     x = [int(row['decoded_bytes']) for row in selected]
                     y = [float(row['warm_ns']) for row in selected]
                     five8 = backend == 'five8'
@@ -60,8 +62,8 @@ def main():
                                             [float(row['process_max_ns']) - value for value, row in zip(y, selected)]],
                                 fmt='none', ecolor=colors[label], alpha=.3, elinewidth=.8, capsize=1.5)
                 ax.set(xscale='log', yscale='log', title=operation.capitalize(), xlabel='Decoded payload size')
-                ax.set_xticks([1, 32, 64, 512, 4096, 65536, 1048576, 4194304])
-                ax.set_xticklabels(['1 B', '32 B', '64 B', '512 B', '4 KiB', '64 KiB', '1 MiB', '4 MiB'], rotation=28, ha='right')
+                ax.set_xticks([1, 32, 512, 4096, 65536, 1048576, 4194304])
+                ax.set_xticklabels(['1 B', '32 B', '512 B', '4 KiB', '64 KiB', '1 MiB', '4 MiB'], rotation=28, ha='right')
                 ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: duration(value)))
                 ax.grid(which='major', alpha=.18, linewidth=.7)
                 ax.grid(which='minor', alpha=.05, linewidth=.5)
@@ -72,6 +74,8 @@ def main():
             identity = measured[0]
             copies = int(identity.get('copies') or 1)
             figure.text(.5, .022, f"Public API · {identity['measurement_date']} · source {identity['source_commit'][:12]}"
+                + (f" · {identity['lto']} LTO" if identity.get('lto') else '')
+                + (f" · {identity['wasm_isa']} Wasm" if identity.get('wasm_isa') else '')
                 + (f' · medians over {copies} file copies; bars: process range of all copies\n' if copies > 1
                    else ' · warm medians; bars: process range\n')
                 + ('V8 elapsed time' if platform == 'wasm' else 'Native process CPU time')

@@ -41,7 +41,8 @@ def timing_cells(rows):
             values = [float(row[name]) for name in ['process_min_ns', 'warm_ns', 'process_max_ns']]
             # Rows timed with file copies (public_bench.py --copies) add the copy range.
             copies = [float(row.get(name) or row['warm_ns']) for name in ['copy_min_ns', 'copy_max_ns']]
-            source = (row['measurement_date'], row['source_commit'], row['clock'])
+            source = (row['measurement_date'], row['source_commit'], row['clock'],
+                      row.get('lto', ''), row.get('wasm_isa', ''))
         except (KeyError, ValueError) as error:
             raise ValueError(f'Malformed timing row: {error}') from error
         require(key[0] in PLATFORMS, f'Unknown timing platform: {key[0]}')
@@ -106,7 +107,7 @@ def tables(timing_rows, deltas):
     headers = {'m5': 'M5 code / readonly', 'gcp': 'x86-64 code / readonly', 'wasm': 'Wasm code / data section'}
     result += ['| Consumer | ' + ' | '.join(headers[platform] for platform in sized) + ' |',
                '|---|' + '---:|' * len(sized)]
-    for backend, cache, label in SERIES[:4]:
+    for backend, cache, label in SERIES:
         values = [' / '.join(f'{value / 1024:.1f} KiB' for value in deltas[platform, cache, backend])
                   if (platform, cache, backend) in deltas else '-' for platform in sized]
         result.append('| ' + label + ' | ' + ' | '.join(values) + ' |')
