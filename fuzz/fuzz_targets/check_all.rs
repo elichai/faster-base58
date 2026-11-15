@@ -5,6 +5,8 @@ mod support;
 
 use faster_base58::{BufferTooSmall, Decoder, Encoder, Error};
 use libfuzzer_sys::fuzz_target;
+#[path = "../isa.rs"]
+mod isa;
 
 const CANARY: u8 = 0xA5;
 const GUARD: usize = 8;
@@ -12,7 +14,7 @@ const GUARD: usize = 8;
 // bs58's quadratic oracle bounds useful input sizes.
 const MAX_INPUT_BYTES: usize = 8193;
 
-fuzz_target!(|raw: &[u8]| {
+fuzz_target!(init: isa::init(), |raw: &[u8]| {
     if raw.len() > MAX_INPUT_BYTES {
         return;
     }

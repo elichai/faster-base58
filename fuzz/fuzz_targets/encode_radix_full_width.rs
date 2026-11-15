@@ -6,8 +6,10 @@ mod full_width;
 mod support;
 
 use libfuzzer_sys::fuzz_target;
+#[path = "../isa.rs"]
+mod isa;
 
-fuzz_target!(|raw: &[u8]| {
+fuzz_target!(init: isa::init(), |raw: &[u8]| {
     // Both widths select cached NEON radix; the larger also owns log19 twiddles.
     let width = if raw.first().is_some_and(|b| b & 0x80 != 0) {
         1 << 20

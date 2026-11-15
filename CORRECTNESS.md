@@ -339,9 +339,13 @@ not refresh a prior result. For performance and memory work, use the separate
 3. Complete the default full-width native ASan stages. Repair or
    replace the libFuzzer/MSan integration before claiming MSan fuzzing.
    Continue longer campaigns and inspect coverage gaps; all completed campaigns
-   are finite. Runtime dispatch selects the best x86 kernels, so fuzzing on an
-   AVX-512 host never runs the AVX2 NTT kernels, the AVX2 fixed-width encoder or the
-   SSE4.1 matrix panel; only unit tests compare them with the portable code.
+   are finite. Host dispatch selects the best supported x86 kernels. The
+   [fuzz-only ISA ceilings](fuzz/README.md#x86-isa-ceilings) let separate processes
+   select AVX2 NTT kernels, the AVX2 fixed-width encoder and SSE4.1 matrix panels
+   on an AVX-512 host. CI replays a fixed smoke set under both ceilings and both
+   cache policies. Full-corpus replay and mutation use host dispatch; sustained
+   capped campaigns remain manual. Hosted CI does not guarantee AVX-512 for its
+   host rows; keep native AVX-512 validation separate.
 4. Run the native AVX-512 kernel tests on AVX-512 hardware in every CI run.
    `mul_ifma::tests::avx512_matches_reference` needs AVX-512F and IFMA;
    `ntt::avx512::tests::avx512_matches_portable` needs AVX-512F. Without the

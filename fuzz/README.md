@@ -115,6 +115,57 @@ Linux CI installs `clang-23` and `libclang-rt-23-dev` from the signed
 `apt.llvm.org` LLVM 23 repository. The package revision may advance within LLVM
 23, but the compiler major remains matched to Rust's LLVM runtime.
 
+### x86 ISA ceilings
+
+`FASTER_BASE58_FUZZ_MAX_ISA=host|avx2|sse41` selects a ceiling at **build time**
+for `cargo fuzz`. The default, `host`, uses normal OS-aware runtime detection.
+`avx2` disables AVX-512F, IFMA and VBMI dispatch. `sse41` also disables AVX2.
+Allowed features still require actual hardware support. Each target validates
+the requested mode and prints its effective features before any codec or custom
+mutator can initialize a cache. An unsupported requested ISA fails startup.
+
+Build and run each mode in a separate process. Cargo tracks this build setting;
+changing it rebuilds the crate. The examples use separate target directories to
+retain each binary. Sequential builds may share a target directory to reuse
+dependencies. Use generic compiler flags for capped builds; globally enabled
+AVX-512, or AVX for `sse41`, is rejected.
+For example, on an AVX-512 host:
+
+```sh
+FASTER_BASE58_FUZZ_MAX_ISA=host RUSTFLAGS='-C target-cpu=generic' cargo +"$nightly" fuzz run --target-dir target/fuzz-host --sanitizer address encode_all -- -runs=0
+FASTER_BASE58_FUZZ_MAX_ISA=avx2 RUSTFLAGS='-C target-cpu=generic' cargo +"$nightly" fuzz run --target-dir target/fuzz-avx2 --sanitizer address encode_all -- -runs=0
+FASTER_BASE58_FUZZ_MAX_ISA=sse41 RUSTFLAGS='-C target-cpu=generic' cargo +"$nightly" fuzz run --target-dir target/fuzz-sse41 --sanitizer address encode_all -- -runs=0
+```
+
+Repeat for the other five targets and both cache policies. These ceilings select
+crate dispatch paths; they do not emulate another microarchitecture. The setting
+and diagnostic hook exist only under `cfg(fuzzing)`. Ordinary consumer builds
+retain their normal feature detection and have no ceiling checks or state.
+
+The corpus workflow adds one `isa_smoke` job on pull requests and its other
+triggers. [smoke-isa.sh](smoke-isa.sh) replays 24 named inputs through `encode_all`,
+`decode_all` and `check_all`, under both ceilings and both cache policies: 96 fixed
+input executions. Cases cover empty/zero inputs, fixed widths and a split-carry
+fallback, Matrix sizes, large inputs through 65,537 bytes, array decoding,
+malformed text, and Base58Check. It uses ASan and debug assertions, disables compare
+tracing, and verifies each binary's ceiling receipt. A mismatch or unsupported
+requested ISA fails. It shares a build directory across the four builds.
+
+Run the same check from the repository root on an x86-64 host with AVX2:
+
+```sh
+bash fuzz/smoke-isa.sh "$nightly"
+```
+
+The smoke passes individual seed files to libFuzzer, which executes each once.
+It loads no stored corpus, performs no mutations, and uploads no coverage.
+The full-corpus coverage and nightly mutation rows retain host dispatch. Sustained
+capped campaigns remain manual. A hosted x86 job can select AVX2 or AVX-512
+depending on its runner; a host row does not guarantee either ISA. When retaining
+inputs from capped campaigns, preserve the union of each mode's minimization results.
+
+### Campaigns and corpora
+
 `--careful` rebuilds the standard library with extra initialization and UB checks;
 debug assertions and integer overflow checks remain enabled. Repeat with
 `--features cache`; use `--sanitizer leak` for the separate LeakSanitizer campaign.
@@ -177,7 +228,8 @@ To shrink the store, merge it with any new campaigns from the seeds alone, as in
 [CI.md](../CI.md#fuzz-corpus-workflow), in every build that selects different code:
 `-C target-cpu=generic` and `native`, cache off and on (`full-width` for the three
 full-width targets and `check` for `check_all`), on AArch64 and on an x86-64 CPU
-with AVX-512 IFMA and VBMI.
+with AVX-512 IFMA and VBMI. Include the `avx2` and `sse41` ceilings with generic
+flags and both cache policies on x86-64.
 Store the union of the results only after an ASan replay of it on the same hosts.
 
 See [CORRECTNESS.md](../CORRECTNESS.md) for run counts, sanitizer limits,

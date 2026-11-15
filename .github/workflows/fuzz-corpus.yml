@@ -36,6 +36,31 @@ defaults:
     shell: bash
 
 jobs:
+  # Fixed inputs keep this independent of corpus growth and nightly mutation.
+  isa_smoke:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y libz3-4 libedit2 libffi8 libzstd1 zlib1g
+      - uses: ./.github/actions/nightly-toolchain
+      - uses: ./.github/actions/setup-clang23
+      - run: cargo install --locked cargo-fuzz --version ${{ env.CARGO_FUZZ_VERSION }}
+      - name: Replay AVX2 and SSE4.1 with both cache policies
+        run: bash fuzz/smoke-isa.sh "${{ env.RUST_NIGHTLY }}"
+      - name: Retain ISA smoke logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-isa-smoke
+          path: target/isa-smoke/logs.*
+          if-no-files-found: error
+          retention-days: 14
+
   corpus_snapshot:
     runs-on: ubuntu-26.04
     outputs:
