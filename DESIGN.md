@@ -250,10 +250,14 @@ uses the nondecreasing workspace envelope of every plan through a product of
 retains the previous one-piece maximum when a two-piece plan needs less space.
 After preparation it is also capped using the maximum supported transform length:
 direct products fit the envelope at that limit, while larger products split and
-use a temporary plus the ordinary envelope of their half-sized children. A cacheable
-request uses the largest cacheable log for this bound: another thread may install a
-larger table before the first product. Both
-bounds cover Karatsuba and preserve the DC, block and split inequalities.
+use a temporary plus the ordinary envelope of their half-sized children. For
+`cap = 2^(log - 2)`, operands through `cap` use the ordinary envelope. Larger
+operands use `max(8*cap + 128, n + 1 + ordinary(ceil(n/2)))`. This evaluates the
+ordinary envelope once; its `8*n + 128` to `12*n + 128` bounds make an additional
+Karatsuba maximum and ordinary-envelope minimum redundant. A cacheable request
+uses the largest cacheable log for this bound: another thread may install a
+larger table before the first product. Both bounds cover Karatsuba and preserve
+the DC, block and split inequalities.
 These are operand bounds in `u64` limbs, not total conversion memory.
 
 The two-prime radix encoder batches spectra and child workspace in one `i32`

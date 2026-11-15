@@ -337,14 +337,16 @@ impl Multiplier for Ntt {
 
     #[inline]
     fn scratch_len(&self, n: usize) -> usize {
-        let ordinary = scratch_len(n);
-        self.log.map_or(ordinary, |log| {
-            // A later cache lookup may return any larger retained table, including
-            // one initialized concurrently after this scratch is allocated.
-            #[cfg(feature = "cache")]
-            let log = log.max(CACHE_MAX_LOG);
-            ordinary.min(capped_scratch_len(n, log))
-        })
+        match self.log {
+            None => scratch_len(n),
+            Some(log) => {
+                // A later cache lookup may return any larger retained table, including
+                // one initialized concurrently after this scratch is allocated.
+                #[cfg(feature = "cache")]
+                let log = log.max(CACHE_MAX_LOG);
+                capped_scratch_len(n, log)
+            }
+        }
     }
 
     fn mul(&mut self, out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64]) {
@@ -602,12 +604,18 @@ pub(crate) fn scratch_len(n: usize) -> usize {
 /// children have at most `ceil(n / 2)` limbs. Blocks use at most `n` limbs before a
 /// child of at most `n / 2`. The second term covers both using the ordinary envelope
 /// for those children, and satisfies the growth needed by `dc_scratch_len` too.
+/// At a power-of-two `cap`, the ordinary envelope is `8 * cap + 128`. For
+/// `n > cap >= 8`, the child term dominates Karatsuba and both remaining terms
+/// are at most the ordinary envelope, so its outer minimum is redundant.
+/// Requires `5 <= log <= MAX_LOG` and a representable ordinary `12 * n + 128`.
 #[inline]
 fn capped_scratch_len(n: usize, log: u32) -> usize {
     let cap = 1usize << (log - 2);
-    scratch_len(n.min(cap))
-        .max(n + 1 + scratch_len(n.div_ceil(2)))
-        .max(mul::scratch_len(n))
+    if n <= cap {
+        scratch_len(n)
+    } else {
+        (8 * cap + 128).max(n + 1 + scratch_len(n.div_ceil(2)))
+    }
 }
 
 /// `log2` of the transform length for a product of `len` limbs: at least `2 len` points
@@ -617,9 +625,8 @@ fn log_len(len: usize) -> u32 {
 }
 
 /// `out = a * b`. Requires `out.len() == a.len() + b.len()`, `t.log >= 5`, and
-/// `scratch.len()` is at least the smaller of [`scratch_len`] and
-/// [`capped_scratch_len`]`(n, t.log)`, where `n` is the longer operand length;
-/// `scratch` may hold anything.
+/// `scratch.len() >= capped_scratch_len(n, t.log)`, where `n` is the longer operand
+/// length; `scratch` may hold anything.
 ///
 /// Uses Karatsuba when the shorter operand is below `threshold` limbs, and splits
 /// products too long for `t`.
@@ -1170,6 +1177,43 @@ mod tests {
             let n = cap + cap / 8;
             assert!(ntt.scratch_len(n) < scratch_len(n));
             assert!(n / 2 + ntt.scratch_len(n / 2) <= ntt.scratch_len(n));
+        }
+    }
+
+    #[test]
+    fn capped_scratch_matches_complete_envelope() {
+        let end = if cfg!(miri) { 128 } else { 1 << (MAX_LOG - 2) };
+        let linear_limit = (usize::MAX - 128) / 12;
+        for log in 5..=MAX_LOG {
+            let cap = 1usize << (log - 2);
+            let check = |n: usize| {
+                let ordinary = scratch_len(n);
+                let envelope = scratch_len(n.min(cap))
+                    .max(n + 1 + scratch_len(n.div_ceil(2)))
+                    .max(mul::scratch_len(n));
+                assert_eq!(
+                    capped_scratch_len(n, log),
+                    ordinary.min(envelope),
+                    "n {n}, log {log}"
+                );
+            };
+            for n in 0..=end {
+                check(n);
+            }
+            for n in [
+                cap - 1,
+                cap,
+                cap + 1,
+                2 * cap - 1,
+                2 * cap,
+                2 * cap + 1,
+                1 << MAX_LOG,
+                linear_limit / 2,
+                linear_limit - 1,
+                linear_limit,
+            ] {
+                check(n);
+            }
         }
     }
 
