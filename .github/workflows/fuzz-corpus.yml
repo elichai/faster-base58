@@ -134,7 +134,7 @@ jobs:
       # Fork pull requests get no OIDC token; scheduled and dispatched runs would
       # add uploads beyond the count in codecov.yml.
       - if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           use_oidc: true
           files: fuzz/coverage/${{ matrix.fuzz_target }}/lcov.info
@@ -274,7 +274,7 @@ jobs:
           path: .fuzz-corpus
       - run: mkdir -p .fuzz-corpus/corpora
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: fuzz-corpus-nightly-*
           path: incoming
@@ -342,7 +342,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Candidate inputs derive from a mutable branch; do not expose an Actions cache token.
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: fuzz-corpus-minimized-*
           path: minimized
@@ -387,11 +387,11 @@ jobs:
           path: .fuzz-corpus
       - run: mkdir -p .fuzz-corpus/corpora
       - run: python3 fuzz/corpus_store.py validate .fuzz-corpus/corpora
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: fuzz-corpus-minimized-*
           path: minimized
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: fuzz-corpus-nightly-*
           path: incoming
