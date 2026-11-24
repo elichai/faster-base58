@@ -5,8 +5,30 @@
 use crate::Error;
 #[cfg(any(test, feature = "__internals", kani))]
 use crate::common::split_zeros;
-use crate::common::{BASE, CHUNK, DecodeError, UNROLL_PAIRED, all_valid, invalid, values};
-use crate::{BufferTooSmall, matrix, mul};
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
+use crate::common::values;
+use crate::common::{BASE, CHUNK, DecodeError, UNROLL_PAIRED, all_valid, invalid};
+#[cfg(any(
+    all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    test
+))]
+use crate::matrix;
+use crate::{BufferTooSmall, mul};
 use alloc::vec::Vec;
 
 /// Leaves have at most this many chunks.
@@ -138,24 +160,43 @@ core::cfg_select! {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Leaf {
     /// Chunk parse and [`mul_add_chunks`].
+    #[cfg(any(
+        test,
+        feature = "__internals",
+        kani,
+        not(all(
+            feature = "cache",
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ))
+    ))]
     Horner,
-    /// [`matrix::leaf`]. The `cache` feature retains its table; explicit use without
+    /// `matrix::leaf`. The `cache` feature retains its table; explicit use without
     /// that feature builds an owned table for each leaf invocation.
+    #[cfg(any(
+        all(
+            feature = "cache",
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        test
+    ))]
     Matrix,
 }
 
 impl Leaf {
     /// With `cache`, [`Leaf::Matrix`] where it was measured faster: NEON.
     /// Without `cache`, Horner avoids rebuilding a matrix table at every leaf.
-    pub(crate) const BEST: Leaf = if cfg!(all(
-        feature = "cache",
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    )) {
-        Leaf::Matrix
-    } else {
-        Leaf::Horner
+    pub(crate) const BEST: Leaf = core::cfg_select! {
+        all(
+            feature = "cache",
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ) => Leaf::Matrix,
+        _ => Leaf::Horner,
     };
 }
 
@@ -495,12 +536,34 @@ fn dc(
 ) -> usize {
     let n = out.len();
     if n <= max_leaf {
-        if leaf == Leaf::Matrix {
-            return matrix::leaf(out, digits).expect("`decode_with` validates the digits");
-        }
-        let mut parsed = [0u64; LEAF];
-        values(digits, &mut parsed[..n]);
-        return mul_add_chunks(out, 0, &parsed[..n]);
+        return match leaf {
+            #[cfg(any(
+                test,
+                feature = "__internals",
+                kani,
+                not(all(
+                    feature = "cache",
+                    target_arch = "aarch64",
+                    target_endian = "little",
+                    target_feature = "neon"
+                ))
+            ))]
+            Leaf::Horner => {
+                let mut parsed = [0u64; LEAF];
+                values(digits, &mut parsed[..n]);
+                mul_add_chunks(out, 0, &parsed[..n])
+            }
+            #[cfg(any(
+                all(
+                    feature = "cache",
+                    target_arch = "aarch64",
+                    target_endian = "little",
+                    target_feature = "neon"
+                ),
+                test
+            ))]
+            Leaf::Matrix => matrix::leaf(out, digits).expect("`decode_with` validates the digits"),
+        };
     }
     // value = hi * BASE^p.exp + lo. `powers[0].exp <= max_leaf`, so `p` exists,
     // and the next power is at least `n`, so `hi` is no longer than `lo`.

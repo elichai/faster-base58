@@ -41,7 +41,7 @@ fn cols<const N: usize, const W: usize, const C: usize>(x: &[u8; N], t: &Table<W
     let (w, rows) = (*core::hint::black_box(&w), core::hint::black_box(&t.rows));
     let mut out = [0; C];
     for (b, o) in out.as_chunks_mut::<4>().0.iter_mut().enumerate() {
-        let (low, full) = (t.start[4 * b], t.start[4 * b + 2]);
+        let (low, full) = (usize::from(t.start[4 * b]), usize::from(t.start[4 * b + 2]));
         let (mut lo, mut hi) = (u64x2_splat(0), u64x2_splat(0));
         // SAFETY: each load reads 4 table words of a row, `C` being a multiple of 4; the
         // stores write the 4 columns of `o`.

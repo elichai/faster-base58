@@ -6,7 +6,7 @@ use core::arch::aarch64::*;
 
 use super::COL_BASE;
 use super::fixed::{self, Table, words};
-#[cfg(any(feature = "alloc", test, kani))]
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 use super::four_digits;
 use crate::BufferTooSmall;
 use crate::common::ALPHABET;
@@ -48,7 +48,7 @@ pub(super) fn cols<const N: usize, const W: usize, const C: usize>(
     let rows = core::hint::black_box(&t.rows);
     let mut out = [0; C];
     for (b, o) in out.as_chunks_mut::<4>().0.iter_mut().enumerate() {
-        let (low, full) = (t.start[4 * b], t.start[4 * b + 2]);
+        let (low, full) = (usize::from(t.start[4 * b]), usize::from(t.start[4 * b + 2]));
         // SAFETY: NEON is enabled at compile time (cfg on the module). The loads read 2 and
         // 4 table words, and the stores write the 4 columns of `o`.
         unsafe {
@@ -111,7 +111,7 @@ fn chars(c: uint32x4_t, table: uint8x16x4_t, reverse: uint8x16_t) -> uint8x16_t 
 }
 
 /// See `super::digits`.
-#[cfg(any(feature = "alloc", test, kani))]
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 pub(super) fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
     assert_eq!(cols.len(), out.len());
     let n = cols.len();

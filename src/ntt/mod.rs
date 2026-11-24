@@ -92,6 +92,21 @@ pub(crate) const ENCODE_THRESHOLD: usize = core::cfg_select! {
     ) => radix::MIN_BYTES,
     _ => 4096,
 };
+#[cfg(any(
+    test,
+    feature = "__internals",
+    not(all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    ))
+))]
 const ENCODE_LEAF: usize = 32;
 
 /// The leaf size of the caching encoders, which use [`Leaves::BEST`]. Matrix leaves pay off
@@ -99,10 +114,15 @@ const ENCODE_LEAF: usize = 32;
 /// chunks was 4-8% faster than 256 from 32 KiB to 1 MiB, and within 1% of 1024 there but
 /// 3-4% faster at 12 and 24 KiB. With the x86 kernels (Zen 5) 96 was best: 256 within 5%,
 /// 768 39% slower at 6 KiB and 58% at 8 KiB, where the whole input became one leaf.
-const CACHED_LEAF: usize = match Leaves::BEST {
-    Leaves::Horner => ENCODE_LEAF,
-    Leaves::Matrix if cfg!(target_arch = "x86_64") => 96,
-    Leaves::Matrix => 768,
+const CACHED_LEAF: usize = core::cfg_select! {
+    all(feature = "cache", target_arch = "x86_64", target_feature = "sse2") => 96,
+    all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ) => 768,
+    _ => ENCODE_LEAF,
 };
 
 /// Divide-and-conquer decoding with NTT multiplication and the feature-selected leaves.

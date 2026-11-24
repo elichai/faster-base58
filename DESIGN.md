@@ -214,7 +214,7 @@ while its cached tables still occupy heap; the measured peak includes those tabl
 
 Without `alloc`, conversion makes no allocator calls on cold, warm, success or error paths. Its
 general-size conversion remains quadratic. Fixed tables have a combined
-reference layout of 2208 bytes on 64-bit targets; emitted binary bytes can differ.
+reference layout of 1968 bytes; emitted binary bytes can differ.
 `.into_array::<N>()` constructs an `N`-byte local result. General Matrix uses about
 30 KiB encoder / 14 KiB decoder stack; recursive encoder leaves add about 8 KiB.
 These are source estimates, not measured stack high-water marks.

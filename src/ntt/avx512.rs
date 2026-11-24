@@ -16,22 +16,20 @@ use super::portable;
 use super::tables::{PRIMES, Prime, S};
 
 /// [`super::Kernels`] with the transforms and pointwise products written here, the rest
-/// from [`super::x86::kernels`], when this CPU has AVX-512F.
+/// from [`super::x86::avx512_with`], when this CPU has AVX-512F.
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 pub(crate) fn kernels() -> Option<super::Kernels> {
     if !crate::cpu::avx512f() {
         return None;
     }
-    Some(super::Kernels {
-        // SAFETY: the AVX-512F check above succeeded.
-        forward: |a, p, t| unsafe { z::forward(a, p, t) },
-        // SAFETY: the AVX-512F check above succeeded.
-        inverse: |a, p, iw| unsafe { z::inverse(a, p, iw) },
-        // SAFETY: the AVX-512F check above succeeded.
-        pointwise: |a, b, p| unsafe { z::pointwise(a, b, p) },
-        // SAFETY: the AVX-512F check above succeeded.
-        square: |a, p| unsafe { z::square(a, p) },
-        ..super::x86::kernels()?
+    // SAFETY: the AVX-512F check above succeeded.
+    Some(unsafe {
+        super::x86::avx512_with(
+            |a, p, t| z::forward(a, p, t),
+            |a, p, iw| z::inverse(a, p, iw),
+            |a, b, p| z::pointwise(a, b, p),
+            |a, p| z::square(a, p),
+        )
     })
 }
 

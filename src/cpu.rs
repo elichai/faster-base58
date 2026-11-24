@@ -2,7 +2,7 @@
 
 core::cfg_select! {
     feature = "std" => {
-        #[cfg(any(feature = "alloc", test, kani))]
+        #[cfg(any(feature = "cache", test, feature = "__internals", kani))]
         #[inline]
         pub(crate) fn sse41() -> bool {
             std::is_x86_feature_detected!("sse4.1")
@@ -36,7 +36,7 @@ core::cfg_select! {
         }
     }
     _ => {
-        #[cfg(any(feature = "alloc", test, kani))]
+        #[cfg(any(feature = "cache", test, feature = "__internals", kani))]
         cpufeatures::new!(detect_sse41, "sse4.1");
         cpufeatures::new!(detect_avx2, "avx2");
         #[cfg(any(feature = "alloc", test, kani))]
@@ -57,7 +57,7 @@ core::cfg_select! {
         pub(crate) use detect_avx512f::get as avx512f;
         #[cfg(any(feature = "alloc", test, kani))]
         pub(crate) use detect_ifma::get as ifma;
-        #[cfg(any(feature = "alloc", test, kani))]
+        #[cfg(any(feature = "cache", test, feature = "__internals", kani))]
         pub(crate) use detect_sse41::get as sse41;
         pub(crate) use detect_vbmi::get as vbmi;
     }

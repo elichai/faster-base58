@@ -171,7 +171,7 @@ mod encode;
 mod malachite;
 #[cfg(test)]
 mod malachite_tests;
-#[cfg(any(feature = "alloc", test, kani))]
+#[cfg(any(feature = "cache", test, feature = "__internals", kani))]
 mod matrix;
 #[cfg(any(feature = "alloc", test, kani))]
 mod mul;

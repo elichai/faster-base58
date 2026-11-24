@@ -12,12 +12,79 @@ use alloc::vec::Vec;
 
 use core::cmp::Ordering;
 
-use super::batched::Limbs;
-use super::{bits, matrix, min_digits, split_zeros, ten_digits};
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    ))
+))]
+use super::{batched::Limbs, ten_digits};
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    )
+))]
+use super::matrix;
+use super::{bits, min_digits, split_zeros};
 use crate::BufferTooSmall;
-use crate::common::{CHUNK, store_low_le};
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    )
+))]
+use crate::common::store_low_le;
+use crate::common::CHUNK;
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    ))
+))]
+use crate::dc::LEAF;
 use crate::dc::{
-    LEAF, Multiplier, Power, full_limbs as full, powers, split_unit_leaf, table_len, trimmed_len,
+    Multiplier, Power, full_limbs as full, powers, split_unit_leaf, table_len, trimmed_len,
 };
 use crate::mul::{add_assign, fold_wrapped, sub_assign};
 
@@ -26,6 +93,22 @@ const RECIP_BASECASE: usize = 16;
 
 /// The largest matrix leaf in chunks: at most `8 MATRIX_LEAF` bytes, `encode_matrix`'s
 /// cap. Horner leaves keep `LEAF`, which sizes their stack buffers.
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    )
+))]
 pub(super) const MATRIX_LEAF: usize = 1024;
 
 #[cfg(any(not(feature = "cache"), test, feature = "__internals", kani))]
@@ -95,31 +178,62 @@ pub(crate) mod internals {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Leaves {
     /// [`crate::encode::encode_batched`]'s kernel.
+    #[cfg(any(
+        test,
+        feature = "__internals",
+        kani,
+        not(all(
+            feature = "cache",
+            any(
+                all(
+                    target_arch = "aarch64",
+                    target_endian = "little",
+                    target_feature = "neon"
+                ),
+                all(target_arch = "x86_64", target_feature = "sse2")
+            )
+        ))
+    ))]
     Horner,
     /// `encode_matrix`'s conversion. The `cache` feature retains its table;
     /// explicit use without that feature builds an owned table per leaf invocation.
+    #[cfg(any(
+        test,
+        feature = "__internals",
+        kani,
+        all(
+            feature = "cache",
+            any(
+                all(
+                    target_arch = "aarch64",
+                    target_endian = "little",
+                    target_feature = "neon"
+                ),
+                all(target_arch = "x86_64", target_feature = "sse2")
+            )
+        )
+    ))]
     Matrix,
 }
 
 impl Leaves {
-    /// [`Leaves::Matrix`] where `encode_matrix` has SIMD kernels: NEON, and AVX2 or SSE4.1
+    /// `Leaves::Matrix` where `encode_matrix` has SIMD kernels: NEON, and AVX2 or SSE4.1
     /// on `x86_64`, where cached matrix leaves took 2-59% less time than Horner leaves
     /// in the measured Zen 5 cells. Without `cache`, use Horner so recursive leaves
     /// do not rebuild general matrix tables.
-    pub(crate) const BEST: Leaves = if cfg!(all(
-        feature = "cache",
-        any(
-            all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            ),
-            all(target_arch = "x86_64", target_feature = "sse2")
-        )
-    )) {
-        Leaves::Matrix
-    } else {
-        Leaves::Horner
+    pub(crate) const BEST: Leaves = core::cfg_select! {
+        all(
+            feature = "cache",
+            any(
+                all(
+                    target_arch = "aarch64",
+                    target_endian = "little",
+                    target_feature = "neon"
+                ),
+                all(target_arch = "x86_64", target_feature = "sse2")
+            )
+        ) => Leaves::Matrix,
+        _ => Leaves::Horner,
     };
 }
 
@@ -153,10 +267,41 @@ pub fn encode_tuned(
 }
 
 fn check_leaf(leaf: usize, leaves: Leaves) {
-    let max = if leaves == Leaves::Matrix {
-        MATRIX_LEAF
-    } else {
-        LEAF
+    let max = match leaves {
+        #[cfg(any(
+            test,
+            feature = "__internals",
+            kani,
+            not(all(
+                feature = "cache",
+                any(
+                    all(
+                        target_arch = "aarch64",
+                        target_endian = "little",
+                        target_feature = "neon"
+                    ),
+                    all(target_arch = "x86_64", target_feature = "sse2")
+                )
+            ))
+        ))]
+        Leaves::Horner => LEAF,
+        #[cfg(any(
+            test,
+            feature = "__internals",
+            kani,
+            all(
+                feature = "cache",
+                any(
+                    all(
+                        target_arch = "aarch64",
+                        target_endian = "little",
+                        target_feature = "neon"
+                    ),
+                    all(target_arch = "x86_64", target_feature = "sse2")
+                )
+            )
+        ))]
+        Leaves::Matrix => MATRIX_LEAF,
     };
     assert!(
         (1..=max).contains(&leaf),
@@ -490,7 +635,39 @@ fn node(
 ) -> Result<(), BufferTooSmall> {
     if n <= t.leaf {
         return match t.leaves {
+            #[cfg(any(
+                test,
+                feature = "__internals",
+                kani,
+                not(all(
+                    feature = "cache",
+                    any(
+                        all(
+                            target_arch = "aarch64",
+                            target_endian = "little",
+                            target_feature = "neon"
+                        ),
+                        all(target_arch = "x86_64", target_feature = "sse2")
+                    )
+                ))
+            ))]
             Leaves::Horner => leaf(x, n, pad, out),
+            #[cfg(any(
+                test,
+                feature = "__internals",
+                kani,
+                all(
+                    feature = "cache",
+                    any(
+                        all(
+                            target_arch = "aarch64",
+                            target_endian = "little",
+                            target_feature = "neon"
+                        ),
+                        all(target_arch = "x86_64", target_feature = "sse2")
+                    )
+                )
+            ))]
             Leaves::Matrix => leaf_matrix(x, n, pad, out),
         };
     }
@@ -539,6 +716,22 @@ fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8]) -> &'a [u8] {
 /// matrix's scratch and the bytes, about 38 KiB, which every level of [`node`]'s recursion
 /// would carry if this were inlined.
 // A stack-depth guard: LLVM keeps this out of line anyway (M5, x86-64, Wasm).
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    )
+))]
 #[inline(never)]
 fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
     let mut bytes = [0u8; 8 * MATRIX_LEAF];
@@ -577,6 +770,22 @@ fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), 
 // buffers: `8 x.len()` bytes and `n` slots, instead of 4 KiB here and 8 KiB in
 // `leaf_matrix`) was neutral: 0.97-1.02x in paired public encodes that reach the leaves,
 // while untouched cells moved as much or more (M5 and Zen 5, generic flags, 2026-11-08).
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    ))
+))]
 fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
     let mut bytes = [0u8; 8 * LEAF];
     let mut slots = [[0u8; 8]; LEAF];

@@ -20,6 +20,7 @@ pub(crate) mod ifma {
     const IFMA_THRESHOLD: usize = 384;
 
     /// The IFMA leaf threshold `mul` uses: 0 (none) without AVX-512 IFMA.
+    #[inline]
     #[must_use]
     pub fn ifma_threshold() -> usize {
         if mul_ifma::available() {
@@ -33,6 +34,7 @@ pub(crate) mod ifma {
 #[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
 mod ifma {
     /// The IFMA leaf threshold: this target has no native IFMA leaf.
+    #[inline]
     #[must_use]
     pub fn ifma_threshold() -> usize {
         0

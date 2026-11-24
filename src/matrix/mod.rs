@@ -231,6 +231,15 @@ pub(crate) mod internals {
 /// `dc`'s leaf in the cached NTT decoders on aarch64. Its stack frame holds [`Scratch`],
 /// which every level of `dc`'s recursion would carry if this were inlined.
 // A stack-depth guard: LLVM keeps this out of line anyway in those builds.
+#[cfg(any(
+    all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    test
+))]
 #[inline(never)]
 pub(crate) fn leaf(out: &mut [u64], digits: &[u8]) -> Option<usize> {
     let mut scratch = Scratch::new();
