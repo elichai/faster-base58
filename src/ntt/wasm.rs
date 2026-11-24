@@ -505,10 +505,9 @@ impl Kernels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ntt::tables::Tables;
     use crate::ntt::tables::tests::samples;
     use rand_xoshiro::Xoshiro256PlusPlus;
-    use rand_xoshiro::rand_core::{Rng, SeedableRng};
+    use rand_xoshiro::rand_core::SeedableRng;
 
     /// `mont` and `reduce` on edge and random lanes against the scalar ones.
     #[test]
@@ -519,7 +518,12 @@ mod tests {
             let wide = samples(&mut rng, i32::MAX, 4000);
             let wide = [&[i32::MIN, i32::MIN + 1][..], &wide].concat();
             let w = samples(&mut rng, p.q / 2 + 1, 4000);
-            for (x, w) in wide.chunks_exact(4).zip(w.chunks_exact(4).cycle()) {
+            for (x, w) in wide
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .zip(w.as_chunks::<4>().0.iter().cycle())
+            {
                 let (xv, wv) = (i32x4(x[0], x[1], x[2], x[3]), i32x4(w[0], w[1], w[2], w[3]));
                 let got = reduce(xv, qv, vv);
                 let m = mont(xv, wv, i32x4_mul(wv, qinv), qv);
@@ -540,88 +544,9 @@ mod tests {
     /// Each kernel gives exactly what the portable one gives.
     #[test]
     fn matches_portable() {
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(40);
-        let tables = Tables::new(16);
-        for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
-            let mut iw = vec![0; tw.fw().len()];
-            let iw = tw.inverse(&mut iw);
-            for log in 3..=16 {
-                let n = 1 << log;
-                let x = samples(&mut rng, p.q, n)[..n].to_vec();
-                let y = samples(&mut rng, p.q, n)[..n].to_vec();
-                let (mut a, mut b) = (x.clone(), x.clone());
-                forward(&mut a, p, tw.fw());
-                portable::forward(&mut b, p, tw.fw());
-                assert_eq!(a, b, "forward, n {n}");
-                let (mut a, mut b) = (x.clone(), x.clone());
-                inverse(&mut a, p, iw);
-                portable::inverse(&mut b, p, iw);
-                assert_eq!(a, b, "inverse, n {n}");
-                let (mut a, mut b) = (x.clone(), x.clone());
-                pointwise(&mut a, &y, p);
-                portable::pointwise(&mut b, &y, p);
-                assert_eq!(a, b, "pointwise, n {n}");
-                let (mut a, mut b) = (x.clone(), x.clone());
-                square(&mut a, p);
-                portable::square(&mut b, p);
-                assert_eq!(a, b, "square, n {n}");
-            }
-            for len in 0..=9 {
-                let limbs: Vec<u64> = (0..len).map(|_| rng.next_u64()).chain([u64::MAX]).collect();
-                let (mut a, mut b) = (vec![7; 2 * limbs.len() + 5], vec![9; 2 * limbs.len() + 5]);
-                load(&mut a, &limbs, p);
-                portable::load(&mut b, &limbs, p);
-                assert_eq!(a, b, "load, {} limbs", limbs.len());
-                let w = &tw.fw()[32..64];
-                load_twist(&mut a, &limbs, p, w);
-                portable::load_twist(&mut b, &limbs, p, w);
-                assert_eq!(a, b, "load_twist, {} limbs", limbs.len());
-                let d = samples(&mut rng, p.q, a.len())[..a.len()].to_vec();
-                for sub in [false, true] {
-                    let (mut a, mut b) = (d.clone(), d.clone());
-                    load_add(&mut a, &limbs, p, sub);
-                    portable::load_add(&mut b, &limbs, p, sub);
-                    assert_eq!(a, b, "load_add, {} limbs, sub {sub}", limbs.len());
-                }
-            }
-            let n = 4096;
-            let x = samples(&mut rng, p.q, n)[..n].to_vec();
-            let y = samples(&mut rng, p.q, n)[..n].to_vec();
-            let (mut a, mut b) = (x.clone(), x.clone());
-            twist(&mut a, &iw[n..], p);
-            portable::twist(&mut b, &iw[n..], p);
-            assert_eq!(a, b, "twist");
-            let ((mut a, mut c), (mut b, mut d)) = ((x.clone(), y.clone()), (x.clone(), y.clone()));
-            halves(&mut a, &mut c, p);
-            portable::halves(&mut b, &mut d, p);
-            assert_eq!((a, c), (b, d), "halves");
-            for (m, n) in [(8, 4), (64, 8), (1024, 256), (2048, 8)] {
-                let (mut a, mut b) = (x[..m + n].to_vec(), x[..m + n].to_vec());
-                let w = &iw[m..2 * m];
-                pair(&mut a, m, w, p);
-                portable::pair(&mut b, m, w, p);
-                assert_eq!(a, b, "pair, m {m}, n {n}");
-            }
-            for (d, start, len, neg) in [
-                (8, 8, 8, true),
-                (64, 72, 2000, true),
-                (256, 96, 3000, false),
-            ] {
-                let (mut a, mut b) = (y[..d].to_vec(), y[..d].to_vec());
-                fold_sub(&mut a, &x[..len], start, neg, p);
-                portable::fold_sub(&mut b, &x[..len], start, neg, p);
-                assert_eq!(a, b, "fold_sub, d {d}, start {start}");
-            }
-        }
+        crate::ntt::tests::check_kernels_match_portable(&Kernels::wasm());
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
         let n = 4096;
-        let r: [Vec<i32>; 3] =
-            core::array::from_fn(|i| samples(&mut rng, PRIMES[i].q, n)[..n].to_vec());
-        let (mut a, mut b) = (r.clone(), r);
-        let [a1, a2, a3] = &mut a;
-        garner([a1, a2, a3]);
-        let [b1, b2, b3] = &mut b;
-        portable::garner([b1, b2, b3]);
-        assert_eq!(a, b, "garner");
         let r1 = samples(&mut rng, PRIMES[0].q, n)[..n].to_vec();
         let r2 = samples(&mut rng, PRIMES[1].q, n)[..n].to_vec();
         let ((mut a1, mut a2), (mut b1, mut b2)) = ((r1.clone(), r2.clone()), (r1, r2));

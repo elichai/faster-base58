@@ -224,7 +224,8 @@ fn encode_parts(
 fn preflight(zeros: usize, x: &[u8], capacity: usize) -> Result<(), BufferTooSmall> {
     assert!(x.len() <= MAX_BYTES, "{} bytes for one matrix", x.len());
     debug_assert_ne!(x.first(), Some(&0));
-    if zeros > capacity || (!x.is_empty() && capacity - zeros < min_digits(bits(x))) {
+    let min = if x.is_empty() { 0 } else { min_digits(bits(x)) };
+    if capacity.checked_sub(zeros).is_none_or(|rem| rem < min) {
         return Err(BufferTooSmall);
     }
     Ok(())

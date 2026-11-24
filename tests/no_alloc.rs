@@ -212,73 +212,51 @@ fn check_buffers(input: &[u8]) {
         expected.len(),
         expected.len() + 5,
     ] {
-        for borrowed in [false, true] {
-            let mut output = vec![0xA5; capacity + 2];
-            let result = if borrowed {
-                without_allocations(|| {
-                    faster_base58::Encoder::bitcoin()
-                        .encode(input)
-                        .onto(&mut output[1..1 + capacity])
-                })
-                .map(|text| {
-                    assert_eq!(text, expected);
-                    text.len()
-                })
-            } else {
-                without_allocations(|| {
-                    faster_base58::Encoder::bitcoin()
-                        .encode(input)
-                        .onto(&mut output[1..1 + capacity])
-                        .map(str::len)
-                })
-            };
-            if capacity < expected.len() {
-                assert_eq!(result, Err(BufferTooSmall));
-            } else {
-                assert_eq!(result, Ok(expected.len()));
-                assert_eq!(&output[1..1 + expected.len()], expected.as_bytes());
-                assert!(
-                    output[1 + expected.len()..]
-                        .iter()
-                        .all(|&byte| byte == 0xA5)
-                );
-            }
-            assert_eq!(output[0], 0xA5);
-            assert_eq!(output[capacity + 1], 0xA5);
+        let mut output = vec![0xA5; capacity + 2];
+        let result = without_allocations(|| {
+            faster_base58::Encoder::bitcoin()
+                .encode(input)
+                .onto(&mut output[1..1 + capacity])
+        })
+        .map(|text| {
+            assert_eq!(text, expected);
+            text.len()
+        });
+        if capacity < expected.len() {
+            assert_eq!(result, Err(BufferTooSmall));
+        } else {
+            assert_eq!(result, Ok(expected.len()));
+            assert_eq!(&output[1..1 + expected.len()], expected.as_bytes());
+            assert!(
+                output[1 + expected.len()..]
+                    .iter()
+                    .all(|&byte| byte == 0xA5)
+            );
         }
+        assert_eq!(output[0], 0xA5);
+        assert_eq!(output[capacity + 1], 0xA5);
     }
 
     for capacity in [input.len().saturating_sub(1), input.len(), input.len() + 5] {
-        for borrowed in [false, true] {
-            let mut output = vec![0xA5; capacity + 2];
-            let result = if borrowed {
-                without_allocations(|| {
-                    faster_base58::Decoder::bitcoin()
-                        .decode(&expected)
-                        .onto(&mut output[1..1 + capacity])
-                })
-                .map(|bytes| {
-                    assert_eq!(bytes, input);
-                    bytes.len()
-                })
-            } else {
-                without_allocations(|| {
-                    faster_base58::Decoder::bitcoin()
-                        .decode(&expected)
-                        .onto(&mut output[1..1 + capacity])
-                        .map(|bytes| bytes.len())
-                })
-            };
-            if capacity < input.len() {
-                assert_eq!(result, Err(Error::BufferTooSmall));
-            } else {
-                assert_eq!(result, Ok(input.len()));
-                assert_eq!(&output[1..1 + input.len()], input);
-                assert!(output[1 + input.len()..].iter().all(|&byte| byte == 0xA5));
-            }
-            assert_eq!(output[0], 0xA5);
-            assert_eq!(output[capacity + 1], 0xA5);
+        let mut output = vec![0xA5; capacity + 2];
+        let result = without_allocations(|| {
+            faster_base58::Decoder::bitcoin()
+                .decode(&expected)
+                .onto(&mut output[1..1 + capacity])
+        })
+        .map(|bytes| {
+            assert_eq!(bytes, input);
+            bytes.len()
+        });
+        if capacity < input.len() {
+            assert_eq!(result, Err(Error::BufferTooSmall));
+        } else {
+            assert_eq!(result, Ok(input.len()));
+            assert_eq!(&output[1..1 + input.len()], input);
+            assert!(output[1 + input.len()..].iter().all(|&byte| byte == 0xA5));
         }
+        assert_eq!(output[0], 0xA5);
+        assert_eq!(output[capacity + 1], 0xA5);
     }
 }
 

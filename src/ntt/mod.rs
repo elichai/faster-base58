@@ -387,26 +387,23 @@ impl Multiplier for Ntt {
     }
 
     fn mul_power(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
-        match self.powers.get(i) {
-            // `b` is the prepared power, and the product fits its transforms, so also the
-            // tables. When `a` is `b`, the square takes `a`'s transforms from them too.
-            Some(Some(f))
-                if f.is(b)
-                    && a.len() >= self.prepared_threshold
-                    && log_len(a.len() + b.len()) <= f.log =>
-            {
-                // Preparing `f` initialized the tables, and `prepare` clears both.
-                transform(
-                    out,
-                    a,
-                    b,
-                    s,
-                    self.initialized_tables(),
-                    &self.kernels,
-                    Some(f),
-                )
-            }
-            _ => self.mul(out, a, b, s),
+        // `b` is the prepared power, and the product fits its transforms, so also the
+        // tables. When `a` is `b`, the square takes `a`'s transforms from them too.
+        if let Some(f) = self.powers.get(i).and_then(Option::as_ref).filter(|f| {
+            f.is(b) && a.len() >= self.prepared_threshold && log_len(a.len() + b.len()) <= f.log
+        }) {
+            // Preparing `f` initialized the tables, and `prepare` clears both.
+            transform(
+                out,
+                a,
+                b,
+                s,
+                self.initialized_tables(),
+                &self.kernels,
+                Some(f),
+            );
+        } else {
+            self.mul(out, a, b, s);
         }
     }
 
@@ -442,10 +439,11 @@ impl Multiplier for Ntt {
         s: &mut [u64],
     ) {
         self.ensure_tables();
-        let f = match self.powers.get(i) {
-            Some(Some(f)) if f.is(b) && log_len(out.len()) <= f.log => Some(f),
-            _ => None,
-        };
+        let f = self
+            .powers
+            .get(i)
+            .and_then(Option::as_ref)
+            .filter(|f| f.is(b) && log_len(out.len()) <= f.log);
         wrapped(out, a, b, s, self.initialized_tables(), &self.kernels, f);
     }
 }
@@ -1875,5 +1873,100 @@ mod tests {
     /// `1 / x mod q`.
     fn inverse(x: i64, q: i64) -> i64 {
         crate::ntt::tables::tests::pow(x.rem_euclid(q) as u64, q as u64 - 2, q as u64) as i64
+    }
+
+    /// Checks every kernel in `k` bit-for-bit against [`Kernels::portable`].
+    #[cfg(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
+    ))]
+    pub(super) fn check_kernels_match_portable(k: &Kernels) {
+        use crate::ntt::tables::tests::samples;
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(40);
+        let tables = Tables::new(16);
+        for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
+            let mut iw = vec![0; tw.fw().len()];
+            let iw = tw.inverse(&mut iw);
+            for log in 3..=16 {
+                let n = 1 << log;
+                let x = samples(&mut rng, p.q, n)[..n].to_vec();
+                let y = samples(&mut rng, p.q, n)[..n].to_vec();
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.forward)(&mut a, p, tw.fw());
+                portable::forward(&mut b, p, tw.fw());
+                assert_eq!(a, b, "forward, n {n}");
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.inverse)(&mut a, p, iw);
+                portable::inverse(&mut b, p, iw);
+                assert_eq!(a, b, "inverse, n {n}");
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.pointwise)(&mut a, &y, p);
+                portable::pointwise(&mut b, &y, p);
+                assert_eq!(a, b, "pointwise, n {n}");
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.square)(&mut a, p);
+                portable::square(&mut b, p);
+                assert_eq!(a, b, "square, n {n}");
+            }
+            for len in 0..=9 {
+                let limbs: Vec<u64> = (0..len).map(|_| rng.next_u64()).chain([u64::MAX]).collect();
+                let (mut a, mut b) = (vec![7; 2 * limbs.len() + 5], vec![9; 2 * limbs.len() + 5]);
+                (k.load)(&mut a, &limbs, p);
+                portable::load(&mut b, &limbs, p);
+                assert_eq!(a, b, "load, {} limbs", limbs.len());
+                let w = &tw.fw()[32..64];
+                (k.load_twist)(&mut a, &limbs, p, w);
+                portable::load_twist(&mut b, &limbs, p, w);
+                assert_eq!(a, b, "load_twist, {} limbs", limbs.len());
+                let d = samples(&mut rng, p.q, a.len())[..a.len()].to_vec();
+                for sub in [false, true] {
+                    let (mut a, mut b) = (d.clone(), d.clone());
+                    (k.load_add)(&mut a, &limbs, p, sub);
+                    portable::load_add(&mut b, &limbs, p, sub);
+                    assert_eq!(a, b, "load_add, {} limbs, sub {sub}", limbs.len());
+                }
+            }
+            let n = 4096;
+            let x = samples(&mut rng, p.q, n)[..n].to_vec();
+            let y = samples(&mut rng, p.q, n)[..n].to_vec();
+            let (mut a, mut b) = (x.clone(), x.clone());
+            (k.twist)(&mut a, &iw[n..], p);
+            portable::twist(&mut b, &iw[n..], p);
+            assert_eq!(a, b, "twist");
+            let ((mut a, mut c), (mut b, mut d)) = ((x.clone(), y.clone()), (x.clone(), y.clone()));
+            (k.halves)(&mut a, &mut c, p);
+            portable::halves(&mut b, &mut d, p);
+            assert_eq!((a, c), (b, d), "halves");
+            for (m, n) in [(8, 4), (64, 8), (1024, 256), (2048, 8)] {
+                let (mut a, mut b) = (x[..m + n].to_vec(), x[..m + n].to_vec());
+                let w = &iw[m..2 * m];
+                (k.pair)(&mut a, m, w, p);
+                portable::pair(&mut b, m, w, p);
+                assert_eq!(a, b, "pair, m {m}, n {n}");
+            }
+            for (d, start, len, neg) in [
+                (8, 8, 8, true),
+                (64, 72, 2000, true),
+                (256, 96, 3000, false),
+            ] {
+                let (mut a, mut b) = (y[..d].to_vec(), y[..d].to_vec());
+                (k.fold_sub)(&mut a, &x[..len], start, neg, p);
+                portable::fold_sub(&mut b, &x[..len], start, neg, p);
+                assert_eq!(a, b, "fold_sub, d {d}, start {start}");
+            }
+        }
+        let n = 4096;
+        let r: [Vec<i32>; 3] =
+            core::array::from_fn(|i| samples(&mut rng, PRIMES[i].q, n)[..n].to_vec());
+        let (mut a, mut b) = (r.clone(), r);
+        let [a1, a2, a3] = &mut a;
+        (k.garner)([a1, a2, a3]);
+        let [b1, b2, b3] = &mut b;
+        portable::garner([b1, b2, b3]);
+        assert_eq!(a, b, "garner");
     }
 }

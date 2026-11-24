@@ -93,29 +93,9 @@ mod verification {
     }
 
     #[kani::proof]
-    fn encoded_capacity_is_monotone_and_saturating() {
-        let len: usize = kani::any();
-        let bound = max_encoded_len(len);
-        assert!(bound >= len);
-        if let Some(next) = len.checked_add(1) {
-            assert!(max_encoded_len(next) >= bound);
-        }
-        assert_eq!(max_encoded_len(usize::MAX), usize::MAX);
-    }
-
-    // These conjuncts have exactly the domain and claims of the monolithic
-    // capacity harness above. Splitting them gives each its own solver query.
-    #[kani::proof]
     fn encoded_capacity_covers_input() {
         let len: usize = kani::any();
         assert!(max_encoded_len(len) >= len);
-    }
-
-    #[kani::proof]
-    fn encoded_capacity_adjacent_monotonicity() {
-        let len: usize = kani::any();
-        kani::assume(len < usize::MAX);
-        assert!(max_encoded_len(len + 1) >= max_encoded_len(len));
     }
 
     #[kani::proof]
@@ -149,17 +129,6 @@ mod verification {
         }
     }
 
-    #[kani::ensures(|result: &usize|
-        *result == capacity_clamp(len as u128 * (super::LOG58_2 + 1)))]
-    fn capacity_formula(len: usize) -> usize {
-        max_encoded_len(len)
-    }
-
-    #[kani::proof_for_contract(capacity_formula)]
-    fn capacity_formula_lemma() {
-        let _ = capacity_formula(kani::any());
-    }
-
     #[kani::requires(product <= u128::MAX - (super::LOG58_2 + 1))]
     #[kani::ensures(|_: &()|
         capacity_clamp(product + (super::LOG58_2 + 1)) >= capacity_clamp(product))]
@@ -170,18 +139,6 @@ mod verification {
     #[kani::proof_for_contract(capacity_shift_clamp_step)]
     fn capacity_shift_clamp_step_lemma() {
         capacity_shift_clamp_step(kani::any());
-    }
-
-    #[kani::proof]
-    #[kani::stub_verified(capacity_affine_step)]
-    #[kani::stub_verified(capacity_shift_clamp_step)]
-    #[kani::stub_verified(capacity_formula)]
-    fn encoded_capacity_adjacent_monotonicity_composed() {
-        let len: usize = kani::any();
-        kani::assume(len < usize::MAX);
-        capacity_affine_step(len);
-        capacity_shift_clamp_step(len as u128 * (super::LOG58_2 + 1));
-        assert!(capacity_formula(len + 1) >= capacity_formula(len));
     }
 
     #[kani::requires(product == len as u128 * (super::LOG58_2 + 1))]

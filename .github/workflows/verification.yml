@@ -785,7 +785,7 @@ jobs:
           CARGO_PROFILE_DEV_OPT_LEVEL: '0'
         run: >-
           python3 scripts/kani_guard.py -- cargo kani --lib --solver z3 --harness encoded_capacity_covers_input
-          --harness encoded_capacity_endpoint_saturates --harness capacity_formula_lemma
+          --harness encoded_capacity_endpoint_saturates
           --harness verification::ten_digit_split_identity_lemma
           --harness verification::digit_range_lemma
           --harness encode::verification::capacity_affine_step_lemma

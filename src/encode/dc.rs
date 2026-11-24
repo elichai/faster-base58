@@ -16,23 +16,6 @@ use core::cmp::Ordering;
     test,
     feature = "__internals",
     kani,
-    not(all(
-        feature = "cache",
-        any(
-            all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            ),
-            all(target_arch = "x86_64", target_feature = "sse2")
-        )
-    ))
-))]
-use super::{batched::Limbs, ten_digits};
-#[cfg(any(
-    test,
-    feature = "__internals",
-    kani,
     all(
         feature = "cache",
         any(
@@ -46,8 +29,26 @@ use super::{batched::Limbs, ten_digits};
     )
 ))]
 use super::matrix;
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    ))
+))]
+use super::{batched::Limbs, ten_digits};
 use super::{bits, min_digits, split_zeros};
 use crate::BufferTooSmall;
+use crate::common::CHUNK;
 #[cfg(any(
     test,
     feature = "__internals",
@@ -65,7 +66,6 @@ use crate::BufferTooSmall;
     )
 ))]
 use crate::common::store_low_le;
-use crate::common::CHUNK;
 #[cfg(any(
     test,
     feature = "__internals",
@@ -341,7 +341,7 @@ pub(crate) fn encode_staged(
 fn load(x: &[u8], zeros: usize, capacity: usize) -> Result<(Vec<u64>, usize), BufferTooSmall> {
     assert!(!x.is_empty() && x[0] != 0, "expected a nonzero value");
     let min = min_digits(bits(x));
-    if zeros > capacity || capacity - zeros < min {
+    if capacity.checked_sub(zeros).is_none_or(|rem| rem < min) {
         return Err(BufferTooSmall);
     }
     // `x < 58^(min + 2) <= BASE^n`.
@@ -706,8 +706,8 @@ fn node_scratch_len(divs: &[Divisor<'_>], m: &impl Multiplier) -> usize {
 /// `8 n` bytes: `x < 2^(64 n)`, so it has at most `n` limbs.
 fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8]) -> &'a [u8] {
     let bytes = &mut buf[..8 * x.len()];
-    for (b, l) in bytes.rchunks_exact_mut(8).zip(x) {
-        b.copy_from_slice(&l.to_be_bytes());
+    for (b, l) in bytes.as_rchunks_mut::<8>().1.iter_mut().rev().zip(x) {
+        *b = l.to_be_bytes();
     }
     split_zeros(bytes).1
 }

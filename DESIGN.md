@@ -8,10 +8,9 @@ generated tables. See [correctness and verification](CORRECTNESS.md),
 [measurements](docs/performance.md), and [implementation references](REFERENCES.md).
 
 Automatic backend policy lives in `src/api.rs`. Its encode/decode selectors are
-shared by plain and checked buffer calls. Plain decoding tests the same small
-cutoff directly before matching the large backend, keeping enum classification
-off the small path. Fixed-size encoding and tiny decoding run before general
-selection; their wrappers preserve the specialized input contracts.
+shared by plain and checked buffer calls. Fixed-size encoding and tiny decoding
+run before general selection; their wrappers preserve the specialized input
+contracts.
 
 Decoders take raw bytes and return a crate-private two-variant error; only the
 public terminal methods convert it to `Error`. Kernels that can fail only on
@@ -43,7 +42,7 @@ zero limbs using `58^k = 2^k * 29^k`, reducing multiplication work.
 [Batched decoding](src/batched.rs) keeps its top limb separate so an exactly
 sized output buffer suffices. [Encoding](src/encode/batched.rs) stores temporary
 limbs inside the eventual output and uses reciprocal splitting by `58^10`.
-Each ten-character chunk is formatted as two five-character groups, reusing the
+Each ten-character chunk is formatted as five two-character pairs, reusing the
 two-character lookup table to avoid dividing by 58 for each digit.
 The public paths handle empty and tiny inputs before the general loops.
 

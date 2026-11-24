@@ -101,31 +101,10 @@ pub(super) fn panel(acc: &mut [u64], words: &[u32], d: &[u32; 8]) {
 mod tests {
     use super::super::portable;
     use super::*;
-    use crate::tests::random_string;
-    use rand_xoshiro::Xoshiro256PlusPlus;
-    use rand_xoshiro::rand_core::{Rng, SeedableRng};
 
     #[test]
     fn parse_matches_portable() {
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(10);
-        for n in (0..=100).chain([255, 256, 257, 1000]) {
-            let valid = random_string(&mut rng, n);
-            let mut inputs = vec![valid.clone()];
-            if n > 0 {
-                // One invalid byte, anywhere: only the result flag must agree.
-                let pos = rng.next_u32() as usize % n;
-                inputs.push(format!("{}0{}", &valid[..pos], &valid[pos + 1..]));
-            }
-            for s in inputs {
-                let len = 4 * s.len().div_ceil(16);
-                let (mut a, mut b) = (vec![0; len], vec![0; len]);
-                let ok = portable::parse(s.as_bytes(), &mut b);
-                assert_eq!(parse(s.as_bytes(), &mut a), ok, "{s:?}");
-                if ok {
-                    assert_eq!(a, b, "{s:?}");
-                }
-            }
-        }
+        super::super::tests::check_parse_matches_portable(parse);
     }
 
     /// Every byte value at every position of a block, against the scalar flag.
@@ -149,15 +128,6 @@ mod tests {
 
     #[test]
     fn panel_matches_portable() {
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(11);
-        for nb in [0, 1, 2, 7, 50] {
-            let acc: Vec<u64> = (0..4 * nb).map(|_| rng.next_u64() >> 24).collect();
-            let words: Vec<u32> = (0..32 * nb).map(|_| rng.next_u32()).collect();
-            let d: [u32; 8] = core::array::from_fn(|_| rng.next_u32() % 58u32.pow(4));
-            let (mut a, mut b) = (acc.clone(), acc);
-            panel(&mut a, &words, &d);
-            portable::panel(&mut b, &words, &d);
-            assert_eq!(a, b, "nb {nb}");
-        }
+        super::super::tests::check_panel_matches_portable(panel);
     }
 }
