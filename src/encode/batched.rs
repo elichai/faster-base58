@@ -90,34 +90,52 @@ pub(crate) fn encode_segments(
         top: 0,
     };
     let significant = parts.iter().map(|part| part.len()).sum::<usize>() - zeros;
-    let mut bytes = parts
-        .iter()
-        .flat_map(|part| part.iter().copied())
-        .skip(zeros);
-    let mut chunk = [0; 2 * STEP];
+    let mut skip = zeros;
+    let mut pending = [0u8; 2 * STEP];
+    let mut plen = 0;
     let head = significant % STEP;
-    if head != 0 {
-        for byte in &mut chunk[..head] {
-            *byte = bytes.next().expect("frame length includes the head");
+    let mut want = if head != 0 { head } else { 2 * STEP };
+    for &part in parts {
+        let drop = skip.min(part.len());
+        skip -= drop;
+        let mut s = &part[drop..];
+        if plen != 0 {
+            let take = (want - plen).min(s.len());
+            pending[plen..plen + take].copy_from_slice(&s[..take]);
+            plen += take;
+            s = &s[take..];
+            if plen == want {
+                limbs.feed(&pending[..want]);
+                plen = 0;
+                want = 2 * STEP;
+            }
         }
-        limbs.feed(&chunk[..head]);
+        if plen == 0 && s.len() >= want {
+            if want != 2 * STEP {
+                limbs.feed(&s[..want]);
+                s = &s[want..];
+                want = 2 * STEP;
+            }
+            let bulk = s.len() / (2 * STEP) * (2 * STEP);
+            if bulk != 0 {
+                limbs.feed(&s[..bulk]);
+                s = &s[bulk..];
+            }
+        }
+        if !s.is_empty() {
+            pending[plen..plen + s.len()].copy_from_slice(s);
+            plen += s.len();
+        }
     }
-    loop {
-        let mut len = 0;
-        for byte in &mut chunk {
-            let Some(next) = bytes.next() else { break };
-            *byte = next;
-            len += 1;
-        }
-        if len == 0 {
-            break;
-        }
-        debug_assert!(len == STEP || len == 2 * STEP);
-        limbs.feed(&chunk[..len]);
+    if plen != 0 {
+        debug_assert!(plen == STEP || plen == 2 * STEP);
+        limbs.feed(&pending[..plen]);
     }
     let Limbs { len, top, .. } = limbs;
     let n = write(rest, anchor, len, top)?;
-    ones.fill(b'1');
+    if zeros != 0 {
+        ones.fill(b'1');
+    }
     Ok(zeros + n)
 }
 

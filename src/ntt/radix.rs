@@ -228,7 +228,7 @@ fn encode_value(
             &owned
         }
     };
-    let power_capacity = |bytes| crate::encode::max_encoded_len(bytes + 1).div_ceil(3);
+    let power_capacity = |bytes| crate::encode::max_encoded_len(bytes).div_ceil(3);
     // Product slots need their untrimmed length, even when the power loses a digit.
     let storage_len = power_capacity(unit)
         + (1..levels)
@@ -363,8 +363,9 @@ impl Arithmetic<'_, '_> {
         }
         let len = a.len() + b.len();
         let out = &mut out[..len];
-        if a == [1] {
-            carry(out, |i| b.get(i).map_or(0, |&d| d as u64), add_len);
+        if let &[a0] = a {
+            let a0 = a0 as u64;
+            carry(out, |i| b.get(i).map_or(0, |&d| d as u64 * a0), add_len);
         } else if a.len().min(b.len()) < THRESHOLD {
             self.sums.clear();
             self.sums.resize(len, 0);
@@ -540,19 +541,27 @@ fn leaf_into(bytes: &[u8], out: &mut [u32]) -> usize {
         return 0;
     }
     let mut len = 0;
-    for chunk in bytes.chunks(5) {
-        let bits = 8 * chunk.len();
-        let mut carry = chunk.iter().fold(0u64, |c, &b| (c << 8) | b as u64);
+    let mut feed = |value: u64, bits: u32| {
+        let mut carry = value;
         for d in &mut out[..len] {
-            let value = ((*d as u64) << bits) + carry;
-            *d = (value % BASE as u64) as u32;
-            carry = value / BASE as u64;
+            let v = ((*d as u64) << bits) + carry;
+            *d = (v % BASE as u64) as u32;
+            carry = v / BASE as u64;
         }
         while carry != 0 {
             out[len] = (carry % BASE as u64) as u32;
             len += 1;
             carry /= BASE as u64;
         }
+    };
+    let (chunks, rem) = bytes.as_chunks::<5>();
+    for chunk in chunks {
+        let value = chunk.iter().fold(0u64, |c, &b| (c << 8) | b as u64);
+        feed(value, 40);
+    }
+    if !rem.is_empty() {
+        let value = rem.iter().fold(0u64, |c, &b| (c << 8) | b as u64);
+        feed(value, 8 * rem.len() as u32);
     }
     len
 }
@@ -582,32 +591,33 @@ fn convert(
     arithmetic.multiply_add(&high[..hi_len], p.digits, out, lo_len, p.spectrum)
 }
 
+#[inline(always)]
+fn three_digits(digit: u32) -> [u8; 3] {
+    debug_assert!(digit < BASE);
+    let [a, b] = crate::encode::matrix::CHAR_PAIRS[(digit / 58) as usize];
+    [a, b, ALPHABET[(digit % 58) as usize]]
+}
+
 fn write(zeros: usize, digits: &[u32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    let head = digits.last().copied().unwrap_or(0);
-    let head_len = if head == 0 {
-        0
-    } else if head < 58 {
-        1
-    } else if head < 58 * 58 {
-        2
-    } else {
-        3
+    let Some((&head, rest)) = digits.split_last() else {
+        let out = output.get_mut(..zeros).ok_or(BufferTooSmall)?;
+        if zeros != 0 {
+            out.fill(b'1');
+        }
+        return Ok(zeros);
     };
-    let len = zeros + digits.len().saturating_sub(1) * 3 + head_len;
-    if output.len() < len {
-        return Err(BufferTooSmall);
+    let head_chars = three_digits(head);
+    let skip = head_chars.iter().take_while(|&&c| c == b'1').count();
+    let head_len = 3 - skip;
+    let len = zeros + head_len + 3 * rest.len();
+    let out = output.get_mut(..len).ok_or(BufferTooSmall)?;
+    let (prefix, body) = out.split_at_mut(zeros + head_len);
+    if zeros != 0 {
+        prefix[..zeros].fill(b'1');
     }
-    output[..zeros].fill(b'1');
-    let mut at = zeros;
-    for (i, &digit) in digits.iter().rev().enumerate() {
-        let chars = [
-            ALPHABET[(digit / (58 * 58)) as usize],
-            ALPHABET[(digit / 58 % 58) as usize],
-            ALPHABET[(digit % 58) as usize],
-        ];
-        let chars = &chars[if i == 0 { 3 - head_len } else { 0 }..];
-        output[at..at + chars.len()].copy_from_slice(chars);
-        at += chars.len();
+    prefix[zeros..].copy_from_slice(&head_chars[skip..]);
+    for (dst, &digit) in body.as_chunks_mut::<3>().0.iter_mut().zip(rest.iter().rev()) {
+        *dst = three_digits(digit);
     }
     Ok(len)
 }
@@ -871,6 +881,19 @@ mod tests {
                     assert_eq!(
                         multiply_add(&mut arithmetic, &[1], &b, &add, Some(fb)),
                         one_sum
+                    );
+                    let max_digit = [BASE - 1];
+                    let single_sum: Vec<u32> =
+                        (&value(&max_digit) * &value(&b) + value(&add)).to_digits_asc(&BASE);
+                    let sums_cap = arithmetic.sums.capacity();
+                    assert_eq!(
+                        multiply_add(&mut arithmetic, &max_digit, &b, &add, Some(fb)),
+                        single_sum
+                    );
+                    assert_eq!(
+                        arithmetic.sums.capacity(),
+                        sums_cap,
+                        "single-digit multiply_add must not grow sums"
                     );
                     assert_eq!(multiply_add(&mut arithmetic, &[], &b, &add, Some(fb)), add);
                 }

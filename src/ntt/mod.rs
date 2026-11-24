@@ -849,8 +849,13 @@ fn pieces(
             if plan.k > 1
                 && let Some(w) = w
             {
-                let iw = &mut tmp[..d];
-                tables::invert_roots(iw, w);
+                let iw = if 2 * d <= tw.iw().len() {
+                    &tw.iw()[d..2 * d]
+                } else {
+                    let iw = &mut tmp[..d];
+                    tables::invert_roots(iw, w);
+                    iw
+                };
                 (k.twist)(x, iw, p);
             }
         };
@@ -863,8 +868,13 @@ fn pieces(
         product(rest, None);
         match *plan.nega() {
             [m] => {
-                let iw = &mut tmp[..m];
-                tables::invert_roots(iw, &tw.fw()[m..2 * m]);
+                let iw = if 2 * m <= tw.iw().len() {
+                    &tw.iw()[m..2 * m]
+                } else {
+                    let iw = &mut tmp[..m];
+                    tables::invert_roots(iw, &tw.fw()[m..2 * m]);
+                    iw
+                };
                 (k.pair)(r, m, iw, p);
             }
             ref nega => crt(r, nega, p, k),

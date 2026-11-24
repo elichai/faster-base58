@@ -37,15 +37,15 @@ pub(crate) fn encode(
             pos += part.len();
         }
     };
-    // Preserve the fixed-size kernels, copying only their small input on the stack.
+    // Preserve the fixed-size kernels, staging directly on the stack.
     if total == 32 {
-        stage(output);
-        let bytes: [u8; 32] = *output.first_chunk().unwrap();
+        let mut bytes = [0; 32];
+        stage(&mut bytes);
         return crate::api::encode(&bytes, output);
     }
     if total == 64 {
-        stage(output);
-        let bytes: [u8; 64] = *output.first_chunk().unwrap();
+        let mut bytes = [0; 64];
+        stage(&mut bytes);
         return crate::api::encode(&bytes, output);
     }
     let first = parts
@@ -60,10 +60,15 @@ pub(crate) fn encode(
         ),
         None => (total, 0),
     };
-    match crate::api::encode_backend(total - zeros) {
-        EncodeBackend::Batched => {
-            crate::encode::batched::encode_segments(zeros, bits, &parts, output)
-        }
+    let backend = crate::api::encode_backend(total - zeros);
+    if matches!(backend, EncodeBackend::Batched) {
+        return crate::encode::batched::encode_segments(zeros, bits, &parts, output);
+    }
+    if bits != 0 && output.len() - zeros < crate::encode::min_digits(bits) {
+        return Err(BufferTooSmall);
+    }
+    match backend {
+        EncodeBackend::Batched => unreachable!(),
         #[cfg(feature = "cache")]
         EncodeBackend::Matrix => {
             stage(output);

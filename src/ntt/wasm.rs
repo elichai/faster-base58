@@ -321,9 +321,10 @@ pub(super) fn garner_two(r1: &mut [i32], r2: &mut [i32]) {
     assert!(n == r2.len() && n.is_multiple_of(4));
     let [p1, p2, _] = PRIMES;
     let (q1, q2) = (i32x4_splat(p1.q), i32x4_splat(p2.q));
-    let k = [q2, i32x4_splat(GARNER.c12), i32x4_splat(GARNER.c12q)];
+    let c12q = i32x4_splat(GARNER.c12q);
+    let k = [q2, i32x4_splat(GARNER.c12)];
     for i in (0..n).step_by(4) {
-        let [q2, c12, c12q] = fresh(&k);
+        let [q2, c12] = fresh(&k);
         // SAFETY: `i + 4 <= n` for both slices.
         unsafe {
             let a = normalize(ld(r1.as_ptr().add(i)), q1);
