@@ -322,7 +322,14 @@ mod tests {
         if !avx2() {
             return;
         }
-        let wide = vbmi();
+        let wide = crate::cpu::avx512f();
+        if !wide {
+            assert!(
+                std::env::var_os("BASE58_REQUIRE_IFMA").is_none(),
+                "no AVX-512F"
+            );
+            eprintln!("no AVX-512F on this CPU: cols_512 not run");
+        }
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(45);
         let mut inputs: Vec<[u8; 64]> = [0, 1, 0x80, 0xFF].map(|b| [b; 64]).to_vec();
         inputs.extend((0..1000).map(|_| core::array::from_fn(|_| rng.next_u32() as u8)));

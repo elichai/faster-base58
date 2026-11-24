@@ -44,6 +44,7 @@ pub const fn max_encoded_len(len: usize) -> usize {
 /// the actual count: the value is at least 2^(bits - 1), and below 2^bits, whose digit
 /// count is at most one more.
 pub(crate) fn min_digits(bits: u64) -> usize {
+    debug_assert!(bits > 0);
     // `LOG58_2` rounds down, which loses at most one digit while `bits < 2^64`.
     (((bits - 1) as u128 * LOG58_2) >> 64) as usize + 1
 }

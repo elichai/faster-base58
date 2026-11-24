@@ -424,6 +424,7 @@ fn digits(cols: &[u64], out: &mut [[u8; 4]]) {
 ))]
 #[inline(always)]
 pub(super) fn four_digits(c: u64) -> [u8; 4] {
+    debug_assert!(c < COL_BASE);
     let c = c as u32;
     let [a, b] = CHAR_PAIRS[(c / 3364) as usize];
     let [d, e] = CHAR_PAIRS[(c % 3364) as usize];

@@ -72,16 +72,6 @@ unsafe impl GlobalAlloc for Counting {
     }
 }
 
-#[cfg(any(
-    not(feature = "alloc"),
-    feature = "check",
-    feature = "__internals",
-    all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    )
-))]
 fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     assert!(!ACTIVE.get());
     CALLS.set([0; 4]);
@@ -93,7 +83,6 @@ fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     (result, CALLS.get())
 }
 
-#[cfg(any(not(feature = "alloc"), feature = "check"))]
 fn without_allocations<T>(call: impl FnOnce() -> T) -> T {
     let (result, calls) = observe(call);
     assert_eq!(
@@ -723,4 +712,21 @@ fn owned_ntt_tables_use_one_allocation_per_prime() {
         "three prime tables and one conversion workspace: {calls:?}"
     );
     assert_eq!(calls[2], 0, "fixed table storage must not reallocate");
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn empty_owned_conversions_do_not_allocate() {
+    assert_eq!(
+        without_allocations(|| faster_base58::Encoder::bitcoin().encode([]).into_string()),
+        ""
+    );
+    assert_eq!(
+        without_allocations(|| faster_base58::Encoder::bitcoin().encode([]).into_vec()),
+        Vec::<u8>::new()
+    );
+    assert_eq!(
+        without_allocations(|| faster_base58::Decoder::bitcoin().decode("").into_vec()),
+        Ok(Vec::new())
+    );
 }

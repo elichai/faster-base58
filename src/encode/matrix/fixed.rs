@@ -279,9 +279,10 @@ pub(super) fn carry_split<const C: usize, const K: usize>(
     (!serial).then_some(out)
 }
 
-/// The number of leading zero bytes of `x`.
+/// The number of leading zero bytes of `x`. Requires `N` to be a multiple of 8.
 #[inline(always)]
 pub(super) fn leading_zeros<const N: usize>(x: &[u8; N]) -> usize {
+    const { assert!(N.is_multiple_of(8)) };
     for (i, c) in x.as_chunks::<8>().0.iter().enumerate() {
         let w = u64::from_be_bytes(*c);
         if w != 0 {
@@ -294,6 +295,7 @@ pub(super) fn leading_zeros<const N: usize>(x: &[u8; N]) -> usize {
 /// The number of leading `'1'`s of `chars`. Requires a multiple of 8 bytes.
 #[inline(always)]
 fn leading_ones(chars: &[u8]) -> usize {
+    debug_assert!(chars.len().is_multiple_of(8));
     for (i, c) in chars.as_chunks::<8>().0.iter().enumerate() {
         let w = u64::from_le_bytes(*c) ^ u64::from_le_bytes([b'1'; 8]);
         if w != 0 {

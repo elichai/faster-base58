@@ -111,6 +111,9 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
     #[cfg(feature = "alloc")]
     pub fn into_vec(self) -> Vec<u8> {
         let input = self.input.as_ref();
+        if input.is_empty() && matches!(self.encoder.check, Check::None) {
+            return Vec::new();
+        }
         let mut output = vec![0; self.encoder.max_encoded_len(input.len())];
         let len = match (self.encoder.alphabet, self.encoder.check) {
             (Alphabet::Bitcoin, Check::None) => crate::api::encode(input, &mut output),
