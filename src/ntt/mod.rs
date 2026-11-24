@@ -946,8 +946,8 @@ fn crt(r: &mut [i32], nega: &[usize], p: Prime, k: &Kernels) {
 /// The scratch limbs from the first 64-byte boundary, at most 7 limbs in, as twice as
 /// many `i32`s: vector loads and stores that cross a cache line are slower.
 fn as_i32(s: &mut [u64]) -> &mut [i32] {
-    let skip = s.as_ptr().addr().wrapping_neg() % 64 / 8;
-    let s = &mut s[skip..];
+    let skip = s.as_ptr().align_offset(64);
+    let s = if skip < 8 { &mut s[skip..] } else { s };
     // SAFETY: `u64` is at least as aligned as `i32`, the new slice covers the same
     // bytes, every bit pattern is a valid `i32`, and the borrow of `s` moves into it.
     unsafe { core::slice::from_raw_parts_mut(s.as_mut_ptr().cast(), 2 * s.len()) }
@@ -1193,7 +1193,9 @@ mod tests {
             let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len(n) + 7];
             for skip in 0..8 {
                 let s = &mut scratch[skip..][..scratch_len(n)];
-                assert_eq!(as_i32(s).as_ptr().addr() % 64, 0);
+                if align_of::<u64>() >= 8 {
+                    assert_eq!(as_i32(s).as_ptr().addr() % 64, 0);
+                }
                 let mut got = vec![0; 2 * n];
                 mul_with(&mut got, &a, &b, s, &t, &k, 1);
                 assert!(got == want, "{n} limbs, scratch {skip} limbs in");

@@ -408,17 +408,23 @@ pub(crate) fn table_len(unit: usize, levels: usize) -> usize {
         + unit
 }
 
+/// At least the limbs of `BASE^e`: `BASE < 2^59`, so `ceil(59 e / 64)`.
+/// Split by 64 so `59 * e` cannot overflow 32-bit `usize`.
+pub(crate) const fn full_limbs(e: usize) -> usize {
+    59 * (e / 64) + (59 * (e % 64)).div_ceil(64)
+}
+
 /// At most the limbs a [`Power`] keeps of `BASE^e`. `BASE < 2^59`, and
 /// `BASE^e = 2^(10e) * 29^(10e)` ends in exactly `10e` zero bits, so dropping its low
 /// zero limbs leaves at most `ceil(59e/64) - floor(10e/64)`.
-fn stored(e: usize) -> usize {
-    (59 * e).div_ceil(64) - 10 * e / 64
+const fn stored(e: usize) -> usize {
+    full_limbs(e) - (10 * (e / 64) + 10 * (e % 64) / 64)
 }
 
 /// The longest product with the power `BASE^e` when it is stored in `stored` limbs: the
 /// other operand is below `BASE^e < 2^(59 e)` (see [`dc`]).
-fn product_len(e: usize, stored: usize) -> usize {
-    (59 * e).div_ceil(64) + stored
+const fn product_len(e: usize, stored: usize) -> usize {
+    full_limbs(e) + stored
 }
 
 /// `BASE^(unit * 2^i)` for `i < levels`, stored in `table`, which needs
@@ -763,6 +769,22 @@ mod tests {
             let mut out = vec![0; want.len()];
             assert_eq!(decode(&s, &mut out), Ok(want.len()), "{d} digits");
             assert_eq!(out, want);
+        }
+    }
+
+    #[test]
+    fn limb_bounds_do_not_overflow_usize() {
+        for e in (0..=130).chain([
+            u32::MAX as usize / 59,
+            u32::MAX as usize / 59 + 1,
+            u32::MAX as usize,
+            usize::MAX / 59 + 1,
+            usize::MAX,
+        ]) {
+            let want_full = (59 * e as u128).div_ceil(64) as usize;
+            let want_stored = want_full - (10 * e as u128 / 64) as usize;
+            assert_eq!(full_limbs(e), want_full, "e = {e}");
+            assert_eq!(stored(e), want_stored, "e = {e}");
         }
     }
 }

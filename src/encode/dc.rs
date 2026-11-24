@@ -16,7 +16,9 @@ use super::batched::Limbs;
 use super::{bits, matrix, min_digits, split_zeros, ten_digits};
 use crate::BufferTooSmall;
 use crate::common::{CHUNK, store_low_le};
-use crate::dc::{LEAF, Multiplier, Power, powers, split_unit_leaf, table_len, trimmed_len};
+use crate::dc::{
+    LEAF, Multiplier, Power, full_limbs as full, powers, split_unit_leaf, table_len, trimmed_len,
+};
 use crate::mul::{add_assign, fold_wrapped, sub_assign};
 
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
@@ -271,11 +273,6 @@ fn encode_limbs(
     Ok(zeros + out.pos)
 }
 
-/// At least the limbs of `BASE^e`: `BASE < 2^59`.
-fn full(e: usize) -> usize {
-    (59 * e).div_ceil(64)
-}
-
 /// The power `BASE^exp`, ready for division: `pn << (64 shift)` is the power shifted left
 /// by `bits`, so that the top bit of `pn` is set, and [`Divisor::inv`] is a reciprocal for
 /// quotients of up to `qn = pn.len() + shift` limbs.
@@ -466,11 +463,9 @@ struct Out<'a> {
 
 impl Out<'_> {
     fn take(&mut self, n: usize) -> Result<&mut [u8], BufferTooSmall> {
-        let s = self
-            .buf
-            .get_mut(self.pos..self.pos + n)
-            .ok_or(BufferTooSmall)?;
-        self.pos += n;
+        let end = self.pos.checked_add(n).ok_or(BufferTooSmall)?;
+        let s = self.buf.get_mut(self.pos..end).ok_or(BufferTooSmall)?;
+        self.pos = end;
         Ok(s)
     }
 }

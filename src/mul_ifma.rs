@@ -144,8 +144,13 @@ unsafe fn mul_v<V: V8>(out: &mut [u64], a: &[u64], b: &[u64], scratch: &mut [u64
     assert!(8 <= a.len() && a.len() <= b.len() && a.len() <= MAX_LEN);
     assert!(out.len() == a.len() + b.len() && 8 * s.groups <= out.len());
     assert!(scratch.len() >= s.scratch());
-    let skip = scratch.as_ptr().addr().wrapping_neg() % 64 / 8;
-    let (bd, c) = scratch[skip..].split_at_mut(s.blen);
+    let skip = scratch.as_ptr().align_offset(64);
+    let scratch = if skip < 8 {
+        &mut scratch[skip..]
+    } else {
+        scratch
+    };
+    let (bd, c) = scratch.split_at_mut(s.blen);
     let c = &mut c[..s.clen];
     let gtot = digits(b.len()).div_ceil(8);
     let at = |k: usize| 8 + k * (8 * s.gb + 8);
