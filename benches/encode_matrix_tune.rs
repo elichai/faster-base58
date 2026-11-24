@@ -125,7 +125,7 @@ fn main() {
     let mut evict = vec![0u8; 64 << 20];
     for size in sizes {
         let data = data(size);
-        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let configs: Vec<_> = CONFIGS.iter().filter(|c| c.2(size)).collect();
         check(&configs, &data, &mut out);
         let times = if cold {
@@ -164,7 +164,7 @@ fn cap() {
     println!("|---:|{}---:|", "---:|".repeat(CAP.len()));
     for size in sizes(&CAP_SIZES) {
         let data = data(size);
-        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let configs: Vec<_> = CAP.iter().collect();
         check(&configs, &data, &mut out);
         let t = warm_times(&configs, &data, &mut out);
@@ -202,7 +202,7 @@ fn first_calls() {
     println!("|---:|---:|---:|");
     for size in [512, 1024, 2048, 4096, 8192] {
         let data = data(size);
-        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let times: Vec<f64> = (0..2)
             .map(|_| {
                 let start = Instant::now();

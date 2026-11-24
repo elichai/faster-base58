@@ -5,7 +5,7 @@ and `main.rs` (plus `allocations.rs` with `--count-allocations`), seeded with th
 library's `Cargo.lock`. `scripts/public_bench.py` times its cdylibs for the README. Each build selects exactly one backend and encode, decode, or both. The
 backend and direction are compiler cfgs on the probe only, not library features.
 All named backend selectors and forced-kernel controls enable the library's
-`__internals` feature. Auto and no-allocation probes use `Encoder` / `Decoder`; the no-allocation
+`__internals` feature. Auto and no-allocation probes use `Codec`; the no-allocation
 probe disables the default `alloc` feature, including in cache campaigns.
 `--cache` selects the optional `cache` feature for a separate cohort; the default
 has no process-wide table cache. Competitors keep their own dependency features.

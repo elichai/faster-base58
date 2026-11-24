@@ -88,22 +88,21 @@ Rust 1.99.1; Node 26.13.1 / V8 14.6.202.34; scalar Wasm, V8 elapsed time, 5 proc
 
 ## Encode and decode
 
-Configure an encoder or decoder, then choose owned or borrowed output:
+Configure a codec, then choose owned or borrowed output:
 
 ```rust
-use faster_base58::{Encoder, Decoder};
+use faster_base58::Codec;
 
-const ENCODER: Encoder = Encoder::bitcoin();
-const DECODER: Decoder = Decoder::bitcoin();
+const CODEC: Codec = Codec::bitcoin();
 
 let data = [0u8; 21];
-let text: String = ENCODER.encode(&data).into_string();
-assert_eq!(DECODER.decode(&text).into_array::<21>().unwrap(), data);
-let mut buffer = [0; ENCODER.max_encoded_len(21)];
-assert_eq!(ENCODER.encode(&data).onto(&mut buffer).unwrap(), text);
+let text: String = CODEC.encode(&data).into_string();
+assert_eq!(CODEC.decode(&text).into_array::<21>().unwrap(), data);
+let mut buffer = [0; CODEC.max_encoded_len(21)];
+assert_eq!(CODEC.encode(&data).onto(&mut buffer).unwrap(), text);
 ```
 
-`Encoder` and `Decoder` are small `Copy` values and can be constants.
+`Codec` is a small `Copy` value and can be a constant.
 These examples use `unwrap()` for brevity; handle errors in application code.
 
 Encoding provides `.into_string()`, `.into_vec()` (ASCII bytes), and `.onto()`
@@ -114,19 +113,18 @@ validation first. Owned output methods require `alloc` (enabled by
 default). Borrowed output and exact arrays are available with either allocation policy.
 
 ```rust
-use faster_base58::{Encoder, Decoder};
+use faster_base58::Codec;
 
-const ENCODER: Encoder = Encoder::bitcoin();
-const DECODER: Decoder = Decoder::bitcoin();
+const CODEC: Codec = Codec::bitcoin();
 let input = [0, 1, 2, 3];
-let mut text_buffer = [0; ENCODER.max_encoded_len(4)];
+let mut text_buffer = [0; CODEC.max_encoded_len(4)];
 let mut byte_buffer = [0; 4];
-let text = ENCODER.encode(input).onto(&mut text_buffer).unwrap();
-assert_eq!(DECODER.decode(text).into_array::<4>().unwrap(), input);
-assert_eq!(DECODER.decode(text).onto(&mut byte_buffer).unwrap(), input);
+let text = CODEC.encode(input).onto(&mut text_buffer).unwrap();
+assert_eq!(CODEC.decode(text).into_array::<4>().unwrap(), input);
+assert_eq!(CODEC.decode(text).onto(&mut byte_buffer).unwrap(), input);
 ```
 
-`ENCODER.max_encoded_len(n)` bounds encoded output; exact result capacity also
+`CODEC.max_encoded_len(n)` bounds encoded output; exact result capacity also
 works. Plain decoding needs at most one output byte per input text byte. Leading
 zero bytes round-trip as leading `'1'` characters. `.into_array::<N>()` requires
 exactly `N` bytes: shorter results return `InvalidLength`, longer ones `BufferTooSmall`
@@ -146,22 +144,20 @@ feature disabled, normal dependencies do not include SHA-256. Select checking
 on a configuration:
 
 ```rust
-use faster_base58::{Encoder, Decoder};
+use faster_base58::Codec;
 
-const ENCODER: Encoder = Encoder::bitcoin().with_check();
-const DECODER: Decoder = Decoder::bitcoin().with_check();
+const CODEC: Codec = Codec::bitcoin().with_check();
 
 let data = [0u8; 21];
-let text: String = ENCODER.encode(&data).into_string();
+let text: String = CODEC.encode(&data).into_string();
 assert_eq!(text, "1111111111111111111114oLvT2");
-assert_eq!(DECODER.decode(&text).into_array::<21>().unwrap(), data);
+assert_eq!(CODEC.decode(&text).into_array::<21>().unwrap(), data);
 let mut bytes = [0u8; 21];
-assert_eq!(DECODER.decode(&text).onto(&mut bytes).unwrap(), data);
+assert_eq!(CODEC.decode(&text).onto(&mut bytes).unwrap(), data);
 
-const VERSIONED_ENCODER: Encoder = Encoder::bitcoin().with_check_version(0);
-const VERSIONED_DECODER: Decoder = Decoder::bitcoin().with_check_version(0);
-let text = VERSIONED_ENCODER.encode([0u8; 20]).into_string();
-assert_eq!(VERSIONED_DECODER.decode(&text).into_array::<21>().unwrap(), data);
+const VERSIONED: Codec = Codec::bitcoin().with_check_version(0);
+let text = VERSIONED.encode([0u8; 20]).into_string();
+assert_eq!(VERSIONED.decode(&text).into_array::<21>().unwrap(), data);
 ```
 
 `.with_check()` hashes the input as supplied. `.with_check_version(v)` prepends
@@ -176,7 +172,7 @@ Checked decoding removes the checksum. Errors distinguish `MissingChecksum`,
 means valid empty data has no version byte. These variants and setters are gated
 by `check`. Checksum verification precedes version validation.
 
-`ENCODER.max_encoded_len(n)` includes checksum and any inserted version. Checked
+`CODEC.max_encoded_len(n)` includes checksum and any inserted version. Checked
 decoding with `.onto()` or `.into_array::<N>()` needs room only for the returned
 data (including a retained version): the checksum is held on the stack, and the
 unused output tail stays untouched. Neither direction allocates a temporary frame;
@@ -191,7 +187,7 @@ Disable default features to exclude allocating backends and owned output methods
 faster-base58 = { version = "0.1.0", default-features = false }
 ```
 
-The same `Encoder` / `Decoder` buffer and array methods then make no heap
+The same `Codec` buffer and array methods then make no heap
 allocations, including first calls and error paths. Encoding uses fixed tables for
 32/64-byte frames and batched conversion elsewhere; decoding uses tiny/batched
 conversion. General large inputs take quadratic time. The optional `check` feature

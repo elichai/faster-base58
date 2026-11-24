@@ -104,7 +104,7 @@ fn sweep(label: &str, arms: &mut [Arm]) {
 fn decode_mode() {
     for size in list("SIZES", &CODEC_SIZES) {
         let data = bytes(size);
-        let mut text = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut text = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let n = encode_batched(&data, &mut text).unwrap();
         let text = String::from_utf8(text[..n].to_vec()).unwrap();
         let backends: [(&str, Decode); 5] = [
@@ -132,7 +132,7 @@ fn decode_mode() {
 fn encode_mode() {
     for size in list("SIZES", &CODEC_SIZES) {
         let data = bytes(size);
-        let cap = faster_base58::Encoder::bitcoin().max_encoded_len(size);
+        let cap = faster_base58::Codec::bitcoin().max_encoded_len(size);
         let mut want = vec![0u8; cap];
         let n = encode_batched(&data, &mut want).unwrap();
         want.truncate(n);
@@ -166,7 +166,7 @@ fn ntt_mode() {
     let ps = list("PS", &[48, 64, 96, 128, 192]);
     for size in list("SIZES", &NTT_SIZES) {
         let data = bytes(size);
-        let mut text = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut text = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let n = encode_ntt_cached(&data, &mut text).unwrap();
         let text = String::from_utf8(text[..n].to_vec()).unwrap();
         let mut grid = vec![(ref_t, ref_p)];

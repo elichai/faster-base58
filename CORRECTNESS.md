@@ -38,7 +38,7 @@ doctested without those features.
   failure can abort; conversion errors do not represent allocation failure.
 - Work and dispatch depend on values and lengths. The crate is not constant-time.
   Transform and fuzz bounds are not maximum input lengths.
-- `Encoder` / `Decoder` configurations are reusable constants. They convert only
+- `Codec` configurations are reusable constants. They convert only
   at terminal methods. The optional `check` feature adds Base58Check: first four
   bytes of double SHA-256 over data including any version prefix. Decoding checks
   the checksum before the requested version, removes only the checksum, and retains

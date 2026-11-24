@@ -18,7 +18,7 @@ pub const ENCODERS: &[(&str, Encode)] = &[
     (
         "auto",
         (|input, output| {
-            faster_base58::Encoder::bitcoin()
+            faster_base58::Codec::bitcoin()
                 .encode(input)
                 .onto(output)
                 .map(str::len)
@@ -50,7 +50,7 @@ pub const DECODERS: &[(&str, Decode)] = &[
     (
         "auto",
         (|input, output| {
-            faster_base58::Decoder::bitcoin()
+            faster_base58::Codec::bitcoin()
                 .decode(input)
                 .onto(output)
                 .map(|bytes| bytes.len())
@@ -171,9 +171,9 @@ pub fn oracle_encode(data: &[u8]) -> Vec<u8> {
 /// Checks every encoder against [`oracle_encode`] and returns the expected text.
 pub fn check_encode(data: &[u8], selector: usize) -> String {
     let want = oracle_encode(data);
-    assert!(want.len() <= faster_base58::Encoder::bitcoin().max_encoded_len(data.len()));
+    assert!(want.len() <= faster_base58::Codec::bitcoin().max_encoded_len(data.len()));
     assert_eq!(
-        faster_base58::Encoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .encode(data)
             .into_string()
             .as_bytes(),
@@ -295,7 +295,7 @@ fn check_decode_as(input: &str, want: &Result<Vec<u8>, usize>, selector: usize) 
         }
     }
     assert_eq!(
-        faster_base58::Decoder::bitcoin().decode(input).into_vec(),
+        faster_base58::Codec::bitcoin().decode(input).into_vec(),
         want.clone()
             .map_err(|index| Error::InvalidCharacter { index })
     );
@@ -305,14 +305,14 @@ fn check_decode_as(input: &str, want: &Result<Vec<u8>, usize>, selector: usize) 
 pub fn check_decode_bytes(input: &[u8], selector: usize) {
     let want = oracle_decode_bytes(input);
     let public = |input: &[u8], output: &mut [u8]| {
-        faster_base58::Decoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .decode(input)
             .onto(output)
             .map(|bytes| bytes.len())
     };
     check_decoder("public-bytes", public, input, &want, selector);
     assert_eq!(
-        faster_base58::Decoder::bitcoin().decode(input).into_vec(),
+        faster_base58::Codec::bitcoin().decode(input).into_vec(),
         want.map_err(|index| Error::InvalidCharacter { index })
     );
 }

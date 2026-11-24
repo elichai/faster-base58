@@ -28,13 +28,13 @@ const BACKENDS: &[(&str, Encode, Decode)] = &[
     (
         "auto",
         (|input, output| {
-            b58::Encoder::bitcoin()
+            b58::Codec::bitcoin()
                 .encode(input)
                 .onto(output)
                 .map(str::len)
         }),
         (|input, output| {
-            b58::Decoder::bitcoin()
+            b58::Codec::bitcoin()
                 .decode(input)
                 .onto(output)
                 .map(|bytes| bytes.len())
@@ -236,7 +236,7 @@ fn check_fixtures() {
 }
 
 fn fixture(data: &[u8]) -> Vec<u8> {
-    let mut encoded = vec![0; b58::Encoder::bitcoin().max_encoded_len(data.len())];
+    let mut encoded = vec![0; b58::Codec::bitcoin().max_encoded_len(data.len())];
     let len = encode_fixture(data, &mut encoded);
     encoded.truncate(len);
     encoded
@@ -274,7 +274,7 @@ fn check_competitors() {
                 if name == "five8" && !matches!(size, 32 | 64) {
                     continue;
                 }
-                let mut output = vec![0; b58::Encoder::bitcoin().max_encoded_len(size)];
+                let mut output = vec![0; b58::Codec::bitcoin().max_encoded_len(size)];
                 let len = encode(&data, &mut output).unwrap();
                 assert_eq!(len, encoded.len(), "{name} encode length");
                 assert_eq!(&output[..len], encoded, "{name} encode bytes");
@@ -492,9 +492,9 @@ fn worker(mode: &str, operation: &str, backend: &str, size: usize, samples: usiz
     let input = data(size);
     #[cfg(feature = "count-allocations")]
     let (mut encoded, encoded_stats) =
-        allocator::measure(|| vec![0; b58::Encoder::bitcoin().max_encoded_len(size)]);
+        allocator::measure(|| vec![0; b58::Codec::bitcoin().max_encoded_len(size)]);
     #[cfg(not(feature = "count-allocations"))]
-    let mut encoded = vec![0; b58::Encoder::bitcoin().max_encoded_len(size)];
+    let mut encoded = vec![0; b58::Codec::bitcoin().max_encoded_len(size)];
     let encoded_len = encode_fixture(&input, &mut encoded);
     encoded.truncate(encoded_len);
     assert_eq!(cache_bytes(), [0; 3], "fixture initialized a cache");
@@ -510,7 +510,7 @@ fn worker(mode: &str, operation: &str, backend: &str, size: usize, samples: usiz
         );
     }
     let output_size = if operation == "encode" {
-        b58::Encoder::bitcoin().max_encoded_len(size)
+        b58::Codec::bitcoin().max_encoded_len(size)
     } else {
         size
     };
@@ -597,7 +597,7 @@ fn inventory(operation: &str, size: usize) {
             assert!((1..=8192).contains(&size));
             let input = data(size);
             let expected = fixture(&input);
-            let mut out = vec![0; b58::Encoder::bitcoin().max_encoded_len(size)];
+            let mut out = vec![0; b58::Codec::bitcoin().max_encoded_len(size)];
             let len = internals::encode_matrix_whole(&input, &mut out).unwrap();
             assert_eq!(&out[..len], expected);
         }
@@ -620,7 +620,7 @@ fn owned_decode(text: &str, full_output: bool) -> Vec<u8> {
     if full_output {
         // The previous owned API's allocation policy, using the current borrowed kernel.
         let mut output = vec![0; text.len()];
-        let len = b58::Decoder::bitcoin()
+        let len = b58::Codec::bitcoin()
             .decode(text)
             .onto(&mut output)
             .map(|bytes| bytes.len())
@@ -628,7 +628,7 @@ fn owned_decode(text: &str, full_output: bool) -> Vec<u8> {
         output.truncate(len);
         output
     } else {
-        b58::Decoder::bitcoin().decode(text).into_vec().unwrap()
+        b58::Codec::bitcoin().decode(text).into_vec().unwrap()
     }
 }
 
@@ -756,7 +756,7 @@ fn main() {
                     if !supports(name, "encode", size) || !supports(name, "decode", size) {
                         continue;
                     }
-                    let mut out = vec![0; b58::Encoder::bitcoin().max_encoded_len(size)];
+                    let mut out = vec![0; b58::Codec::bitcoin().max_encoded_len(size)];
                     let len = encode(&data, &mut out).unwrap();
                     assert_eq!(&out[..len], encoded);
                     let mut out = vec![0; size];

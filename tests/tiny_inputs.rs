@@ -6,7 +6,7 @@ fn check_encode(input: &[u8]) {
     let expected = bs58::encode(input).into_string();
     for capacity in 0..=expected.len() + 1 {
         let mut buffer = [0xA5; 8];
-        let result = faster_base58::Encoder::bitcoin()
+        let result = faster_base58::Codec::bitcoin()
             .encode(input)
             .onto(&mut buffer[1..1 + capacity])
             .map(str::len);
@@ -26,7 +26,7 @@ fn check_decode(input: &str) {
     let expected = bs58::decode(input).into_vec().unwrap();
     for capacity in 0..=expected.len() + 1 {
         let mut buffer = [0xA5; 8];
-        let result = faster_base58::Decoder::bitcoin()
+        let result = faster_base58::Codec::bitcoin()
             .decode(input)
             .onto(&mut buffer[1..1 + capacity])
             .map(|bytes| bytes.len());
@@ -71,7 +71,7 @@ fn tiny_invalid_inputs_keep_byte_offsets() {
     ] {
         let mut buffer = [0xA5; 4];
         assert!(
-            matches!(faster_base58::Decoder::bitcoin().decode(input).onto(&mut buffer), Err(Error::InvalidCharacter { index: actual, .. }) if actual == index)
+            matches!(faster_base58::Codec::bitcoin().decode(input).onto(&mut buffer), Err(Error::InvalidCharacter { index: actual, .. }) if actual == index)
         );
     }
 }

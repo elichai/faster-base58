@@ -14,13 +14,13 @@ use faster_base58::{BufferTooSmall, Error};
 type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 const ENCODERS: [Encode; 1] = [(|input, output| {
-    faster_base58::Encoder::bitcoin()
+    faster_base58::Codec::bitcoin()
         .encode(input)
         .onto(output)
         .map(str::len)
 })];
 const DECODERS: [Decode; 1] = [(|input, output| {
-    faster_base58::Decoder::bitcoin()
+    faster_base58::Codec::bitcoin()
         .decode(input)
         .onto(output)
         .map(|bytes| bytes.len())

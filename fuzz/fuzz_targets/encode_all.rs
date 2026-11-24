@@ -91,9 +91,7 @@ fn split_fallback(seed: u32) -> [u8; FIXED_BYTES] {
 /// of the encoders' division tree zero. This writes such a run or applies libFuzzer's
 /// mutations to the digit values.
 fn mutate_digits(input: &[u8], max_size: usize, seed: u32) -> Option<Vec<u8>> {
-    let text = faster_base58::Encoder::bitcoin()
-        .encode(input)
-        .into_string();
+    let text = faster_base58::Codec::bitcoin().encode(input).into_string();
     let mut digits: Vec<u8> = text.bytes().map(|c| DIGIT[c as usize]).collect();
     let len = digits.len();
     let mut state = u64::from(seed);
@@ -108,7 +106,7 @@ fn mutate_digits(input: &[u8], max_size: usize, seed: u32) -> Option<Vec<u8>> {
         let start = below(len - run + 1);
         digits[start..start + run].fill(0);
     } else {
-        let cap = faster_base58::Encoder::bitcoin().max_encoded_len(max_size);
+        let cap = faster_base58::Codec::bitcoin().max_encoded_len(max_size);
         digits.resize(cap.max(len), 0);
         // SAFETY: `digits` holds `digits.len()` initialized bytes, the first `len` of them
         // the input to mutate.
@@ -119,7 +117,7 @@ fn mutate_digits(input: &[u8], max_size: usize, seed: u32) -> Option<Vec<u8>> {
         .iter()
         .map(|&d| support::ALPHABET[usize::from(d) % 58])
         .collect();
-    let bytes = faster_base58::Decoder::bitcoin()
+    let bytes = faster_base58::Codec::bitcoin()
         .decode(&text)
         .into_vec()
         .ok()?;

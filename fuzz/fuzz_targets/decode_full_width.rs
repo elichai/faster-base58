@@ -31,7 +31,7 @@ fuzz_target!(|raw: &[u8]| {
     support::check_decoder(
         "public-invalid-bytes",
         |input: &[u8], output: &mut [u8]| {
-            faster_base58::Decoder::bitcoin()
+            faster_base58::Codec::bitcoin()
                 .decode(input)
                 .onto(output)
                 .map(|bytes| bytes.len())

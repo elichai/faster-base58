@@ -10,13 +10,13 @@ type Encode = fn(&[u8], &mut [u8]) -> Result<usize, BufferTooSmall>;
 type Decode = fn(&str, &mut [u8]) -> Result<usize, Error>;
 
 const ENCODERS: &[Encode] = &[|input, output| {
-    faster_base58::Encoder::bitcoin()
+    faster_base58::Codec::bitcoin()
         .encode(input)
         .onto(output)
         .map(str::len)
 }];
 const DECODERS: &[Decode] = &[|input, output| {
-    faster_base58::Decoder::bitcoin()
+    faster_base58::Codec::bitcoin()
         .decode(input)
         .onto(output)
         .map(|bytes| bytes.len())
@@ -28,7 +28,7 @@ fn check(input: &[u8], selector: usize) {
     assert_eq!(bs58::encode(input).into_vec(), want);
     #[cfg(feature = "alloc")]
     assert_eq!(
-        faster_base58::Encoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .encode(input)
             .into_string()
             .as_bytes(),
@@ -36,13 +36,13 @@ fn check(input: &[u8], selector: usize) {
     );
     #[cfg(feature = "alloc")]
     assert_eq!(
-        faster_base58::Decoder::bitcoin().decode(text).into_vec(),
+        faster_base58::Codec::bitcoin().decode(text).into_vec(),
         Ok(input.to_vec())
     );
     assert_eq!(scalar::decode(text), Some(Ok(input.to_vec())));
     let zeros = input.iter().take_while(|&&byte| byte == 0).count();
     assert_eq!(want.iter().take_while(|&&byte| byte == b'1').count(), zeros);
-    assert!(want.len() <= faster_base58::Encoder::bitcoin().max_encoded_len(input.len()));
+    assert!(want.len() <= faster_base58::Codec::bitcoin().max_encoded_len(input.len()));
     for capacity in [
         0,
         want.len().saturating_sub(1),
@@ -135,7 +135,7 @@ proptest! {
     fn reused_output_and_dispatch_history_preserve_the_unwritten_tail(
         history in prop::collection::vec((prop::sample::select(vec![22usize, 32, 64, 65, 512, 768, 1504, 8192, 8193]), prop::array::uniform16(any::<u8>())), 1..6),
     ) {
-        let mut encoded = vec![0xA5; faster_base58::Encoder::bitcoin().max_encoded_len(8193) + 9];
+        let mut encoded = vec![0xA5; faster_base58::Codec::bitcoin().max_encoded_len(8193) + 9];
         let mut decoded = vec![0x5A; 8193 + 9];
         for (width, pattern) in history {
             let mut input: Vec<u8> = (0..width).map(|i| pattern[i % pattern.len()]).collect();
@@ -144,12 +144,12 @@ proptest! {
             input[0] |= 1;
             let want = bs58::encode(&input).into_vec();
             let old = encoded.clone();
-            assert_eq!(faster_base58::Encoder::bitcoin().encode(&input).onto(&mut encoded).map(str::len), Ok(want.len()));
+            assert_eq!(faster_base58::Codec::bitcoin().encode(&input).onto(&mut encoded).map(str::len), Ok(want.len()));
             assert_eq!(&encoded[..want.len()], want);
             assert_eq!(&encoded[want.len()..], &old[want.len()..]);
             let old = decoded.clone();
             let text = std::str::from_utf8(&want).unwrap();
-            assert_eq!(faster_base58::Decoder::bitcoin().decode(text).onto(&mut decoded).map(|bytes| bytes.len()), Ok(width));
+            assert_eq!(faster_base58::Codec::bitcoin().decode(text).onto(&mut decoded).map(|bytes| bytes.len()), Ok(width));
             assert_eq!(&decoded[..width], input);
             assert_eq!(&decoded[width..], &old[width..]);
         }

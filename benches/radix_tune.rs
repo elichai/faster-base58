@@ -48,7 +48,7 @@ fn main() {
         let mut data = vec![0u8; size];
         Xoshiro256PlusPlus::seed_from_u64(size as u64).fill_bytes(&mut data);
         data[0] |= 1;
-        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let n = encode_ntt_cached(&data, &mut out).unwrap();
         let want = out[..n].to_vec();
         // Warm up (and fill caches), check output, and size each arm's block.

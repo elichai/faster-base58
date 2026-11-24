@@ -1,7 +1,7 @@
 //! Unstable backend selectors and measurement hooks, enabled by `__internals`.
 //!
 //! This is for differential tests, fuzzing and benchmarks. Prefer the crate's
-//! [`crate::Encoder`] and [`crate::Decoder`] in applications. These hooks may change
+//! [`crate::Codec`] in applications. These hooks may change
 //! without compatibility guarantees; tuning parameters have backend-specific
 //! preconditions documented on each function.
 

@@ -1,10 +1,10 @@
 //! Fast Bitcoin Base58 encoding and decoding with automatic CPU dispatch.
 //!
-//! [`Encoder`] and [`Decoder`] select conversion algorithms by input size and CPU
-//! support. They are reusable, `Copy` configurations that can be defined as constants.
-//! Set the input with `.encode(input)` or `.decode(input)`, then choose an output
-//! method to perform the conversion. Both accept `AsRef<[u8]>` inputs, including
-//! arrays, byte slices, and strings. Decoding raw bytes requires no UTF-8 conversion.
+//! [`Codec`] selects conversion algorithms by input size and CPU support. It is a
+//! reusable, `Copy` configuration that can be defined as a constant. Set the input with
+//! `.encode(input)` or `.decode(input)`, then choose an output method to perform the
+//! conversion. Both accept `AsRef<[u8]>` inputs, including arrays, byte slices, and
+//! strings. Decoding raw bytes requires no UTF-8 conversion.
 //!
 //! The crate supports `no_std`. The default `alloc` feature enables owned results
 //! and allocating backends for large inputs. Caller-provided buffers and exact-size
@@ -17,12 +17,12 @@
 //! ```
 //! # #[cfg(feature = "alloc")]
 //! # {
-//! use faster_base58::{Decoder, Encoder};
+//! use faster_base58::Codec;
 //!
-//! let text = Encoder::bitcoin().encode(b"hello world").into_string();
+//! let text = Codec::bitcoin().encode(b"hello world").into_string();
 //! assert_eq!(text, "StV1DL6CwTryKyV");
 //!
-//! let bytes = Decoder::bitcoin().decode(&text).into_vec()?;
+//! let bytes = Codec::bitcoin().decode(&text).into_vec()?;
 //! assert_eq!(bytes, b"hello world");
 //! # }
 //! # Ok::<(), faster_base58::Error>(())
@@ -36,23 +36,22 @@
 //! of a buffer, or [`DecodeInput::into_array`] to require an exact decoded length:
 //!
 //! ```
-//! use faster_base58::{Decoder, Encoder};
+//! use faster_base58::Codec;
 //!
-//! const ENCODER: Encoder = Encoder::bitcoin();
-//! const DECODER: Decoder = Decoder::bitcoin();
+//! const CODEC: Codec = Codec::bitcoin();
 //!
 //! let data = [0, 0, 1];
-//! let mut text_buffer = [0; ENCODER.max_encoded_len(3)];
-//! let text = ENCODER.encode(data).onto(&mut text_buffer)?;
+//! let mut text_buffer = [0; CODEC.max_encoded_len(3)];
+//! let text = CODEC.encode(data).onto(&mut text_buffer)?;
 //! assert_eq!(text, "112"); // Leading zero bytes become leading '1' characters.
 //!
 //! let mut byte_buffer = [0; 3];
-//! assert_eq!(DECODER.decode(text).onto(&mut byte_buffer)?, data);
-//! assert_eq!(DECODER.decode(text).into_array::<3>()?, data);
+//! assert_eq!(CODEC.decode(text).onto(&mut byte_buffer)?, data);
+//! assert_eq!(CODEC.decode(text).into_array::<3>()?, data);
 //! # Ok::<(), faster_base58::Error>(())
 //! ```
 //!
-//! [`Encoder::max_encoded_len`] bounds the required encoding capacity, including
+//! [`Codec::max_encoded_len`] bounds the required encoding capacity, including
 //! any configured checksum and version prefix. An exactly sized result buffer also
 //! works. Plain Base58 decoding needs at most one output byte per input text byte.
 //! For `.into_array::<N>()`, a shorter result returns [`Error::InvalidLength`]; a
@@ -82,36 +81,35 @@
 //! faster-base58 = { version = "0.1.0", features = ["check"] }
 //! ```
 //!
-//! Checking is selected on each configuration. This example uses a one-byte version
+//! Checking is selected on a configuration. This example uses a one-byte version
 //! prefix and works with or without `alloc`:
 //!
 //! ```
 //! # #[cfg(feature = "check")]
 //! # {
-//! use faster_base58::{Decoder, Encoder};
+//! use faster_base58::Codec;
 //!
-//! const ENCODER: Encoder = Encoder::bitcoin().with_check_version(0);
-//! const DECODER: Decoder = Decoder::bitcoin().with_check_version(0);
+//! const CODEC: Codec = Codec::bitcoin().with_check_version(0);
 //!
 //! let payload = [0u8; 20];
-//! let mut buffer = [0; ENCODER.max_encoded_len(20)];
-//! let text = ENCODER.encode(payload).onto(&mut buffer)?;
+//! let mut buffer = [0; CODEC.max_encoded_len(20)];
+//! let text = CODEC.encode(payload).onto(&mut buffer)?;
 //! assert_eq!(text, "1111111111111111111114oLvT2");
 //!
 //! // Decoding removes the checksum and retains the version byte.
-//! let decoded = DECODER.decode(text).into_array::<21>()?;
+//! let decoded = CODEC.decode(text).into_array::<21>()?;
 //! assert_eq!(decoded[0], 0);
 //! assert_eq!(decoded[1..], payload);
 //! # }
 //! # Ok::<(), faster_base58::Error>(())
 //! ```
 //!
-//! Use `.with_check()` on both configurations for checksums without inserting or
-//! requiring a version. Multi-byte version prefixes belong in the input payload;
-//! use `.with_check()` and inspect the decoded prefix. Checked decoding needs output
-//! capacity only for the returned data, including any retained version; the checksum
-//! is held separately on the stack. Enabling `check` does not enable checking on
-//! plain `Encoder::bitcoin()` or `Decoder::bitcoin()` configurations.
+//! Use `.with_check()` for checksums without inserting or requiring a version.
+//! Multi-byte version prefixes belong in the input payload; use `.with_check()` and
+//! inspect the decoded prefix. Checked decoding needs output capacity only for the
+//! returned data, including any retained version; the checksum is held separately on
+//! the stack. Enabling `check` does not enable checking on plain `Codec::bitcoin()`
+//! configurations.
 //!
 //! # Cargo features
 //!
@@ -197,7 +195,7 @@ pub(crate) use api::encode;
 pub(crate) fn decode(input: &str, output: &mut [u8]) -> Result<usize, Error> {
     Ok(api::decode(input.as_bytes(), output)?)
 }
-pub use config::{DecodeInput, Decoder, EncodeInput, Encoder};
+pub use config::{Codec, DecodeInput, EncodeInput};
 
 #[cfg(any(test, feature = "__internals"))]
 pub mod internals;
