@@ -12,7 +12,7 @@ pub(crate) fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferToo
     match input.len() {
         32 => return crate::encode::matrix::fixed::encode_32(input.try_into().unwrap(), output),
         64 => return crate::encode::matrix::fixed::encode_64(input.try_into().unwrap(), output),
-        0..22 => return crate::encode::encode_batched(input, output),
+        0..40 => return crate::encode::encode_batched(input, output),
         _ => {}
     }
     let (zeros, x) = crate::encode::split_zeros(input);
@@ -197,10 +197,12 @@ pub(crate) fn decode_backend(digits: usize) -> DecodeBackend {
                             Batched
                         } else {
                             let ifma = crate::mul::ifma_threshold() != 0;
-                            if ifma && digits > 5120 {
+                            if ifma && digits > 1408 {
+                                // Above class 1 (154 KiB), IFMA Karatsuba through `Ntt` beats
+                                // Matrix on warm/cold time and heap without building NTT tables.
                                 Ntt
                             } else if ifma && cfg!(target_feature = "avx2") {
-                                // IFMA hosts compiled with AVX2 decode batched through 5120.
+                                // IFMA hosts compiled with AVX2 decode batched through 1408.
                                 Batched
                             } else if crate::cpu::sse41() {
                                 Matrix

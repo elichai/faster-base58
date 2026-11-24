@@ -12,9 +12,10 @@ static CACHE: [OnceLock<Tables>; CACHE_MAX_LOG as usize + 1] =
 
 impl Tables {
     /// Tables serving at least `2^log` points, from a process-wide cache. A smaller table
-    /// is a prefix of a larger one, so any larger cached table serves; a size is built
-    /// only when none is cached yet, and then kept. Requires `1 <= log <= CACHE_MAX_LOG`.
-    /// Each log retains `12 * (2^log + min(2^log, INVERSE_POINTS))` data bytes.
+    /// is a prefix of a larger one, so the largest initialized table that fits serves; a
+    /// size is built only when none is cached yet, and then kept. Requires
+    /// `1 <= log <= CACHE_MAX_LOG`. Each log retains
+    /// `12 * (2^log + min(2^log, INVERSE_POINTS))` data bytes.
     pub fn cached(log: u32) -> &'static Tables {
         assert!(
             (1..=CACHE_MAX_LOG).contains(&log),
@@ -23,6 +24,7 @@ impl Tables {
         let log = log as usize;
         CACHE[log..]
             .iter()
+            .rev()
             .find_map(OnceLock::get)
             .unwrap_or_else(|| CACHE[log].get_or_init(|| Tables::new(log as u32)))
     }

@@ -148,10 +148,12 @@ NTT entry points are outlined to keep large stack frames out of tiny encode call
 | Without `alloc` | Fixed 32/64-byte matrices; batched elsewhere | Tiny/batched |
 
 Cached decoding uses Matrix only on NEON, Wasm or x86 with SSE4.1. Its upper
-boundary is 5632 significant digits, reduced to 5120 with IFMA. IFMA hosts compiled
-with AVX2 use batched decoding from the minimum Matrix size through 5120, then
-NTT above 5120. Targets without a supported Matrix kernel use batched decoding
-through 5632, then NTT. Recursive leaves also have independent thresholds.
+boundary is 5632 significant digits, reduced to 1408 with IFMA (above class 1,
+IFMA Karatsuba through `Ntt` beats Matrix on latency and heap without building
+NTT tables). IFMA hosts compiled with AVX2 use batched decoding from 1024
+through 1408, then NTT above 1408. Targets without a supported Matrix kernel
+use batched decoding through 5632, then NTT. Recursive leaves also have
+independent thresholds.
 
 The short-leaf decode limits are four leaves (`2 * dc::min_digits()`): with two
 leaves the tree lost to batched decoding on Zen 5 and under V8, with four it won.
