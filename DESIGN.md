@@ -1,6 +1,6 @@
 # Algorithms and resource costs
 
-The public API uses `Encoder` / `Decoder`. Default feature `alloc` selects fast
+The public API uses `Codec`. Default feature `alloc` selects fast
 allocating backends; disabling it selects heap-free conversion. Named backends,
 portable controls and tuning hooks require `__internals` and are unstable.
 The library uses `core` and `alloc` by default. `cache` enables `alloc` and `std` and retains

@@ -21,7 +21,7 @@ fuzz_target!(|raw: &[u8]| {
         (
             "auto",
             (|input, output| {
-                faster_base58::Encoder::bitcoin()
+                faster_base58::Codec::bitcoin()
                     .encode(input)
                     .onto(output)
                     .map(str::len)

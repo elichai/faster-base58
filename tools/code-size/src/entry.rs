@@ -19,11 +19,11 @@ macro_rules! backend {
 
 #[cfg(all(any(size_backend = "auto", size_backend = "no-alloc"), not(size_direction = "decode")))]
 fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, faster_base58::BufferTooSmall> {
-    faster_base58::Encoder::bitcoin().encode(input).onto(output).map(str::len)
+    faster_base58::Codec::bitcoin().encode(input).onto(output).map(str::len)
 }
 #[cfg(all(any(size_backend = "auto", size_backend = "no-alloc"), not(size_direction = "encode")))]
 fn decode(input: &str, output: &mut [u8]) -> Result<usize, faster_base58::Error> {
-    faster_base58::Decoder::bitcoin().decode(input).onto(output).map(|bytes| bytes.len())
+    faster_base58::Codec::bitcoin().decode(input).onto(output).map(|bytes| bytes.len())
 }
 backend!("batched", faster_base58::internals::encode_batched, faster_base58::internals::decode_batched);
 backend!("karatsuba", faster_base58::internals::encode_karatsuba, faster_base58::internals::decode_karatsuba);

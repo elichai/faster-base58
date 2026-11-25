@@ -23,7 +23,7 @@ fn check(data: &[u8], short: bool) {
         .chain(digits.iter().map(|&d| ALPHABET[d as usize]))
         .collect();
     let mut guarded = vec![0xa5; want.len() + 32];
-    let got = faster_base58::Encoder::bitcoin()
+    let got = faster_base58::Codec::bitcoin()
         .encode(data)
         .onto(&mut guarded[16..16 + want.len()])
         .map(str::len)
@@ -38,7 +38,7 @@ fn check(data: &[u8], short: bool) {
     );
     if short {
         assert_eq!(
-            faster_base58::Encoder::bitcoin()
+            faster_base58::Codec::bitcoin()
                 .encode(data)
                 .onto(&mut guarded[16..15 + want.len()])
                 .map(str::len),

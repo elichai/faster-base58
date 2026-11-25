@@ -12,13 +12,11 @@ fn borrowed_and_owned_outputs_agree() {
         data[..leading].fill(0);
         let want = bs58::encode(&data).into_string();
         assert_eq!(
-            faster_base58::Encoder::bitcoin()
-                .encode(&data)
-                .into_string(),
+            faster_base58::Codec::bitcoin().encode(&data).into_string(),
             want
         );
-        let mut encoded = vec![0xA5; faster_base58::Encoder::bitcoin().max_encoded_len(len) + 7];
-        let text = faster_base58::Encoder::bitcoin()
+        let mut encoded = vec![0xA5; faster_base58::Codec::bitcoin().max_encoded_len(len) + 7];
+        let text = faster_base58::Codec::bitcoin()
             .encode(&data)
             .onto(&mut encoded)
             .unwrap();
@@ -26,12 +24,12 @@ fn borrowed_and_owned_outputs_agree() {
         assert!(encoded[want.len()..].iter().all(|&b| b == 0xA5));
 
         assert_eq!(
-            faster_base58::Decoder::bitcoin().decode(&want).into_vec(),
+            faster_base58::Codec::bitcoin().decode(&want).into_vec(),
             Ok(data.clone())
         );
         let mut decoded = vec![0xA5; len + 7];
         assert_eq!(
-            faster_base58::Decoder::bitcoin()
+            faster_base58::Codec::bitcoin()
                 .decode(&want)
                 .onto(&mut decoded)
                 .unwrap(),
@@ -44,9 +42,9 @@ fn borrowed_and_owned_outputs_agree() {
 #[test]
 fn arrays_require_exact_decoded_length() {
     for data in [[0; 32], [0xFF; 32], std::array::from_fn(|i| i as u8)] {
-        let text = faster_base58::Encoder::bitcoin().encode(data).into_string();
+        let text = faster_base58::Codec::bitcoin().encode(data).into_string();
         assert_eq!(
-            faster_base58::Decoder::bitcoin()
+            faster_base58::Codec::bitcoin()
                 .decode(&text)
                 .into_array::<32>(),
             Ok(data)
@@ -54,24 +52,22 @@ fn arrays_require_exact_decoded_length() {
     }
     let data = [0xA5; 64];
     let mut buffer = [0; 88];
-    let text = faster_base58::Encoder::bitcoin()
+    let text = faster_base58::Codec::bitcoin()
         .encode(data)
         .onto(&mut buffer)
         .unwrap();
     assert_eq!(
-        faster_base58::Decoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .decode(text)
             .into_array::<64>(),
         Ok(data)
     );
     assert_eq!(
-        faster_base58::Decoder::bitcoin()
-            .decode("")
-            .into_array::<0>(),
+        faster_base58::Codec::bitcoin().decode("").into_array::<0>(),
         Ok([])
     );
     assert_eq!(
-        faster_base58::Decoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .decode("2")
             .into_array::<2>(),
         Err(Error::InvalidLength {
@@ -80,13 +76,13 @@ fn arrays_require_exact_decoded_length() {
         })
     );
     assert_eq!(
-        faster_base58::Decoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .decode("112")
             .into_array::<1>(),
         Err(Error::BufferTooSmall)
     );
     assert_eq!(
-        faster_base58::Decoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .decode("12O4")
             .into_array::<4>(),
         Err(Error::InvalidCharacter { index: 2 })
@@ -105,7 +101,7 @@ fn dispatch_boundaries_preserve_zero_prefixes_and_capacities() {
             let want = bs58::encode(&input).into_vec();
             for capacity in [0, want.len().saturating_sub(1), want.len(), want.len() + 7] {
                 let mut output = vec![0xA5; capacity + 2];
-                let result = faster_base58::Encoder::bitcoin()
+                let result = faster_base58::Codec::bitcoin()
                     .encode(&input)
                     .onto(&mut output[1..1 + capacity])
                     .map(str::len);
@@ -129,7 +125,7 @@ fn dispatch_boundaries_preserve_zero_prefixes_and_capacities() {
             let want = bs58::decode(&text).into_vec().unwrap();
             for capacity in [0, want.len().saturating_sub(1), want.len(), want.len() + 7] {
                 let mut output = vec![0xA5; capacity + 2];
-                let result = faster_base58::Decoder::bitcoin()
+                let result = faster_base58::Codec::bitcoin()
                     .decode(&text)
                     .onto(&mut output[1..1 + capacity])
                     .map(|bytes| bytes.len());
@@ -145,7 +141,7 @@ fn dispatch_boundaries_preserve_zero_prefixes_and_capacities() {
             let index = zeros + significant / 2;
             text.insert(index, 'é');
             assert_eq!(
-                faster_base58::Decoder::bitcoin()
+                faster_base58::Codec::bitcoin()
                     .decode(&text)
                     .onto(&mut vec![0; text.len()])
                     .map(|bytes| bytes.len()),
@@ -170,13 +166,13 @@ fn errors_are_usable_with_standard_error_types() {
     assert!(errors[2].to_string().contains('3'));
     assert!(errors[3].to_string().contains("32"));
     assert_eq!(
-        faster_base58::Encoder::bitcoin()
+        faster_base58::Codec::bitcoin()
             .encode([1, 2, 3])
             .onto(&mut []),
         Err(BufferTooSmall)
     );
     assert_eq!(
-        faster_base58::Decoder::bitcoin().decode("é").into_vec(),
+        faster_base58::Codec::bitcoin().decode("é").into_vec(),
         Err(Error::InvalidCharacter { index: 0 })
     );
 }

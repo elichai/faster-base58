@@ -3,7 +3,7 @@
 #[path = "../../tests/support/mod.rs"]
 mod support;
 
-use faster_base58::{BufferTooSmall, Decoder, Encoder, Error};
+use faster_base58::{BufferTooSmall, Codec, Error};
 use libfuzzer_sys::fuzz_target;
 
 const CANARY: u8 = 0xA5;
@@ -18,15 +18,9 @@ fuzz_target!(|raw: &[u8]| {
     }
     let selector = support::scalar::selector(raw);
     let version = (selector & 1 == 1).then_some((selector >> 1) as u8);
-    let (encoder, decoder) = match version {
-        Some(v) => (
-            Encoder::bitcoin().with_check_version(v),
-            Decoder::bitcoin().with_check_version(v),
-        ),
-        None => (
-            Encoder::bitcoin().with_check(),
-            Decoder::bitcoin().with_check(),
-        ),
+    let codec = match version {
+        Some(v) => Codec::bitcoin().with_check_version(v),
+        None => Codec::bitcoin().with_check(),
     };
 
     // `raw` as the payload.
@@ -34,17 +28,17 @@ fuzz_target!(|raw: &[u8]| {
         Some(v) => bs58::encode(raw).with_check_version(v).into_vec(),
         None => bs58::encode(raw).with_check().into_vec(),
     };
-    assert!(text.len() <= encoder.max_encoded_len(raw.len()));
-    assert_eq!(encoder.encode(raw).into_vec(), text);
-    check_encode(encoder, raw, &text, selector);
+    assert!(text.len() <= codec.max_encoded_len(raw.len()));
+    assert_eq!(codec.encode(raw).into_vec(), text);
+    check_encode(codec, raw, &text, selector);
 
     // The valid frame, one changed character, `raw` as text, and `raw` mapped to digits.
-    check_decode(decoder, version, &text, selector);
+    check_decode(codec, version, &text, selector);
     // A valid checksum must reach the version check, including a missing version.
     let actual = version.or_else(|| raw.first().copied());
     let wrong_version = actual.unwrap_or(0).wrapping_add(1);
     check_decode(
-        Decoder::bitcoin().with_check_version(wrong_version),
+        Codec::bitcoin().with_check_version(wrong_version),
         Some(wrong_version),
         &text,
         selector,
@@ -56,13 +50,13 @@ fuzz_target!(|raw: &[u8]| {
         .position(|&c| c == changed[at])
         .unwrap();
     changed[at] = support::ALPHABET[(digit + 1 + selector % 57) % 58];
-    check_decode(decoder, version, &changed, selector);
-    check_decode(decoder, version, raw, selector);
+    check_decode(codec, version, &changed, selector);
+    check_decode(codec, version, raw, selector);
     let mapped: Vec<u8> = raw
         .iter()
         .map(|&b| support::ALPHABET[b as usize % 58])
         .collect();
-    check_decode(decoder, version, &mapped, selector);
+    check_decode(codec, version, &mapped, selector);
 });
 
 /// bs58 with checksum but without its version check, then our version rule. bs58
@@ -103,11 +97,11 @@ fn assert_guards(storage: &[u8], capacity: usize, written: usize, what: &str) {
     );
 }
 
-fn check_encode(encoder: Encoder, data: &[u8], want: &[u8], selector: usize) {
+fn check_encode(codec: Codec, data: &[u8], want: &[u8], selector: usize) {
     let n = want.len();
     for capacity in [0, n - 1, n, n + 17, selector % (n + 18)] {
         let mut storage = guarded(capacity);
-        let result = encoder
+        let result = codec
             .encode(data)
             .onto(&mut storage[GUARD..GUARD + capacity])
             .map(str::len);
@@ -122,9 +116,9 @@ fn check_encode(encoder: Encoder, data: &[u8], want: &[u8], selector: usize) {
     }
 }
 
-fn check_decode(decoder: Decoder, version: Option<u8>, text: &[u8], selector: usize) {
+fn check_decode(codec: Codec, version: Option<u8>, text: &[u8], selector: usize) {
     let want = oracle(text, version);
-    assert_eq!(decoder.decode(text).into_vec(), want, "owned decode");
+    assert_eq!(codec.decode(text).into_vec(), want, "owned decode");
     // Data bytes the frame carries, when it is valid Base58 with a checksum.
     let data_len = bs58::decode(text)
         .into_vec()
@@ -133,7 +127,7 @@ fn check_decode(decoder: Decoder, version: Option<u8>, text: &[u8], selector: us
     let n = want.as_ref().map_or(text.len(), Vec::len);
     for capacity in [0, n.saturating_sub(1), n, n + 17, selector % (n + 18)] {
         let mut storage = guarded(capacity);
-        let result = decoder
+        let result = codec
             .decode(text)
             .onto(&mut storage[GUARD..GUARD + capacity])
             .map(|bytes| bytes.len());

@@ -91,7 +91,7 @@ fn main() {
         let mut data = vec![0u8; size];
         Xoshiro256PlusPlus::seed_from_u64(size as u64).fill_bytes(&mut data);
         data[0] |= 1;
-        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let n = configs[0].1(&data, &mut out);
         let want = out[..n].to_vec();
         let mut iters = Vec::new();

@@ -17,23 +17,24 @@ enum Check {
     Base58Check(Option<u8>),
 }
 
-/// Reusable Base58 encoding configuration, without input or conversion state.
+/// Reusable Base58 encoding and decoding configuration, without input or conversion state.
 ///
 /// ```
-/// use faster_base58::Encoder;
-/// const ENCODER: Encoder = Encoder::bitcoin();
+/// use faster_base58::Codec;
+/// const CODEC: Codec = Codec::bitcoin();
 /// let mut output = [0; 4];
-/// assert_eq!(ENCODER.encode([0, 0, 1]).onto(&mut output)?, "112");
-/// # Ok::<(), faster_base58::BufferTooSmall>(())
+/// assert_eq!(CODEC.encode([0, 0, 1]).onto(&mut output)?, "112");
+/// assert_eq!(CODEC.decode("112").into_array::<3>()?, [0, 0, 1]);
+/// # Ok::<(), faster_base58::Error>(())
 /// ```
 #[derive(Debug, Clone, Copy)]
 #[must_use]
-pub struct Encoder {
+pub struct Codec {
     alphabet: Alphabet,
     check: Check,
 }
 
-impl Encoder {
+impl Codec {
     /// Selects the Bitcoin alphabet without a checksum.
     #[inline(always)]
     pub const fn bitcoin() -> Self {
@@ -43,7 +44,8 @@ impl Encoder {
         }
     }
 
-    /// Appends a `Base58Check` checksum without inserting a version prefix.
+    /// Enables `Base58Check` without inserting or requiring a version prefix.
+    /// Encoding appends the four-byte checksum; decoding validates and removes it.
     /// Replaces any previous checksum/version setting.
     #[cfg(feature = "check")]
     #[inline(always)]
@@ -52,9 +54,12 @@ impl Encoder {
         self
     }
 
-    /// Prepends `version` and appends a `Base58Check` checksum covering both the
-    /// version and input. Replaces any previous checksum/version setting.
-    /// For multi-byte prefixes, include them in the input and use [`Self::with_check`].
+    /// Enables `Base58Check` with a one-byte version prefix.
+    /// Encoding prepends `version` and appends a checksum covering both version and input.
+    /// Decoding validates the checksum and requires `version` as the first data byte,
+    /// removing the checksum and retaining the version in the output.
+    /// Replaces any previous checksum/version setting.
+    /// For multi-byte prefixes, include them in the payload and use [`Self::with_check`].
     #[cfg(feature = "check")]
     #[inline(always)]
     pub const fn with_check_version(mut self, version: u8) -> Self {
@@ -62,14 +67,19 @@ impl Encoder {
         self
     }
 
-    /// Sets input for one conversion. References borrow; owned inputs move in.
+    /// Sets input for one encoding. References borrow; owned inputs move in.
     /// Conversion starts at a terminal method such as [`EncodeInput::onto`].
     #[inline(always)]
     pub const fn encode<I: AsRef<[u8]>>(self, input: I) -> EncodeInput<I> {
-        EncodeInput {
-            encoder: self,
-            input,
-        }
+        EncodeInput { codec: self, input }
+    }
+
+    /// Sets Base58 text for one decoding: a string or raw bytes, which need not be
+    /// UTF-8. References borrow; owned inputs move in.
+    /// Conversion starts at a terminal method such as [`DecodeInput::onto`].
+    #[inline(always)]
+    pub const fn decode<I: AsRef<[u8]>>(self, input: I) -> DecodeInput<I> {
+        DecodeInput { codec: self, input }
     }
 
     /// Bounds encoded length, including any inserted version and checksum.
@@ -86,11 +96,11 @@ impl Encoder {
     }
 }
 
-/// An encoder and its input, ready for one conversion.
+/// A codec and its input, ready for one encoding.
 #[derive(Debug, Clone, Copy)]
 #[must_use]
 pub struct EncodeInput<I> {
-    encoder: Encoder,
+    codec: Codec,
     input: I,
 }
 
@@ -111,8 +121,8 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
     #[cfg(feature = "alloc")]
     pub fn into_vec(self) -> Vec<u8> {
         let input = self.input.as_ref();
-        let mut output = vec![0; self.encoder.max_encoded_len(input.len())];
-        let len = match (self.encoder.alphabet, self.encoder.check) {
+        let mut output = vec![0; self.codec.max_encoded_len(input.len())];
+        let len = match (self.codec.alphabet, self.codec.check) {
             (Alphabet::Bitcoin, Check::None) => crate::api::encode(input, &mut output),
             #[cfg(feature = "check")]
             (Alphabet::Bitcoin, Check::Base58Check(version)) => {
@@ -132,7 +142,7 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
     /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded result.
     #[inline(always)]
     pub fn onto(self, output: &mut [u8]) -> Result<&str, BufferTooSmall> {
-        let len = match (self.encoder.alphabet, self.encoder.check) {
+        let len = match (self.codec.alphabet, self.codec.check) {
             (Alphabet::Bitcoin, Check::None) => crate::api::encode(self.input.as_ref(), output),
             #[cfg(feature = "check")]
             (Alphabet::Bitcoin, Check::Base58Check(version)) => {
@@ -147,68 +157,11 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
     }
 }
 
-/// Reusable Base58 decoding configuration, without input or conversion state.
-/// Checked decoding removes the checksum and retains any version prefix.
-///
-/// ```
-/// use faster_base58::Decoder;
-/// const DECODER: Decoder = Decoder::bitcoin();
-/// assert_eq!(DECODER.decode("112").into_array::<3>()?, [0, 0, 1]);
-/// # Ok::<(), faster_base58::Error>(())
-/// ```
-#[derive(Debug, Clone, Copy)]
-#[must_use]
-pub struct Decoder {
-    alphabet: Alphabet,
-    check: Check,
-}
-
-impl Decoder {
-    /// Selects the Bitcoin alphabet without checksum validation.
-    #[inline(always)]
-    pub const fn bitcoin() -> Self {
-        Self {
-            alphabet: Alphabet::Bitcoin,
-            check: Check::None,
-        }
-    }
-
-    /// Requires a valid `Base58Check` checksum without requiring a version.
-    /// Replaces any previous checksum/version setting.
-    #[cfg(feature = "check")]
-    #[inline(always)]
-    pub const fn with_check(mut self) -> Self {
-        self.check = Check::Base58Check(None);
-        self
-    }
-
-    /// Requires a valid `Base58Check` checksum and the given first data byte.
-    /// The version byte is retained in the output. Replaces any previous setting.
-    /// For multi-byte prefixes, use [`Self::with_check`] and inspect the data.
-    #[cfg(feature = "check")]
-    #[inline(always)]
-    pub const fn with_check_version(mut self, version: u8) -> Self {
-        self.check = Check::Base58Check(Some(version));
-        self
-    }
-
-    /// Sets Base58 text for one conversion: a string or raw bytes, which need not be
-    /// UTF-8. References borrow; owned inputs move in.
-    /// Conversion starts at a terminal method such as [`DecodeInput::onto`].
-    #[inline(always)]
-    pub const fn decode<I: AsRef<[u8]>>(self, input: I) -> DecodeInput<I> {
-        DecodeInput {
-            decoder: self,
-            input,
-        }
-    }
-}
-
-/// A decoder and its input, ready for one conversion.
+/// A codec and its input, ready for one decoding.
 #[derive(Debug, Clone, Copy)]
 #[must_use]
 pub struct DecodeInput<I> {
-    decoder: Decoder,
+    codec: Codec,
     input: I,
 }
 
@@ -221,7 +174,7 @@ impl<I: AsRef<[u8]>> DecodeInput<I> {
     #[inline(always)]
     #[cfg(feature = "alloc")]
     pub fn into_vec(self) -> Result<Vec<u8>, Error> {
-        match (self.decoder.alphabet, self.decoder.check) {
+        match (self.codec.alphabet, self.codec.check) {
             (Alphabet::Bitcoin, Check::None) => Ok(crate::api::decode_vec(self.input.as_ref())?),
             #[cfg(feature = "check")]
             (Alphabet::Bitcoin, Check::Base58Check(version)) => {
@@ -243,7 +196,7 @@ impl<I: AsRef<[u8]>> DecodeInput<I> {
     /// missing/invalid checksum or unexpected version when checking is enabled.
     #[inline(always)]
     pub fn onto(self, output: &mut [u8]) -> Result<&mut [u8], Error> {
-        let len = match (self.decoder.alphabet, self.decoder.check) {
+        let len = match (self.codec.alphabet, self.codec.check) {
             (Alphabet::Bitcoin, Check::None) => crate::api::decode(self.input.as_ref(), output)?,
             #[cfg(feature = "check")]
             (Alphabet::Bitcoin, Check::Base58Check(version)) => {

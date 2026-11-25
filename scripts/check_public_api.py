@@ -16,7 +16,8 @@ NAMES = [f'{direction}_{backend}' for direction in ['encode', 'decode']
          for backend in ['batched', 'karatsuba', 'matrix', 'matrix_portable',
                          'ntt', 'ntt_cached', 'ntt_portable']]
 NAMES += ['encode_radix', 'encode_radix_portable', 'decode', 'encode_into', 'decode_into',
-          'encode_string', 'decode_vec', 'decode_array', 'max_encoded_len']
+          'encode_string', 'decode_vec', 'decode_array', 'max_encoded_len',
+          'Encoder', 'Decoder']
 HOOKS = ['Multiplier', 'Leaves', 'decode_with', 'encode_tuned', 'ifma_threshold',
          'mul_with', 'scratch_len', 'encode_karatsuba_with', 'encode_matrix_with',
          'encode_matrix_whole', 'encode_matrix_cache_memory', 'fixed_matrix_table_bytes',
@@ -28,22 +29,21 @@ PROFILES = [('default', [], True), ('cache', ['cache'], True),
             ('no-alloc', [], False), ('no-alloc-check', ['check'], False), ('check', ['check'], True)]
 
 NORMAL = r'''
-use faster_base58::{Encoder, Decoder, BufferTooSmall, Error};
+use faster_base58::{Codec, BufferTooSmall, Error};
 fn main() {
-    const ENCODER: Encoder = Encoder::bitcoin();
-    const DECODER: Decoder = Decoder::bitcoin();
+    const CODEC: Codec = Codec::bitcoin();
     let mut text = [0xA5; 16];
     let mut bytes = [0xA5; 16];
-    assert_eq!(ENCODER.encode([0, 0, 1]).onto(&mut text), Ok("112"));
+    assert_eq!(CODEC.encode([0, 0, 1]).onto(&mut text), Ok("112"));
     assert!(text[3..].iter().all(|&b| b == 0xA5));
-    assert_eq!(DECODER.decode("112").onto(&mut bytes).unwrap(), [0, 0, 1]);
+    assert_eq!(CODEC.decode("112").onto(&mut bytes).unwrap(), [0, 0, 1]);
     assert!(bytes[3..].iter().all(|&b| b == 0xA5));
-    assert_eq!(DECODER.decode("112").into_array::<3>(), Ok([0, 0, 1]));
-    assert_eq!(DECODER.decode("112").into_array::<4>(), Err(Error::InvalidLength { expected: 4, actual: 3 }));
-    assert_eq!(DECODER.decode("112").into_array::<2>(), Err(Error::BufferTooSmall));
-    assert_eq!(ENCODER.max_encoded_len(usize::MAX), usize::MAX);
-    assert_eq!(ENCODER.encode([0]).onto(&mut []), Err(BufferTooSmall));
-    assert_eq!(DECODER.decode("1é").onto(&mut bytes), Err(Error::InvalidCharacter { index: 1 }));
+    assert_eq!(CODEC.decode("112").into_array::<3>(), Ok([0, 0, 1]));
+    assert_eq!(CODEC.decode("112").into_array::<4>(), Err(Error::InvalidLength { expected: 4, actual: 3 }));
+    assert_eq!(CODEC.decode("112").into_array::<2>(), Err(Error::BufferTooSmall));
+    assert_eq!(CODEC.max_encoded_len(usize::MAX), usize::MAX);
+    assert_eq!(CODEC.encode([0]).onto(&mut []), Err(BufferTooSmall));
+    assert_eq!(CODEC.decode("1é").onto(&mut bytes), Err(Error::InvalidCharacter { index: 1 }));
     assert_eq!(match Error::BufferTooSmall {
         Error::BufferTooSmall => "capacity",
         _ => "other",
@@ -52,25 +52,24 @@ fn main() {
 '''
 
 OWNED = r'''
-use faster_base58::{Encoder, Decoder};
+use faster_base58::Codec;
 fn main() {
-    assert_eq!(Encoder::bitcoin().encode([0, 0, 1]).into_string(), "112");
-    assert_eq!(Encoder::bitcoin().encode([0, 0, 1]).into_vec(), b"112");
-    assert_eq!(Decoder::bitcoin().decode("112").into_vec().unwrap(), [0, 0, 1]);
+    assert_eq!(Codec::bitcoin().encode([0, 0, 1]).into_string(), "112");
+    assert_eq!(Codec::bitcoin().encode([0, 0, 1]).into_vec(), b"112");
+    assert_eq!(Codec::bitcoin().decode("112").into_vec().unwrap(), [0, 0, 1]);
 }
 '''
 
 CHECK = r'''
-use faster_base58::{Encoder, Decoder};
+use faster_base58::Codec;
 fn main() {
-    const ENCODER: Encoder = Encoder::bitcoin().with_check_version(0);
-    const DECODER: Decoder = Decoder::bitcoin().with_check_version(0);
+    const CODEC: Codec = Codec::bitcoin().with_check_version(0);
     let mut output = [0; 32];
-    let text = ENCODER.encode([42; 16]).onto(&mut output).unwrap();
+    let text = CODEC.encode([42; 16]).onto(&mut output).unwrap();
     let mut expected = [42; 17]; expected[0] = 0;
-    assert_eq!(DECODER.decode(text).into_array::<17>().unwrap(), expected);
-    assert_eq!(Decoder::bitcoin().with_check().decode("3QJmnh").into_array::<0>(), Ok([]));
-    assert_eq!(Encoder::bitcoin().with_check().max_encoded_len(usize::MAX), usize::MAX);
+    assert_eq!(CODEC.decode(text).into_array::<17>().unwrap(), expected);
+    assert_eq!(Codec::bitcoin().with_check().decode("3QJmnh").into_array::<0>(), Ok([]));
+    assert_eq!(Codec::bitcoin().with_check().max_encoded_len(usize::MAX), usize::MAX);
 }
 '''
 

@@ -9,12 +9,12 @@ use libfuzzer_sys::fuzz_target;
 // Match the encoded-length budget of encode_all: currently 89,502 raw bytes.
 // Lossy UTF-8 conversion and the inserted NUL may produce longer strings.
 #[cfg(not(test))]
-const MAX_INPUT_BYTES: usize = faster_base58::Encoder::bitcoin().max_encoded_len(64 * 1024 + 1);
+const MAX_INPUT_BYTES: usize = faster_base58::Codec::bitcoin().max_encoded_len(64 * 1024 + 1);
 
 fn check_decode_array<const N: usize>(input: &[u8], want: &Result<Vec<u8>, usize>) {
-    use faster_base58::{Decoder, Error};
+    use faster_base58::{Codec, Error};
 
-    let result = Decoder::bitcoin().decode(input).into_array::<N>();
+    let result = Codec::bitcoin().decode(input).into_array::<N>();
     match want {
         Ok(bytes) if bytes.len() == N => {
             assert_eq!(

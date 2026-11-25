@@ -212,7 +212,7 @@ mod verification {
         let capacity: usize = kani::any();
         kani::assume(capacity <= 3);
         let mut output = [0xA5; 5];
-        let result = crate::Encoder::bitcoin()
+        let result = crate::Codec::bitcoin()
             .encode([byte])
             .onto(&mut output[1..1 + capacity]);
         let digits = if byte < 58 { 1 } else { 2 };
@@ -232,18 +232,18 @@ mod verification {
                 );
             }
             assert_eq!(
-                crate::Decoder::bitcoin()
+                crate::Codec::bitcoin()
                     .decode(text)
                     .into_array::<1>()
                     .unwrap()[0],
                 byte
             );
             assert!(matches!(
-                crate::Decoder::bitcoin().decode(text).into_array::<0>(),
+                crate::Codec::bitcoin().decode(text).into_array::<0>(),
                 Err(crate::Error::BufferTooSmall)
             ));
             assert!(matches!(
-                crate::Decoder::bitcoin().decode(text).into_array::<2>(),
+                crate::Codec::bitcoin().decode(text).into_array::<2>(),
                 Err(crate::Error::InvalidLength {
                     expected: 2,
                     actual: 1

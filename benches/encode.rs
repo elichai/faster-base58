@@ -43,7 +43,7 @@ const ENCODERS: &[(&str, EncodeFn, SizeFilter)] = &[
     (
         "auto",
         |d, out| {
-            faster_base58::Encoder::bitcoin()
+            faster_base58::Codec::bitcoin()
                 .encode(d)
                 .onto(out)
                 .map(str::len)
@@ -178,7 +178,7 @@ fn encode(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
     for size in SIZES {
         let data = random_bytes(size, size as u64);
-        let mut out = vec![0u8; faster_base58::Encoder::bitcoin().max_encoded_len(size)];
+        let mut out = vec![0u8; faster_base58::Codec::bitcoin().max_encoded_len(size)];
         let encoders = || ENCODERS.iter().filter(|&&(_, _, at)| at(size));
 
         // Sanity check every encoder against malachite before timing it.

@@ -9,7 +9,7 @@ use faster_base58::Error;
 use proptest::prelude::*;
 
 fn check(input: &str, expected: &[u8]) {
-    let output = faster_base58::Decoder::bitcoin()
+    let output = faster_base58::Codec::bitcoin()
         .decode(input)
         .into_vec()
         .unwrap();
@@ -46,7 +46,7 @@ fn late_invalid_bytes_are_reported_after_long_zero_and_numeric_prefixes() {
                 input.push(invalid);
                 input.push('🦀');
                 assert_eq!(
-                    faster_base58::Decoder::bitcoin().decode(&input).into_vec(),
+                    faster_base58::Codec::bitcoin().decode(&input).into_vec(),
                     Err(Error::InvalidCharacter {
                         index: prefix.len()
                     }),

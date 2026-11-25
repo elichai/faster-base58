@@ -10,7 +10,7 @@ const ENCODERS: [(&str, Encode); 5] = [
     (
         "auto",
         (|input, output| {
-            b58::Encoder::bitcoin()
+            b58::Codec::bitcoin()
                 .encode(input)
                 .onto(output)
                 .map(str::len)
@@ -27,7 +27,7 @@ const DECODERS: [(&str, Decode); 4] = [
     (
         "auto",
         (|input, output| {
-            b58::Decoder::bitcoin()
+            b58::Codec::bitcoin()
                 .decode(input)
                 .onto(output)
                 .map(|bytes| bytes.len())
@@ -119,7 +119,7 @@ fn impossible_decode_buffers_build_no_table() {
         }
     }
     assert_eq!(
-        b58::Decoder::bitcoin()
+        b58::Codec::bitcoin()
             .decode(&"z".repeat(4096))
             .into_array::<32>(),
         Err(Error::BufferTooSmall)
