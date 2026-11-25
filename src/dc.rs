@@ -449,17 +449,17 @@ pub(crate) fn table_len(unit: usize, levels: usize) -> usize {
         + unit
 }
 
-/// At least the limbs of `BASE^e`: `BASE < 2^59`, so `ceil(59 e / 64)`.
-/// Split by 64 so `59 * e` cannot overflow 32-bit `usize`.
+/// At least the limbs of `BASE^e`: `BASE < 2^59`, so `ceil(59e / 64) = e - floor(5e / 64)`.
+/// Split by 64 so `5 * e` cannot overflow 32-bit `usize`, and avoiding 64-bit multiplies.
 pub(crate) const fn full_limbs(e: usize) -> usize {
-    59 * (e / 64) + (59 * (e % 64)).div_ceil(64)
+    e - 5 * (e / 64) - 5 * (e % 64) / 64
 }
 
 /// At most the limbs a [`Power`] keeps of `BASE^e`. `BASE < 2^59`, and
 /// `BASE^e = 2^(10e) * 29^(10e)` ends in exactly `10e` zero bits, so dropping its low
-/// zero limbs leaves at most `ceil(59e/64) - floor(10e/64)`.
+/// zero limbs leaves at most `ceil(59e / 64) - floor(10e / 64)`.
 const fn stored(e: usize) -> usize {
-    full_limbs(e) - (10 * (e / 64) + 10 * (e % 64) / 64)
+    full_limbs(e) - 10 * (e / 64) - 5 * (e % 64) / 32
 }
 
 /// The longest product with the power `BASE^e` when it is stored in `stored` limbs: the
