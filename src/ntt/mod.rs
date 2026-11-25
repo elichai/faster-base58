@@ -965,7 +965,11 @@ fn crt(r: &mut [i32], nega: &[usize], p: Prime, k: &Kernels) {
 /// many `i32`s: vector loads and stores that cross a cache line are slower.
 fn as_i32(s: &mut [u64]) -> &mut [i32] {
     let skip = s.as_ptr().align_offset(64);
-    let s = if skip < 8 { &mut s[skip..] } else { s };
+    let s = if skip < 8 && skip <= s.len() {
+        &mut s[skip..]
+    } else {
+        s
+    };
     // SAFETY: `u64` is at least as aligned as `i32`, the new slice covers the same
     // bytes, every bit pattern is a valid `i32`, and the borrow of `s` moves into it.
     unsafe { core::slice::from_raw_parts_mut(s.as_mut_ptr().cast(), 2 * s.len()) }
@@ -1218,6 +1222,64 @@ mod tests {
                 let mut got = vec![0; 2 * n];
                 mul_with(&mut got, &a, &b, s, &t, &k, 1);
                 assert!(got == want, "{n} limbs, scratch {skip} limbs in");
+            }
+        }
+    }
+
+    /// On targets where `align_of::<u64>() == 4` (such as `i686`), a `&mut [u64]` can
+    /// start at a `4 mod 8` address that cannot reach a 64-byte boundary in `u64` steps.
+    /// [`as_i32`] keeps the full slice without dropping limbs or panicking, and
+    /// [`mul_with`] still produces the exact product.
+    #[test]
+    fn scratch_at_four_byte_alignment() {
+        #[repr(C, align(8))]
+        struct Offset<const N: usize> {
+            _pad: u32,
+            limbs: [u64; N],
+        }
+
+        // Short slice (< 7 limbs): must never panic at any offset.
+        let mut small = Offset {
+            _pad: 0,
+            limbs: [0x5A5A_5A5A_5A5A_5A5A; 16],
+        };
+        for skip in 0..8 {
+            let s = &mut small.limbs[skip..][..3];
+            let addr = s.as_ptr().addr();
+            let got = as_i32(s);
+            assert_eq!(got.as_ptr().addr() % 4, 0);
+            if align_of::<u64>() == 4 {
+                assert_eq!(addr % 8, 4);
+                assert_eq!(got.len(), 6);
+            }
+        }
+
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(43);
+        let (t, k) = (Tables::new(12), Kernels::best());
+        for n in [34, 129] {
+            let len = scratch_len(n);
+            let (a, b) = operands(&mut rng, n, n)[0].clone();
+            let mut want = vec![0; 2 * n];
+            mul::mul(&mut want, &a, &b, &mut vec![0; mul::scratch_len(n)]);
+            let mut scratch = alloc::boxed::Box::new(Offset {
+                _pad: 0,
+                limbs: [0x5A5A_5A5A_5A5A_5A5A; 2048],
+            });
+            assert!(len + 7 <= scratch.limbs.len());
+            for skip in 0..8 {
+                let s = &mut scratch.limbs[skip..][..len];
+                let addr = s.as_ptr().addr();
+                let i32s = as_i32(s);
+                if align_of::<u64>() == 4 {
+                    assert_eq!(addr % 8, 4);
+                    assert_eq!(i32s.len(), 2 * len);
+                    assert_eq!(i32s.as_ptr().addr() % 8, 4);
+                } else {
+                    assert_eq!(i32s.as_ptr().addr() % 64, 0);
+                }
+                let mut got = vec![0; 2 * n];
+                mul_with(&mut got, &a, &b, s, &t, &k, 1);
+                assert!(got == want, "{n} limbs, offset scratch {skip} limbs in");
             }
         }
     }
