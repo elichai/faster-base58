@@ -51,10 +51,7 @@ use core::ptr;
 
 #[cfg(feature = "alloc")]
 use crate::dc;
-#[cfg(feature = "alloc")]
-use crate::dc::Leaf;
 use crate::dc::Multiplier;
-use crate::encode::Leaves;
 use crate::mul;
 #[cfg(feature = "cache")]
 use tables::cache::CACHE_MAX_LOG;
@@ -109,7 +106,7 @@ pub(crate) const ENCODE_THRESHOLD: usize = core::cfg_select! {
 ))]
 const ENCODE_LEAF: usize = 32;
 
-/// The leaf size of the caching encoders, which use [`Leaves::BEST`]. Matrix leaves pay off
+/// The leaf size of the caching encoders, which use `encode::dc::BestLeaf`. Matrix leaves pay off
 /// much larger with NEON: in one binary with loops aligned to 64 bytes (M5 Pro), 768
 /// chunks was 4-8% faster than 256 from 32 KiB to 1 MiB, and within 1% of 1024 there but
 /// 3-4% faster at 12 and 24 KiB. With the x86 kernels (Zen 5) 96 was best: 256 within 5%,
@@ -138,13 +135,7 @@ pub(crate) fn decode(
     zeros: usize,
     output: &mut [u8],
 ) -> Result<usize, crate::common::DecodeError> {
-    dc::decode_parts(
-        digits,
-        zeros,
-        output,
-        &mut Ntt::new(Kernels::best()),
-        Leaf::BEST,
-    )
+    dc::decode_parts::<dc::BestLeaf>(digits, zeros, output, &mut Ntt::new(Kernels::best()))
 }
 
 /// [`crate::dc::decode_value`] with the NTT multiplier of [`decode`].
@@ -154,13 +145,7 @@ pub(crate) fn decode_value(
     zeros: usize,
     capacity: usize,
 ) -> Result<alloc::vec::Vec<u64>, crate::common::DecodeError> {
-    dc::decode_value(
-        digits,
-        zeros,
-        capacity,
-        &mut Ntt::new(Kernels::best()),
-        Leaf::BEST,
-    )
+    dc::decode_value::<dc::BestLeaf>(digits, zeros, capacity, &mut Ntt::new(Kernels::best()))
 }
 
 /// Large encoding with NTT multiplication. NEON, x86 AVX-512 and Wasm use a multiplication
@@ -189,7 +174,13 @@ pub(crate) fn encode(
         return result;
     }
     let m = &mut Ntt::new(Kernels::best());
-    crate::encode::dc::encode_parts(zeros, input, output, m, CACHED_LEAF, Leaves::BEST)
+    crate::encode::dc::encode_parts::<crate::encode::dc::BestLeaf>(
+        zeros,
+        input,
+        output,
+        m,
+        CACHED_LEAF,
+    )
 }
 
 #[cfg(all(feature = "check", feature = "alloc"))]
@@ -212,13 +203,12 @@ pub(crate) fn encode_staged(
     if let Some(result) = radix::try_encode_staged(zeros, end, output) {
         return result;
     }
-    crate::encode::dc::encode_staged(
+    crate::encode::dc::encode_staged::<crate::encode::dc::BestLeaf>(
         zeros,
         end,
         output,
         &mut Ntt::new(Kernels::best()),
         CACHED_LEAF,
-        Leaves::BEST,
     )
 }
 
@@ -988,6 +978,7 @@ mod tests {
     };
     use super::*;
     use crate::dc::min_digits;
+    use crate::encode::Leaves;
     use crate::tests::{Decode, decode_vec, random_string};
     use crate::{dc, encode};
     use rand_xoshiro::Xoshiro256PlusPlus;

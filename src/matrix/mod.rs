@@ -192,12 +192,11 @@ pub(crate) mod internals {
         let result = if digits.len() < min {
             crate::batched::decode_parts(input, digits, output)
         } else if digits.len() > table::MAX_CHARS {
-            crate::dc::decode_parts(
+            crate::dc::decode_parts::<crate::dc::HornerLeaf>(
                 digits,
                 zeros,
                 output,
                 &mut crate::dc::Karatsuba,
-                crate::dc::Leaf::Horner,
             )
         } else {
             decode_parts(k, input, zeros, output)

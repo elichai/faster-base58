@@ -12,77 +12,9 @@ use alloc::vec::Vec;
 
 use core::cmp::Ordering;
 
-#[cfg(any(
-    test,
-    feature = "__internals",
-    kani,
-    all(
-        feature = "cache",
-        any(
-            all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            ),
-            all(target_arch = "x86_64", target_feature = "sse2")
-        )
-    )
-))]
-use super::matrix;
-#[cfg(any(
-    test,
-    feature = "__internals",
-    kani,
-    not(all(
-        feature = "cache",
-        any(
-            all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            ),
-            all(target_arch = "x86_64", target_feature = "sse2")
-        )
-    ))
-))]
-use super::{batched::Limbs, ten_digits};
 use super::{bits, min_digits, split_zeros};
 use crate::BufferTooSmall;
 use crate::common::CHUNK;
-#[cfg(any(
-    test,
-    feature = "__internals",
-    kani,
-    all(
-        feature = "cache",
-        any(
-            all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            ),
-            all(target_arch = "x86_64", target_feature = "sse2")
-        )
-    )
-))]
-use crate::common::store_low_le;
-#[cfg(any(
-    test,
-    feature = "__internals",
-    kani,
-    not(all(
-        feature = "cache",
-        any(
-            all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            ),
-            all(target_arch = "x86_64", target_feature = "sse2")
-        )
-    ))
-))]
-use crate::dc::LEAF;
 use crate::dc::{
     Multiplier, Power, full_limbs as full, powers, split_unit_leaf, table_len, trimmed_len,
 };
@@ -90,26 +22,6 @@ use crate::mul::{add_assign, fold_wrapped, sub_assign};
 
 /// Divisors of at most this many limbs get their reciprocal by schoolbook division.
 const RECIP_BASECASE: usize = 16;
-
-/// The largest matrix leaf in chunks: at most `8 MATRIX_LEAF` bytes, `encode_matrix`'s
-/// cap. Horner leaves keep `LEAF`, which sizes their stack buffers.
-#[cfg(any(
-    test,
-    feature = "__internals",
-    kani,
-    all(
-        feature = "cache",
-        any(
-            all(
-                target_arch = "aarch64",
-                target_endian = "little",
-                target_feature = "neon"
-            ),
-            all(target_arch = "x86_64", target_feature = "sse2")
-        )
-    )
-))]
-pub(super) const MATRIX_LEAF: usize = 1024;
 
 #[cfg(any(not(feature = "cache"), test, feature = "__internals", kani))]
 pub(crate) mod karatsuba {
@@ -175,47 +87,18 @@ pub(crate) mod internals {
 }
 
 /// How the divide-and-conquer encoders convert their leaves.
+#[cfg(any(test, feature = "__internals", kani))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Leaves {
     /// [`crate::encode::encode_batched`]'s kernel.
-    #[cfg(any(
-        test,
-        feature = "__internals",
-        kani,
-        not(all(
-            feature = "cache",
-            any(
-                all(
-                    target_arch = "aarch64",
-                    target_endian = "little",
-                    target_feature = "neon"
-                ),
-                all(target_arch = "x86_64", target_feature = "sse2")
-            )
-        ))
-    ))]
     Horner,
     /// `encode_matrix`'s conversion. The `cache` feature retains its table;
-    /// explicit use without that feature builds an owned table per leaf invocation.
-    #[cfg(any(
-        test,
-        feature = "__internals",
-        kani,
-        all(
-            feature = "cache",
-            any(
-                all(
-                    target_arch = "aarch64",
-                    target_endian = "little",
-                    target_feature = "neon"
-                ),
-                all(target_arch = "x86_64", target_feature = "sse2")
-            )
-        )
-    ))]
+    /// explicit use in tests or `__internals` without `cache` builds an owned
+    /// table per leaf invocation.
     Matrix,
 }
 
+#[cfg(any(test, feature = "__internals", kani))]
 impl Leaves {
     /// `Leaves::Matrix` where `encode_matrix` has SIMD kernels: NEON, and AVX2 or SSE4.1
     /// on `x86_64`, where cached matrix leaves took 2-59% less time than Horner leaves
@@ -237,6 +120,49 @@ impl Leaves {
     };
 }
 
+/// Static leaf strategy so production builds instantiate only the leaf backend they reach.
+pub(crate) trait EncodeLeaf {
+    const MAX: usize;
+    const NAME: &'static str;
+    fn encode(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall>;
+}
+
+pub(crate) type BestLeaf = core::cfg_select! {
+    all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    ) => matrix_leaf::MatrixLeaf,
+    _ => horner::HornerLeaf,
+};
+
+#[cfg(any(not(feature = "cache"), test, feature = "__internals", kani))]
+pub(crate) use horner::HornerLeaf;
+
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    )
+))]
+pub(super) use matrix_leaf::MATRIX_LEAF;
+
 /// Divide and conquer above `threshold` bytes, with leaves converted by `leaves`.
 /// Panics unless `leaf` is in `1..=256` for Horner or `1..=1024` for Matrix.
 ///
@@ -251,7 +177,10 @@ pub fn encode_tuned(
     leaf: usize,
     leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    check_leaf(leaf, leaves);
+    match leaves {
+        Leaves::Horner => check_leaf::<HornerLeaf>(leaf),
+        Leaves::Matrix => check_leaf::<matrix_leaf::MatrixLeaf>(leaf),
+    }
     let (zeros, x) = split_zeros(input);
     if x.len() <= threshold {
         return super::batched::encode_parts(zeros, x, output);
@@ -260,82 +189,48 @@ pub fn encode_tuned(
     if split_unit_leaf(n, leaf).1 == 0 {
         return match leaves {
             Leaves::Horner => super::batched::encode_parts(zeros, x, output),
-            Leaves::Matrix => matrix::encode_whole(input, output),
+            Leaves::Matrix => super::matrix::encode_whole(input, output),
         };
     }
-    encode_parts(zeros, x, output, m, leaf, leaves)
+    match leaves {
+        Leaves::Horner => encode_parts::<HornerLeaf>(zeros, x, output, m, leaf),
+        Leaves::Matrix => encode_parts::<matrix_leaf::MatrixLeaf>(zeros, x, output, m, leaf),
+    }
 }
 
-fn check_leaf(leaf: usize, leaves: Leaves) {
-    let max = match leaves {
-        #[cfg(any(
-            test,
-            feature = "__internals",
-            kani,
-            not(all(
-                feature = "cache",
-                any(
-                    all(
-                        target_arch = "aarch64",
-                        target_endian = "little",
-                        target_feature = "neon"
-                    ),
-                    all(target_arch = "x86_64", target_feature = "sse2")
-                )
-            ))
-        ))]
-        Leaves::Horner => LEAF,
-        #[cfg(any(
-            test,
-            feature = "__internals",
-            kani,
-            all(
-                feature = "cache",
-                any(
-                    all(
-                        target_arch = "aarch64",
-                        target_endian = "little",
-                        target_feature = "neon"
-                    ),
-                    all(target_arch = "x86_64", target_feature = "sse2")
-                )
-            )
-        ))]
-        Leaves::Matrix => MATRIX_LEAF,
-    };
+fn check_leaf<L: EncodeLeaf>(leaf: usize) {
     assert!(
-        (1..=max).contains(&leaf),
-        "{leaves:?} leaf of {leaf} chunks"
+        (1..=L::MAX).contains(&leaf),
+        "{} leaf of {leaf} chunks",
+        L::NAME
     );
 }
 
 /// Converts a nonzero value large enough to split into at least two leaves.
 /// Length dispatch belongs to the caller; this never falls back to another encoder.
-pub(crate) fn encode_parts(
+pub(crate) fn encode_parts<L: EncodeLeaf>(
     zeros: usize,
     input: &[u8],
     output: &mut [u8],
     m: &mut impl Multiplier,
     leaf: usize,
-    leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    check_leaf(leaf, leaves);
+    check_leaf::<L>(leaf);
     let (limbs, chunks) = load(input, zeros, output.len())?;
-    encode_limbs(zeros, limbs, chunks, output, m, leaf, leaves)
+    encode_limbs::<L>(zeros, limbs, chunks, output, m, leaf)
 }
 
 #[cfg(all(feature = "check", feature = "alloc"))]
-pub(crate) fn encode_staged(
+pub(crate) fn encode_staged<L: EncodeLeaf>(
     zeros: usize,
     end: usize,
     output: &mut [u8],
     m: &mut impl Multiplier,
     leaf: usize,
-    leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
-    check_leaf(leaf, leaves);
+    check_leaf::<L>(leaf);
     let (limbs, chunks) = load(&output[zeros..end], zeros, output.len())?;
-    encode_limbs(zeros, limbs, chunks, output, m, leaf, leaves)
+    encode_limbs::<L>(zeros, limbs, chunks, output, m, leaf)
 }
 
 fn load(x: &[u8], zeros: usize, capacity: usize) -> Result<(Vec<u64>, usize), BufferTooSmall> {
@@ -360,14 +255,13 @@ fn load(x: &[u8], zeros: usize, capacity: usize) -> Result<(Vec<u64>, usize), Bu
 // Shared by borrowed and staged input. Not inlined: IFMA Karatsuba encoding inlined this
 // into the dispatcher, whose 4.5 KiB frame made 1-byte encodes 1.24x slower (Zen 5).
 #[inline(never)]
-fn encode_limbs(
+fn encode_limbs<L: EncodeLeaf>(
     zeros: usize,
     x: Vec<u64>,
     n: usize,
     output: &mut [u8],
     m: &mut impl Multiplier,
     leaf: usize,
-    leaves: Leaves,
 ) -> Result<usize, BufferTooSmall> {
     let (unit, levels) = split_unit_leaf(n, leaf);
     assert!(levels != 0, "value is too short for divide and conquer");
@@ -401,15 +295,11 @@ fn encode_limbs(
     }
     let mut scratch = vec![0; node_scratch_len(&divs, m)];
     let mut out = Out { buf: out, pos: 0 };
-    node(
+    node::<L>(
         &x,
         n,
         false,
-        &Tree {
-            divs: &divs,
-            leaf,
-            leaves,
-        },
+        &Tree { divs: &divs, leaf },
         &mut out,
         &mut scratch,
         m,
@@ -601,7 +491,7 @@ fn canonical(a: &mut [u64]) {
 }
 
 /// Where the digits go: `buf[pos..]`.
-struct Out<'a> {
+pub(crate) struct Out<'a> {
     buf: &'a mut [u8],
     pos: usize,
 }
@@ -619,12 +509,11 @@ impl Out<'_> {
 struct Tree<'a> {
     divs: &'a [Divisor<'a>],
     leaf: usize,
-    leaves: Leaves,
 }
 
 /// Writes the digits of `x < BASE^n`: exactly `10 n` of them if `pad`, else without
 /// leading zeros. Needs [`node_scratch_len`] limbs of `s`.
-fn node(
+fn node<L: EncodeLeaf>(
     x: &[u64],
     n: usize,
     pad: bool,
@@ -634,42 +523,7 @@ fn node(
     m: &mut impl Multiplier,
 ) -> Result<(), BufferTooSmall> {
     if n <= t.leaf {
-        return match t.leaves {
-            #[cfg(any(
-                test,
-                feature = "__internals",
-                kani,
-                not(all(
-                    feature = "cache",
-                    any(
-                        all(
-                            target_arch = "aarch64",
-                            target_endian = "little",
-                            target_feature = "neon"
-                        ),
-                        all(target_arch = "x86_64", target_feature = "sse2")
-                    )
-                ))
-            ))]
-            Leaves::Horner => leaf(x, n, pad, out),
-            #[cfg(any(
-                test,
-                feature = "__internals",
-                kani,
-                all(
-                    feature = "cache",
-                    any(
-                        all(
-                            target_arch = "aarch64",
-                            target_endian = "little",
-                            target_feature = "neon"
-                        ),
-                        all(target_arch = "x86_64", target_feature = "sse2")
-                    )
-                )
-            ))]
-            Leaves::Matrix => leaf_matrix(x, n, pad, out),
-        };
+        return L::encode(x, n, pad, out);
     }
     if x.is_empty() {
         if pad {
@@ -688,10 +542,10 @@ fn node(
     let (hn, ln) = divide(x, d, i, hi, lo, s, m);
     let lo = &lo[..ln];
     if !pad && hn == 0 {
-        return node(lo, d.exp, false, t, out, s, m);
+        return node::<L>(lo, d.exp, false, t, out, s, m);
     }
-    node(&hi[..hn], n - d.exp, pad, t, out, s, m)?;
-    node(lo, d.exp, true, t, out, s, m)
+    node::<L>(&hi[..hn], n - d.exp, pad, t, out, s, m)?;
+    node::<L>(lo, d.exp, true, t, out, s, m)
 }
 
 /// Scratch limbs [`node`] needs for any node, by induction on the levels: a node at level
@@ -712,10 +566,6 @@ fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8]) -> &'a [u8] {
     split_zeros(bytes).1
 }
 
-/// [`node`] for `n <= MATRIX_LEAF` by `encode_matrix`'s conversion. Its frame holds the
-/// matrix's scratch and the bytes, about 38 KiB, which every level of [`node`]'s recursion
-/// would carry if this were inlined.
-// A stack-depth guard: LLVM keeps this out of line anyway (M5, x86-64, Wasm).
 #[cfg(any(
     test,
     feature = "__internals",
@@ -732,44 +582,71 @@ fn be_bytes<'a>(x: &[u64], buf: &'a mut [u8]) -> &'a [u8] {
         )
     )
 ))]
-#[inline(never)]
-fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
-    let mut bytes = [0u8; 8 * MATRIX_LEAF];
-    let mut scratch = matrix::Scratch::new();
-    let cols = matrix::columns(be_bytes(x, &mut bytes), &mut scratch);
-    let Some((&top, rest)) = cols.split_last() else {
-        if pad {
-            out.take(10 * n)?.fill(b'1');
+mod matrix_leaf {
+    use super::{EncodeLeaf, Out, be_bytes};
+    use crate::BufferTooSmall;
+    use crate::common::store_low_le;
+    use crate::encode::matrix;
+
+    /// The largest matrix leaf in chunks: at most `8 MATRIX_LEAF` bytes, `encode_matrix`'s
+    /// cap. Horner leaves keep `LEAF`, which sizes their stack buffers.
+    pub(crate) const MATRIX_LEAF: usize = 1024;
+
+    pub(crate) struct MatrixLeaf;
+
+    impl EncodeLeaf for MatrixLeaf {
+        const MAX: usize = MATRIX_LEAF;
+        const NAME: &'static str = "Matrix";
+
+        #[inline(always)]
+        fn encode(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
+            leaf_matrix(x, n, pad, out)
         }
-        return Ok(());
-    };
-    let top = matrix::four_digits(top);
-    // Characters the top column gives: without its leading zero digits, or with `pad` as
-    // many as make `10 n` in all. `x < 58^(10 n)`, so the other columns hold fewer than
-    // `10 n` characters, and any top digits past `10 n` are zero.
-    let lead = match pad {
-        true => 10 * n - 4 * rest.len(),
-        false => 4 - top.iter().take_while(|&&c| c == b'1').count(),
-    };
-    let (head, body) = out.take(lead + 4 * rest.len())?.split_at_mut(lead);
-    if lead <= 4 {
-        debug_assert!(top[..4 - lead].iter().all(|&c| c == b'1'), "x >= BASE^n");
-        // The head holds at most four trailing digits; keep their byte order on any host.
-        let digits = u64::from(u32::from_le_bytes(top));
-        store_low_le(head, digits >> (8 * (4 - lead)));
-    } else {
-        head[..lead - 4].fill(b'1');
-        head[lead - 4..].copy_from_slice(&top);
     }
-    matrix::column_digits(rest, body.as_chunks_mut::<4>().0);
-    Ok(())
+
+    /// `node` for `n <= MATRIX_LEAF` by `encode_matrix`'s conversion. Its frame holds the
+    /// matrix's scratch and the bytes, about 38 KiB, which every level of `node`'s recursion
+    /// would carry if this were inlined.
+    // A stack-depth guard: LLVM keeps this out of line anyway (M5, x86-64, Wasm).
+    #[inline(never)]
+    fn leaf_matrix(
+        x: &[u64],
+        n: usize,
+        pad: bool,
+        out: &mut Out<'_>,
+    ) -> Result<(), BufferTooSmall> {
+        let mut bytes = [0u8; 8 * MATRIX_LEAF];
+        let mut scratch = matrix::Scratch::new();
+        let cols = matrix::columns(be_bytes(x, &mut bytes), &mut scratch);
+        let Some((&top, rest)) = cols.split_last() else {
+            if pad {
+                out.take(10 * n)?.fill(b'1');
+            }
+            return Ok(());
+        };
+        let top = matrix::four_digits(top);
+        // Characters the top column gives: without its leading zero digits, or with `pad` as
+        // many as make `10 n` in all. `x < 58^(10 n)`, so the other columns hold fewer than
+        // `10 n` characters, and any top digits past `10 n` are zero.
+        let lead = match pad {
+            true => 10 * n - 4 * rest.len(),
+            false => 4 - top.iter().take_while(|&&c| c == b'1').count(),
+        };
+        let (head, body) = out.take(lead + 4 * rest.len())?.split_at_mut(lead);
+        if lead <= 4 {
+            debug_assert!(top[..4 - lead].iter().all(|&c| c == b'1'), "x >= BASE^n");
+            // The head holds at most four trailing digits; keep their byte order on any host.
+            let digits = u64::from(u32::from_le_bytes(top));
+            store_low_le(head, digits >> (8 * (4 - lead)));
+        } else {
+            head[..lead - 4].fill(b'1');
+            head[lead - 4..].copy_from_slice(&top);
+        }
+        matrix::column_digits(rest, body.as_chunks_mut::<4>().0);
+        Ok(())
+    }
 }
 
-/// [`node`] for `n <= LEAF`, with [`Limbs`] on the stack.
-// Zeroing only the scratch a leaf uses (`matrix::zeroed` prefixes of uninitialized
-// buffers: `8 x.len()` bytes and `n` slots, instead of 4 KiB here and 8 KiB in
-// `leaf_matrix`) was neutral: 0.97-1.02x in paired public encodes that reach the leaves,
-// while untouched cells moved as much or more (M5 and Zen 5, generic flags, 2026-11-08).
 #[cfg(any(
     test,
     feature = "__internals",
@@ -786,41 +663,65 @@ fn leaf_matrix(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), 
         )
     ))
 ))]
-fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
-    let mut bytes = [0u8; 8 * LEAF];
-    let mut slots = [[0u8; 8]; LEAF];
-    let mut limbs = Limbs {
-        slots: &mut slots,
-        len: 0,
-        top: 0,
-    };
-    limbs.feed(be_bytes(x, &mut bytes));
-    let Limbs { slots, len, top } = limbs;
-    let stored = &slots[slots.len() - len..];
-    let top_digits = ten_digits(top);
-    let o = if pad {
-        let o = out.take(10 * n)?;
-        let used = if top == 0 { 0 } else { len + 1 };
-        let (ones, o) = o.split_at_mut(10 * (n - used));
-        ones.fill(b'1');
-        if top == 0 {
-            return Ok(());
+mod horner {
+    use super::{EncodeLeaf, Out, be_bytes};
+    use crate::BufferTooSmall;
+    use crate::dc::LEAF;
+    use crate::encode::{batched::Limbs, ten_digits};
+
+    pub(crate) struct HornerLeaf;
+
+    impl EncodeLeaf for HornerLeaf {
+        const MAX: usize = LEAF;
+        const NAME: &'static str = "Horner";
+
+        #[inline(always)]
+        fn encode(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
+            leaf(x, n, pad, out)
         }
-        o[..10].copy_from_slice(&top_digits);
-        &mut o[10..]
-    } else {
-        if top == 0 {
-            return Ok(());
-        }
-        let skip = top_digits.iter().take_while(|&&c| c == b'1').count();
-        let o = out.take(10 - skip + 10 * len)?;
-        o[..10 - skip].copy_from_slice(&top_digits[skip..]);
-        &mut o[10 - skip..]
-    };
-    for (o, s) in o.as_chunks_mut::<10>().0.iter_mut().zip(stored) {
-        o.copy_from_slice(&ten_digits(u64::from_ne_bytes(*s)));
     }
-    Ok(())
+
+    /// `node` for `n <= LEAF`, with `Limbs` on the stack.
+    // Zeroing only the scratch a leaf uses (`matrix::zeroed` prefixes of uninitialized
+    // buffers: `8 x.len()` bytes and `n` slots, instead of 4 KiB here and 8 KiB in
+    // `leaf_matrix`) was neutral: 0.97-1.02x in paired public encodes that reach the leaves,
+    // while untouched cells moved as much or more (M5 and Zen 5, generic flags, 2026-11-08).
+    fn leaf(x: &[u64], n: usize, pad: bool, out: &mut Out<'_>) -> Result<(), BufferTooSmall> {
+        let mut bytes = [0u8; 8 * LEAF];
+        let mut slots = [[0u8; 8]; LEAF];
+        let mut limbs = Limbs {
+            slots: &mut slots,
+            len: 0,
+            top: 0,
+        };
+        limbs.feed(be_bytes(x, &mut bytes));
+        let Limbs { slots, len, top } = limbs;
+        let stored = &slots[slots.len() - len..];
+        let top_digits = ten_digits(top);
+        let o = if pad {
+            let o = out.take(10 * n)?;
+            let used = if top == 0 { 0 } else { len + 1 };
+            let (ones, o) = o.split_at_mut(10 * (n - used));
+            ones.fill(b'1');
+            if top == 0 {
+                return Ok(());
+            }
+            o[..10].copy_from_slice(&top_digits);
+            &mut o[10..]
+        } else {
+            if top == 0 {
+                return Ok(());
+            }
+            let skip = top_digits.iter().take_while(|&&c| c == b'1').count();
+            let o = out.take(10 - skip + 10 * len)?;
+            o[..10 - skip].copy_from_slice(&top_digits[skip..]);
+            &mut o[10 - skip..]
+        };
+        for (o, s) in o.as_chunks_mut::<10>().0.iter_mut().zip(stored) {
+            o.copy_from_slice(&ten_digits(u64::from_ne_bytes(*s)));
+        }
+        Ok(())
+    }
 }
 
 /// Writes to `x` (`n + 1` limbs) a value with `a x < β^(2n) <= a (x + 2)`, for `a` of `n`
@@ -1132,7 +1033,7 @@ mod verification {
 mod tests {
     use super::internals::encode;
     use super::*;
-    use crate::dc::Karatsuba;
+    use crate::dc::{Karatsuba, LEAF};
     use crate::encode::encode_batched;
     use crate::mul;
     use crate::ntt::{Kernels, Ntt};
@@ -1142,7 +1043,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value is too short for divide and conquer")]
     fn normalized_encoder_rejects_single_leaf_values() {
-        encode_parts(0, &[1], &mut [0; 2], &mut Karatsuba, 1, Leaves::Horner).unwrap();
+        encode_parts::<HornerLeaf>(0, &[1], &mut [0; 2], &mut Karatsuba, 1).unwrap();
     }
 
     /// `load` matches a byte fold over `rchunks(8)` for every short head length.
@@ -1738,7 +1639,7 @@ mod tests {
                         buf: &mut buf[1..1 + capacity],
                         pos: 0,
                     };
-                    let result = leaf_matrix(&limbs, n, pad, &mut out);
+                    let result = matrix_leaf::MatrixLeaf::encode(&limbs, n, pad, &mut out);
                     let pos = out.pos;
                     let what = format!("{text}, pad {pad}, capacity {capacity}");
                     if capacity < want.len() {
@@ -1768,8 +1669,8 @@ mod tests {
                 pos: 0,
             };
             let r = match kind {
-                Leaves::Horner => leaf(x, n, pad, &mut out),
-                Leaves::Matrix => leaf_matrix(x, n, pad, &mut out),
+                Leaves::Horner => HornerLeaf::encode(x, n, pad, &mut out),
+                Leaves::Matrix => matrix_leaf::MatrixLeaf::encode(x, n, pad, &mut out),
             };
             let what = format!("{kind:?} n {n}, {} limbs, pad {pad}", x.len());
             assert_eq!(r, Ok(()), "{what}");

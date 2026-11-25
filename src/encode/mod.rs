@@ -16,10 +16,8 @@ pub(crate) mod matrix;
 mod tests;
 
 pub use batched::encode_batched;
-#[cfg(any(feature = "alloc", test, kani))]
-pub use dc::Leaves;
 #[cfg(any(test, feature = "__internals", kani))]
-pub use dc::encode_tuned;
+pub use dc::{Leaves, encode_tuned};
 
 use crate::common::BASE;
 
@@ -67,17 +65,12 @@ pub(crate) fn split_zeros(input: &[u8]) -> (usize, &[u8]) {
 fn ten_digits(y: u64) -> [u8; 10] {
     debug_assert!(y < BASE);
     const TWO: u64 = 58u64.pow(2);
-    let (q4, q3, q2, q1) = (y / TWO.pow(4), y / TWO.pow(3), y / TWO.pow(2), y / TWO);
-    let pairs = [
-        q4,
-        q3 - q4 * TWO,
-        q2 - q3 * TWO,
-        q1 - q2 * TWO,
-        y - q1 * TWO,
-    ];
+    let top = matrix::CHAR_PAIRS[(y / TWO.pow(4)) as usize];
+    let quotients = [y / TWO.pow(3), y / TWO.pow(2), y / TWO, y];
     let mut d = [0; 10];
-    for (dst, p) in d.as_chunks_mut::<2>().0.iter_mut().zip(pairs) {
-        *dst = matrix::CHAR_PAIRS[p as usize];
+    d[..2].copy_from_slice(&top);
+    for (pair, q) in d[2..].as_chunks_mut::<2>().0.iter_mut().zip(quotients) {
+        pair.copy_from_slice(&matrix::CHAR_PAIRS[(q % TWO) as usize]);
     }
     d
 }

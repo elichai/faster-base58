@@ -26,13 +26,9 @@ core::ptr::drop_glue::<[faster_base58::ntt::tables::Twiddles; 2]>
 core::ptr::drop_glue::<core::array::Guard<faster_base58::ntt::tables::Twiddles>>
 core::ptr::drop_glue::<faster_base58::ntt::Ntt>
 faster_base58::common::invalid
-faster_base58::dc::dc::<faster_base58::ntt::Ntt>
-faster_base58::dc::decode_value::<faster_base58::ntt::Ntt>
 faster_base58::dc::powers::<faster_base58::ntt::Ntt>
 faster_base58::encode::batched::encode_parts
-faster_base58::encode::dc::encode_limbs::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::newton::<faster_base58::ntt::Ntt>
-faster_base58::encode::dc::node::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::recip_scratch_len::<faster_base58::ntt::Ntt>
 faster_base58::encode::dc::reciprocal::<faster_base58::ntt::Ntt>
 faster_base58::mul::mul_with
@@ -49,14 +45,19 @@ faster_base58::ntt::transform
 
 [!cache]
 # Also out of line in x86_64 `cache` builds, not in aarch64 ones.
+faster_base58::dc::dc::<faster_base58::dc::horner::HornerLeaf, faster_base58::ntt::Ntt>
+faster_base58::dc::decode_value::<faster_base58::dc::horner::HornerLeaf, faster_base58::ntt::Ntt>
 faster_base58::dc::mul_add_chunks
-faster_base58::encode::dc::leaf
+faster_base58::encode::dc::encode_limbs::<faster_base58::encode::dc::horner::HornerLeaf, faster_base58::ntt::Ntt>
+faster_base58::encode::dc::horner::leaf
+faster_base58::encode::dc::node::<faster_base58::encode::dc::horner::HornerLeaf, faster_base58::ntt::Ntt>
 
 [cache]
 <<std::sync::once::Once>::call_once_force<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::get_or_init<faster_base58::encode::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0} as core::ops::function::FnOnce<(&std::sync::once::OnceState,)>>::call_once::{shim:vtable#0}
 <<std::sync::once::Once>::call_once_force<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::get_or_init<faster_base58::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0} as core::ops::function::FnOnce<(&std::sync::once::OnceState,)>>::call_once::{shim:vtable#0}
 <<std::sync::once::Once>::call_once_force<<std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::get_or_init<<faster_base58::ntt::tables::Tables>::cached::{closure#0}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0} as core::ops::function::FnOnce<(&std::sync::once::OnceState,)>>::call_once::{shim:vtable#0}
 <alloc::raw_vec::RawVec<faster_base58::matrix::table::Panel>>::grow_one
+<faster_base58::encode::matrix::table::Table>::new
 <faster_base58::matrix::table::Table>::new
 <std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::get_or_init<faster_base58::encode::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}
 <std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::initialize<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::get_or_init<faster_base58::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}
@@ -64,7 +65,9 @@ faster_base58::encode::dc::leaf
 <std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::initialize::<<std::sync::once_lock::OnceLock<faster_base58::encode::matrix::table::Table>>::get_or_init<faster_base58::encode::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>
 <std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::initialize::<<std::sync::once_lock::OnceLock<faster_base58::matrix::table::Table>>::get_or_init<faster_base58::matrix::table::cached::get::{closure#1}::{closure#0}>::{closure#0}, !>
 <std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::initialize::<<std::sync::once_lock::OnceLock<faster_base58::ntt::tables::Tables>>::get_or_init<<faster_base58::ntt::tables::Tables>::cached::{closure#0}::{closure#0}>::{closure#0}, !>
-faster_base58::encode::dc::leaf_matrix
+faster_base58::encode::dc::encode_limbs::<faster_base58::encode::dc::matrix_leaf::MatrixLeaf, faster_base58::ntt::Ntt>
+faster_base58::encode::dc::matrix_leaf::leaf_matrix
+faster_base58::encode::dc::node::<faster_base58::encode::dc::matrix_leaf::MatrixLeaf, faster_base58::ntt::Ntt>
 faster_base58::encode::matrix::convert
 faster_base58::encode::matrix::encode_parts
 faster_base58::matrix::entry::decode_parts
@@ -157,17 +160,17 @@ faster_base58::encode::matrix::x86::carry_cold
 faster_base58::mul::fold_wrapped
 # Karatsuba decoding, which NEON builds do not reach.
 faster_base58::common::values
-faster_base58::dc::dc::<faster_base58::dc::Karatsuba>
-faster_base58::dc::decode_value::<faster_base58::dc::Karatsuba>
+faster_base58::dc::dc::<faster_base58::dc::horner::HornerLeaf, faster_base58::dc::Karatsuba>
+faster_base58::dc::decode_value::<faster_base58::dc::horner::HornerLeaf, faster_base58::dc::Karatsuba>
 faster_base58::cpu::detect_avx2::init_get::init_inner
 faster_base58::cpu::detect_avx512f::init_get::init_inner
 faster_base58::cpu::detect_ifma::init_get::init_inner
 faster_base58::cpu::detect_vbmi::init_get::init_inner
 faster_base58::encode::dc::div_schoolbook
-faster_base58::encode::dc::encode_parts::<faster_base58::dc::Karatsuba>
-faster_base58::encode::dc::encode_limbs::<faster_base58::dc::Karatsuba>
+faster_base58::encode::dc::encode_parts::<faster_base58::encode::dc::horner::HornerLeaf, faster_base58::dc::Karatsuba>
+faster_base58::encode::dc::encode_limbs::<faster_base58::encode::dc::horner::HornerLeaf, faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::newton::<faster_base58::dc::Karatsuba>
-faster_base58::encode::dc::node::<faster_base58::dc::Karatsuba>
+faster_base58::encode::dc::node::<faster_base58::encode::dc::horner::HornerLeaf, faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::recip_scratch_len::<faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::reciprocal::<faster_base58::dc::Karatsuba>
 faster_base58::encode::dc::load
@@ -180,7 +183,8 @@ faster_base58::mul_ifma::avx512::kernel_tf::<11>
 faster_base58::mul_ifma::avx512::kernel_tf::<12>
 
 [x86_64 cache]
-<faster_base58::encode::matrix::table::Table>::new
+faster_base58::dc::dc::<faster_base58::dc::horner::HornerLeaf, faster_base58::ntt::Ntt>
+faster_base58::dc::decode_value::<faster_base58::dc::horner::HornerLeaf, faster_base58::ntt::Ntt>
 faster_base58::dc::mul_add_chunks
 # AVX2 Matrix encoder/decoder conversion, parser and panels.
 faster_base58::encode::matrix::x86::convert_avx2
@@ -210,5 +214,7 @@ faster_base58::ntt::neon::twist
 faster_base58::encode::matrix::neon::carry_cold
 
 [aarch64 cache]
+faster_base58::dc::dc::<faster_base58::dc::matrix_leaf::MatrixLeaf, faster_base58::ntt::Ntt>
+faster_base58::dc::decode_value::<faster_base58::dc::matrix_leaf::MatrixLeaf, faster_base58::ntt::Ntt>
 faster_base58::matrix::convert
 faster_base58::matrix::leaf

@@ -12,20 +12,17 @@ pub(crate) fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferToo
     match input.len() {
         32 => return crate::encode::matrix::fixed::encode_32(input.try_into().unwrap(), output),
         64 => return crate::encode::matrix::fixed::encode_64(input.try_into().unwrap(), output),
-        0..40 => return crate::encode::encode_batched(input, output),
+        0..22 => return crate::encode::encode_batched(input, output),
         _ => {}
     }
     let (zeros, x) = crate::encode::split_zeros(input);
     match encode_backend(x.len()) {
         EncodeBackend::Batched => crate::encode::batched::encode_parts(zeros, x, output),
         #[cfg(not(feature = "cache"))]
-        EncodeBackend::Karatsuba { leaf } => crate::encode::dc::encode_parts(
-            zeros,
-            x,
-            output,
-            &mut crate::dc::Karatsuba,
-            leaf,
-            crate::encode::Leaves::Horner,
+        EncodeBackend::Karatsuba { leaf } => crate::encode::dc::encode_parts::<
+            crate::encode::dc::HornerLeaf,
+        >(
+            zeros, x, output, &mut crate::dc::Karatsuba, leaf
         ),
         #[cfg(feature = "cache")]
         EncodeBackend::Matrix => crate::encode::matrix::entry::encode(zeros, x, output),
@@ -124,12 +121,11 @@ pub(crate) fn decode_parts(
                 target_feature = "neon"
             ))
         ))]
-        DecodeBackend::Karatsuba => crate::dc::decode_parts(
+        DecodeBackend::Karatsuba => crate::dc::decode_parts::<crate::dc::HornerLeaf>(
             digits,
             zeros,
             output,
             &mut crate::dc::Karatsuba,
-            crate::dc::Leaf::Horner,
         ),
         #[cfg(feature = "cache")]
         DecodeBackend::Matrix => crate::matrix::entry::decode(input, zeros, output),
@@ -197,12 +193,10 @@ pub(crate) fn decode_backend(digits: usize) -> DecodeBackend {
                             Batched
                         } else {
                             let ifma = crate::mul::ifma_threshold() != 0;
-                            if ifma && digits > 1408 {
-                                // Above class 1 (154 KiB), IFMA Karatsuba through `Ntt` beats
-                                // Matrix on warm/cold time and heap without building NTT tables.
+                            if ifma && digits > 5120 {
                                 Ntt
                             } else if ifma && cfg!(target_feature = "avx2") {
-                                // IFMA hosts compiled with AVX2 decode batched through 1408.
+                                // IFMA hosts compiled with AVX2 decode batched through 5120.
                                 Batched
                             } else if crate::cpu::sse41() {
                                 Matrix
