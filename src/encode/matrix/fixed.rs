@@ -33,12 +33,11 @@ pub(super) struct Table<const W: usize, const C: usize> {
     /// `rows[k][j]`: column `j` of `2^(32k)`, least significant first.
     pub(super) rows: [[u32; C]; W],
     /// `start[j]`: rows below it are zero from column `j` on.
-    pub(super) start: [u8; C],
+    pub(super) start: [usize; C],
 }
 
 impl<const W: usize, const C: usize> Table<W, C> {
     const fn new() -> Self {
-        assert!(W <= u8::MAX as usize);
         let mut rows = [[0; C]; W];
         rows[0][0] = 1;
         let mut k = 1;
@@ -54,7 +53,7 @@ impl<const W: usize, const C: usize> Table<W, C> {
             assert!(carry == 0, "2^(32k) does not fit in the columns");
             k += 1;
         }
-        let mut start = [W as u8; C];
+        let mut start = [W; C];
         let mut j = 0;
         while j < C {
             // The first row longer than `j` columns.
@@ -62,7 +61,7 @@ impl<const W: usize, const C: usize> Table<W, C> {
             while k < W && len(&rows[k]) <= j {
                 k += 1;
             }
-            start[j] = k as u8;
+            start[j] = k;
             j += 1;
         }
         Table { rows, start }
@@ -412,7 +411,7 @@ mod tests {
                 assert_eq!(v, Some(Natural::power_of_2(32 * k as u64)), "row {k}");
                 for j in 0..C {
                     let first = t.rows.iter().position(|r| r[j..].iter().any(|&d| d != 0));
-                    assert_eq!(usize::from(t.start[j]), first.unwrap_or(W), "start {j}");
+                    assert_eq!(t.start[j], first.unwrap_or(W), "start {j}");
                 }
             }
         }

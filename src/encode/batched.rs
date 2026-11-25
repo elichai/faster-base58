@@ -369,6 +369,105 @@ mod tests {
             assert!(buf[1 + len..].iter().all(|&b| b == 0xA5), "len {len}");
         }
     }
+
+    #[cfg(feature = "check")]
+    #[test]
+    fn encode_segments_matches_contiguous_exhaustively() {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(0x5E6_0001);
+        let max_payload = 4 * 2 * STEP;
+        let mut payload = [0u8; 4 * 2 * STEP];
+        let mut joined = [0u8; 1 + 4 * 2 * STEP + 4];
+        let mut want = [0u8; 128];
+        let mut got = [0u8; 128];
+
+        let sums: [[u8; 4]; 4] = [
+            [0, 0, 0, 0],
+            [0, 0, 0, 1],
+            [0, 1, 2, 3],
+            [0xFF, 0xFE, 0xFD, 0xFC],
+        ];
+        for len in 0..=max_payload {
+            rng.fill_bytes(&mut payload[..len]);
+            for byte in &mut payload[..len] {
+                if *byte == 0 {
+                    *byte = 1;
+                }
+            }
+            // Zero-prefix lengths inside the payload: 0, 1, STEP-1, STEP, STEP+1,
+            // 2*STEP, len-1, len.
+            let mut zero_counts = [
+                0,
+                1,
+                STEP - 1,
+                STEP,
+                STEP + 1,
+                2 * STEP,
+                len.saturating_sub(1),
+                len,
+            ];
+            zero_counts.sort_unstable();
+            let mut prev_z = usize::MAX;
+            for payload_zeros in zero_counts {
+                if payload_zeros > len || payload_zeros == prev_z {
+                    continue;
+                }
+                prev_z = payload_zeros;
+                let mut data = [0u8; 4 * 2 * STEP];
+                data[payload_zeros..len].copy_from_slice(&payload[payload_zeros..len]);
+                for version in [None, Some(0), Some(0x42)] {
+                    for sum in sums {
+                        let parts = [version.as_slice(), &data[..len], sum.as_slice()];
+                        let mut total = 0;
+                        for part in parts {
+                            joined[total..total + part.len()].copy_from_slice(part);
+                            total += part.len();
+                        }
+                        let frame = &joined[..total];
+                        let (zeros, rest) = split_zeros(frame);
+                        let frame_bits = if rest.is_empty() { 0 } else { bits(rest) };
+                        let want_len = encode_batched(frame, &mut want).unwrap();
+
+                        // Exact buffer, plus untouched sentinels on both sides.
+                        got.fill(0xA5);
+                        let got_len =
+                            encode_segments(zeros, frame_bits, &parts, &mut got[1..1 + want_len])
+                                .unwrap();
+                        assert_eq!(got_len, want_len);
+                        assert_eq!(&got[1..1 + got_len], &want[..want_len]);
+                        assert_eq!(got[0], 0xA5);
+                        assert!(got[1 + want_len..].iter().all(|&b| b == 0xA5));
+
+                        // Oversized buffer leaves tail untouched.
+                        got.fill(0x5A);
+                        let got_len = encode_segments(
+                            zeros,
+                            frame_bits,
+                            &parts,
+                            &mut got[1..1 + want_len + 7],
+                        )
+                        .unwrap();
+                        assert_eq!(got_len, want_len);
+                        assert_eq!(&got[1..1 + got_len], &want[..want_len]);
+                        assert_eq!(got[0], 0x5A);
+                        assert!(got[1 + want_len..].iter().all(|&b| b == 0x5A));
+
+                        // One byte too small returns BufferTooSmall.
+                        if want_len > 0 {
+                            assert_eq!(
+                                encode_segments(
+                                    zeros,
+                                    frame_bits,
+                                    &parts,
+                                    &mut got[..want_len - 1]
+                                ),
+                                Err(BufferTooSmall)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(kani)]

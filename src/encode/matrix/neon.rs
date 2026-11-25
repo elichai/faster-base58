@@ -48,7 +48,7 @@ pub(super) fn cols<const N: usize, const W: usize, const C: usize>(
     let rows = core::hint::black_box(&t.rows);
     let mut out = [0; C];
     for (b, o) in out.as_chunks_mut::<4>().0.iter_mut().enumerate() {
-        let (low, full) = (usize::from(t.start[4 * b]), usize::from(t.start[4 * b + 2]));
+        let (low, full) = (t.start[4 * b], t.start[4 * b + 2]);
         // SAFETY: NEON is enabled at compile time (cfg on the module). The loads read 2 and
         // 4 table words, and the stores write the 4 columns of `o`.
         unsafe {

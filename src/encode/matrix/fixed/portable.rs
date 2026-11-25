@@ -35,7 +35,7 @@ pub(in crate::encode::matrix) fn cols<const N: usize, const W: usize, const C: u
 ) -> [u64; C] {
     let w = words::<N, W>(x);
     core::array::from_fn(|j| {
-        (usize::from(t.start[j])..W)
+        (t.start[j]..W)
             .map(|k| w[k] as u64 * t.rows[k][j] as u64)
             .sum()
     })

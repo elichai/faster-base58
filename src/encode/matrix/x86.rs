@@ -155,7 +155,7 @@ fn cols_512<const N: usize, const W: usize, const C: usize>(
     let mut out = [0; C];
     for (b, o) in out.as_chunks_mut::<8>().0.iter_mut().enumerate() {
         let mut s = _mm512_setzero_si512();
-        let first = usize::from(t.start[8 * b]);
+        let first = t.start[8 * b];
         for (&w, row) in w[first..].iter().zip(&t.rows[first..]) {
             let e = &row[8 * b..][..8];
             // SAFETY: `e` holds 32 bytes; the load is unaligned.
@@ -276,7 +276,7 @@ fn cols<const N: usize, const W: usize, const C: usize>(x: &[u8; N], t: &Table<W
     let mut out = [0; C];
     for (b, o) in out.as_chunks_mut::<4>().0.iter_mut().enumerate() {
         let mut s = _mm256_setzero_si256();
-        let first = usize::from(t.start[4 * b]);
+        let first = t.start[4 * b];
         for (&w, row) in w[first..].iter().zip(&t.rows[first..]) {
             let e = &row[4 * b..][..4];
             // SAFETY: `e` holds 16 bytes; the load is unaligned.
