@@ -5,8 +5,8 @@
 use crate::Error;
 #[cfg(any(test, feature = "__internals", kani))]
 use crate::common::split_zeros;
-use crate::common::{BASE, CHUNK, DecodeError, UNROLL_PAIRED, all_valid, invalid, values};
-use crate::{BufferTooSmall, matrix, mul};
+use crate::common::{BASE, CHUNK, DecodeError, UNROLL_PAIRED, all_valid, invalid};
+use crate::{BufferTooSmall, mul};
 use alloc::vec::Vec;
 
 /// Leaves have at most this many chunks.
@@ -134,30 +134,87 @@ core::cfg_select! {
     _ => {}
 }
 
-/// How [`dc`] converts its leaves.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Leaf {
-    /// Chunk parse and [`mul_add_chunks`].
-    Horner,
-    /// [`matrix::leaf`]. The `cache` feature retains its table; explicit use without
-    /// that feature builds an owned table for each leaf invocation.
-    Matrix,
+/// How [`dc`] converts its leaves, selected statically so unreachable leaf backends
+/// are never instantiated.
+pub(crate) trait DecodeLeaf {
+    fn decode(out: &mut [u64], digits: &[u8]) -> usize;
 }
 
-impl Leaf {
-    /// With `cache`, [`Leaf::Matrix`] where it was measured faster: NEON.
-    /// Without `cache`, Horner avoids rebuilding a matrix table at every leaf.
-    pub(crate) const BEST: Leaf = if cfg!(all(
+/// Chunk parse and [`mul_add_chunks`].
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
         feature = "cache",
         target_arch = "aarch64",
         target_endian = "little",
         target_feature = "neon"
-    )) {
-        Leaf::Matrix
-    } else {
-        Leaf::Horner
-    };
+    ))
+))]
+mod horner {
+    use super::{DecodeLeaf, LEAF, mul_add_chunks};
+
+    pub(crate) struct HornerLeaf;
+
+    impl DecodeLeaf for HornerLeaf {
+        #[inline(always)]
+        fn decode(out: &mut [u64], digits: &[u8]) -> usize {
+            let mut parsed = [0u64; LEAF];
+            crate::common::values(digits, &mut parsed[..out.len()]);
+            mul_add_chunks(out, 0, &parsed[..out.len()])
+        }
+    }
 }
+
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    not(all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ))
+))]
+pub(crate) use horner::HornerLeaf;
+
+/// `matrix::leaf`. With `cache`, its table is retained; explicit use in tests without
+/// `cache` builds an owned table for each leaf invocation.
+#[cfg(any(
+    test,
+    all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    )
+))]
+mod matrix_leaf {
+    use super::DecodeLeaf;
+
+    pub(crate) struct MatrixLeaf;
+
+    impl DecodeLeaf for MatrixLeaf {
+        #[inline(always)]
+        fn decode(out: &mut [u64], digits: &[u8]) -> usize {
+            crate::matrix::leaf(out, digits).expect("`decode_with` validates the digits")
+        }
+    }
+}
+
+/// With `cache`, `MatrixLeaf` where it was measured faster (NEON); otherwise `HornerLeaf`
+/// avoids rebuilding a matrix table at every leaf.
+pub(crate) type BestLeaf = core::cfg_select! {
+    all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ) => matrix_leaf::MatrixLeaf,
+    _ => HornerLeaf,
+};
 
 /// [`decode`], multiplying with `m`.
 ///
@@ -169,37 +226,35 @@ pub fn decode_with(
     output: &mut [u8],
     m: &mut impl Multiplier,
 ) -> Result<usize, Error> {
-    decode_with_leaf(input, output, m, Leaf::Horner)
+    decode_with_leaf::<HornerLeaf>(input, output, m)
 }
 
-/// [`decode_with`], with leaves converted by `leaf`.
+/// [`decode_with`], with leaves converted by `L`.
 #[cfg(any(test, feature = "__internals", kani))]
-pub(crate) fn decode_with_leaf(
+pub(crate) fn decode_with_leaf<L: DecodeLeaf>(
     input: &str,
     output: &mut [u8],
     m: &mut impl Multiplier,
-    leaf: Leaf,
 ) -> Result<usize, Error> {
     let input = input.as_bytes();
     let (zeros, digits) = split_zeros(input);
     let result = if digits.len() <= min_digits() {
         crate::batched::decode_parts(input, digits, output)
     } else {
-        decode_parts(digits, zeros, output, m, leaf)
+        decode_parts::<L>(digits, zeros, output, m)
     };
     Ok(result?)
 }
 
 /// Divide-and-conquer conversion after stripping leading `'1'` bytes.
 /// Requires more than [`min_digits`] significant characters.
-pub(crate) fn decode_parts(
+pub(crate) fn decode_parts<L: DecodeLeaf>(
     digits: &[u8],
     zeros: usize,
     output: &mut [u8],
     m: &mut impl Multiplier,
-    leaf: Leaf,
 ) -> Result<usize, DecodeError> {
-    let limbs = decode_value(digits, zeros, output.len(), m, leaf)?;
+    let limbs = decode_value::<L>(digits, zeros, output.len(), m)?;
     Ok(write_bytes(zeros, &limbs, output)?)
 }
 
@@ -210,12 +265,11 @@ pub(crate) fn decode_parts(
 // frame made 0-1 byte decodes 1.3-1.7x slower (M5, Zen 5). Wasm has no stack probes, and
 // inlining made 8-32 byte decodes 5-12% faster there (V8).
 #[cfg_attr(not(target_family = "wasm"), inline(never))]
-pub(crate) fn decode_value(
+pub(crate) fn decode_value<L: DecodeLeaf>(
     digits: &[u8],
     zeros: usize,
     capacity: usize,
     m: &mut impl Multiplier,
-    leaf: Leaf,
 ) -> Result<Vec<u64>, DecodeError> {
     assert!(
         digits.len() > min_digits(),
@@ -244,7 +298,7 @@ pub(crate) fn decode_value(
     let (limbs, rest) = buf.split_at_mut(n);
     let (table, scratch) = rest.split_at_mut(table_len);
     let powers = powers(unit, levels, table, scratch, m, true);
-    let len = dc(limbs, digits, &powers[..levels], scratch, m, leaf, max_leaf);
+    let len = dc::<L>(limbs, digits, &powers[..levels], scratch, m, max_leaf);
     buf.truncate(len);
     Ok(buf)
 }
@@ -408,17 +462,23 @@ pub(crate) fn table_len(unit: usize, levels: usize) -> usize {
         + unit
 }
 
+/// At least the limbs of `BASE^e`: `BASE < 2^59`, so `ceil(59e / 64) = e - floor(5e / 64)`.
+/// Split by 64 so `5 * e` cannot overflow 32-bit `usize`, and avoiding 64-bit multiplies.
+pub(crate) const fn full_limbs(e: usize) -> usize {
+    e - 5 * (e / 64) - 5 * (e % 64) / 64
+}
+
 /// At most the limbs a [`Power`] keeps of `BASE^e`. `BASE < 2^59`, and
 /// `BASE^e = 2^(10e) * 29^(10e)` ends in exactly `10e` zero bits, so dropping its low
-/// zero limbs leaves at most `ceil(59e/64) - floor(10e/64)`.
-fn stored(e: usize) -> usize {
-    (59 * e).div_ceil(64) - 10 * e / 64
+/// zero limbs leaves at most `ceil(59e / 64) - floor(10e / 64)`.
+const fn stored(e: usize) -> usize {
+    full_limbs(e) - 10 * (e / 64) - 5 * (e % 64) / 32
 }
 
 /// The longest product with the power `BASE^e` when it is stored in `stored` limbs: the
 /// other operand is below `BASE^e < 2^(59 e)` (see [`dc`]).
-fn product_len(e: usize, stored: usize) -> usize {
-    (59 * e).div_ceil(64) + stored
+const fn product_len(e: usize, stored: usize) -> usize {
+    full_limbs(e) + stored
 }
 
 /// `BASE^(unit * 2^i)` for `i < levels`, stored in `table`, which needs
@@ -478,23 +538,17 @@ fn dc_scratch_len(m: &impl Multiplier, e: usize) -> usize {
 /// and returns its trimmed length. Requires one `out` limb per chunk of `digits`, and
 /// `dc_scratch_len(m, e)` limbs of `scratch` for the top split `e`. `out` and `scratch`
 /// may hold anything on entry.
-fn dc(
+fn dc<L: DecodeLeaf>(
     out: &mut [u64],
     digits: &[u8],
     powers: &[Power<'_>],
     scratch: &mut [u64],
     m: &mut impl Multiplier,
-    leaf: Leaf,
     max_leaf: usize,
 ) -> usize {
     let n = out.len();
     if n <= max_leaf {
-        if leaf == Leaf::Matrix {
-            return matrix::leaf(out, digits).expect("`decode_with` validates the digits");
-        }
-        let mut parsed = [0u64; LEAF];
-        values(digits, &mut parsed[..n]);
-        return mul_add_chunks(out, 0, &parsed[..n]);
+        return L::decode(out, digits);
     }
     // value = hi * BASE^p.exp + lo. `powers[0].exp <= max_leaf`, so `p` exists,
     // and the next power is at least `n`, so `hi` is no longer than `lo`.
@@ -504,13 +558,13 @@ fn dc(
     let (hi, lo) = digits.split_at(digits.len() - p.exp * CHUNK);
     // `t` holds `hi`, then `lo`. `BASE^p.exp < 2^(64 * p.exp)`, so `end <= n`.
     let (t, scratch) = scratch.split_at_mut(p.exp);
-    let hn = dc(&mut t[..n - p.exp], hi, powers, scratch, m, leaf, max_leaf);
+    let hn = dc::<L>(&mut t[..n - p.exp], hi, powers, scratch, m, max_leaf);
     let end = p.shift + p.limbs.len() + hn;
     let out = &mut out[..end];
     let (prefix, product) = out.split_at_mut(p.shift);
     prefix.fill(0);
     m.mul_power(product, &t[..hn], i, p.limbs, scratch);
-    let ln = dc(t, lo, powers, scratch, m, leaf, max_leaf);
+    let ln = dc::<L>(t, lo, powers, scratch, m, max_leaf);
     // lo < BASE^p.exp, so it fits below `end` and the sum does not overflow.
     let carry = mul::add_assign(out, &t[..ln]);
     debug_assert!(!carry);
@@ -566,7 +620,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value is too short for divide and conquer")]
     fn normalized_decoder_rejects_short_values() {
-        decode_parts(b"2", 0, &mut [0; 1], &mut Karatsuba, Leaf::Horner).unwrap();
+        decode_parts::<HornerLeaf>(b"2", 0, &mut [0; 1], &mut Karatsuba).unwrap();
     }
 
     #[test]
@@ -575,12 +629,11 @@ mod tests {
         for index in [0, 7, digits.len() - 1] {
             digits[index] = b'0';
             for zeros in [0, 1, 17] {
-                let error = decode_value(
+                let error = decode_value::<HornerLeaf>(
                     &digits,
                     zeros,
                     zeros + digits.len(),
                     &mut Karatsuba,
-                    Leaf::Horner,
                 );
                 assert_eq!(
                     error,
@@ -620,10 +673,10 @@ mod tests {
     /// [`decode`] with each leaf.
     const LEAVES: [(&str, Decode); 2] = [
         ("horner", |s, out| {
-            decode_with_leaf(s, out, &mut Karatsuba, Leaf::Horner)
+            decode_with_leaf::<HornerLeaf>(s, out, &mut Karatsuba)
         }),
         ("matrix", |s, out| {
-            decode_with_leaf(s, out, &mut Karatsuba, Leaf::Matrix)
+            decode_with_leaf::<matrix_leaf::MatrixLeaf>(s, out, &mut Karatsuba)
         }),
     ];
 
@@ -763,6 +816,22 @@ mod tests {
             let mut out = vec![0; want.len()];
             assert_eq!(decode(&s, &mut out), Ok(want.len()), "{d} digits");
             assert_eq!(out, want);
+        }
+    }
+
+    #[test]
+    fn limb_bounds_do_not_overflow_usize() {
+        for e in (0..=130).chain([
+            u32::MAX as usize / 59,
+            u32::MAX as usize / 59 + 1,
+            u32::MAX as usize,
+            usize::MAX / 59 + 1,
+            usize::MAX,
+        ]) {
+            let want_full = (59 * e as u128).div_ceil(64) as usize;
+            let want_stored = want_full - (10 * e as u128 / 64) as usize;
+            assert_eq!(full_limbs(e), want_full, "e = {e}");
+            assert_eq!(stored(e), want_stored, "e = {e}");
         }
     }
 }

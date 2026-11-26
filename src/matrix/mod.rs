@@ -192,12 +192,11 @@ pub(crate) mod internals {
         let result = if digits.len() < min {
             crate::batched::decode_parts(input, digits, output)
         } else if digits.len() > table::MAX_CHARS {
-            crate::dc::decode_parts(
+            crate::dc::decode_parts::<crate::dc::HornerLeaf>(
                 digits,
                 zeros,
                 output,
                 &mut crate::dc::Karatsuba,
-                crate::dc::Leaf::Horner,
             )
         } else {
             decode_parts(k, input, zeros, output)
@@ -231,6 +230,15 @@ pub(crate) mod internals {
 /// `dc`'s leaf in the cached NTT decoders on aarch64. Its stack frame holds [`Scratch`],
 /// which every level of `dc`'s recursion would carry if this were inlined.
 // A stack-depth guard: LLVM keeps this out of line anyway in those builds.
+#[cfg(any(
+    all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    test
+))]
 #[inline(never)]
 pub(crate) fn leaf(out: &mut [u64], digits: &[u8]) -> Option<usize> {
     let mut scratch = Scratch::new();
@@ -636,5 +644,56 @@ mod tests {
                 });
             }
         });
+    }
+
+    #[cfg(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
+    ))]
+    pub(super) fn check_parse_matches_portable(parse: fn(&[u8], &mut [u32]) -> bool) {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(10);
+        for n in (0..=100).chain([255, 256, 257, 1000]) {
+            let valid = random_string(&mut rng, n);
+            let mut inputs = vec![valid.clone()];
+            if n > 0 {
+                // One invalid byte, anywhere: only the result flag must agree.
+                let pos = rng.next_u32() as usize % n;
+                inputs.push(format!("{}0{}", &valid[..pos], &valid[pos + 1..]));
+            }
+            for s in inputs {
+                let len = 4 * s.len().div_ceil(16);
+                let (mut a, mut b) = (vec![0; len], vec![0; len]);
+                let ok = portable::parse(s.as_bytes(), &mut b);
+                assert_eq!(parse(s.as_bytes(), &mut a), ok, "{s:?}");
+                if ok {
+                    assert_eq!(a, b, "{s:?}");
+                }
+            }
+        }
+    }
+
+    #[cfg(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
+    ))]
+    pub(super) fn check_panel_matches_portable(panel: Panel) {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(11);
+        for nb in [0, 1, 2, 7, 50] {
+            let acc: Vec<u64> = (0..4 * nb).map(|_| rng.next_u64() >> 24).collect();
+            let words: Vec<u32> = (0..32 * nb).map(|_| rng.next_u32()).collect();
+            let d: [u32; 8] = core::array::from_fn(|_| rng.next_u32() % 58u32.pow(4));
+            let (mut a, mut b) = (acc.clone(), acc);
+            panel(&mut a, &words, &d);
+            portable::panel(&mut b, &words, &d);
+            assert_eq!(a, b, "nb {nb}");
+        }
     }
 }

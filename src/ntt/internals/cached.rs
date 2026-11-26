@@ -8,7 +8,7 @@ use super::*;
 /// Returns [`Error::InvalidCharacter`] for a byte outside the alphabet, or
 /// [`Error::BufferTooSmall`] if `output` cannot hold the decoded bytes.
 pub fn decode_ntt_cached(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with_leaf(input, output, &mut Ntt::new(Kernels::best()), Leaf::BEST)
+    dc::decode_with_leaf::<dc::BestLeaf>(input, output, &mut Ntt::new(Kernels::best()))
 }
 
 /// Feature-selected NTT encoding, with the small-input comparison fallback.

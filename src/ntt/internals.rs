@@ -1,7 +1,7 @@
 //! Comparison and tuning entry points; the root facade keeps their flattened names.
 
 use super::{CACHED_LEAF, ENCODE_THRESHOLD, Kernels, Ntt};
-use crate::dc::{self, Leaf};
+use crate::dc;
 use crate::encode::{self, Leaves};
 use crate::{BufferTooSmall, Error};
 
@@ -58,8 +58,11 @@ pub fn decode_ntt_with(
         ..ntt
     };
     // The leaves of the decoder it stands in for.
-    let leaf = if cached { Leaf::BEST } else { Leaf::Horner };
-    dc::decode_with_leaf(input, output, &mut ntt, leaf)
+    if cached {
+        dc::decode_with_leaf::<dc::BestLeaf>(input, output, &mut ntt)
+    } else {
+        dc::decode_with_leaf::<dc::HornerLeaf>(input, output, &mut ntt)
+    }
 }
 
 /// [`cached::decode_ntt_cached`] with the portable kernels, compared with hand-written SIMD.
@@ -71,12 +74,7 @@ pub fn decode_ntt_with(
 /// Returns the same invalid-character and insufficient-buffer errors as
 /// [`cached::decode_ntt_cached`].
 pub fn decode_ntt_portable(input: &str, output: &mut [u8]) -> Result<usize, Error> {
-    dc::decode_with_leaf(
-        input,
-        output,
-        &mut Ntt::new(Kernels::portable()),
-        Leaf::BEST,
-    )
+    dc::decode_with_leaf::<dc::BestLeaf>(input, output, &mut Ntt::new(Kernels::portable()))
 }
 
 /// [`cached::encode_ntt_cached`] with divide and conquer above `threshold` bytes and

@@ -87,7 +87,20 @@ pub(crate) fn chunks(digits: &[u8]) -> impl Iterator<Item = Option<u64>> {
 /// [`chunks`] of valid `digits` into `out`, one value per chunk, in one loop: a caller
 /// that zipped the iterator into its buffer got its `next` as a call per chunk.
 /// The caller must validate `digits`; debug builds check that invariant again.
-#[cfg(any(feature = "alloc", test, kani))]
+#[cfg(any(
+    test,
+    feature = "__internals",
+    kani,
+    all(
+        feature = "alloc",
+        not(all(
+            feature = "cache",
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ))
+    )
+))]
 pub(crate) fn values(digits: &[u8], out: &mut [u64]) {
     let (head, tail) = digits.as_rchunks::<CHUNK>();
     let short = usize::from(!head.is_empty());

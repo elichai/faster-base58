@@ -138,15 +138,16 @@ pub(super) mod cached {
     pub(in crate::matrix) static TABLES: [OnceLock<Table>; CLASSES] =
         [const { OnceLock::new() }; CLASSES];
 
-    /// A table that holds `chars` characters. A smaller class is a prefix of a larger one, so
-    /// any larger class already built serves; otherwise the smallest class that holds
-    /// `chars` is built and kept. Requires `chars <= MAX_CHARS`.
+    /// A table that holds `chars` characters. Reuse the largest suitable initialized class;
+    /// otherwise build the smallest class that holds `chars`. Previously built smaller
+    /// classes stay allocated. Requires `chars <= MAX_CHARS`.
     pub(crate) fn get(chars: usize) -> &'static Table {
         let k = (0..CLASSES)
             .find(|&k| chars <= class_chars(k))
             .expect("too many characters");
         TABLES[k..]
             .iter()
+            .rev()
             .find_map(OnceLock::get)
             .unwrap_or_else(|| TABLES[k].get_or_init(|| Table::new(k)))
     }

@@ -313,8 +313,6 @@ Newton/from-square reciprocal construction and arbitrary-length estimate
 positivity remain outside the completed domains.
 Timed-out or untranslated queries are neither counterexamples nor proofs.
 [The open runner](scripts/kani-open.sh) selects ten distinct unresolved queries.
-Direct parser/capacity formulations also remain in source; their properties are
-closed by verified composition.
 
 ## Reproduce and update checks
 

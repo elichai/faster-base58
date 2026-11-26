@@ -28,23 +28,6 @@ fn leading_zero_split_is_exact() {
     assert!(rest.is_empty() || rest[0] != b'1');
 }
 
-#[kani::proof]
-#[kani::unwind(12)]
-fn full_chunk_matches_horner_and_rejects_invalid() {
-    let input: [u8; CHUNK] = kani::any();
-    let mut expected = 0u64;
-    let mut valid = true;
-    for &byte in &input {
-        let digit = DIGITS[byte as usize];
-        valid &= digit != u8::MAX;
-        expected = expected * 58 + digit as u64;
-    }
-    let mut got = common::chunks(&input);
-    assert_eq!(got.next(), Some(valid.then_some(expected)));
-    assert!(got.next().is_none());
-    assert!(!valid || expected < BASE);
-}
-
 fn horner_digits(digits: &[u8]) -> u64 {
     digits
         .iter()
@@ -110,24 +93,6 @@ fn alphabet_character_roundtrips() {
     let character = common::ALPHABET[digit as usize];
     assert_eq!(DIGITS[character as usize], digit);
     assert!(character < 128);
-}
-
-#[kani::proof]
-#[kani::unwind(12)]
-fn full_chunk_valid_numeric_identity() {
-    let input: [u8; CHUNK] = kani::any();
-    let mut expected = 0u64;
-    for &byte in &input {
-        let digit = DIGITS[byte as usize];
-        // The separate table-range obligation proves that this is exactly the
-        // complement of the sentinel case, rather than a narrower valid domain.
-        kani::assume(digit < 58);
-        expected = expected * 58 + digit as u64;
-    }
-    let mut got = common::chunks(&input);
-    assert_eq!(got.next(), Some(Some(expected)));
-    assert!(got.next().is_none());
-    assert!(expected < BASE);
 }
 
 #[kani::proof]

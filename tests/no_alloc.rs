@@ -72,16 +72,6 @@ unsafe impl GlobalAlloc for Counting {
     }
 }
 
-#[cfg(any(
-    not(feature = "alloc"),
-    feature = "check",
-    feature = "__internals",
-    all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    )
-))]
 fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     assert!(!ACTIVE.get());
     CALLS.set([0; 4]);
@@ -93,7 +83,6 @@ fn observe<T>(call: impl FnOnce() -> T) -> (T, [usize; 4]) {
     (result, CALLS.get())
 }
 
-#[cfg(any(not(feature = "alloc"), feature = "check"))]
 fn without_allocations<T>(call: impl FnOnce() -> T) -> T {
     let (result, calls) = observe(call);
     assert_eq!(
@@ -223,73 +212,51 @@ fn check_buffers(input: &[u8]) {
         expected.len(),
         expected.len() + 5,
     ] {
-        for borrowed in [false, true] {
-            let mut output = vec![0xA5; capacity + 2];
-            let result = if borrowed {
-                without_allocations(|| {
-                    faster_base58::Encoder::bitcoin()
-                        .encode(input)
-                        .onto(&mut output[1..1 + capacity])
-                })
-                .map(|text| {
-                    assert_eq!(text, expected);
-                    text.len()
-                })
-            } else {
-                without_allocations(|| {
-                    faster_base58::Encoder::bitcoin()
-                        .encode(input)
-                        .onto(&mut output[1..1 + capacity])
-                        .map(str::len)
-                })
-            };
-            if capacity < expected.len() {
-                assert_eq!(result, Err(BufferTooSmall));
-            } else {
-                assert_eq!(result, Ok(expected.len()));
-                assert_eq!(&output[1..1 + expected.len()], expected.as_bytes());
-                assert!(
-                    output[1 + expected.len()..]
-                        .iter()
-                        .all(|&byte| byte == 0xA5)
-                );
-            }
-            assert_eq!(output[0], 0xA5);
-            assert_eq!(output[capacity + 1], 0xA5);
+        let mut output = vec![0xA5; capacity + 2];
+        let result = without_allocations(|| {
+            faster_base58::Encoder::bitcoin()
+                .encode(input)
+                .onto(&mut output[1..1 + capacity])
+        })
+        .map(|text| {
+            assert_eq!(text, expected);
+            text.len()
+        });
+        if capacity < expected.len() {
+            assert_eq!(result, Err(BufferTooSmall));
+        } else {
+            assert_eq!(result, Ok(expected.len()));
+            assert_eq!(&output[1..1 + expected.len()], expected.as_bytes());
+            assert!(
+                output[1 + expected.len()..]
+                    .iter()
+                    .all(|&byte| byte == 0xA5)
+            );
         }
+        assert_eq!(output[0], 0xA5);
+        assert_eq!(output[capacity + 1], 0xA5);
     }
 
     for capacity in [input.len().saturating_sub(1), input.len(), input.len() + 5] {
-        for borrowed in [false, true] {
-            let mut output = vec![0xA5; capacity + 2];
-            let result = if borrowed {
-                without_allocations(|| {
-                    faster_base58::Decoder::bitcoin()
-                        .decode(&expected)
-                        .onto(&mut output[1..1 + capacity])
-                })
-                .map(|bytes| {
-                    assert_eq!(bytes, input);
-                    bytes.len()
-                })
-            } else {
-                without_allocations(|| {
-                    faster_base58::Decoder::bitcoin()
-                        .decode(&expected)
-                        .onto(&mut output[1..1 + capacity])
-                        .map(|bytes| bytes.len())
-                })
-            };
-            if capacity < input.len() {
-                assert_eq!(result, Err(Error::BufferTooSmall));
-            } else {
-                assert_eq!(result, Ok(input.len()));
-                assert_eq!(&output[1..1 + input.len()], input);
-                assert!(output[1 + input.len()..].iter().all(|&byte| byte == 0xA5));
-            }
-            assert_eq!(output[0], 0xA5);
-            assert_eq!(output[capacity + 1], 0xA5);
+        let mut output = vec![0xA5; capacity + 2];
+        let result = without_allocations(|| {
+            faster_base58::Decoder::bitcoin()
+                .decode(&expected)
+                .onto(&mut output[1..1 + capacity])
+        })
+        .map(|bytes| {
+            assert_eq!(bytes, input);
+            bytes.len()
+        });
+        if capacity < input.len() {
+            assert_eq!(result, Err(Error::BufferTooSmall));
+        } else {
+            assert_eq!(result, Ok(input.len()));
+            assert_eq!(&output[1..1 + input.len()], input);
+            assert!(output[1 + input.len()..].iter().all(|&byte| byte == 0xA5));
         }
+        assert_eq!(output[0], 0xA5);
+        assert_eq!(output[capacity + 1], 0xA5);
     }
 }
 
@@ -723,4 +690,21 @@ fn owned_ntt_tables_use_one_allocation_per_prime() {
         "three prime tables and one conversion workspace: {calls:?}"
     );
     assert_eq!(calls[2], 0, "fixed table storage must not reallocate");
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn empty_owned_conversions_do_not_allocate() {
+    assert_eq!(
+        without_allocations(|| faster_base58::Encoder::bitcoin().encode([]).into_string()),
+        ""
+    );
+    assert_eq!(
+        without_allocations(|| faster_base58::Encoder::bitcoin().encode([]).into_vec()),
+        Vec::<u8>::new()
+    );
+    assert_eq!(
+        without_allocations(|| faster_base58::Decoder::bitcoin().decode("").into_vec()),
+        Ok(Vec::new())
+    );
 }

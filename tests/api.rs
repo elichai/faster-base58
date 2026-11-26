@@ -121,7 +121,8 @@ fn dispatch_boundaries_preserve_zero_prefixes_and_capacities() {
         }
     }
     for significant in [
-        0, 1, 2, 575, 576, 577, 1023, 1024, 1025, 5119, 5120, 5121, 5631, 5632, 5633,
+        0, 1, 2, 575, 576, 577, 1023, 1024, 1025, 1407, 1408, 1409, 5119, 5120, 5121, 5631, 5632,
+        5633,
     ] {
         for zeros in [0, 1, 6000] {
             let mut text = "1".repeat(zeros);

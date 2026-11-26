@@ -287,7 +287,7 @@ python3 scripts/check_simd_inlining.py --build target/measurements/simd
 On Apple silicon Macs, use an arm64 Linux container that cross-compiles x86-64:
 
 ```sh
-docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
+docker run --rm -v "$PWD":/src:ro -w /src ubuntu:26.04 sh -euc 'apt-get update -qq; apt-get install -y -qq rustup gcc libc6-dev gcc-x86-64-linux-gnu python3 ca-certificates git > /dev/null; rustup target add x86_64-unknown-linux-gnu; python3 -B scripts/check_simd_inlining.py --build /tmp/simd'
 ```
 
 `check_simd_inlining.py CONFIG=LIBRARY`

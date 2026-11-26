@@ -27,9 +27,6 @@ const _: () = assert!(MAX_COEFFICIENT < PRIMES[0].q as u64 * PRIMES[1].q as u64)
 const _: () =
     assert!(MAX_COEFFICIENT + MAX_COEFFICIENT / (BASE as u64 - 1) + (BASE as u64) < u64::MAX);
 
-/// Returns `None` before allocating when the division tree is preferable or this
-/// backend's transform limit is exceeded.
-/// `x` has already had its `zeros` leading zero bytes removed.
 #[cfg(any(
     test,
     all(
@@ -40,17 +37,117 @@ const _: () =
     all(target_arch = "x86_64", target_feature = "sse2"),
     target_arch = "wasm32"
 ))]
-pub(super) fn try_encode(
-    zeros: usize,
-    input: &[u8],
-    output: &mut [u8],
-) -> Option<Result<usize, BufferTooSmall>> {
-    if !(supported() && preferred(input.len())) {
-        return None;
+mod dispatch {
+    use super::*;
+
+    /// Returns `None` before allocating when the division tree is preferable or this
+    /// backend's transform limit is exceeded.
+    /// `input` has already had its `zeros` leading zero bytes removed.
+    pub(in crate::ntt) fn try_encode(
+        zeros: usize,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> Option<Result<usize, BufferTooSmall>> {
+        if !(supported() && preferred(input.len())) {
+            return None;
+        }
+        encode_with(zeros, input, output, Kernels::best())
     }
-    encode_with(zeros, input, output, Kernels::best())
+
+    #[cfg(all(feature = "check", feature = "alloc"))]
+    pub(in crate::ntt) fn try_encode_staged(
+        zeros: usize,
+        end: usize,
+        output: &mut [u8],
+    ) -> Option<Result<usize, BufferTooSmall>> {
+        if !(supported() && preferred(end - zeros)) {
+            return None;
+        }
+        let digits = encode_value(zeros, &output[zeros..end], output.len(), Kernels::best())?;
+        Some(digits.and_then(|digits| write(zeros, &digits, output)))
+    }
+
+    /// Whether this CPU runs the route. x86 needs the AVX-512 transforms; AVX2-only hosts
+    /// keep the division tree because no such host has been measured.
+    pub(super) fn supported() -> bool {
+        core::cfg_select! {
+            all(target_arch = "x86_64", target_feature = "sse2") => crate::cpu::avx512f(),
+            _ => true,
+        }
+    }
+
+    fn preferred(bytes: usize) -> bool {
+        let Some((_, _, points)) = layout(bytes) else {
+            return false;
+        };
+        bytes > MIN_BYTES
+            && crate::encode::max_encoded_len(bytes).div_ceil(3) * 16 >= points * MIN_USED
+    }
+
+    /// The used fraction of the root transform that the route needs, in sixteenths. Full
+    /// transforms waste work when heavily padded, and the balanced tree repeats roughly
+    /// this padding ratio at each level. Natively it is 5/8, or 3/4 with `cache`, whose
+    /// cached Matrix leaves speed up only the division tree. Same-binary sweeps
+    /// (`benches/radix_tune.rs`, generic flags) put the crossover near 0.55 (M5) and 0.62
+    /// (Zen 5) without `cache`, and near 0.7 on both with it. Not adopted: 7/8 forgoes
+    /// 6-22% at 0.68-0.81 used; 9/16 loses 4-6% at 5 KiB (M5) and 4-25% on Zen 5; 5/8 with
+    /// `cache` loses up to 13% (M5, 12 KiB). With `cache`, 3/4 still costs up to 3% at
+    /// 13-14 KiB on M5.
+    ///
+    /// Wasm division trees keep Horner leaves under both policies, which therefore share
+    /// one rule. Under V8 (M5, both policies alike) the scalar crossover is near 0.5: the
+    /// route took 0.89-0.92x the division tree's time at 0.57 used (10 KiB-5 MiB) and
+    /// 0.93-1.10x at 0.48-0.51; 5/8 forgoes the 0.57 cells. With `simd128` it took
+    /// 0.59-0.91x at 0.48 used (8.5 KiB-8.5 MiB, rising with size), and less above.
+    pub(super) const MIN_USED: usize = core::cfg_select! {
+        all(target_arch = "wasm32", target_feature = "simd128") => 0,
+        target_arch = "wasm32" => 9,
+        feature = "cache" => 12,
+        _ => 10,
+    };
+
+    /// The smallest input is larger on x86. On Zen 5 (IFMA Karatsuba in the division
+    /// tree, `benches/radix_tune.rs`) this route took 1.23-2.54x the division tree's time
+    /// at 4-16 KiB, and less from about 27 KiB. AVX-512 CPUs without IFMA are not measured.
+    /// With NEON and on Wasm the encoders' `ENCODE_THRESHOLD` equals this, so the route
+    /// replaces batched encoding. On M5 it took 0.95x the batched encoder's time at 3200
+    /// bytes and 1.01x at 3072. Under V8 (M5) it took 0.97x the batched time at 768 bytes
+    /// with `simd128` (0.83x at 896) and 0.97x at 3072 bytes without (0.84x at 3328); the
+    /// division tree beats batched encoding only from about 3 KiB (`simd128`) and 4.3 KiB
+    /// (scalar).
+    pub(in crate::ntt) const MIN_BYTES: usize = core::cfg_select! {
+        target_arch = "x86_64" => 27 << 10,
+        all(target_arch = "wasm32", target_feature = "simd128") => 768,
+        _ => 3072,
+    };
 }
 
+#[cfg(any(
+    test,
+    all(
+        any(not(feature = "cache"), feature = "__internals"),
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            target_arch = "wasm32"
+        )
+    )
+))]
+pub(super) use dispatch::MIN_BYTES;
+#[cfg(any(
+    test,
+    all(
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ),
+    all(target_arch = "x86_64", target_feature = "sse2"),
+    target_arch = "wasm32"
+))]
+pub(super) use dispatch::try_encode;
 #[cfg(all(
     feature = "check",
     feature = "alloc",
@@ -64,110 +161,7 @@ pub(super) fn try_encode(
         target_arch = "wasm32"
     )
 ))]
-pub(super) fn try_encode_staged(
-    zeros: usize,
-    end: usize,
-    output: &mut [u8],
-) -> Option<Result<usize, BufferTooSmall>> {
-    if !(supported() && preferred(end - zeros)) {
-        return None;
-    }
-    let digits = encode_value(zeros, &output[zeros..end], output.len(), Kernels::best())?;
-    Some(digits.and_then(|digits| write(zeros, &digits, output)))
-}
-
-/// Whether this CPU runs the route. x86 needs the AVX-512 transforms; AVX2-only hosts
-/// keep the division tree because no such host has been measured.
-#[cfg(any(
-    test,
-    all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    ),
-    all(target_arch = "x86_64", target_feature = "sse2"),
-    target_arch = "wasm32"
-))]
-fn supported() -> bool {
-    core::cfg_select! {
-        all(target_arch = "x86_64", target_feature = "sse2") => crate::cpu::avx512f(),
-        _ => true,
-    }
-}
-
-#[cfg(any(
-    test,
-    all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    ),
-    all(target_arch = "x86_64", target_feature = "sse2"),
-    target_arch = "wasm32"
-))]
-fn preferred(bytes: usize) -> bool {
-    let Some((_, _, points)) = layout(bytes) else {
-        return false;
-    };
-    bytes > MIN_BYTES && crate::encode::max_encoded_len(bytes).div_ceil(3) * 16 >= points * MIN_USED
-}
-
-/// The used fraction of the root transform that the route needs, in sixteenths. Full
-/// transforms waste work when heavily padded, and the balanced tree repeats roughly
-/// this padding ratio at each level. Natively it is 5/8, or 3/4 with `cache`, whose
-/// cached Matrix leaves speed up only the division tree. Same-binary sweeps
-/// (`benches/radix_tune.rs`, generic flags) put the crossover near 0.55 (M5) and 0.62
-/// (Zen 5) without `cache`, and near 0.7 on both with it. Not adopted: 7/8 forgoes
-/// 6-22% at 0.68-0.81 used; 9/16 loses 4-6% at 5 KiB (M5) and 4-25% on Zen 5; 5/8 with
-/// `cache` loses up to 13% (M5, 12 KiB). With `cache`, 3/4 still costs up to 3% at
-/// 13-14 KiB on M5.
-///
-/// Wasm division trees keep Horner leaves under both policies, which therefore share
-/// one rule. Under V8 (M5, both policies alike) the scalar crossover is near 0.5: the
-/// route took 0.89-0.92x the division tree's time at 0.57 used (10 KiB-5 MiB) and
-/// 0.93-1.10x at 0.48-0.51; 5/8 forgoes the 0.57 cells. With `simd128` it took
-/// 0.59-0.91x at 0.48 used (8.5 KiB-8.5 MiB, rising with size), and less above.
-#[cfg(any(
-    test,
-    all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    ),
-    all(target_arch = "x86_64", target_feature = "sse2"),
-    target_arch = "wasm32"
-))]
-const MIN_USED: usize = core::cfg_select! {
-    all(target_arch = "wasm32", target_feature = "simd128") => 0,
-    target_arch = "wasm32" => 9,
-    feature = "cache" => 12,
-    _ => 10,
-};
-
-/// The smallest input is larger on x86. On Zen 5 (IFMA Karatsuba in the division
-/// tree, `benches/radix_tune.rs`) this route took 1.23-2.54x the division tree's time
-/// at 4-16 KiB, and less from about 27 KiB. AVX-512 CPUs without IFMA are not measured.
-/// With NEON and on Wasm the encoders' `ENCODE_THRESHOLD` equals this, so the route
-/// replaces batched encoding. On M5 it took 0.95x the batched encoder's time at 3200
-/// bytes and 1.01x at 3072. Under V8 (M5) it took 0.97x the batched time at 768 bytes
-/// with `simd128` (0.83x at 896) and 0.97x at 3072 bytes without (0.84x at 3328); the
-/// division tree beats batched encoding only from about 3 KiB (`simd128`) and 4.3 KiB
-/// (scalar).
-#[cfg(any(
-    test,
-    all(
-        target_arch = "aarch64",
-        target_endian = "little",
-        target_feature = "neon"
-    ),
-    all(target_arch = "x86_64", target_feature = "sse2"),
-    target_arch = "wasm32"
-))]
-pub(super) const MIN_BYTES: usize = core::cfg_select! {
-    target_arch = "x86_64" => 27 << 10,
-    all(target_arch = "wasm32", target_feature = "simd128") => 768,
-    _ => 3072,
-};
+pub(super) use dispatch::try_encode_staged;
 
 fn layout(bytes: usize) -> Option<(usize, usize, usize)> {
     // This conservative byte limit also makes every sizing expression below fit
@@ -209,7 +203,10 @@ fn encode_value(
     } else {
         crate::encode::min_digits(crate::encode::bits(x))
     };
-    if zeros > output_capacity || output_capacity - zeros < minimum {
+    if output_capacity
+        .checked_sub(zeros)
+        .is_none_or(|rem| rem < minimum)
+    {
         return Some(Err(BufferTooSmall));
     }
     if levels == 0 {
@@ -228,7 +225,7 @@ fn encode_value(
             &owned
         }
     };
-    let power_capacity = |bytes| crate::encode::max_encoded_len(bytes + 1).div_ceil(3);
+    let power_capacity = |bytes| crate::encode::max_encoded_len(bytes).div_ceil(3);
     // Product slots need their untrimmed length, even when the power loses a digit.
     let storage_len = power_capacity(unit)
         + (1..levels)
@@ -363,8 +360,9 @@ impl Arithmetic<'_, '_> {
         }
         let len = a.len() + b.len();
         let out = &mut out[..len];
-        if a == [1] {
-            carry(out, |i| b.get(i).map_or(0, |&d| d as u64), add_len);
+        if let &[a0] = a {
+            let a0 = a0 as u64;
+            carry(out, |i| b.get(i).map_or(0, |&d| d as u64 * a0), add_len);
         } else if a.len().min(b.len()) < THRESHOLD {
             self.sums.clear();
             self.sums.resize(len, 0);
@@ -540,19 +538,27 @@ fn leaf_into(bytes: &[u8], out: &mut [u32]) -> usize {
         return 0;
     }
     let mut len = 0;
-    for chunk in bytes.chunks(5) {
-        let bits = 8 * chunk.len();
-        let mut carry = chunk.iter().fold(0u64, |c, &b| (c << 8) | b as u64);
+    let mut feed = |value: u64, bits: u32| {
+        let mut carry = value;
         for d in &mut out[..len] {
-            let value = ((*d as u64) << bits) + carry;
-            *d = (value % BASE as u64) as u32;
-            carry = value / BASE as u64;
+            let v = ((*d as u64) << bits) + carry;
+            *d = (v % BASE as u64) as u32;
+            carry = v / BASE as u64;
         }
         while carry != 0 {
             out[len] = (carry % BASE as u64) as u32;
             len += 1;
             carry /= BASE as u64;
         }
+    };
+    let (chunks, rem) = bytes.as_chunks::<5>();
+    for chunk in chunks {
+        let value = chunk.iter().fold(0u64, |c, &b| (c << 8) | b as u64);
+        feed(value, 40);
+    }
+    if !rem.is_empty() {
+        let value = rem.iter().fold(0u64, |c, &b| (c << 8) | b as u64);
+        feed(value, 8 * rem.len() as u32);
     }
     len
 }
@@ -582,32 +588,38 @@ fn convert(
     arithmetic.multiply_add(&high[..hi_len], p.digits, out, lo_len, p.spectrum)
 }
 
+#[inline(always)]
+fn three_digits(digit: u32) -> [u8; 3] {
+    debug_assert!(digit < BASE);
+    let [a, b] = crate::encode::matrix::CHAR_PAIRS[(digit / 58) as usize];
+    [a, b, ALPHABET[(digit % 58) as usize]]
+}
+
 fn write(zeros: usize, digits: &[u32], output: &mut [u8]) -> Result<usize, BufferTooSmall> {
-    let head = digits.last().copied().unwrap_or(0);
-    let head_len = if head == 0 {
-        0
-    } else if head < 58 {
-        1
-    } else if head < 58 * 58 {
-        2
-    } else {
-        3
+    let Some((&head, rest)) = digits.split_last() else {
+        let out = output.get_mut(..zeros).ok_or(BufferTooSmall)?;
+        if zeros != 0 {
+            out.fill(b'1');
+        }
+        return Ok(zeros);
     };
-    let len = zeros + digits.len().saturating_sub(1) * 3 + head_len;
-    if output.len() < len {
-        return Err(BufferTooSmall);
+    let head_chars = three_digits(head);
+    let skip = head_chars.iter().take_while(|&&c| c == b'1').count();
+    let head_len = 3 - skip;
+    let len = zeros + head_len + 3 * rest.len();
+    let out = output.get_mut(..len).ok_or(BufferTooSmall)?;
+    let (prefix, body) = out.split_at_mut(zeros + head_len);
+    if zeros != 0 {
+        prefix[..zeros].fill(b'1');
     }
-    output[..zeros].fill(b'1');
-    let mut at = zeros;
-    for (i, &digit) in digits.iter().rev().enumerate() {
-        let chars = [
-            ALPHABET[(digit / (58 * 58)) as usize],
-            ALPHABET[(digit / 58 % 58) as usize],
-            ALPHABET[(digit % 58) as usize],
-        ];
-        let chars = &chars[if i == 0 { 3 - head_len } else { 0 }..];
-        output[at..at + chars.len()].copy_from_slice(chars);
-        at += chars.len();
+    prefix[zeros..].copy_from_slice(&head_chars[skip..]);
+    for (dst, &digit) in body
+        .as_chunks_mut::<3>()
+        .0
+        .iter_mut()
+        .zip(rest.iter().rev())
+    {
+        *dst = three_digits(digit);
     }
     Ok(len)
 }
@@ -799,7 +811,7 @@ mod tests {
             let (_, _, points) = layout(bytes).unwrap();
             let digits = crate::encode::max_encoded_len(bytes).div_ceil(3);
             assert_eq!(digits * 16 / points, used, "{bytes} bytes");
-            let selected = supported() && bytes > MIN_BYTES && used >= MIN_USED;
+            let selected = dispatch::supported() && bytes > MIN_BYTES && used >= dispatch::MIN_USED;
             assert_eq!(
                 try_encode(0, &vec![255; bytes], &mut []),
                 selected.then_some(Err(BufferTooSmall)),
@@ -871,6 +883,19 @@ mod tests {
                     assert_eq!(
                         multiply_add(&mut arithmetic, &[1], &b, &add, Some(fb)),
                         one_sum
+                    );
+                    let max_digit = [BASE - 1];
+                    let single_sum: Vec<u32> =
+                        (&value(&max_digit) * &value(&b) + value(&add)).to_digits_asc(&BASE);
+                    let sums_cap = arithmetic.sums.capacity();
+                    assert_eq!(
+                        multiply_add(&mut arithmetic, &max_digit, &b, &add, Some(fb)),
+                        single_sum
+                    );
+                    assert_eq!(
+                        arithmetic.sums.capacity(),
+                        sums_cap,
+                        "single-digit multiply_add must not grow sums"
                     );
                     assert_eq!(multiply_add(&mut arithmetic, &[], &b, &add, Some(fb)), add);
                 }

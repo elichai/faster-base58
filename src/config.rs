@@ -6,11 +6,6 @@ use alloc::{string::String, vec::Vec};
 use crate::{BufferTooSmall, Error};
 
 #[derive(Debug, Clone, Copy)]
-enum Alphabet {
-    Bitcoin,
-}
-
-#[derive(Debug, Clone, Copy)]
 enum Check {
     None,
     #[cfg(feature = "check")]
@@ -29,7 +24,6 @@ enum Check {
 #[derive(Debug, Clone, Copy)]
 #[must_use]
 pub struct Encoder {
-    alphabet: Alphabet,
     check: Check,
 }
 
@@ -37,10 +31,7 @@ impl Encoder {
     /// Selects the Bitcoin alphabet without a checksum.
     #[inline(always)]
     pub const fn bitcoin() -> Self {
-        Self {
-            alphabet: Alphabet::Bitcoin,
-            check: Check::None,
-        }
+        Self { check: Check::None }
     }
 
     /// Appends a `Base58Check` checksum without inserting a version prefix.
@@ -111,13 +102,14 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
     #[cfg(feature = "alloc")]
     pub fn into_vec(self) -> Vec<u8> {
         let input = self.input.as_ref();
+        if input.is_empty() && matches!(self.encoder.check, Check::None) {
+            return Vec::new();
+        }
         let mut output = vec![0; self.encoder.max_encoded_len(input.len())];
-        let len = match (self.encoder.alphabet, self.encoder.check) {
-            (Alphabet::Bitcoin, Check::None) => crate::api::encode(input, &mut output),
+        let len = match self.encoder.check {
+            Check::None => crate::api::encode(input, &mut output),
             #[cfg(feature = "check")]
-            (Alphabet::Bitcoin, Check::Base58Check(version)) => {
-                crate::check::encode(input, &mut output, version)
-            }
+            Check::Base58Check(version) => crate::check::encode(input, &mut output, version),
         }
         .expect("max_encoded_len bounds the result");
         output.truncate(len);
@@ -132,10 +124,10 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
     /// Returns [`BufferTooSmall`] if `output` cannot hold the encoded result.
     #[inline(always)]
     pub fn onto(self, output: &mut [u8]) -> Result<&str, BufferTooSmall> {
-        let len = match (self.encoder.alphabet, self.encoder.check) {
-            (Alphabet::Bitcoin, Check::None) => crate::api::encode(self.input.as_ref(), output),
+        let len = match self.encoder.check {
+            Check::None => crate::api::encode(self.input.as_ref(), output),
             #[cfg(feature = "check")]
-            (Alphabet::Bitcoin, Check::Base58Check(version)) => {
+            Check::Base58Check(version) => {
                 crate::check::encode(self.input.as_ref(), output, version)
             }
         }?;
@@ -159,7 +151,6 @@ impl<I: AsRef<[u8]>> EncodeInput<I> {
 #[derive(Debug, Clone, Copy)]
 #[must_use]
 pub struct Decoder {
-    alphabet: Alphabet,
     check: Check,
 }
 
@@ -167,10 +158,7 @@ impl Decoder {
     /// Selects the Bitcoin alphabet without checksum validation.
     #[inline(always)]
     pub const fn bitcoin() -> Self {
-        Self {
-            alphabet: Alphabet::Bitcoin,
-            check: Check::None,
-        }
+        Self { check: Check::None }
     }
 
     /// Requires a valid `Base58Check` checksum without requiring a version.
@@ -221,10 +209,10 @@ impl<I: AsRef<[u8]>> DecodeInput<I> {
     #[inline(always)]
     #[cfg(feature = "alloc")]
     pub fn into_vec(self) -> Result<Vec<u8>, Error> {
-        match (self.decoder.alphabet, self.decoder.check) {
-            (Alphabet::Bitcoin, Check::None) => Ok(crate::api::decode_vec(self.input.as_ref())?),
+        match self.decoder.check {
+            Check::None => Ok(crate::api::decode_vec(self.input.as_ref())?),
             #[cfg(feature = "check")]
-            (Alphabet::Bitcoin, Check::Base58Check(version)) => {
+            Check::Base58Check(version) => {
                 let mut output = crate::api::decode_vec(self.input.as_ref())?;
                 let len = crate::check::verify(&output, version)?;
                 output.truncate(len);
@@ -243,10 +231,10 @@ impl<I: AsRef<[u8]>> DecodeInput<I> {
     /// missing/invalid checksum or unexpected version when checking is enabled.
     #[inline(always)]
     pub fn onto(self, output: &mut [u8]) -> Result<&mut [u8], Error> {
-        let len = match (self.decoder.alphabet, self.decoder.check) {
-            (Alphabet::Bitcoin, Check::None) => crate::api::decode(self.input.as_ref(), output)?,
+        let len = match self.decoder.check {
+            Check::None => crate::api::decode(self.input.as_ref(), output)?,
             #[cfg(feature = "check")]
-            (Alphabet::Bitcoin, Check::Base58Check(version)) => {
+            Check::Base58Check(version) => {
                 crate::check::decode(self.input.as_ref(), output, version)?
             }
         };

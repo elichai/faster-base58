@@ -51,10 +51,7 @@ use core::ptr;
 
 #[cfg(feature = "alloc")]
 use crate::dc;
-#[cfg(feature = "alloc")]
-use crate::dc::Leaf;
 use crate::dc::Multiplier;
-use crate::encode::Leaves;
 use crate::mul;
 #[cfg(feature = "cache")]
 use tables::cache::CACHE_MAX_LOG;
@@ -92,17 +89,37 @@ pub(crate) const ENCODE_THRESHOLD: usize = core::cfg_select! {
     ) => radix::MIN_BYTES,
     _ => 4096,
 };
+#[cfg(any(
+    test,
+    feature = "__internals",
+    not(all(
+        feature = "cache",
+        any(
+            all(
+                target_arch = "aarch64",
+                target_endian = "little",
+                target_feature = "neon"
+            ),
+            all(target_arch = "x86_64", target_feature = "sse2")
+        )
+    ))
+))]
 const ENCODE_LEAF: usize = 32;
 
-/// The leaf size of the caching encoders, which use [`Leaves::BEST`]. Matrix leaves pay off
+/// The leaf size of the caching encoders, which use `encode::dc::BestLeaf`. Matrix leaves pay off
 /// much larger with NEON: in one binary with loops aligned to 64 bytes (M5 Pro), 768
 /// chunks was 4-8% faster than 256 from 32 KiB to 1 MiB, and within 1% of 1024 there but
 /// 3-4% faster at 12 and 24 KiB. With the x86 kernels (Zen 5) 96 was best: 256 within 5%,
 /// 768 39% slower at 6 KiB and 58% at 8 KiB, where the whole input became one leaf.
-const CACHED_LEAF: usize = match Leaves::BEST {
-    Leaves::Horner => ENCODE_LEAF,
-    Leaves::Matrix if cfg!(target_arch = "x86_64") => 96,
-    Leaves::Matrix => 768,
+const CACHED_LEAF: usize = core::cfg_select! {
+    all(feature = "cache", target_arch = "x86_64", target_feature = "sse2") => 96,
+    all(
+        feature = "cache",
+        target_arch = "aarch64",
+        target_endian = "little",
+        target_feature = "neon"
+    ) => 768,
+    _ => ENCODE_LEAF,
 };
 
 /// Divide-and-conquer decoding with NTT multiplication and the feature-selected leaves.
@@ -118,13 +135,7 @@ pub(crate) fn decode(
     zeros: usize,
     output: &mut [u8],
 ) -> Result<usize, crate::common::DecodeError> {
-    dc::decode_parts(
-        digits,
-        zeros,
-        output,
-        &mut Ntt::new(Kernels::best()),
-        Leaf::BEST,
-    )
+    dc::decode_parts::<dc::BestLeaf>(digits, zeros, output, &mut Ntt::new(Kernels::best()))
 }
 
 /// [`crate::dc::decode_value`] with the NTT multiplier of [`decode`].
@@ -134,13 +145,7 @@ pub(crate) fn decode_value(
     zeros: usize,
     capacity: usize,
 ) -> Result<alloc::vec::Vec<u64>, crate::common::DecodeError> {
-    dc::decode_value(
-        digits,
-        zeros,
-        capacity,
-        &mut Ntt::new(Kernels::best()),
-        Leaf::BEST,
-    )
+    dc::decode_value::<dc::BestLeaf>(digits, zeros, capacity, &mut Ntt::new(Kernels::best()))
 }
 
 /// Large encoding with NTT multiplication. NEON, x86 AVX-512 and Wasm use a multiplication
@@ -169,7 +174,13 @@ pub(crate) fn encode(
         return result;
     }
     let m = &mut Ntt::new(Kernels::best());
-    crate::encode::dc::encode_parts(zeros, input, output, m, CACHED_LEAF, Leaves::BEST)
+    crate::encode::dc::encode_parts::<crate::encode::dc::BestLeaf>(
+        zeros,
+        input,
+        output,
+        m,
+        CACHED_LEAF,
+    )
 }
 
 #[cfg(all(feature = "check", feature = "alloc"))]
@@ -192,13 +203,12 @@ pub(crate) fn encode_staged(
     if let Some(result) = radix::try_encode_staged(zeros, end, output) {
         return result;
     }
-    crate::encode::dc::encode_staged(
+    crate::encode::dc::encode_staged::<crate::encode::dc::BestLeaf>(
         zeros,
         end,
         output,
         &mut Ntt::new(Kernels::best()),
         CACHED_LEAF,
-        Leaves::BEST,
     )
 }
 
@@ -367,26 +377,23 @@ impl Multiplier for Ntt {
     }
 
     fn mul_power(&mut self, out: &mut [u64], a: &[u64], i: usize, b: &[u64], s: &mut [u64]) {
-        match self.powers.get(i) {
-            // `b` is the prepared power, and the product fits its transforms, so also the
-            // tables. When `a` is `b`, the square takes `a`'s transforms from them too.
-            Some(Some(f))
-                if f.is(b)
-                    && a.len() >= self.prepared_threshold
-                    && log_len(a.len() + b.len()) <= f.log =>
-            {
-                // Preparing `f` initialized the tables, and `prepare` clears both.
-                transform(
-                    out,
-                    a,
-                    b,
-                    s,
-                    self.initialized_tables(),
-                    &self.kernels,
-                    Some(f),
-                )
-            }
-            _ => self.mul(out, a, b, s),
+        // `b` is the prepared power, and the product fits its transforms, so also the
+        // tables. When `a` is `b`, the square takes `a`'s transforms from them too.
+        if let Some(f) = self.powers.get(i).and_then(Option::as_ref).filter(|f| {
+            f.is(b) && a.len() >= self.prepared_threshold && log_len(a.len() + b.len()) <= f.log
+        }) {
+            // Preparing `f` initialized the tables, and `prepare` clears both.
+            transform(
+                out,
+                a,
+                b,
+                s,
+                self.initialized_tables(),
+                &self.kernels,
+                Some(f),
+            );
+        } else {
+            self.mul(out, a, b, s);
         }
     }
 
@@ -422,10 +429,11 @@ impl Multiplier for Ntt {
         s: &mut [u64],
     ) {
         self.ensure_tables();
-        let f = match self.powers.get(i) {
-            Some(Some(f)) if f.is(b) && log_len(out.len()) <= f.log => Some(f),
-            _ => None,
-        };
+        let f = self
+            .powers
+            .get(i)
+            .and_then(Option::as_ref)
+            .filter(|f| f.is(b) && log_len(out.len()) <= f.log);
         wrapped(out, a, b, s, self.initialized_tables(), &self.kernels, f);
     }
 }
@@ -829,8 +837,13 @@ fn pieces(
             if plan.k > 1
                 && let Some(w) = w
             {
-                let iw = &mut tmp[..d];
-                tables::invert_roots(iw, w);
+                let iw = if 2 * d <= tw.iw().len() {
+                    &tw.iw()[d..2 * d]
+                } else {
+                    let iw = &mut tmp[..d];
+                    tables::invert_roots(iw, w);
+                    iw
+                };
                 (k.twist)(x, iw, p);
             }
         };
@@ -843,8 +856,13 @@ fn pieces(
         product(rest, None);
         match *plan.nega() {
             [m] => {
-                let iw = &mut tmp[..m];
-                tables::invert_roots(iw, &tw.fw()[m..2 * m]);
+                let iw = if 2 * m <= tw.iw().len() {
+                    &tw.iw()[m..2 * m]
+                } else {
+                    let iw = &mut tmp[..m];
+                    tables::invert_roots(iw, &tw.fw()[m..2 * m]);
+                    iw
+                };
                 (k.pair)(r, m, iw, p);
             }
             ref nega => crt(r, nega, p, k),
@@ -946,8 +964,12 @@ fn crt(r: &mut [i32], nega: &[usize], p: Prime, k: &Kernels) {
 /// The scratch limbs from the first 64-byte boundary, at most 7 limbs in, as twice as
 /// many `i32`s: vector loads and stores that cross a cache line are slower.
 fn as_i32(s: &mut [u64]) -> &mut [i32] {
-    let skip = s.as_ptr().addr().wrapping_neg() % 64 / 8;
-    let s = &mut s[skip..];
+    let skip = s.as_ptr().align_offset(64);
+    let s = if skip < 8 && skip <= s.len() {
+        &mut s[skip..]
+    } else {
+        s
+    };
     // SAFETY: `u64` is at least as aligned as `i32`, the new slice covers the same
     // bytes, every bit pattern is a valid `i32`, and the borrow of `s` moves into it.
     unsafe { core::slice::from_raw_parts_mut(s.as_mut_ptr().cast(), 2 * s.len()) }
@@ -960,6 +982,7 @@ mod tests {
     };
     use super::*;
     use crate::dc::min_digits;
+    use crate::encode::Leaves;
     use crate::tests::{Decode, decode_vec, random_string};
     use crate::{dc, encode};
     use rand_xoshiro::Xoshiro256PlusPlus;
@@ -1193,10 +1216,70 @@ mod tests {
             let mut scratch = vec![0x5A5A_5A5A_5A5A_5A5A; scratch_len(n) + 7];
             for skip in 0..8 {
                 let s = &mut scratch[skip..][..scratch_len(n)];
-                assert_eq!(as_i32(s).as_ptr().addr() % 64, 0);
+                if align_of::<u64>() >= 8 {
+                    assert_eq!(as_i32(s).as_ptr().addr() % 64, 0);
+                }
                 let mut got = vec![0; 2 * n];
                 mul_with(&mut got, &a, &b, s, &t, &k, 1);
                 assert!(got == want, "{n} limbs, scratch {skip} limbs in");
+            }
+        }
+    }
+
+    /// On targets where `align_of::<u64>() == 4` (such as `i686`), a `&mut [u64]` can
+    /// start at a `4 mod 8` address that cannot reach a 64-byte boundary in `u64` steps.
+    /// [`as_i32`] keeps the full slice without dropping limbs or panicking, and
+    /// [`mul_with`] still produces the exact product.
+    #[test]
+    fn scratch_at_four_byte_alignment() {
+        #[repr(C, align(8))]
+        struct Offset<const N: usize> {
+            _pad: u32,
+            limbs: [u64; N],
+        }
+
+        // Short slice (< 7 limbs): must never panic at any offset.
+        let mut small = Offset {
+            _pad: 0,
+            limbs: [0x5A5A_5A5A_5A5A_5A5A; 16],
+        };
+        for skip in 0..8 {
+            let s = &mut small.limbs[skip..][..3];
+            let addr = s.as_ptr().addr();
+            let got = as_i32(s);
+            assert_eq!(got.as_ptr().addr() % 4, 0);
+            if align_of::<u64>() == 4 {
+                assert_eq!(addr % 8, 4);
+                assert_eq!(got.len(), 6);
+            }
+        }
+
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(43);
+        let (t, k) = (Tables::new(12), Kernels::best());
+        for n in [34, 129] {
+            let len = scratch_len(n);
+            let (a, b) = operands(&mut rng, n, n)[0].clone();
+            let mut want = vec![0; 2 * n];
+            mul::mul(&mut want, &a, &b, &mut vec![0; mul::scratch_len(n)]);
+            let mut scratch = alloc::boxed::Box::new(Offset {
+                _pad: 0,
+                limbs: [0x5A5A_5A5A_5A5A_5A5A; 2048],
+            });
+            assert!(len + 7 <= scratch.limbs.len());
+            for skip in 0..8 {
+                let s = &mut scratch.limbs[skip..][..len];
+                let addr = s.as_ptr().addr();
+                let i32s = as_i32(s);
+                if align_of::<u64>() == 4 {
+                    assert_eq!(addr % 8, 4);
+                    assert_eq!(i32s.len(), 2 * len);
+                    assert_eq!(i32s.as_ptr().addr() % 8, 4);
+                } else {
+                    assert_eq!(i32s.as_ptr().addr() % 64, 0);
+                }
+                let mut got = vec![0; 2 * n];
+                mul_with(&mut got, &a, &b, s, &t, &k, 1);
+                assert!(got == want, "{n} limbs, offset scratch {skip} limbs in");
             }
         }
     }
@@ -1843,5 +1926,100 @@ mod tests {
     /// `1 / x mod q`.
     fn inverse(x: i64, q: i64) -> i64 {
         crate::ntt::tables::tests::pow(x.rem_euclid(q) as u64, q as u64 - 2, q as u64) as i64
+    }
+
+    /// Checks every kernel in `k` bit-for-bit against [`Kernels::portable`].
+    #[cfg(any(
+        all(
+            target_arch = "aarch64",
+            target_endian = "little",
+            target_feature = "neon"
+        ),
+        all(target_arch = "wasm32", target_feature = "simd128")
+    ))]
+    pub(super) fn check_kernels_match_portable(k: &Kernels) {
+        use crate::ntt::tables::tests::samples;
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(40);
+        let tables = Tables::new(16);
+        for (p, tw) in PRIMES.into_iter().zip(&tables.tw) {
+            let mut iw = vec![0; tw.fw().len()];
+            let iw = tw.inverse(&mut iw);
+            for log in 3..=16 {
+                let n = 1 << log;
+                let x = samples(&mut rng, p.q, n)[..n].to_vec();
+                let y = samples(&mut rng, p.q, n)[..n].to_vec();
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.forward)(&mut a, p, tw.fw());
+                portable::forward(&mut b, p, tw.fw());
+                assert_eq!(a, b, "forward, n {n}");
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.inverse)(&mut a, p, iw);
+                portable::inverse(&mut b, p, iw);
+                assert_eq!(a, b, "inverse, n {n}");
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.pointwise)(&mut a, &y, p);
+                portable::pointwise(&mut b, &y, p);
+                assert_eq!(a, b, "pointwise, n {n}");
+                let (mut a, mut b) = (x.clone(), x.clone());
+                (k.square)(&mut a, p);
+                portable::square(&mut b, p);
+                assert_eq!(a, b, "square, n {n}");
+            }
+            for len in 0..=9 {
+                let limbs: Vec<u64> = (0..len).map(|_| rng.next_u64()).chain([u64::MAX]).collect();
+                let (mut a, mut b) = (vec![7; 2 * limbs.len() + 5], vec![9; 2 * limbs.len() + 5]);
+                (k.load)(&mut a, &limbs, p);
+                portable::load(&mut b, &limbs, p);
+                assert_eq!(a, b, "load, {} limbs", limbs.len());
+                let w = &tw.fw()[32..64];
+                (k.load_twist)(&mut a, &limbs, p, w);
+                portable::load_twist(&mut b, &limbs, p, w);
+                assert_eq!(a, b, "load_twist, {} limbs", limbs.len());
+                let d = samples(&mut rng, p.q, a.len())[..a.len()].to_vec();
+                for sub in [false, true] {
+                    let (mut a, mut b) = (d.clone(), d.clone());
+                    (k.load_add)(&mut a, &limbs, p, sub);
+                    portable::load_add(&mut b, &limbs, p, sub);
+                    assert_eq!(a, b, "load_add, {} limbs, sub {sub}", limbs.len());
+                }
+            }
+            let n = 4096;
+            let x = samples(&mut rng, p.q, n)[..n].to_vec();
+            let y = samples(&mut rng, p.q, n)[..n].to_vec();
+            let (mut a, mut b) = (x.clone(), x.clone());
+            (k.twist)(&mut a, &iw[n..], p);
+            portable::twist(&mut b, &iw[n..], p);
+            assert_eq!(a, b, "twist");
+            let ((mut a, mut c), (mut b, mut d)) = ((x.clone(), y.clone()), (x.clone(), y.clone()));
+            (k.halves)(&mut a, &mut c, p);
+            portable::halves(&mut b, &mut d, p);
+            assert_eq!((a, c), (b, d), "halves");
+            for (m, n) in [(8, 4), (64, 8), (1024, 256), (2048, 8)] {
+                let (mut a, mut b) = (x[..m + n].to_vec(), x[..m + n].to_vec());
+                let w = &iw[m..2 * m];
+                (k.pair)(&mut a, m, w, p);
+                portable::pair(&mut b, m, w, p);
+                assert_eq!(a, b, "pair, m {m}, n {n}");
+            }
+            for (d, start, len, neg) in [
+                (8, 8, 8, true),
+                (64, 72, 2000, true),
+                (256, 96, 3000, false),
+            ] {
+                let (mut a, mut b) = (y[..d].to_vec(), y[..d].to_vec());
+                (k.fold_sub)(&mut a, &x[..len], start, neg, p);
+                portable::fold_sub(&mut b, &x[..len], start, neg, p);
+                assert_eq!(a, b, "fold_sub, d {d}, start {start}");
+            }
+        }
+        let n = 4096;
+        let r: [Vec<i32>; 3] =
+            core::array::from_fn(|i| samples(&mut rng, PRIMES[i].q, n)[..n].to_vec());
+        let (mut a, mut b) = (r.clone(), r);
+        let [a1, a2, a3] = &mut a;
+        (k.garner)([a1, a2, a3]);
+        let [b1, b2, b3] = &mut b;
+        portable::garner([b1, b2, b3]);
+        assert_eq!(a, b, "garner");
     }
 }

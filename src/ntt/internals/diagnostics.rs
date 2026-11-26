@@ -12,11 +12,10 @@ pub fn decode_ntt_same_leaves(
     output: &mut [u8],
     cached: bool,
 ) -> Result<usize, Error> {
-    dc::decode_with_leaf(
+    dc::decode_with_leaf::<dc::BestLeaf>(
         input,
         output,
         &mut Ntt::with_cache(cached, Kernels::best()),
-        Leaf::BEST,
     )
 }
 

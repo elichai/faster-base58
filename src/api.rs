@@ -19,13 +19,10 @@ pub(crate) fn encode(input: &[u8], output: &mut [u8]) -> Result<usize, BufferToo
     match encode_backend(x.len()) {
         EncodeBackend::Batched => crate::encode::batched::encode_parts(zeros, x, output),
         #[cfg(not(feature = "cache"))]
-        EncodeBackend::Karatsuba { leaf } => crate::encode::dc::encode_parts(
-            zeros,
-            x,
-            output,
-            &mut crate::dc::Karatsuba,
-            leaf,
-            crate::encode::Leaves::Horner,
+        EncodeBackend::Karatsuba { leaf } => crate::encode::dc::encode_parts::<
+            crate::encode::dc::HornerLeaf,
+        >(
+            zeros, x, output, &mut crate::dc::Karatsuba, leaf
         ),
         #[cfg(feature = "cache")]
         EncodeBackend::Matrix => crate::encode::matrix::entry::encode(zeros, x, output),
@@ -124,12 +121,11 @@ pub(crate) fn decode_parts(
                 target_feature = "neon"
             ))
         ))]
-        DecodeBackend::Karatsuba => crate::dc::decode_parts(
+        DecodeBackend::Karatsuba => crate::dc::decode_parts::<crate::dc::HornerLeaf>(
             digits,
             zeros,
             output,
             &mut crate::dc::Karatsuba,
-            crate::dc::Leaf::Horner,
         ),
         #[cfg(feature = "cache")]
         DecodeBackend::Matrix => crate::matrix::entry::decode(input, zeros, output),
